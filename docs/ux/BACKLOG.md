@@ -8,11 +8,11 @@ Direção e fluxos em [`DIRECAO.md`](./DIRECAO.md). Feito nesta rodada no fim do
 
 | # | P | Dono | Problema | Onde | Recomendação |
 | --- | --- | --- | --- | --- | --- |
-| E1 | P1 | copia-figma | As ações de IA dentro de uma apresentação (Refazer uma tela 5, Reescrever o texto de uma tela 2, Gerar imagem para uma tela 20) já estão na tabela de preços como "em breve no editor", mas não existem. | `components/editor/MenuContexto.tsx`, `components/editor/inspetor/InspetorTela.tsx`, texto em `AbaDesign.tsx` | Item "Refazer tela com IA" no menu da tela e "Reescrever com IA" no inspetor de texto. Custos de `CUSTO_CREDITOS.refazerTela/reescrever/imagem` (`lib/planos.ts`); débito com `gastarCreditos`; sem saldo, `useCreditos().abrirCompra(motivo)` (o `CreditosProvider` já envolve o editor via `Shell`). Ao entregar, marcar `disponivel: true` em `ACOES_IA`. Migration futura: `kind 'refazer_tela'` em `ai_generations`. |
+| E1 | ✅ | ux | ~~Ações de IA dentro de uma apresentação "em breve no editor".~~ **Feito:** Reescrever o texto de uma tela (2) e Refazer uma tela (5) funcionam; Gerar imagem (20) aparece desligado "em breve". | `components/editor/ia/PainelIA.tsx`, `app/api/ai/texto`, `app/api/ai/tela`, `lib/ia/texto.ts`, `lib/ia/tela.ts` | Botão ✦ IA no cabeçalho, itens no menu de contexto e seção IA no inspetor de texto. Prévia antes/depois, aplicar = um passo de desfazer, aviso "não cabe na caixa", reserva local rotulada "exemplo local". `ACOES_IA` com `disponivel: true`. Decisões na [ADR 0009](../adr/0009-ia-no-editor.md). Pendente: imagem e `ai_generations`. |
 | E2 | P1 | copia-figma | Editor no celular: o cabeçalho estoura a largura (página com 544 px em 390 px; "Pré-visualizar" cortado). | `components/editor/EditorShell.tsx` (cabeçalho) | Abaixo de `sm`, esconder desfazer/refazer e mostrar só ícone em Pré-visualizar; título com `min-w-0 truncate`. |
-| E3 | P1 | copia-figma | Selo "Feito com Mostra" aparece no link do cliente em qualquer plano (inclusive Studio, que paga para tirar a marca). | `components/viewer/PaginaPublica.tsx:70` (`marca` sempre ligado) | Passar `marca={PLANOS[planoDoWorkspace].capacidades.marcaDaPlataforma}`; no modo demo, ler `estado().workspace.planoId`. |
-| E4 | P1 | copia-figma | O componente Compartilhar diz "Publique o projeto **no editor**" mesmo na página `/share`, que agora tem "Publicar agora"; avisos de rascunho aparecem duas vezes. Pluralização "1 ativo(s)". | `components/compartilhar/Compartilhar.tsx` | Prop `publicarFora?: boolean` para esconder os avisos quando a página já mostra `BarraPublicacao`; texto neutro "Publique antes de criar links"; "1 ativo / 2 ativos". |
-| E5 | P1 | copia-figma | Depois de gerar um link no modal do editor não há caminho para acompanhar; quem envia não descobre "Enviados". | `Compartilhar.tsx` (bloco do link novo) | Linha "Acompanhe as visualizações em Enviados →" ligando para `/app/compartilhados`. |
+| E3 | ✅ | ux | ~~Selo "Feito com Mostra" em qualquer plano.~~ **Feito:** o selo segue `marcaDaPlataforma` do plano do workspace (Free mostra; Plus/Pro/Studio não). | `components/viewer/PaginaPublica.tsx`, `lib/demo/store.ts` (`resolverToken` → `marca`), `app/api/share/[token]` (`brand`) | — |
+| E4 | ✅ | ux | ~~"Publique no editor" na página /share, avisos repetidos, "1 ativo(s)".~~ **Feito:** prop `publicarFora` (página Compartilhar e modal do editor já mostram o estado de publicação) esconde os avisos do componente; texto neutro "Publique antes de criar links" quando usado sozinho; "Publique acima para gerar links" ao lado do botão desligado; "1 ativo / 2 ativos", "1 visualização". | `components/compartilhar/Compartilhar.tsx` | — |
+| E5 | ✅ | ux | ~~Sem caminho para acompanhar depois de gerar o link.~~ **Feito:** "Acompanhe as visualizações em Enviados →" no bloco do link novo. | `Compartilhar.tsx` | — |
 | E6 | P2 | copia-figma | Avatar "MD" fixo no cabeçalho do editor (aparece "MD" para qualquer usuário). | `EditorShell.tsx:222` | Iniciais de `useDemo((e) => e.usuario.nome)`. |
 | E7 | P2 | copia-figma | O símbolo do canto do editor volta para os detalhes do projeto; não há caminho de um clique para o Início. | `EditorShell.tsx:208` | Trilha "Início / Nome do projeto" (o nome já está lá) com "Início" → `/app`. |
 | E8 | P2 | copia-figma | Slides 16:9 no celular em retrato ficam pequenos e com muito vazio; nenhuma dica de girar. | `components/viewer/Viewer.tsx` | Em retrato com tela horizontal, dica discreta "Gire o celular" uma vez por sessão; tocar nas metades esquerda/direita para navegar. |
@@ -26,7 +26,7 @@ Direção e fluxos em [`DIRECAO.md`](./DIRECAO.md). Feito nesta rodada no fim do
 | # | P | Problema | Onde | Próximo passo |
 | --- | --- | --- | --- | --- |
 | U1 | P1 | Créditos e compra só existem no navegador (demo); no backend real falta checkout de pacote e troca de plano. | `components/app/Creditos.tsx`, `lib/demo/store.ts` (`comprarPacote`, `trocarPlano`) | Rota `POST /api/billing/checkout` (Stripe) → webhook → `credit_transactions`; a UI já chama um ponto só. |
-| U2 | P1 | Avisos proativos de saldo: só aparece vermelho no cartão quando sobra < 2 apresentações. | `CartaoCreditos`, `Shell` | Toast único por sessão "Seu saldo dá ≈ 1 apresentação" com "Comprar"; e-mail no backend real. |
+| U2 | ✅ | ~~Avisos proativos de saldo.~~ **Feito:** toast único por sessão quando um gasto deixa o saldo em ≈ 1 apresentação de 10 telas ou menos, com "Comprar" (toasts com ação ficam 8 s). Falta o e-mail no backend real. | `components/app/Creditos.tsx` (`AvisoSaldoBaixo`) | E-mail "seu saldo está acabando" quando houver backend de notificações. |
 | U3 | P2 | "Primeiros passos" some sozinho quando tudo é feito, mas não pode ser dispensado antes. | `Dashboard.tsx` `PrimeirosPassos` | Botão "Dispensar" com preferência em `localStorage` (é conveniência por pessoa). |
 | U4 | P2 | Notificação quando o cliente abre (o pedido principal de quem envia propostas). | Enviados, `Shell` | Ponto na barra lateral "Enviados" + lista "Aberto há 5 min" quando houver eventos com data. Depende de E9. |
 | U5 | P2 | Alterar senha e exportar dados são só demonstração (toast). | `Configuracoes.tsx` | Ligar ao Supabase Auth / job de exportação. |
@@ -34,7 +34,13 @@ Direção e fluxos em [`DIRECAO.md`](./DIRECAO.md). Feito nesta rodada no fim do
 | U7 | P2 | Troca de espaço/equipe (Studio "por membro") ainda não existe; o cartão do espaço leva ao plano. | `Shell.tsx` | Fase 2: seletor de espaço e convites. |
 | U8 | P2 | Criar com IA aceita só texto (.txt/.md/.html); PDF/DOCX pedem para colar. | `CriarComIA.tsx` `importar` | Extração no servidor (ADR 0008, pendências). |
 
-## Feito nesta rodada (ux)
+## Feito na rodada 3 (ux)
+
+- **IA no editor (E1):** Reescrever texto (mais curto, impactante, formal, simples, corrigir, traduzir para inglês/espanhol/português) e Refazer tela (com instrução opcional e o contexto das outras telas), rotas `/api/ai/texto` e `/api/ai/tela` no mesmo padrão de `/api/ai/roteiro`, reserva local determinística, créditos com compra quando falta saldo. ADR 0009.
+- **Compartilhar (E3–E5):** selo da plataforma por plano; sem avisos repetidos; pluralização; caminho para Enviados depois de gerar o link.
+- **Aviso de saldo (U2):** toast único por sessão com "Comprar".
+
+## Feito na rodada anterior (ux)
 
 - Créditos reescritos em apresentações (`lib/planos.ts`: `custoApresentacao`, `apresentacoesCom`, `textoApresentacoes`, `podeGerarTelas`, `ACOES_IA`; vídeo removido) e aplicados em landing, painel, Criar com IA, configurações e README.
 - Painel como centro: criar com IA no próprio painel, atalhos (em branco, template, importar), continuar, resumo de Enviados, cartão de créditos com compra, primeiros passos, grade com filtros/contagens/ordenação, capas 16:10 (Story inteiro).

@@ -13,4 +13,4 @@ A IA escreve **conteúdo e estrutura**; o **layout é determinístico**. A rota 
 Saldo compartilhado por workspace (`credit_balances`) com extrato imutável (`credit_transactions`), alterado só pela função `debitar_creditos` (service role; `execute` revogado de `anon`/`authenticated`). Custos em `lib/planos.ts` (`CUSTO_CREDITOS`: roteiro 10, tela 5…). A rota debita antes de chamar o modelo e **estorna** se a geração falhar. Novos workspaces recebem 400 créditos.
 
 ## Pendências
-Geração de imagens e vídeo (custos já definidos), reescrever tela no editor, registro em `ai_generations` a partir da rota, leitura de PDF/DOCX no servidor.
+Geração de imagens e vídeo (custos já definidos), registro em `ai_generations` a partir da rota, leitura de PDF/DOCX no servidor. Reescrever e refazer tela no editor: [ADR 0009](./0009-ia-no-editor.md).

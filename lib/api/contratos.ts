@@ -184,6 +184,8 @@ export const ResolverShareRes = z.discriminatedUnion('state', [
     projectName: z.string(),
     document: DocumentoProjetoSchema,
     assets: z.record(z.string(), z.object({ url: z.string(), thumbUrl: z.string().nullable(), posterUrl: z.string().nullable() })),
+    /** Selo "Feito com Mostra": só nos planos com `marcaDaPlataforma` (lib/planos.ts). */
+    brand: z.boolean(),
     /** Grant curto para carregar mídia (cookie HttpOnly no mundo real). */
     grantExpiresAt: z.string(),
   }),

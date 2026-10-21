@@ -4,6 +4,7 @@ import { supabaseServidor } from '@/lib/supabase/servidor'
 import { estadoDoLink, hashToken, tokenValido } from '@/lib/share/token'
 import { idsDeAssets } from '@/lib/api/projetosServidor'
 import type { DocumentoProjeto } from '@/lib/scene/schema'
+import { PLANOS, type PlanoId } from '@/lib/planos'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +28,9 @@ export const GET = rota<{ token: string }>(async (req, { params }, requestId) =>
   const ids = idsDeAssets(documento)
   const { data: assets } = ids.length ? await sb.from('assets').select('id, storage_key, metadata_json').in('id', ids).eq('workspace_id', projeto.workspace_id).eq('status', 'ready').is('deleted_at', null) : { data: [] }
   const urls = await urlsAssinadas(sb, (assets ?? []) as { id: string; storage_key: string; metadata_json: { thumb_key?: string; poster_key?: string } }[])
+  // selo "Feito com Mostra" só nos planos que o exigem (na dúvida, mostra)
+  const { data: ws } = await sb.from('workspaces').select('plan_id').eq('id', projeto.workspace_id).maybeSingle()
+  const brand = PLANOS[(ws?.plan_id as PlanoId | undefined) ?? 'free']?.capacidades.marcaDaPlataforma ?? true
   await sb.rpc('increment_share_views', { p_link_id: link.id })
-  return responder({ state: 'ready', projectName: projeto.name, document: documento, assets: urls, grantExpiresAt: new Date(Date.now() + VALIDADE_URL_MIDIA_S * 1000).toISOString() }, requestId, 200, { headers: CABECALHOS })
+  return responder({ state: 'ready', projectName: projeto.name, document: documento, assets: urls, brand, grantExpiresAt: new Date(Date.now() + VALIDADE_URL_MIDIA_S * 1000).toISOString() }, requestId, 200, { headers: CABECALHOS })
 })

@@ -67,7 +67,7 @@ export function PaginaPublica({ token }: { token: string }) {
 
   return (
     <div className="h-dvh w-full bg-black">
-      <Viewer documento={res.documento} assets={res.assets} nome={res.projectName} marca />
+      <Viewer documento={res.documento} assets={res.assets} nome={res.projectName} marca={res.marca} />
     </div>
   )
 }

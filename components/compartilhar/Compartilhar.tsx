@@ -1,6 +1,7 @@
 'use client'
 import { useMemo, useState } from 'react'
-import { Check, Copy, Link2, Lock, ShieldOff } from 'lucide-react'
+import Link from 'next/link'
+import { ArrowRight, Check, Copy, Link2, Lock, ShieldOff } from 'lucide-react'
 import { criarLink, ErroDemo, listarLinks, obterProjeto, revogarLink } from '@/lib/demo/store'
 import { useDemo } from '@/lib/demo/useDemo'
 import { PLANOS } from '@/lib/planos'
@@ -10,7 +11,14 @@ import { useToast } from '@/components/ui/toast'
 
 const BASE = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '')
 
-export function Compartilhar({ projetoId }: { projetoId: string }) {
+const plural = (n: number, um: string, varios: string) => `${n.toLocaleString('pt-BR')} ${n === 1 ? um : varios}`
+
+/**
+ * Links privados de um projeto. `publicarFora`: quem monta o componente já mostra o estado de publicação
+ * com o botão Publicar (página Compartilhar com `BarraPublicacao`, modal do editor), então os avisos de
+ * rascunho não se repetem aqui.
+ */
+export function Compartilhar({ projetoId, publicarFora = false }: { projetoId: string; publicarFora?: boolean }) {
   const projeto = useDemo((e) => e.projetos.find((p) => p.id === projetoId))
   const links = useDemo(() => listarLinks(projetoId))
   const planoId = useDemo((e) => e.workspace.planoId)
@@ -51,8 +59,8 @@ export function Compartilhar({ projetoId }: { projetoId: string }) {
 
   return (
     <div className="space-y-6">
-      {!publicado && <p className="rounded-[10px] border-[1.5px] border-dashed border-bordaForte p-3 text-[13px] leading-normal text-texto2">Publique o projeto no editor antes de criar links. Convidados sempre veem a última revisão publicada, nunca o rascunho.</p>}
-      {desatualizado && <p className="rounded-[10px] bg-aviso/10 p-3 text-[13px] leading-normal text-texto">Há mudanças no rascunho que ainda não foram publicadas. Os links mostram a revisão {projeto.revisaoPublicada}.</p>}
+      {!publicarFora && !publicado && <p className="rounded-[10px] border-[1.5px] border-dashed border-bordaForte p-3 text-[13px] leading-normal text-texto2">Publique antes de criar links. Convidados sempre veem a última revisão publicada, nunca o rascunho.</p>}
+      {!publicarFora && desatualizado && <p className="rounded-[10px] bg-aviso/10 p-3 text-[13px] leading-normal text-texto">Há mudanças no rascunho que ainda não foram publicadas. Os links mostram a revisão {projeto.revisaoPublicada}.</p>}
 
       <section className="space-y-3">
         <h3 className="rotulo-mono">Novo link privado</h3>
@@ -67,7 +75,10 @@ export function Compartilhar({ projetoId }: { projetoId: string }) {
             {comSenha ? <Entrada type="text" autoComplete="off" placeholder="Senha para o cliente (4 a 64 caracteres)" value={senha} onChange={(e) => setSenha(e.target.value)} /> : <p className="text-xs text-texto2">{podeSenha ? 'Quem abrir o link precisará digitar a senha.' : 'Disponível a partir do plano Pro.'}</p>}
           </div>
         </div>
-        <Botao onClick={criar} carregando={criando} disabled={!publicado} icone={<Link2 className="h-4 w-4" />}>Gerar link</Botao>
+        <div className="flex flex-wrap items-center gap-3">
+          <Botao onClick={criar} carregando={criando} disabled={!publicado} icone={<Link2 className="h-4 w-4" />}>Gerar link</Botao>
+          {publicarFora && !publicado && <span className="text-[12px] text-texto2">Publique acima para gerar links.</span>}
+        </div>
         {novoToken && (
           <div className="rounded-[12px] border-2 border-grafite bg-superficie p-3 shadow-[4px_4px_0_#5965F2]">
             <p className="mb-1 text-xs font-medium">Seu link (exibido uma única vez)</p>
@@ -75,12 +86,13 @@ export function Compartilhar({ projetoId }: { projetoId: string }) {
               <code className="mono flex-1 truncate rounded-md bg-superficie2 px-2 py-1.5 text-xs">{urlDoLink(BASE, novoToken)}</code>
               <Botao tamanho="sm" variante="secundario" onClick={() => copiar(urlDoLink(BASE, novoToken))} icone={copiado ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}>{copiado ? 'Copiado' : 'Copiar'}</Botao>
             </div>
+            <Link href="/app/compartilhados" className="mt-2.5 inline-flex items-center gap-1 text-[12px] font-medium text-acento hover:underline">Acompanhe as visualizações em Enviados <ArrowRight className="h-3 w-3" /></Link>
           </div>
         )}
       </section>
 
       <section>
-        <h3 className="rotulo-mono mb-2">Links criados · {ativos.length} ativo(s)</h3>
+        <h3 className="rotulo-mono mb-2">Links criados · {plural(ativos.length, 'ativo', 'ativos')}</h3>
         {links.length === 0 ? (
           <p className="text-sm text-texto2">Nenhum link ainda.</p>
         ) : (
@@ -92,7 +104,7 @@ export function Compartilhar({ projetoId }: { projetoId: string }) {
                   <code className="text-xs text-texto2">…/p/{l.tokenPreview}••••</code>
                   <Selo tom={estado === 'ativo' ? 'sucesso' : estado === 'expirado' ? 'aviso' : 'neutro'}>{estado}</Selo>
                   {l.senhaHash && <span className="inline-flex items-center gap-1 text-xs text-texto2"><Lock className="h-3 w-3" /> senha</span>}
-                  <span className="text-xs text-texto2">{l.visualizacoes} visualizações · criado em {new Date(l.criadoEm).toLocaleDateString('pt-BR')}{l.expiraEm ? ` · expira ${new Date(l.expiraEm).toLocaleDateString('pt-BR')}` : ''}</span>
+                  <span className="text-xs text-texto2">{plural(l.visualizacoes, 'visualização', 'visualizações')} · criado em {new Date(l.criadoEm).toLocaleDateString('pt-BR')}{l.expiraEm ? ` · expira ${new Date(l.expiraEm).toLocaleDateString('pt-BR')}` : ''}</span>
                   <span className="ml-auto flex gap-1">
                     {estado === 'ativo' && l.tokenDemo && <Botao tamanho="sm" variante="fantasma" onClick={() => copiar(urlDoLink(BASE, l.tokenDemo))} icone={<Copy className="h-3.5 w-3.5" />}>Copiar</Botao>}
                     {estado === 'ativo' && <Botao tamanho="sm" variante="perigo" onClick={() => setRevogando(l.id)} icone={<ShieldOff className="h-3.5 w-3.5" />}>Revogar</Botao>}

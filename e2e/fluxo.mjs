@@ -232,7 +232,9 @@ await passo('AC-11 Link antes de publicar é recusado; publicar gera revisão', 
   await page.getByRole('button', { name: 'Compartilhar' }).click()
   const dlg = page.getByRole('dialog', { name: 'Compartilhar' })
   await dlg.getByText('ainda não publicado').waitFor()
-  await dlg.getByText('Publique o projeto no editor antes de criar links.', { exact: false }).waitFor()
+  // o modal já mostra o estado de publicação com "Publicar": o componente só aponta para ele, sem repetir o aviso
+  await dlg.getByText('Publique acima para gerar links.').waitFor()
+  if (await dlg.getByText('Há mudanças no rascunho').count()) throw new Error('aviso de rascunho repetido no modal')
   if (!(await dlg.getByRole('button', { name: 'Gerar link' }).isDisabled())) throw new Error('gerar link deveria estar desabilitado antes de publicar')
   await dlg.getByRole('button', { name: 'Publicar' }).click()
   await page.getByText(/Revisão \d+ publicada/).waitFor({ timeout: 10000 })

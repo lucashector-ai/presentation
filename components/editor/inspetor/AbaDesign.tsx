@@ -16,6 +16,7 @@ import { SecaoPreenchimento, SecaoTraco } from './SecaoPreenchimento'
 import { SecaoEfeitos } from './SecaoEfeitos'
 import { SecaoExportar } from './SecaoExportar'
 import { SecaoAcessibilidade, SecaoResponsivo, SecoesPrototipo } from './SecoesMostra'
+import { SecaoIA } from '../ia/SecaoIA'
 
 export { ICONE_TIPO, NOME_TIPO } from './selecao'
 export { resumoInteracoes } from './SecoesMostra'
@@ -31,6 +32,7 @@ export function AbaDesign({ editor, assets }: { editor: Editor; assets: AssetDem
       <SecaoAutoLayout {...p} />
       <SecaoAparencia {...p} />
       <SecoesDoTipo {...p} />
+      <SecaoIA editor={editor} />
       <SecaoPreenchimento {...p} />
       <SecaoTraco {...p} />
       <SecaoEfeitos {...p} />
