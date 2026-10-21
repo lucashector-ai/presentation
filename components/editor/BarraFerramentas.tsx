@@ -3,7 +3,7 @@
  * Ferramentas da barra superior (modelo do Figma): Mover V · Frame F · Formas (R O L ⇧L, num menu) ·
  * Caneta P · Texto T · Mídia · Hotspot S · Mão H.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
 import { ChevronDown, Circle, Crosshair, Frame, Hand, Image as ImageIcon, MousePointer2, MoveUpRight, PenTool, Slash, Square, Type } from 'lucide-react'
 import type { Ferramenta } from '@/lib/editor/atalhos'
 import { BotaoIcone, cx } from '@/components/ui'
