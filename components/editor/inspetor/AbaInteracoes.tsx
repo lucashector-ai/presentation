@@ -168,7 +168,7 @@ function EditorInteracoes({ camada, editor, assets }: { camada: Camada; editor: 
             )}
             {it.do.action === 'animate' && (
               <Secao titulo="Animação do elemento">
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-1.5">
                   <CampoNum prefixo="Duração" rotulo="Duração da animação" valor={it.do.animation.duration} min={100} max={3000} passo={50} sufixo="ms" aoMudar={(duration) => it.do.action === 'animate' && setAcao({ ...it.do, animation: { ...it.do.animation, duration } })} />
                   <SeletorLista rotulo="Efeito" valor={it.do.animation.type} aoMudar={(type) => it.do.action === 'animate' && setAcao({ ...it.do, animation: { ...it.do.animation, type: type as never } })} opcoes={[['fadeIn', 'Fade'], ['scaleIn', 'Escala'], ['slideUp', 'Subir'], ['blurIn', 'Desfoque'], ['rotateIn', 'Girar'], ['reveal', 'Máscara']].map(([id, rotulo]) => ({ id: id!, rotulo: rotulo! }))} />
                 </div>

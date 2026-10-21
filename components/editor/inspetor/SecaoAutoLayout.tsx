@@ -9,12 +9,11 @@
  * Usa só os controles de ./controles (sem estilo próprio além do pad 3×3).
  */
 import { useState } from 'react'
-import { ArrowDown, ArrowRight, Columns2, Frame, Minus, MoveHorizontal, Plus, Square, Type, WrapText } from 'lucide-react'
+import { ArrowDown, ArrowRight, Columns2, Frame, Minus, Plus, WrapText } from 'lucide-react'
 import type { AutoLayout, Camada, CamadaFrame, Dimensionamento } from '@/lib/scene/schema'
 import type { Editor } from '@/lib/editor/useEditor'
 import { LAYOUT_PADRAO } from '@/lib/editor/autolayout'
 import { mapaDe, paiDe, temAutoLayout } from '@/lib/scene/arvore'
-import { dimensionamentoDoModo, modoTexto, type ModoTexto } from '@/lib/editor/medirTexto'
 import { BotaoIcone, cx } from '@/components/ui'
 import { CampoCor, CampoNum, Interruptor, Linha, Secao, Segmentado, SeletorLista } from './controles'
 
@@ -34,7 +33,6 @@ export function SecaoAutoLayout({ editor }: { editor: Editor }) {
 
   return (
     <>
-      {unica?.type === 'text' && <RedimensionamentoTexto camada={unica} aoMudar={(m) => acoes.atualizarCamadas([unica.id], dimensionamentoDoModo(m))} />}
       {unica && paiComLayout && <FilhoDoLayout camada={unica} editor={editor} />}
       {unica?.type === 'frame' ? (
         <>
@@ -42,34 +40,22 @@ export function SecaoAutoLayout({ editor }: { editor: Editor }) {
           <AparenciaFrame frame={unica} editor={editor} />
         </>
       ) : (
+        // como no Figma: seção vazia é só o título com "+" (a explicação fica na dica)
         <Secao
           titulo="Auto layout"
-          acao={<BotaoIcone rotulo="Adicionar auto layout (Shift+A)" className="h-6 w-6" onClick={() => acoes.adicionarAutoLayout(ids)}><Plus className="h-3.5 w-3.5" /></BotaoIcone>}
-        >
-          <p className="text-[12px] text-texto2">Envolve {sel.length > 1 ? 'a seleção' : 'a camada'} num frame que se ajusta ao conteúdo. <button type="button" className="text-acento hover:underline" onClick={() => acoes.emoldurar(ids)}>Só frame (Ctrl+Alt+G)</button></p>
-        </Secao>
+          vazia
+          acao={
+            <>
+              <BotaoIcone rotulo="Envolver num frame sem auto layout (Ctrl+Alt+G)" className="h-6 w-6" onClick={() => acoes.emoldurar(ids)}><Frame className="h-3.5 w-3.5" /></BotaoIcone>
+              <BotaoIcone rotulo={`Adicionar auto layout (Shift+A): envolve ${sel.length > 1 ? 'a seleção' : 'a camada'} num frame que se ajusta ao conteúdo`} className="h-6 w-6" onClick={() => acoes.adicionarAutoLayout(ids)}><Plus className="h-3.5 w-3.5" /></BotaoIcone>
+            </>
+          }
+        />
       )}
     </>
   )
 }
 
-function RedimensionamentoTexto({ camada, aoMudar }: { camada: Camada; aoMudar: (m: ModoTexto) => void }) {
-  return (
-    <Secao titulo="Redimensionar texto">
-      <Segmentado<ModoTexto>
-        rotulo="Redimensionar texto"
-        valor={modoTexto(camada)}
-        aoMudar={aoMudar}
-        icones
-        opcoes={[
-          { id: 'larguraAuto', rotulo: 'Redimensionar: automático na horizontal', icone: <span className="flex items-center gap-1 text-[11px]"><MoveHorizontal className="h-3.5 w-3.5" /> Largura</span> },
-          { id: 'alturaAuto', rotulo: 'Redimensionar: automático na vertical', icone: <span className="flex items-center gap-1 text-[11px]"><Type className="h-3.5 w-3.5" /> Altura</span> },
-          { id: 'fixo', rotulo: 'Redimensionar: tamanho fixo', icone: <span className="flex items-center gap-1 text-[11px]"><Square className="h-3 w-3" /> Fixo</span> },
-        ]}
-      />
-    </Secao>
-  )
-}
 
 function FilhoDoLayout({ camada: l, editor }: { camada: Camada; editor: Editor }) {
   const { acoes } = editor
@@ -78,7 +64,7 @@ function FilhoDoLayout({ camada: l, editor }: { camada: Camada; editor: Editor }
   return (
     <Secao titulo="No auto layout">
       {!l.absolute && (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-1.5">
           <SeletorLista rotulo="Dimensionamento horizontal no auto layout" valor={l.sizingW ?? 'fixed'} opcoes={opcoes} aoMudar={(v) => acoes.atualizarCamadas([l.id], { sizingW: v as Dimensionamento })} />
           <SeletorLista rotulo="Dimensionamento vertical no auto layout" valor={l.sizingH ?? 'fixed'} opcoes={opcoes} aoMudar={(v) => acoes.atualizarCamadas([l.id], { sizingH: v as Dimensionamento })} />
         </div>
@@ -121,7 +107,7 @@ function PainelLayout({ frame: f, editor, podeFill }: { frame: CamadaFrame; edit
           { id: 'wrap', rotulo: 'Quebrar linha', icone: <WrapText className="h-3.5 w-3.5" /> },
         ]}
       />
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-1.5">
         <SeletorLista rotulo="Dimensionamento horizontal do frame" valor={f.sizingW ?? 'fixed'} opcoes={opcoesDim.map((o) => ({ ...o, rotulo: `L · ${o.rotulo}` }))} aoMudar={(v) => acoes.atualizarCamadas([f.id], { sizingW: v as Dimensionamento })} />
         <SeletorLista rotulo="Dimensionamento vertical do frame" valor={f.sizingH ?? 'fixed'} opcoes={opcoesDim.map((o) => ({ ...o, rotulo: `A · ${o.rotulo}` }))} aoMudar={(v) => acoes.atualizarCamadas([f.id], { sizingH: v as Dimensionamento })} />
       </div>
@@ -146,14 +132,14 @@ function PainelLayout({ frame: f, editor, podeFill }: { frame: CamadaFrame; edit
         <button type="button" aria-pressed={porLado} onClick={() => setPorLado((v) => !v)} className={cx('rounded px-1.5 py-0.5 text-[11px]', porLado ? 'bg-acentoSuave text-acento' : 'text-texto2 hover:bg-hover')}>Por lado</button>
       </div>
       {porLado ? (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-1.5">
           <CampoNum prefixo="↑" rotulo="Padding superior" valor={pad.top} min={0} max={2000} aoMudar={(top) => set({ padding: { ...pad, top } })} />
           <CampoNum prefixo="→" rotulo="Padding direito" valor={pad.right} min={0} max={2000} aoMudar={(right) => set({ padding: { ...pad, right } })} />
           <CampoNum prefixo="↓" rotulo="Padding inferior" valor={pad.bottom} min={0} max={2000} aoMudar={(bottom) => set({ padding: { ...pad, bottom } })} />
           <CampoNum prefixo="←" rotulo="Padding esquerdo" valor={pad.left} min={0} max={2000} aoMudar={(left) => set({ padding: { ...pad, left } })} />
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-1.5">
           <CampoNum prefixo="⇹" rotulo="Padding horizontal" valor={pad.left === pad.right ? pad.left : Math.round((pad.left + pad.right) / 2)} min={0} max={2000} aoMudar={(v) => set({ padding: { ...pad, left: v, right: v } })} />
           <CampoNum prefixo="⇳" rotulo="Padding vertical" valor={pad.top === pad.bottom ? pad.top : Math.round((pad.top + pad.bottom) / 2)} min={0} max={2000} aoMudar={(v) => set({ padding: { ...pad, top: v, bottom: v } })} />
         </div>

@@ -33,7 +33,7 @@ export function BotaoCampo({ rotulo, ativo, children, className, ...rest }: Reac
       aria-label={rotulo}
       title={rest.title ?? rotulo}
       aria-pressed={ativo}
-      className={cx('inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-35', ativo ? 'bg-acentoSuave text-acento' : 'text-texto2 hover:bg-hover hover:text-texto disabled:hover:bg-transparent', className)}
+      className={cx('inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-35', ativo ? 'bg-acentoSuave text-acento' : 'text-texto2 hover:bg-hover hover:text-texto disabled:hover:bg-transparent', className)}
       {...rest}
     >
       {children}
@@ -111,7 +111,7 @@ export function CampoNum({ prefixo, valor, aoMudar, aoDelta, min, max, passo = 1
     window.addEventListener('pointerup', soltar)
   }
   return (
-    <div title={titulo ?? rotulo} className={cx('flex min-w-0 flex-1 items-center rounded-md bg-superficie2 ring-inset', compacto ? 'h-7' : 'h-8', ' transition-shadow hover:ring-1 hover:ring-bordaForte focus-within:!ring-1 focus-within:!ring-acento', !prefixo && 'pl-2', desativado && 'opacity-50', className)}>
+    <div title={titulo ?? rotulo} className={cx('flex min-w-0 flex-1 items-center rounded-md bg-superficie2 ring-inset', compacto ? 'h-6' : 'h-7', ' transition-shadow hover:ring-1 hover:ring-bordaForte focus-within:!ring-1 focus-within:!ring-acento', !prefixo && 'pl-2', desativado && 'opacity-50', className)}>
       {prefixo !== undefined && (
         <span onPointerDown={arrastar} className={cx('flex h-full w-7 shrink-0 select-none items-center justify-center text-[11px] text-texto3', !desativado && 'cursor-ew-resize hover:text-texto2')} aria-hidden>
           {prefixo}

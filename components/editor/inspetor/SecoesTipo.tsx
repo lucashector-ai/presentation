@@ -54,9 +54,9 @@ function SecaoTexto({ c, set }: { c: CamadaTexto; set: Set }) {
   const s = (p: Partial<CamadaTexto>) => set(p as Partial<Camada>)
   return (
     <Secao titulo="Texto">
-      <textarea aria-label="Conteúdo do texto" rows={2} value={c.text} onChange={(e) => s({ text: e.target.value })} className="block w-full resize-y rounded-md bg-superficie2 px-2 py-1.5 text-[12px] leading-snug outline-none ring-inset hover:ring-1 hover:ring-bordaForte focus:!ring-1 focus:!ring-acento" />
+      <textarea aria-label="Conteúdo do texto" title="Conteúdo (também dá para editar com duplo clique no texto)" rows={1} value={c.text} onChange={(e) => s({ text: e.target.value })} className="block h-7 w-full resize-none overflow-hidden rounded-md bg-superficie2 px-2 py-[5px] text-[12px] leading-snug outline-none ring-inset transition-[height] hover:ring-1 hover:ring-bordaForte focus:h-16 focus:overflow-auto focus:!ring-1 focus:!ring-acento" />
       <SeletorLista rotulo="Fonte" valor={c.fontFamily} aoMudar={(fontFamily) => s({ fontFamily })} opcoes={[...(FONTES_APRESENTACAO as readonly string[]).includes(c.fontFamily) ? [] : [{ id: c.fontFamily, rotulo: c.fontFamily }], ...FONTES_APRESENTACAO.map((f) => ({ id: f, rotulo: f }))]} />
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-1.5">
         <SeletorLista rotulo="Peso" valor={String(c.fontWeight)} aoMudar={(v) => s({ fontWeight: Number(v) })} opcoes={[...(PESOS.some(([p]) => p === c.fontWeight) ? [] : [[c.fontWeight, String(c.fontWeight)] as [number, string]]), ...PESOS].map(([v, r]) => ({ id: String(v), rotulo: r }))} />
         <CampoNum prefixo={<IconeTamanho />} rotulo="Tamanho da fonte" valor={c.fontSize} min={6} max={800} aoMudar={(fontSize) => s({ fontSize })} />
         <CampoNum prefixo={<IconeEntrelinha />} rotulo="Entrelinha" titulo="Entrelinha (× tamanho)" valor={c.lineHeight} min={0.6} max={3} passo={0.05} casas={2} aoMudar={(lineHeight) => s({ lineHeight })} />
@@ -113,7 +113,7 @@ function SecaoImagem({ c, set, assets }: { c: CamadaImagem; set: Set; assets: As
         <Linha rotulo="Máscara"><SeletorLista rotulo="Máscara" valor={c.mask} aoMudar={(v) => s({ mask: v as CamadaImagem['mask'] })} opcoes={[{ id: 'none', rotulo: 'Nenhuma' }, { id: 'ellipse', rotulo: 'Círculo' }, { id: 'arch', rotulo: 'Arco' }, { id: 'triangle', rotulo: 'Triângulo' }]} /></Linha>
       </Secao>
       <Secao titulo="Recorte" vazia={!c.crop} aoAdicionar={!c.crop ? () => s({ crop: { x: 0.1, y: 0.1, w: 0.8, h: 0.8 } }) : undefined} rotuloAdicionar="Recortar imagem" aoRemover={c.crop ? () => s({ crop: undefined }) : undefined} rotuloRemover="Remover recorte">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-1.5">
           <CampoNum prefixo="X" rotulo="Recorte X (%)" valor={Math.round(crop.x * 100)} min={0} max={99} sufixo="%" aoMudar={(v) => s({ crop: { ...crop, x: v / 100, w: Math.min(crop.w, 1 - v / 100) } })} />
           <CampoNum prefixo="Y" rotulo="Recorte Y (%)" valor={Math.round(crop.y * 100)} min={0} max={99} sufixo="%" aoMudar={(v) => s({ crop: { ...crop, y: v / 100, h: Math.min(crop.h, 1 - v / 100) } })} />
           <CampoNum prefixo="W" rotulo="Recorte largura (%)" valor={Math.round(crop.w * 100)} min={1} max={100} sufixo="%" aoMudar={(v) => s({ crop: { ...crop, w: Math.min(v / 100, 1 - crop.x) } })} />

@@ -89,7 +89,7 @@ function DetalhesSombra({ sombra, aoMudar }: { sombra: Sombra; aoMudar: (f: (s: 
   return (
     <div className="space-y-2 rounded-lg border border-borda p-2">
       <SeletorLista rotulo="Sombra" valor={nome} aoMudar={(v) => { const p = SOMBRAS[v]; if (p) aoMudar(() => p) }} opcoes={Object.keys(NOMES_SOMBRA).filter((k) => k !== 'personalizada' || nome === 'personalizada').map((k) => ({ id: k, rotulo: NOMES_SOMBRA[k]! }))} />
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-1.5">
         <CampoNum prefixo="X" rotulo="Sombra X" valor={sombra.x} min={-200} max={200} aoMudar={(x) => aoMudar((s) => ({ ...s, x }))} />
         <CampoNum prefixo="Y" rotulo="Sombra Y" valor={sombra.y} min={-200} max={200} aoMudar={(y) => aoMudar((s) => ({ ...s, y }))} />
         <CampoNum prefixo={<IconeDesfoque />} rotulo="Desfoque da sombra" valor={sombra.blur} min={0} max={300} aoMudar={(blur) => aoMudar((s) => ({ ...s, blur }))} />
