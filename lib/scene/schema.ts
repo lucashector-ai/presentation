@@ -204,6 +204,14 @@ export type Gradiente = z.infer<typeof GradienteSchema>
 
 // ---------- camadas ----------
 
+/**
+ * Cantos independentes [superior esquerdo, superior direito, inferior direito, inferior esquerdo] em px.
+ * Aditivo: quando presente, substitui `radius` no renderizador; `radius` guarda o maior dos quatro
+ * (renderizadores antigos mostram um canto uniforme aproximado).
+ */
+export const RaiosSchema = z.tuple([z.number().min(0).max(999), z.number().min(0).max(999), z.number().min(0).max(999), z.number().min(0).max(999)])
+export type Raios = z.infer<typeof RaiosSchema>
+
 /** fixed = tamanho fixo · hug = abraçar conteúdo · fill = preencher o pai (auto layout). */
 export const DIMENSIONAMENTOS = ['fixed', 'hug', 'fill'] as const
 export type Dimensionamento = (typeof DIMENSIONAMENTOS)[number]
@@ -266,6 +274,12 @@ const CamadaBase = z.object({
   sizingH: z.enum(DIMENSIONAMENTOS).optional(),
   /** Filho de auto layout com posição absoluta (ignora o fluxo). */
   absolute: z.boolean().optional(),
+  /**
+   * Estilos de cor do documento ligados às propriedades de cor desta camada (`theme.colorStyles[].id`).
+   * A cor literal continua gravada na propriedade (fill/color/stroke/background); editar o estilo reescreve
+   * todas as camadas ligadas. Renderizadores ignoram este campo.
+   */
+  colorStyleIds: z.object({ fill: IdSchema.optional(), color: IdSchema.optional(), stroke: IdSchema.optional(), background: IdSchema.optional() }).optional(),
 })
 
 export const EncaixeSchema = z.enum(['contain', 'cover', 'fill'])
@@ -285,6 +299,7 @@ export const CamadaImagemSchema = CamadaBase.extend({
   assetId: IdSchema,
   fit: EncaixeSchema.default('cover'),
   radius: z.number().min(0).max(999).default(0),
+  radii: RaiosSchema.optional(),
   crop: RecorteSchema.optional(),
   adjust: AjustesImagemSchema.optional(),
   /** Máscara de forma aplicada à imagem. */
@@ -338,6 +353,7 @@ export const CamadaFormaSchema = CamadaBase.extend({
   /** Tracejado do contorno (0 = contínuo). */
   dash: z.number().min(0).max(100).default(0),
   radius: z.number().min(0).max(999).default(0),
+  radii: RaiosSchema.optional(),
   /** Textura listrada dos placeholders do design. */
   pattern: z.enum(['none', 'stripes', 'dots', 'grid']).default('none'),
 })
@@ -421,6 +437,7 @@ export const CamadaFrameSchema = CamadaBase.extend({
   stroke: CorSchema.optional(),
   strokeWidth: z.number().min(0).max(100).default(0),
   radius: z.number().min(0).max(999).default(0),
+  radii: RaiosSchema.optional(),
   /** Recorta o conteúdo nos limites do frame. */
   clip: z.boolean().default(false),
   /** Ausente = frame livre (filhos com posição própria). */
@@ -491,11 +508,21 @@ export const CenaSchema = z.object({
 })
 export type Cena = z.infer<typeof CenaSchema>
 
+/** Estilo de cor nomeado do documento (como os estilos de cor locais do Figma). */
+export const EstiloCorSchema = z.object({
+  id: IdSchema,
+  name: z.string().min(1).max(60),
+  color: CorSchema,
+})
+export type EstiloCor = z.infer<typeof EstiloCorSchema>
+
 export const TemaSchema = z.object({
   /** ID do par da paleta (lib/design-tokens.ts) usado como base. */
   palette: z.string().max(40).default('argila'),
   fontTitle: z.string().max(80).default('Geist'),
   fontBody: z.string().max(80).default('Geist'),
+  /** Estilos de cor nomeados (aditivo; ausente = nenhum). */
+  colorStyles: z.array(EstiloCorSchema).max(200).optional(),
 })
 export type Tema = z.infer<typeof TemaSchema>
 

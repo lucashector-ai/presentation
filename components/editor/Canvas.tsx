@@ -4,11 +4,13 @@
  * - Seleção: clique (frame/grupo externo), Shift+clique, ⌘/Ctrl+clique seleciona direto a camada funda,
  *   duplo clique entra no frame/grupo ou edita texto, arrastar no vazio = área
  * - Mover com encaixe estilo Figma (bordas, centros, tela, espaçamento igual, grade); limiar de 5 px de tela;
- *   Shift trava o eixo; ⌘/Ctrl desliga o encaixe; Alt mostra distâncias até a camada sob o cursor
+ *   Shift trava o eixo; ⌘/Ctrl desliga o encaixe; Alt mostra distâncias até a camada sob o cursor;
+ *   Alt ao começar a arrastar duplica (a cópia é arrastada, o original fica; um único desfazer)
  * - Redimensionar (8 alças) com encaixe; Shift proporcional, Alt a partir do centro
  * - Auto layout: arrastar um filho reordena (linha azul); soltar fora tira do frame; soltar sobre um frame coloca dentro
  * - Ferramenta Texto: clique cria texto com largura automática já em edição; arrastar cria largura fixa
- * - Ferramentas Forma/Hotspot: arraste para desenhar (ou clique para tamanho padrão)
+ * - Ferramentas Frame/Retângulo/Elipse/Hotspot: arraste para desenhar (ou clique para tamanho padrão);
+ *   Linha/Seta: arraste do início ao fim (Shift = passos de 45°)
  * - Zoom no cursor (Ctrl/⌘ + roda, pinça), pan (roda, espaço+arrastar, botão do meio, ferramenta Mão)
  * - Soltar arquivos/SVG/links na posição do cursor
  */
@@ -20,6 +22,7 @@ import { indiceDeInsercao, type Insercao } from '@/lib/editor/autolayout'
 import { alvoDoClique, ancestrais, comDescendentes, mapaDe, ocultasEfetivas, paiDe, raizDe, raizesDaSelecao, temAutoLayout } from '@/lib/scene/arvore'
 import { camadaNoPonto, contemPonto, envolvente, type Alca, type Retangulo } from '@/lib/scene/transform'
 import { indiceNoPonto, medirTexto, textoAutomatico } from '@/lib/editor/medirTexto'
+import { FERRAMENTAS_DESENHO, FORMA_DA_FERRAMENTA, caixaDeLinha } from '@/lib/editor/atalhos'
 import { pilhaFonte } from '@/lib/design-tokens'
 import { SceneRenderer, type AssetsResolvidos } from '@/components/renderer/SceneRenderer'
 import { useTamanho } from '@/components/renderer/useTamanho'
@@ -29,13 +32,17 @@ import { lerDataTransfer } from '@/lib/importar/clipboard'
 import { importarConteudo, type Avisar } from '@/lib/editor/importar'
 import type { AssetDemo } from '@/lib/demo/tipos'
 
+/** Cursor de duplicar (seta com uma segunda seta menor), preta com contorno branco; ponta em (3, 2). */
+const SVG_DUPLICAR = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M3 2v15l4-3.5 2.6 5.8 2.4-1-2.5-5.7h5Z" fill="#171717" stroke="#fff" stroke-width="1.3" stroke-linejoin="round"/><path d="M14.5 12.5v8l2.2-1.9 1.4 3.1 1.3-.55-1.35-3.1h2.75Z" fill="#171717" stroke="#fff" stroke-width="1.1" stroke-linejoin="round"/></svg>'
+const CURSOR_DUPLICAR = `url("data:image/svg+xml,${encodeURIComponent(SVG_DUPLICAR)}") 3 2, copy`
+
 const ALCAS: Alca[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
 const CURSORES: Record<Alca, string> = { n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize', ne: 'nesw-resize', sw: 'nesw-resize', nw: 'nwse-resize', se: 'nwse-resize' }
 const ZOOM_MIN = 0.05
 const ZOOM_MAX = 8
 
 type Gesto =
-  | { tipo: 'mover'; inicio: { x: number; y: number }; iniciais: Map<string, Retangulo>; raizes: string[]; caixa: Retangulo; moveu: boolean; antes: DocumentoProjeto; fluxo: boolean; delta: { x: number; y: number }; ponteiro: { x: number; y: number } }
+  | { tipo: 'mover'; inicio: { x: number; y: number }; iniciais: Map<string, Retangulo>; raizes: string[]; caixa: Retangulo; moveu: boolean; antes: DocumentoProjeto; fluxo: boolean; delta: { x: number; y: number }; ponteiro: { x: number; y: number }; duplicar: boolean }
   | { tipo: 'redimensionar'; alca: Alca; inicio: { x: number; y: number }; caixa: Retangulo; iniciais: Map<string, Retangulo>; antes: DocumentoProjeto }
   | { tipo: 'rotacionar'; centro: { x: number; y: number }; id: string; antes: DocumentoProjeto }
   | { tipo: 'area'; inicio: { x: number; y: number }; atual: { x: number; y: number }; base: string[] }
@@ -86,8 +93,12 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
     const padX = tamanho.width < 700 ? 48 : 128
     const ajuste = Math.max(ZOOM_MIN, Math.min((tamanho.width - padX) / cena.size.width, (tamanho.height - 160) / cena.size.height))
     const s = estado.zoom || ajuste
-    const ox = (tamanho.width - cena.size.width * s) / 2 + estado.pan.x
-    const oy = (tamanho.height - cena.size.height * s) / 2 + estado.pan.y
+    // origem da tela em pixels inteiros do dispositivo: bordas encostadas não deixam fresta (o renderizador
+    // arredonda as bordas das camadas relativas a esta origem)
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+    const px = (v: number) => Math.round(v * dpr) / dpr
+    const ox = px((tamanho.width - cena.size.width * s) / 2 + estado.pan.x)
+    const oy = px((tamanho.height - cena.size.height * s) / 2 + estado.pan.y)
     return { s, ox, oy, ajuste }
   }, [cena, tamanho, estado.zoom, estado.pan])
 
@@ -149,6 +160,23 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
     window.addEventListener('mostra:empurrou', g)
     return () => { window.removeEventListener('mostra:editar-texto', f); window.removeEventListener('mostra:empurrou', g) }
   }, [acoes])
+
+  // ⇧2: zoom na seleção (centraliza e ajusta com margem), como no Figma
+  useEffect(() => {
+    const z = () => {
+      const est = editor.estado
+      const c = est.documento.scenes.find((x) => x.id === est.cenaId)
+      const sel = c?.layers.filter((l) => est.selecao.includes(l.id)) ?? []
+      if (!c || !sel.length || !tamanho.width) return
+      const caixa = envolvente(sel)
+      const s2 = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.min((tamanho.width - 160) / Math.max(1, caixa.width), (tamanho.height - 160) / Math.max(1, caixa.height))))
+      const ox = tamanho.width / 2 - (caixa.x + caixa.width / 2) * s2
+      const oy = tamanho.height / 2 - (caixa.y + caixa.height / 2) * s2
+      acoes.ui({ zoom: s2, pan: { x: ox - (tamanho.width - c.size.width * s2) / 2, y: oy - (tamanho.height - c.size.height * s2) / 2 } })
+    }
+    window.addEventListener('mostra:zoom-selecao', z)
+    return () => window.removeEventListener('mostra:zoom-selecao', z)
+  }, [editor.estado, acoes, tamanho])
   useEffect(() => {
     if (!guiasTemporarias) return
     const t = window.setTimeout(() => setGuiasTemporarias(0), Math.max(0, guiasTemporarias - Date.now()))
@@ -210,7 +238,8 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
   const selecionadas = camadas.filter((l) => estado.selecao.includes(l.id))
   const caixaSel = selecionadas.length ? envolvente(selecionadas) : null
   const unica = selecionadas.length === 1 ? selecionadas[0]! : null
-  const ehDesenho = estado.ferramenta === 'texto' || estado.ferramenta === 'forma' || estado.ferramenta === 'hotspot'
+  const ehDesenho = FERRAMENTAS_DESENHO.includes(estado.ferramenta)
+  const linear = estado.ferramenta === 'linha' || estado.ferramenta === 'seta'
   const modoMao = estado.ferramenta === 'mao' || espaco
   const grade = estado.grade ? estado.gradePasso : 0
   const naGrade = (v: number) => (grade ? Math.round(v / grade) * grade : Math.round(v))
@@ -324,7 +353,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
       const raizCamadas = moviveis.filter((l) => raizes.includes(l.id))
       const so = raizCamadas.length === 1 ? raizCamadas[0]! : undefined
       const fluxo = !!so && !so.absolute && temAutoLayout(paiDe(so, mapa))
-      gesto.current = { tipo: 'mover', inicio: pc, iniciais: new Map(moviveis.map((l) => [l.id, { x: l.x, y: l.y, width: l.width, height: l.height }])), raizes, caixa: envolvente(raizCamadas), moveu: false, antes: acoes.documentoAtual(), fluxo, delta: { x: 0, y: 0 }, ponteiro: pc }
+      gesto.current = { tipo: 'mover', inicio: pc, iniciais: new Map(moviveis.map((l) => [l.id, { x: l.x, y: l.y, width: l.width, height: l.height }])), raizes, caixa: envolvente(raizCamadas), moveu: false, antes: acoes.documentoAtual(), fluxo, delta: { x: 0, y: 0 }, ponteiro: pc, duplicar: ev.altKey && !fluxo }
     }
   }
 
@@ -354,6 +383,15 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
         let dx = pc.x - g.inicio.x
         let dy = pc.y - g.inicio.y
         if (!g.moveu && Math.hypot(dx, dy) * vp.s < 3) return
+        if (!g.moveu && g.duplicar) {
+          // ⌥+arrastar: deixa o original no lugar e passa a arrastar a cópia (o gesto inteiro é um desfazer)
+          const ids = acoes.duplicarParaArrastar([...g.iniciais.keys()])
+          if (ids) {
+            g.iniciais = new Map([...g.iniciais].map(([id, r]) => [ids.get(id) ?? id, r]))
+            g.raizes = g.raizes.map((id) => ids.get(id) ?? id)
+            acoes.selecionarExato(g.raizes)
+          }
+        }
         g.moveu = true
         g.ponteiro = pc
         if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0 }
@@ -413,7 +451,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
         break
       }
       case 'desenhar': {
-        const alvo = ev.shiftKey && estado.ferramenta !== 'texto' ? quadrado(g.inicio, pc) : pc
+        const alvo = linear ? (ev.shiftKey ? caixaDeLinha(g.inicio, pc, 1, true).fim : pc) : ev.shiftKey && estado.ferramenta !== 'texto' ? quadrado(g.inicio, pc) : pc
         g.atual = { x: naGrade(alvo.x), y: naGrade(alvo.y) }
         forcar((n) => n + 1)
         break
@@ -456,11 +494,20 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
       if (estado.ferramenta === 'texto') {
         // clique = largura automática no ponto exato; arrastar = largura fixa (quebra linha, altura automática)
         criarTextoEm(pequeno ? { x: g.inicio.x, y: g.inicio.y, width: 1, height: 1 } : r, !pequeno)
+      } else if (linear) {
+        const seta = estado.ferramenta === 'seta'
+        const espessura = seta ? Math.max(16, Math.round(cena.size.width / 50)) : Math.max(2, Math.round(cena.size.width / 480))
+        const curto = Math.hypot(g.atual.x - g.inicio.x, g.atual.y - g.inicio.y) < 8
+        const fim = curto ? { x: g.inicio.x + cena.size.width * 0.18, y: g.inicio.y } : g.atual
+        const { x, y, width, height, rotation } = caixaDeLinha(g.inicio, fim, espessura, ev.shiftKey)
+        acoes.criarCamada({ type: 'shape', shape: seta ? 'arrow' : 'line', fill: '#171717', rotation, name: seta ? 'Seta' : 'Linha' }, { x, y, width, height })
       } else {
-        const tipo = estado.ferramenta === 'hotspot' ? 'hotspot' : 'shape'
         const padrao = { width: cena.size.width * 0.18, height: cena.size.width * 0.18 }
         const rect = pequeno ? { x: g.inicio.x, y: g.inicio.y, ...padrao } : r
-        acoes.criarCamada({ type: tipo }, { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) })
+        const caixa = { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.max(1, Math.round(rect.width)), height: Math.max(1, Math.round(rect.height)) }
+        if (estado.ferramenta === 'hotspot') acoes.criarCamada({ type: 'hotspot' }, caixa)
+        else if (estado.ferramenta === 'frame') acoes.criarCamada({ type: 'frame', name: 'Frame' }, caixa)
+        else acoes.criarCamada({ type: 'shape', shape: FORMA_DA_FERRAMENTA[estado.ferramenta] ?? 'rect' }, caixa)
       }
       if (!g.manterFerramenta && !ev.shiftKey) acoes.setFerramenta('mover')
     }
@@ -508,15 +555,19 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
   const telaCena = { x: vp.ox, y: vp.oy, width: cena.size.width * vp.s, height: cena.size.height * vp.s }
   const g = gesto.current
   const textoEmEdicao = editandoTexto ? (camadas.find((l) => l.id === editandoTexto) as CamadaTexto | undefined) : undefined
-  const cursor = modoMao ? (g?.tipo === 'pan' ? 'grabbing' : 'grab') : estado.ferramenta === 'texto' ? 'text' : ehDesenho ? 'crosshair' : 'default'
+  // ⌥ sobre uma camada (ou arrastando a cópia): cursor de duplicar, como no Figma
+  const duplicando = g?.tipo === 'mover' && g.duplicar
+  const cursorDuplicar = !g && alt && !ehDesenho && !modoMao && !editandoTexto && !!hover && !mapa.get(hover)?.locked
+  const cursor = modoMao ? (g?.tipo === 'pan' ? 'grabbing' : 'grab') : duplicando || cursorDuplicar ? CURSOR_DUPLICAR : estado.ferramenta === 'texto' ? 'text' : ehDesenho ? 'crosshair' : 'default'
   // grade visível: passo configurado, dobrado até ficar legível na tela
   let passoTela = estado.gradePasso * vp.s
   while (passoTela < 6) passoTela *= 2
 
   // Alt: distâncias da seleção até a camada sob o cursor (ou até o frame pai / a tela)
   const medidasAlt = (() => {
-    if (!alt || !caixaSel || editandoTexto || (g && g.tipo !== 'mover')) return []
-    const caixaAtual = g?.tipo === 'mover' && g.fluxo ? { ...g.caixa, x: g.caixa.x + g.delta.x, y: g.caixa.y + g.delta.y } : caixaSel
+    // só parado (arrastando com ⌥ = duplicar; aí valem as guias de encaixe)
+    if (!alt || !caixaSel || editandoTexto || g) return []
+    const caixaAtual = caixaSel
     const h = hover && !estado.selecao.includes(hover) ? mapa.get(hover) : undefined
     const pai = unica ? paiDe(unica, mapa) : undefined
     const ref2 = h ?? pai ?? { x: 0, y: 0, width: cena.size.width, height: cena.size.height }
@@ -604,7 +655,8 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
 
       {/* área e desenho */}
       {g?.tipo === 'area' && (() => { const r = paraTela(retDe(g.inicio, g.atual)); return <div className="pointer-events-none absolute border border-acento bg-acento/10" style={{ left: r.x, top: r.y, width: r.width, height: r.height }} /> })()}
-      {g?.tipo === 'desenhar' && (() => { const r = paraTela(retDe(g.inicio, g.atual)); return <div className="pointer-events-none absolute border-[1.5px] border-acento bg-acento/10" style={{ left: r.x, top: r.y, width: r.width, height: r.height, borderRadius: estado.ferramenta === 'hotspot' ? 6 : 0, borderStyle: estado.ferramenta === 'hotspot' ? 'dashed' : 'solid' }} /> })()}
+      {g?.tipo === 'desenhar' && linear && (() => { const a = paraTela({ ...g.inicio, width: 0, height: 0 }); const b = paraTela({ ...g.atual, width: 0, height: 0 }); return <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" aria-hidden><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="rgb(89 101 242)" strokeWidth={1.5} /></svg> })()}
+      {g?.tipo === 'desenhar' && !linear && (() => { const r = paraTela(retDe(g.inicio, g.atual)); return <div className="pointer-events-none absolute border-[1.5px] border-acento bg-acento/10" style={{ left: r.x, top: r.y, width: r.width, height: r.height, borderRadius: estado.ferramenta === 'hotspot' ? 6 : estado.ferramenta === 'elipse' ? '50%' : 0, borderStyle: estado.ferramenta === 'hotspot' ? 'dashed' : 'solid' }} /> })()}
 
       {/* edição de texto no lugar: o documento muda a cada tecla (sem histórico); um passo de desfazer por sessão */}
       {textoEmEdicao && (() => {

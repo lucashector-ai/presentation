@@ -8,8 +8,9 @@
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowLeftRight, Minus, Pipette, X } from 'lucide-react'
-import type { Gradiente } from '@/lib/scene/schema'
+import { ArrowLeftRight, Check, Minus, Pencil, Pipette, Plus, Trash2, X } from 'lucide-react'
+import type { EstiloCor, Gradiente } from '@/lib/scene/schema'
+import { proximoNome } from '@/lib/editor/estilosCor'
 import { PALETA } from '@/lib/design-tokens'
 import { cx } from '@/components/ui'
 import { alfaDe, comAlfa, corNoGradiente, cssBarraGradiente, hexParaRgba, hsvParaHsl, hsvParaRgb, hslParaHsv, lerCor, mesmaCor, normalizarHex, rgbParaHsv, rgbaParaHex, type Hsv } from '@/lib/editor/cor'
@@ -65,10 +66,18 @@ export interface PropsSeletorCor {
   /** Tipos que este campo aceita (os outros aparecem desativados). */
   tipos?: TipoPintura[]
   titulo?: string
+  /** Estilo de cor ligado a este campo (se houver). */
+  estiloId?: string
+  /** Liga o campo a um estilo do documento (sem isto, escolher um estilo só copia a cor). */
+  aoEstilo?: (e: EstiloCor) => void
 }
 
-export function SeletorCor({ ancora, valor, aoMudar, aoFechar, tipos = ['solido'], titulo = 'Cor' }: PropsSeletorCor) {
-  const { gesto, coresDocumento, imagens } = useInspetor()
+export function SeletorCor({ ancora, valor, aoMudar, aoFechar, tipos = ['solido'], titulo = 'Cor', estiloId, aoEstilo }: PropsSeletorCor) {
+  const { gesto, coresDocumento, imagens, estilos } = useInspetor()
+  // editar um estilo: o seletor mexe na cor do estilo (todas as camadas ligadas mudam juntas)
+  const [editando, setEditando] = useState<string | null>(null)
+  const estiloEd = editando ? estilos?.lista.find((e) => e.id === editando) : undefined
+  const [salvando, setSalvando] = useState<string | null>(null)
   const ref = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
   const [aba, setAba] = useState<'personalizado' | 'paleta'>('personalizado')
@@ -78,9 +87,9 @@ export function SeletorCor({ ancora, valor, aoMudar, aoFechar, tipos = ['solido'
   useEffect(() => { setModoEstado(lerModo()); setContaGotas(typeof window !== 'undefined' && 'EyeDropper' in window) }, [])
   const setModo = (m: Modo) => { setModoEstado(m); try { localStorage.setItem(CHAVE_MODO, m) } catch { /* sem storage */ } }
 
-  const grad = valor.tipo === 'gradiente' ? valor.gradiente : null
+  const grad = !estiloEd && valor.tipo === 'gradiente' ? valor.gradiente : null
   const indiceSel = grad ? Math.min(paradaSel, grad.stops.length - 1) : 0
-  const corAtiva = valor.tipo === 'solido' ? valor.cor : grad ? (grad.stops[indiceSel]?.color ?? '#000000') : '#000000'
+  const corAtiva = estiloEd ? estiloEd.color : valor.tipo === 'solido' ? valor.cor : grad ? (grad.stops[indiceSel]?.color ?? '#000000') : '#000000'
 
   // HSV guardado em estado para não perder o matiz quando a cor fica cinza/preta.
   const [hsv, setHsv] = useState<Hsv>(() => rgbParaHsv(hexParaRgba(corAtiva) ?? { r: 0, g: 0, b: 0 }))
@@ -96,7 +105,8 @@ export function SeletorCor({ ancora, valor, aoMudar, aoFechar, tipos = ['solido'
   }, [corAtiva])
 
   const aplicarCor = (hex: string) => {
-    if (valor.tipo === 'solido') aoMudar({ tipo: 'solido', cor: hex })
+    if (estiloEd) estilos?.atualizar(estiloEd.id, { color: hex })
+    else if (valor.tipo === 'solido') aoMudar({ tipo: 'solido', cor: hex })
     else if (grad) aoMudar({ tipo: 'gradiente', gradiente: { ...grad, stops: grad.stops.map((s, i) => (i === indiceSel ? { ...s, color: hex } : s)) } })
   }
   const aplicarHsv = (n: Hsv, a = alfa) => { setHsv(n); aplicarCor(rgbaParaHex({ ...hsvParaRgb(n), a })) }
@@ -148,7 +158,7 @@ export function SeletorCor({ ancora, valor, aoMudar, aoFechar, tipos = ['solido'
       if (el?.contains(alvo) || ancora?.contains(alvo)) return
       fechar.current()
     }
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); fechar.current() } }
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); fechar.current() } }
     document.addEventListener('pointerdown', fora, true)
     document.addEventListener('keydown', esc)
     return () => {
@@ -199,7 +209,14 @@ export function SeletorCor({ ancora, valor, aoMudar, aoFechar, tipos = ['solido'
 
       {aba === 'personalizado' ? (
         <div className="space-y-3 p-2.5">
-          {tipos.length > 1 && (
+          {estiloEd && (
+            <div className="flex items-center gap-1.5 rounded-md bg-acentoSuave px-2 py-1.5">
+              <span className="text-[11px] text-acento">Estilo</span>
+              <input aria-label="Nome do estilo" defaultValue={estiloEd.name} key={estiloEd.id} maxLength={60} onBlur={(e) => e.target.value.trim() && e.target.value !== estiloEd.name && estilos?.atualizar(estiloEd.id, { name: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }} className="h-6 min-w-0 flex-1 rounded bg-superficie px-1.5 text-[12px] outline-none focus:ring-1 focus:ring-acento" />
+              <BotaoMini rotulo="Concluir edição do estilo" onClick={() => { setEditando(null); setAba('paleta') }}><Check className="h-3.5 w-3.5" /></BotaoMini>
+            </div>
+          )}
+          {!estiloEd && tipos.length > 1 && (
             <div role="radiogroup" aria-label="Tipo de preenchimento" className="flex items-center gap-0.5">
               {TIPOS.map((t) => {
                 const ok = tipos.includes(t.id)
@@ -212,7 +229,7 @@ export function SeletorCor({ ancora, valor, aoMudar, aoFechar, tipos = ['solido'
             </div>
           )}
 
-          {valor.tipo === 'imagem' ? (
+          {!estiloEd && valor.tipo === 'imagem' ? (
             <EscolhaImagem valor={valor} aoMudar={aoMudar} />
           ) : (
             <>
@@ -235,12 +252,33 @@ export function SeletorCor({ ancora, valor, aoMudar, aoFechar, tipos = ['solido'
               <CamposModo modo={modo} setModo={setModo} hsv={hsv} alfa={alfa} cor={corAtiva} aoHsv={(n, a) => aplicarHsv(n, a)} aoHex={aplicarTexto} />
             </>
           )}
-          {valor.tipo !== 'imagem' && coresDocumento.length > 0 && (
+          {!estiloEd && valor.tipo === 'solido' && estilos && (
+            salvando !== null ? (
+              <form className="flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); const novo = estilos.criar(salvando, corAtiva); aoEstilo?.(novo); setSalvando(null) }}>
+                <input aria-label="Nome do novo estilo" autoFocus value={salvando} maxLength={60} onChange={(e) => setSalvando(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setSalvando(null) } }} className="h-7 min-w-0 flex-1 rounded-md bg-superficie2 px-2 text-[12px] outline-none focus:ring-1 focus:ring-acento" />
+                <button type="submit" className="h-7 rounded-md bg-acento px-2.5 text-[12px] font-medium text-white hover:opacity-90">Salvar</button>
+              </form>
+            ) : (
+              <button type="button" onClick={() => setSalvando(proximoNome(estilos.lista))} className="flex h-7 w-full items-center justify-center gap-1.5 rounded-md text-[12px] text-texto2 hover:bg-hover hover:text-texto"><Plus className="h-3.5 w-3.5" /> Salvar como estilo</button>
+            )
+          )}
+          {!estiloEd && valor.tipo !== 'imagem' && coresDocumento.length > 0 && (
             <Amostras titulo="Nesta página" cores={coresDocumento.map((c) => ({ cor: c, nome: c }))} atual={corAtiva} aoEscolher={aplicarTexto} />
           )}
         </div>
       ) : (
         <div className="space-y-3 p-2.5">
+          {estilos && (
+            <ListaEstilos
+              estilos={estilos.lista}
+              ligado={estiloId}
+              aoEscolher={(e) => { if (aoEstilo) aoEstilo(e); else if (valor.tipo === 'imagem') aoMudar({ tipo: 'solido', cor: e.color }); else aplicarTexto(e.color) }}
+              aoEditar={(e) => { setEditando(e.id); setAba('personalizado') }}
+              aoRemover={(e) => estilos.remover(e.id)}
+              aoNovo={() => { setAba('personalizado'); setSalvando(proximoNome(estilos.lista)) }}
+              podeCriar={valor.tipo === 'solido'}
+            />
+          )}
           <Amostras titulo="Paleta Mostra" cores={paleta} atual={corAtiva} aoEscolher={(c) => { if (valor.tipo === 'imagem') aoMudar({ tipo: 'solido', cor: c }); else aplicarTexto(c) }} grande />
           {coresDocumento.length > 0 && <Amostras titulo="Nesta página" cores={coresDocumento.map((c) => ({ cor: c, nome: c }))} atual={corAtiva} aoEscolher={(c) => { if (valor.tipo === 'imagem') aoMudar({ tipo: 'solido', cor: c }); else aplicarTexto(c) }} />}
         </div>
@@ -401,6 +439,36 @@ function Amostras({ titulo, cores, atual, aoEscolher, grande }: { titulo: string
           <button key={c.cor} type="button" title={c.nome} aria-label={`${titulo}: ${c.nome}`} onClick={() => aoEscolher(c.cor)} className={cx('aspect-square rounded-[4px] shadow-[inset_0_0_0_1px_rgba(0,0,0,.1)] outline-none transition-transform hover:scale-110 focus-visible:ring-2 focus-visible:ring-acento', mesmaCor(c.cor, atual) && 'ring-2 ring-acento ring-offset-1')} style={{ background: alfaDe(c.cor) < 1 ? `linear-gradient(${c.cor}, ${c.cor}), ${XADREZ}` : c.cor }} />
         ))}
       </div>
+    </div>
+  )
+}
+
+// ---------- estilos do documento ----------
+
+function ListaEstilos({ estilos, ligado, aoEscolher, aoEditar, aoRemover, aoNovo, podeCriar }: { estilos: EstiloCor[]; ligado?: string; aoEscolher: (e: EstiloCor) => void; aoEditar: (e: EstiloCor) => void; aoRemover: (e: EstiloCor) => void; aoNovo: () => void; podeCriar: boolean }) {
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="text-[11px] font-medium text-texto2">Estilos</span>
+        {podeCriar && <BotaoMini rotulo="Criar estilo com a cor atual" onClick={aoNovo}><Plus className="h-3.5 w-3.5" /></BotaoMini>}
+      </div>
+      {estilos.length ? (
+        <ul role="list" aria-label="Estilos de cor do documento" className="-mx-1 max-h-[180px] overflow-y-auto rolagem-fina">
+          {estilos.map((e) => (
+            <li key={e.id} className={cx('group flex items-center gap-1 rounded-md pr-1', ligado === e.id ? 'bg-acentoSuave' : 'hover:bg-hover')}>
+              <button type="button" aria-label={`Aplicar estilo ${e.name}`} aria-pressed={ligado === e.id} onClick={() => aoEscolher(e)} className="flex h-7 min-w-0 flex-1 items-center gap-2 px-1 text-left text-[12px] outline-none focus-visible:ring-1 focus-visible:ring-acento">
+                <span className="h-4 w-4 shrink-0 rounded-[4px] shadow-[inset_0_0_0_1px_rgba(0,0,0,.12)]" style={{ background: alfaDe(e.color) < 1 ? `linear-gradient(${e.color}, ${e.color}), ${XADREZ}` : e.color }} />
+                <span className="min-w-0 flex-1 truncate">{e.name}</span>
+                <span className="mono text-[10px] uppercase text-texto3">{(normalizarHex(e.color) ?? e.color).slice(1, 7)}</span>
+              </button>
+              <BotaoMini rotulo={`Editar estilo ${e.name}`} className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100" onClick={() => aoEditar(e)}><Pencil className="h-3 w-3" /></BotaoMini>
+              <BotaoMini rotulo={`Excluir estilo ${e.name}`} className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100" onClick={() => aoRemover(e)}><Trash2 className="h-3 w-3" /></BotaoMini>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[11px] leading-snug text-texto3">Nenhum estilo ainda. Escolha uma cor e use “Salvar como estilo” para reutilizá-la em todo o documento.</p>
+      )}
     </div>
   )
 }

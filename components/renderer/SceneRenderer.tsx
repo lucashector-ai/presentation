@@ -17,7 +17,7 @@ import { costurar } from '@/lib/scene/costura'
 import { ancestrais, mapaDe } from '@/lib/scene/arvore'
 import { recolorirSvg, svgParaDataUrl } from '@/lib/importar/svg'
 import { pilhaFonte } from '@/lib/design-tokens'
-import { MASCARAS, filtroCss, gradienteCss, sombraCss, transformCss } from './estilos'
+import { MASCARAS, filtroCss, gradienteCss, raioCss, sombraCss, transformCss } from './estilos'
 import { TextoSegmentado, planoAnimacao, usePreviaAnimacao, varsAnimacao, type PedidoPrevia } from './animacao'
 import { Forma } from './camadas/Forma'
 import { Modelo3d } from './camadas/Modelo3d'
@@ -127,12 +127,13 @@ function herancaDeFrames(camadas: readonly Camada[]): Map<string, Heranca> {
       const y0 = Math.max(...clips.map((a) => a.y))
       const x1 = Math.min(...clips.map((a) => a.x + a.width))
       const y1 = Math.min(...clips.map((a) => a.y + a.height))
-      const raio = clips[0]!.radius
+      const f = clips[0]!
+      const raio = f.radii ? f.radii.map((x) => `${x}px`).join(' ') : f.radius ? `${f.radius}px` : ''
       const t = Math.max(0, y0 - c.y)
       const l = Math.max(0, x0 - c.x)
       const b = Math.max(0, c.y + c.height - y1)
       const d = Math.max(0, c.x + c.width - x1)
-      if (t || l || b || d) clip = `inset(${t}px ${d}px ${b}px ${l}px${raio && clips.length === 1 ? ` round ${raio}px` : ''})`
+      if (t || l || b || d) clip = `inset(${t}px ${d}px ${b}px ${l}px${raio && clips.length === 1 ? ` round ${raio}` : ''})`
     }
     r.set(c.id, { oculta: anc.some((a) => a.hidden), opacidade: anc.reduce((o, a) => o * a.opacity, 1), clip })
   }
@@ -250,7 +251,7 @@ function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, an
             boxSizing: 'border-box',
             background: c.gradient ? gradienteCss(c.gradient) : c.fill,
             border: c.stroke && c.strokeWidth ? `${c.strokeWidth}px solid ${c.stroke}` : undefined,
-            borderRadius: c.radius,
+            borderRadius: raioCss(c),
             boxShadow: sombraCss(e),
             filter: filtroCss(e, false),
           }}
@@ -264,7 +265,7 @@ function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, an
       const adj = c.adjust
       const filtroAjuste = adj ? `brightness(${adj.brightness}) contrast(${adj.contrast}) saturate(${adj.saturate}) grayscale(${adj.grayscale})` : ''
       return (
-        <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: c.radius, overflow: 'hidden', clipPath: MASCARAS[c.mask], boxShadow: c.mask === 'none' ? sombraCss(e) : undefined, filter: filtroCss(e, c.mask !== 'none', filtroAjuste) }}>
+        <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: raioCss(c), overflow: 'hidden', clipPath: MASCARAS[c.mask], boxShadow: c.mask === 'none' ? sombraCss(e) : undefined, filter: filtroCss(e, c.mask !== 'none', filtroAjuste) }}>
           <Midia src={a ? (modo === 'miniatura' ? a.thumbUrl || a.url : a.url) : undefined} fit={fit} crop={c.crop} />
         </div>
       )

@@ -218,6 +218,31 @@ describe('mapeamento de propriedades', () => {
     expect(v?.stops.map((s) => s.pos)).toEqual([0, 100])
   })
 
+  it('retângulo simples com cantos independentes vira forma com radii (sem SVG)', () => {
+    const r = converterMensagem(
+      msg([
+        {
+          guid: G(2),
+          ...filho(PAGINA, '!'),
+          type: 'ROUNDED_RECTANGLE',
+          size: { x: 200, y: 100 },
+          transform: T(0, 0),
+          rectangleCornerRadiiIndependent: true,
+          rectangleTopLeftCornerRadius: 24,
+          rectangleTopRightCornerRadius: 8,
+          rectangleBottomRightCornerRadius: 0,
+          rectangleBottomLeftCornerRadius: 80,
+          fillPaints: [solido(0, 0, 1)],
+        },
+      ]),
+      { cena: CENA }
+    )
+    const c = r.camadas[0]!.camada
+    // o canto de 80 é limitado à metade do lado menor (50), como no Figma
+    expect(c).toMatchObject({ type: 'shape', shape: 'rect', radii: [24, 8, 0, 50], radius: 50, fill: '#0000ff' })
+    expect(parseCamada(c)).toMatchObject({ radii: [24, 8, 0, 50] })
+  })
+
   it('gradiente radial, sombra interna e cantos diferentes viram SVG com defs', () => {
     const r = converterMensagem(
       msg([

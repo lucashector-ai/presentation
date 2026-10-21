@@ -317,14 +317,20 @@ function formaSimples(nc: NodeChange, forma: 'rect' | 'ellipse', ctx: Contexto):
     props.strokeWidth = peso
   }
   if (forma === 'rect') {
-    const r = raiosDe(nc)
-    if (r.some((x) => Math.abs(x - r[0]) > 0.01)) return null
-    props.radius = limitar(Math.min(r[0], Math.min(w, h) / 2), 0, 999)
+    Object.assign(props, propsRaios(raiosDe(nc), w, h))
   } else if (nc.arcData && ((nc.arcData.innerRadius ?? 0) > 0 || Math.abs((nc.arcData.endingAngle ?? Math.PI * 2) - (nc.arcData.startingAngle ?? 0)) < Math.PI * 2 - 1e-3)) return null
   const ef = efeitosCamada(nc, ctx)
   if (ef.complexo) return null
   if (ef.effects) props.effects = ef.effects
   return props
+}
+
+/** Raio único (`radius`) ou cantos independentes (`radii`, com `radius` = maior canto para renderizadores antigos). */
+export function propsRaios(r: readonly [number, number, number, number], w: number, h: number): { radius: number; radii?: [number, number, number, number] } {
+  const max = Math.min(w, h) / 2
+  const c = r.map((x) => r2(limitar(Math.min(x, max), 0, 999))) as [number, number, number, number]
+  if (c.every((x) => Math.abs(x - c[0]) <= 0.01)) return { radius: c[0] }
+  return { radius: Math.max(...c), radii: c }
 }
 
 // ---------- texto ----------
@@ -630,17 +636,16 @@ class Conversor {
     const { w, h } = tamanho(nc)
     const g = colocar(W, { x: 0, y: 0, w, h })
     if (!g) return false
-    const r = raiosDe(nc)
-    const raio = forma === 'rect' ? limitar(Math.min(Math.max(...r), Math.min(w, h) / 2), 0, 999) : 0
+    const raios = forma === 'rect' ? propsRaios(raiosDe(nc), w, h) : { radius: 0 }
     const ef = efeitosCamada(nc, this.ctx)
     const estN = { ...est, opacidade: est.opacidade * (nc.opacity ?? 1) * (p.opacity ?? 1) }
     const bytes = bytesDaImagem(p, this.ctx)
     if (bytes) {
       const fit = p.imageScaleMode === 'FIT' ? 'contain' : p.imageScaleMode === 'STRETCH' ? 'fill' : 'cover'
-      this.empurrar(this.interna({ type: 'image', assetId: 'figma-imagem', fit, radius: raio, mask: forma === 'ellipse' ? 'ellipse' : 'none', ...(ef.effects ? { effects: ef.effects } : {}) }, g, estN, { imagem: bytes }), est, nc)
+      this.empurrar(this.interna({ type: 'image', assetId: 'figma-imagem', fit, ...raios, mask: forma === 'ellipse' ? 'ellipse' : 'none', ...(ef.effects ? { effects: ef.effects } : {}) }, g, estN, { imagem: bytes }), est, nc)
     } else {
       this.ctx.imagensFaltando += 1
-      this.empurrar(this.interna({ type: 'shape', shape: forma, fill: '#A3A3A340', pattern: 'stripes', radius: raio, name: `Imagem: ${nc.name ?? ''}`.slice(0, 80), ...(ef.effects ? { effects: ef.effects } : {}) }, g, estN, { imagemFaltando: true }), est, nc)
+      this.empurrar(this.interna({ type: 'shape', shape: forma, fill: '#A3A3A340', pattern: 'stripes', ...raios, name: `Imagem: ${nc.name ?? ''}`.slice(0, 80), ...(ef.effects ? { effects: ef.effects } : {}) }, g, estN, { imagemFaltando: true }), est, nc)
     }
     if (pinturasVisiveis(nc.fillPaints).length > 1) this.ctx.avisos.add('Camadas com imagem e outros preenchimentos ficaram só com a imagem.')
     return true
@@ -739,6 +744,7 @@ const r2 = (v: number) => Math.round(v * 100) / 100
 function escalarProps(p: Record<string, unknown>, s: number) {
   if (s === 1) return
   for (const k of ['fontSize', 'letterSpacing', 'padding', 'radius', 'strokeWidth', 'dash']) if (typeof p[k] === 'number') p[k] = (p[k] as number) * s
+  if (Array.isArray(p.radii)) p.radii = (p.radii as number[]).map((r) => Math.min(999, r * s))
   const ef = p.effects as Record<string, unknown> | undefined
   if (ef) {
     for (const k of ['blur', 'backdropBlur']) if (typeof ef[k] === 'number') ef[k] = (ef[k] as number) * s
