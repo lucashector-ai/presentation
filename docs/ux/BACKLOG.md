@@ -34,6 +34,12 @@ Direção e fluxos em [`DIRECAO.md`](./DIRECAO.md). Feito nesta rodada no fim do
 | U7 | P2 | Troca de espaço/equipe (Studio "por membro") ainda não existe; o cartão do espaço leva ao plano. | `Shell.tsx` | Fase 2: seletor de espaço e convites. |
 | U8 | P2 | Criar com IA aceita só texto (.txt/.md/.html); PDF/DOCX pedem para colar. | `CriarComIA.tsx` `importar` | Extração no servidor (ADR 0008, pendências). |
 
+## Feito na rodada do Criar com IA em passos (ux)
+
+- Fluxo em 8 passos com custo sempre visível; marca com logo (upload real), paleta do logo, paletas prontas, par de fontes e kit de marca por workspace (Neon, migração 0005; demo no armazenamento local); material com números, obrigatórios, a evitar e fotos próprias; galeria com 23 estilos, filtro e busca; 6 até 30 telas pelo plano; custo de "gerar outro roteiro" e "redesenhar telas" antes de cada ação.
+- Telas geradas com auto layout (sem caixas sobrepostas) e teste que cobre todos os estilos × componentes × variantes.
+- Fora desta rodada: imagens geradas por IA para os espaços de imagem; editar o kit de marca fora do Criar com IA (Plano e conta).
+
 ## Feito na rodada 3 (ux)
 
 - **IA no editor (E1):** Reescrever texto (mais curto, impactante, formal, simples, corrigir, traduzir para inglês/espanhol/português) e Refazer tela (com instrução opcional e o contexto das outras telas), rotas `/api/ai/texto` e `/api/ai/tela` no mesmo padrão de `/api/ai/roteiro`, reserva local determinística, créditos com compra quando falta saldo. ADR 0009.

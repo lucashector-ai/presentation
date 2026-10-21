@@ -68,15 +68,19 @@ Fonte única: `lib/planos.ts`. Landing (`components/marketing/dados.ts`), painel
 Pacotes avulsos (não expiram): 500/R$19 ≈ 8 · 2.000/R$59 ≈ 33 · 10.000/R$229 ≈ 166.
 
 Decisões:
-- **D1 — Créditos explicados em apresentações.** A pessoa pensa "quantas propostas consigo mandar este mês", não em "tokens". Toda exibição de saldo traz `textoApresentacoes()` ("≈ 16 apresentações"). A referência é 10 telas (tamanho típico de proposta); o Criar com IA recalcula para o número de telas escolhido ("seu saldo dá ≈ 368 apresentações assim").
+- **D1 — Créditos explicados em telas** (substituída por D6): a pessoa pensa em quantas apresentações consegue fazer, não em tokens; o saldo vira "≈ N telas com IA" com um exemplo de apresentações de 10 e de 20.
 - **D2 — "Gerar vídeo curto" (100) saiu.** Não existe no produto, não serve ao ciclo apresentação → link → cliente, e um item de 100 créditos distorcia a leitura "créditos ≈ apresentações" (um vídeo valeria quase duas apresentações). Se voltar, entra como ação *dentro* de uma tela ("Animar fundo da tela"), com custo próprio. O `kind 'video'` da tabela `ai_generations` (migration 0002) fica inofensivo; não exige migration.
 - **D3 — Ações secundárias sempre "de uma tela".** "Gerar uma tela" solto confundia (gera onde?); virou "Refazer uma tela" (5, mesmo preço de desenhar uma tela). Reescrever e imagem ganharam "para/de uma tela".
 - **D4 — Preços e pacotes mantidos.** A conta já fechava em apresentações (Plus: R$24 ≈ 16 apresentações ≈ R$1,50 cada). Nenhuma mudança de preço era necessária para a mensagem ficar clara.
-- **D5 — Limite de telas por plano aplicado na UI** (`podeGerarTelas`): o Free só vê 6/8/10 telas no Criar com IA e no painel, com "Ver planos".
+- **D5 — Limite de telas por plano aplicado na UI e na rota** (`podeGerarTelas`, `telasPorPrompt`): de 6 até o limite do plano (Free 12, Plus 20, Pro e Studio 30) no Criar com IA e no painel; acima do limite aparece o plano que libera, com "Ver planos".
 - **D6 — Demonstração debita créditos fictícios** mesmo com o gerador local, para o ciclo saldo → geração → compra ser visível. No backend real, a rota só debita quando o Claude escreve e estorna se falhar (ADR 0008).
 - **D8 — IA no editor muda texto, não layout** ([ADR 0009](../adr/0009-ia-no-editor.md)). Reescrever e Refazer devolvem conteúdo para as caixas que já existem (estilos, animações e interações ficam); prévia antes/depois e aplicar em um passo de desfazer. Sem IA conectada, regras locais rotuladas "exemplo local".
 - **D9 — Aviso de saldo uma vez por sessão.** Quando um gasto deixa o saldo em ≈ 1 apresentação, um toast com "Comprar" — antes de a pessoa dar de cara com um botão bloqueado.
 - **D7 — Compra e troca de plano funcionam na demonstração** (`comprarPacote`, `trocarPlano` em `lib/demo/store.ts`). Upgrade credita os créditos do mês na hora; downgrade não apaga nada (projetos acima do limite continuam abertos, só bloqueia criar novos) e o modal avisa isso antes.
+
+- **D6 — Créditos em telas.** O saldo é mostrado como telas com IA (`lib/telasIa.ts`: `textoTelas`, `exemploApresentacoes` — "≈ 4 apresentações de 10 ou 2 de 20"), nunca fixo em "apresentações de 10 telas". Valores vêm de `lib/planos.ts`/`lib/ia/economia.ts`.
+- **D7 — Criar com IA em passos.** Briefing → Marca → Material → Estilo → Tamanho → Revisar e gerar → Roteiro → Design. Passos opcionais se pulam com um clique ("Pular", "Ir para revisar"); a barra de baixo mostra sempre o custo; o que é grátis (marca, cores, logo, estilo, troca de estilo depois) diz "grátis". O atalho do painel entra direto, com prompt e tamanho preenchidos.
+- **D8 — Auto layout nas telas geradas.** Nada de caixas soltas empilhadas por conta: os grupos de conteúdo são frames de auto layout (gap do tema), textos abraçam a altura e o título com ênfase são duas partes num frame com gap 0. Se o conteúdo não cabe, a tela é montada de novo menor (nunca transborda nem sobrepõe).
 
 ## 4. Fluxos principais (cliques contados a partir do estado inicial; digitação não conta)
 

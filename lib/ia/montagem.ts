@@ -7,6 +7,8 @@
  * Os ids das camadas carregam o papel ("titulo-", "texto-", "item-", "valor-"…), usado pelas ações de IA
  * do editor (lib/ia/tela.ts). Puro: sem rede, sem DOM.
  */
+import { calcularLayout } from '@/lib/editor/autolayout'
+import type { Camada as CamadaCena } from '@/lib/scene/schema'
 import { COMPONENTES, alfa, contraste, legivel, luminanciaRelativa, misturar, regrasDe, superficie, type Alinhamento, type Decoracao, type Fundo, type Superficie, type TemaVisual, type TipoTela } from './designSystem'
 
 export type Estilo = 'editorial' | 'ousado' | 'minimal'
@@ -161,7 +163,24 @@ const iniciais = (nome: string) => nome.split(/[\s,]+/).filter((p) => /^\p{L}/u.
 
 // ---------------------------------------------------------------- montagem
 
-export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
+/**
+ * Montagem interna: `escala` encolhe textos, vãos e avatares quando o conteúdo não cabe na área (a tela é montada
+ * de novo, menor, em vez de transbordar); `fotos` guarda as fotos já tiradas da fila para a nova tentativa usar as mesmas.
+ */
+interface Interno { escala: number; fotos: (FotoMontagem | null)[] }
+
+export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Interno = { escala: 1, fotos: [] }): TelaMontada {
+  const E = interno.escala
+  /** Medida na escala da tentativa (só o que é grande o bastante para pesar). */
+  const esc = (n: number) => (n > 24 ? Math.round(n * E) : n)
+  let iFoto = 0
+  const proximaFoto = (): FotoMontagem | null => {
+    if (iFoto < interno.fotos.length) return interno.fotos[iFoto++] ?? null
+    const f = c.foto?.() ?? null
+    interno.fotos.push(f)
+    iFoto++
+    return f
+  }
   const t = c.tema
   const R = regrasDe(t)
   // estilos sem telas de acento (luxo, acadêmico, vidro…) trocam o acento cheio pela superfície oposta
@@ -223,6 +242,12 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
     hMax?: number
     /** Os tamanhos já vêm na escala do estilo (não escalar de novo). */
     escalado?: boolean
+    /** Frame de auto layout que contém o texto (a posição vem do layout). */
+    pai?: string
+    /** Largura "preencher" dentro do frame (senão fixa). */
+    fill?: boolean
+    /** Caixa exata das linhas (sem a folga de baixo): partes de um título empilhadas sem vão. */
+    justo?: boolean
   }
   const familia = (f: OpTexto['fonte']) => (f === 'titulo' ? F.titulo : f === 'mono' ? 'Geist Mono' : F.texto)
   /** Escala dos títulos do estilo (startup bold maior, acadêmico menor). */
@@ -231,6 +256,10 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
   /** Mede o título como ele vai ser montado (escala e caixa alta do estilo). */
   const caberTitulo = (txt: string, larg: number, tam: number[], max: number, op: { tracking?: number; peso?: number; alturaMax?: number } = {}) =>
     caber(txt, F.titulo, larg, escalar(tam), max, { tracking: op.tracking ?? F.tracking, peso: op.peso ?? F.pesoTitulo, alturaMax: op.alturaMax, maiusculas: R.caixaAlta })
+  /**
+   * Caixa de texto com altura que abraça o conteúdo (sizingH "hug": o editor mede de novo no DOM ao abrir e o
+   * auto layout empurra o resto). Dentro de um frame (`pai`), a posição vem do layout; a largura é fixa ou "preencher".
+   */
   const texto = (papel: string, txt: string, o0: OpTexto) => {
     const titulo = o0.fonte === 'titulo'
     const o: OpTexto = titulo
@@ -238,14 +267,15 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
       : o0
     const fonte = familia(o.fonte)
     const tracking = o.tracking ?? (o.fonte === 'titulo' ? F.tracking : o.fonte === 'mono' ? -0.12 : 0)
-    const lh = o.lh ?? (o.fonte === 'titulo' ? (/Serif|Fraunces|Playfair/.test(fonte) ? 1.06 : 1.02) : o.fonte === 'mono' ? 1.3 : 1.42)
+    const lh = o.lh ?? (o.fonte === 'titulo' ? (/Serif|Fraunces|Playfair|Cormorant/.test(fonte) ? 1.06 : 1.02) : o.fonte === 'mono' ? 1.3 : 1.42)
     const peso = o.peso ?? (o.fonte === 'titulo' ? F.pesoTitulo : o.fonte === 'mono' ? 500 : 400)
-    const { tamanho, linhas } = caber(txt, fonte, o.w, o.tamanhos, o.max ?? 3, { maiusculas: o.upper, tracking, peso, alturaMax: o.hMax, lh })
-    const h = Math.max(o.hMin ?? 0, Math.ceil(tamanho * lh * linhas + tamanho * 0.12))
+    const { tamanho, linhas } = caber(txt, fonte, o.w, o.tamanhos.map(esc), o.max ?? 3, { maiusculas: o.upper, tracking, peso, alturaMax: o.hMax, lh })
+    const h = Math.max(o.hMin ?? 0, Math.ceil(tamanho * lh * linhas + (o.justo ? 0 : tamanho * 0.12)))
     const l: Camada = {
-      id: c.uid(papel), type: 'text', text: txt, x: Math.round(o.x), y: Math.round(o.y), width: Math.round(o.w), height: h,
+      id: c.uid(papel), type: 'text', text: txt, x: Math.round(o.x), y: Math.round(o.y), width: Math.max(1, Math.round(o.w)), height: h,
       fontFamily: fonte, fontSize: tamanho, fontWeight: peso,
       lineHeight: lh, letterSpacing: Math.round(-tracking * tamanho * 10) / 10, color: o.cor ?? s.tinta,
+      sizingH: 'hug', ...(o.pai ? { parentId: o.pai, ...(o.fill ? { sizingW: 'fill' } : {}) } : {}),
       ...(o.upper ? { transform: 'uppercase' } : {}), ...(o.italic ? { italic: true } : {}), ...(o.align && o.align !== 'left' ? { align: o.align } : {}),
       ...(o.opacity !== undefined ? { opacity: o.opacity } : {}),
       ...(o.anim === null ? {} : { enterAnimation: o.anim ?? animTexto() }),
@@ -261,9 +291,81 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
   }
   const linha = (x: number, y: number, w: number, h = 2, cor = s.linha, extra: Record<string, unknown> = {}) => forma('fio', 'rect', x, y, w, h, { fill: cor, ...extra })
 
+  // ---------- auto layout ----------
+  type Alin = 'start' | 'center' | 'end'
+  interface OpFrame {
+    dir?: 'vertical' | 'horizontal' | 'wrap'
+    gap?: number
+    rowGap?: number
+    gapAuto?: boolean
+    pad?: number | { top: number; right: number; bottom: number; left: number }
+    alX?: Alin
+    alY?: Alin
+    /** Dimensionamento por eixo (padrão: largura fixa, altura abraça o conteúdo). */
+    w?: 'fixed' | 'hug' | 'fill'
+    h?: 'fixed' | 'hug' | 'fill'
+    pai?: string | null
+    extra?: Record<string, unknown>
+  }
+  /**
+   * Frame com auto layout (o mesmo do editor): os filhos se empilham com gap e padding e a altura abraça o
+   * conteúdo. Nada se sobrepõe e tudo continua editável como auto layout (reordenar, gap e padding no painel).
+   * Sem nome: a transição morph casa camadas pelo nome, e frames iguais em telas diferentes não devem casar.
+   */
+  const frame = (papel: string, x: number, y: number, w: number, h: number, o: OpFrame = {}): Camada => {
+    const p0 = typeof o.pad === 'number' ? { top: o.pad, right: o.pad, bottom: o.pad, left: o.pad } : (o.pad ?? { top: 0, right: 0, bottom: 0, left: 0 })
+    const pad = { top: esc(p0.top), right: esc(p0.right), bottom: esc(p0.bottom), left: esc(p0.left) }
+    const l: Camada = {
+      id: c.uid(papel), type: 'frame', x: Math.round(x), y: Math.round(y), width: Math.max(1, Math.round(w)), height: Math.max(1, Math.round(h)),
+      sizingW: o.w ?? 'fixed', sizingH: o.h ?? 'hug',
+      layout: { direction: o.dir ?? 'vertical', gap: esc(Math.round(o.gap ?? 0)), gapAuto: !!o.gapAuto, ...(o.rowGap !== undefined ? { rowGap: esc(Math.round(o.rowGap)) } : {}), padding: pad, alignX: o.alX ?? 'start', alignY: o.alY ?? 'start' },
+      ...(o.pai ? { parentId: o.pai } : {}),
+      ...o.extra,
+    }
+    L.push(l)
+    return l
+  }
+  type Layout = { direction: string; gap: number; rowGap?: number; gapAuto: boolean; padding: { top: number; right: number; bottom: number; left: number } }
+  const layoutDe = (f: Camada) => f.layout as Layout
+  /** Resolve o auto layout do que já foi montado (posição e tamanho finais de cada camada). */
+  const resolver = () => calcularLayout(L.map((l, i) => ({ ...l, z: i })) as unknown as CamadaCena[]) as unknown as Camada[]
+  /** Caixa final de um frame (depois do auto layout). */
+  const caixaDe = (f: Camada) => resolver().find((l) => l.id === f.id) ?? f
+  const altura = (f: Camada) => caixaDe(f).height
+  const fimDe = (f: Camada) => { const b = caixaDe(f); return b.y + b.height }
+  /** Coloca um frame (os filhos seguem pelo auto layout). */
+  const colocar = (f: Camada, x: number, y: number) => { f.x = Math.round(x); f.y = Math.round(y) }
+  const filhos = (f: Camada) => L.filter((l) => l.parentId === f.id && !l.absolute)
+  /** Abre o gap de um frame para ocupar a altura disponível (até `maxGap`), como uma lista que respira na tela. */
+  const espalhar = (f: Camada, disp: number, maxGap: number) => {
+    const n = filhos(f).length
+    const lay = layoutDe(f)
+    const sobra = disp - altura(f)
+    if (sobra <= 0) return
+    if (lay.direction === 'wrap') {
+      const linhas = new Set(resolver().filter((l) => l.parentId === f.id).map((l) => l.y)).size
+      if (linhas > 1) lay.rowGap = Math.round(Math.min(maxGap, (lay.rowGap ?? lay.gap) + sobra / (linhas - 1)))
+    } else if (n > 1) lay.gap = Math.round(Math.min(maxGap, lay.gap + sobra / (n - 1)))
+  }
+  /** Iguala a altura de frames irmãos (cartões de uma grade) pela maior, depois do auto layout. */
+  const igualar = (fs: Camada[], min = 0) => {
+    if (!fs.length) return 0
+    const r = resolver()
+    const hMax = Math.max(min, ...fs.map((f) => r.find((l) => l.id === f.id)?.height ?? f.height))
+    for (const f of fs) { f.sizingH = 'fixed'; f.height = Math.round(hMax) }
+    return hMax
+  }
+  /** Grade de auto layout (wrap): `cols` células de largura igual por linha, cada linha abraça a mais alta. */
+  const gradeAL = (papel: string, x: number, y: number, w: number, cols: number, gap: number, rowGap = gap, alX: Alin = 'start') => {
+    const g = frame(papel, x, y, w, 1, { dir: 'wrap', gap, rowGap, alX })
+    return { g, cw: Math.floor((w - (cols - 1) * gap) / cols) }
+  }
+  /** Posiciona um frame na área de conteúdo: um pouco acima do centro, como na grade de um editorial. */
+  const assentar = (f: Camada, y0: number, fim = fimConteudo, k = 0.42) => { const h = altura(f); colocar(f, f.x, y0 + Math.max(0, (fim - y0 - h) * k)); return h }
+
   const rotuloCor = s.tipo === 'acento' ? s.tinta : contraste(forte, s.fundo) >= 3 ? forte : s.suave
   /** Rótulo acima do título, no jeito do estilo: mono, pílula de cor, fio + mono ou itálico na fonte do título. */
-  const kicker = (txt0: string, x: number, y: number, w: number, align: 'left' | 'center' | 'right' = 'left') => {
+  const kicker = (txt0: string, x: number, y: number, w: number, align: 'left' | 'center' | 'right' = 'left', pai?: string) => {
     const txt = txt0.trim()
     if (!txt) return null
     const tam = st ? 24 : 20
@@ -272,46 +374,103 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
       const pad = st ? 12 : 10
       const larg = Math.min(w, Math.round(txt.length * tam * 0.66 + tam * 0.6 + pad * 2.4))
       const xp = align === 'center' ? x + (w - larg) / 2 : align === 'right' ? x + w - larg : x
-      return texto('rotulo', txt, { x: xp, y, w: larg, fonte: 'mono', tamanhos: [tam], max: 1, upper: true, tracking: -0.12, align: 'center', cor: legivel(fundoP, [s.fundo, '#FFFFFF', '#141414'], 4.5), anim: animTexto(0), hMin: Math.round(tam * 1.3 + pad * 2 + 2), extra: { background: fundoP, padding: pad, radius: 999 } })
+      return texto('rotulo', txt, { x: xp, y, w: larg, fonte: 'mono', tamanhos: [tam], max: 1, upper: true, tracking: -0.12, align: 'center', cor: legivel(fundoP, [s.fundo, '#FFFFFF', '#141414'], 4.5), anim: animTexto(0), hMin: Math.round(tam * 1.3 + pad * 2 + 2), pai, extra: { background: fundoP, padding: pad, radius: 999 } })
     }
-    if (R.rotulo === 'italico') return texto('rotulo', txt, { x, y, w, fonte: 'titulo', tamanhos: [st ? 38 : 32], max: 1, italic: true, upper: false, peso: 400, tracking: 0, cor: rotuloCor, align, anim: animTexto(0) })
+    if (R.rotulo === 'italico') return texto('rotulo', txt, { x, y, w, fonte: 'titulo', tamanhos: [st ? 38 : 32], max: 1, italic: true, upper: false, peso: 400, tracking: 0, cor: rotuloCor, align, anim: animTexto(0), pai, fill: !!pai })
     if (R.rotulo === 'fio') {
+      // fio + rótulo numa coluna própria (o fio acima, 14 px de vão)
       const lw = st ? 64 : 56
-      linha(align === 'center' ? x + (w - lw) / 2 : align === 'right' ? x + w - lw : x, y, lw, 3, s.tipo === 'acento' ? s.tinta : forte, { enterAnimation: { type: 'reveal', duration: dur(600), delay: 0, easing: 'easeOut' } })
-      return texto('rotulo', txt, { x, y: y + 18, w, fonte: 'mono', tamanhos: [tam], max: 1, upper: true, tracking: -0.14, cor: rotuloCor, align, anim: animTexto(0) })
+      const g = frame('grupo-rotulo', x, y, w, 1, { gap: 14, alX: align === 'center' ? 'center' : align === 'right' ? 'end' : 'start', pai, w: pai ? 'fill' : 'fixed' })
+      linha(x, y, lw, 3, s.tipo === 'acento' ? s.tinta : forte, { parentId: g.id, enterAnimation: { type: 'reveal', duration: dur(600), delay: 0, easing: 'easeOut' } })
+      const r = texto('rotulo', txt, { x, y: y + 17, w, fonte: 'mono', tamanhos: [tam], max: 1, upper: true, tracking: -0.14, cor: rotuloCor, align, anim: animTexto(0), pai: g.id, fill: true })
+      return { ...r, fim: y + 17 + r.h }
     }
-    return texto('rotulo', txt, { x, y, w, fonte: 'mono', tamanhos: [tam], max: 1, upper: true, tracking: -0.14, cor: rotuloCor, align, anim: animTexto(0) })
+    return texto('rotulo', txt, { x, y, w, fonte: 'mono', tamanhos: [tam], max: 1, upper: true, tracking: -0.14, cor: rotuloCor, align, anim: animTexto(0), pai, fill: !!pai })
   }
 
-  /** Título com o trecho final em destaque (duas camadas empilhadas) ou numa só. */
+  /**
+   * Título com o trecho final em destaque. O texto do schema não tem trechos com cor própria, então as duas partes
+   * vão empilhadas num frame de auto layout com gap 0 (caixas justas, uma embaixo da outra, sem sobrepor), ou
+   * num texto só quando não há ênfase. Dentro de `pai`, o título ocupa a largura do frame.
+   */
   const tituloEnfase = (txt: string, o0: Omit<OpTexto, 'tamanhos'> & { tamanhos: number[] }) => {
     const o = { ...o0, tamanhos: escalar(o0.tamanhos), escalado: true }
     const partesEnfase = c.estilo !== 'minimal' ? dividirEnfase(txt, d.enfase) : null
-    if (!partesEnfase) return texto('titulo', txt, { fonte: 'titulo', anim: animTitulo(), ...o })
+    if (!partesEnfase) return texto('titulo', txt, { fonte: 'titulo', anim: animTitulo(), fill: !!o.pai, ...o })
     const fonte = familia('titulo')
     const max = o.max ?? 3
     const linhasEm = (n: number) => caber(partesEnfase[0], fonte, o.w, [n], max, { tracking: F.tracking, peso: F.pesoTitulo, maiusculas: R.caixaAlta }).linhas + caber(partesEnfase[1], fonte, o.w, [n], max, { tracking: F.tracking, peso: F.pesoTitulo, maiusculas: R.caixaAlta }).linhas
     const tam = o.tamanhos.find((n) => linhasEm(n) <= max && (!o.hMax || n * 1.04 * linhasEm(n) <= o.hMax)) ?? o.tamanhos[o.tamanhos.length - 1]!
-    // a primeira parte assenta no pé da caixa: a sobra da estimativa de linhas fica acima, não entre as duas partes
-    const a = texto('titulo', partesEnfase[0], { fonte: 'titulo', anim: animTitulo(), ...o, tamanhos: [tam], max: 9, extra: { ...o.extra, valign: 'bottom' } })
+    const al = o.align === 'center' ? 'center' : o.align === 'right' ? 'end' : 'start'
+    const g = frame('grupo-titulo', o.x, o.y, o.w, 1, { gap: 0, alX: al, pai: o.pai, w: o.pai ? 'fill' : 'fixed' })
+    // o nome (morph da capa) fica só na primeira parte
+    const semNome = { ...o.extra }
+    delete semNome.name
+    const a = texto('titulo', partesEnfase[0], { fonte: 'titulo', anim: animTitulo(), ...o, tamanhos: [tam], max: 9, pai: g.id, fill: true, justo: true })
     const corB = s.tipo === 'acento' ? s.tinta : contraste(forte, s.fundo) >= 2.4 ? forte : s.tinta
-    const b = texto('enfase', partesEnfase[1], { fonte: 'titulo', anim: animTitulo(150), ...o, y: a.fim - Math.round(tam * 0.1), tamanhos: [tam], max: 9, cor: corB, italic: F.italicoCitacao && s.tipo !== 'acento' && !R.caixaAlta ? true : o.italic })
-    return { ...a, h: b.fim - a.l.y, fim: b.fim }
+    const b = texto('enfase', partesEnfase[1], { fonte: 'titulo', anim: animTitulo(150), ...o, extra: semNome, tamanhos: [tam], max: 9, cor: corB, italic: F.italicoCitacao && s.tipo !== 'acento' && !R.caixaAlta ? true : o.italic, pai: g.id, fill: true })
+    return { l: g, h: a.h + b.h, tamanho: tam, linhas: a.linhas + b.linhas, fim: o.y + a.h + b.h }
   }
 
-  /** Espaço para imagem: retângulo listrado com a descrição sugerida. */
-  const espacoImagem = (x: number, y: number, w: number, h: number, descricao: string, raio = 0) => {
+  /** Bloco de título: rótulo + título (com ênfase) + texto de apoio numa coluna de auto layout. */
+  interface OpBloco {
+    x: number; y: number; w: number
+    rotulo?: string | null
+    tamanhos: number[]
+    max?: number
+    hMax?: number
+    align?: 'left' | 'center'
+    texto?: { w?: number; tamanhos: number[]; max?: number; cor?: string } | null
+    gapRotulo?: number
+    gapTexto?: number
+    pai?: string
+    extraTitulo?: Record<string, unknown>
+    /** Fio entre o título e o texto (seção minimal). */
+    fio?: boolean
+    /** Título como texto simples (sem ênfase). */
+    simples?: boolean
+    italico?: boolean
+    tracking?: number
+    lh?: number
+  }
+  const bloco = (o: OpBloco): Camada => {
+    const al = o.align ?? 'left'
+    const alX: Alin = al === 'center' ? 'center' : 'start'
+    const b = frame('bloco', o.x, o.y, o.w, 1, { gap: o.gapTexto ?? (st ? 32 : 26), alX, pai: o.pai })
+    const temRotulo = !!o.rotulo?.trim()
+    const cab = temRotulo ? frame('cabecalho', o.x, o.y, o.w, 1, { gap: o.gapRotulo ?? (st ? 22 : 18), alX, pai: b.id, w: 'fill' }) : b
+    if (temRotulo) kicker(o.rotulo!, o.x, o.y, o.w, al, cab.id)
+    if (o.simples) texto('titulo', d.titulo, { x: o.x, y: o.y, w: o.w, fonte: 'titulo', tamanhos: o.tamanhos, max: o.max ?? 3, hMax: o.hMax, align: al, anim: animTitulo(), pai: cab.id, fill: true, italic: o.italico, tracking: o.tracking, lh: o.lh, extra: o.extraTitulo })
+    else tituloEnfase(d.titulo, { x: o.x, y: o.y, w: o.w, tamanhos: o.tamanhos, max: o.max ?? 3, hMax: o.hMax, align: al, pai: cab.id, extra: o.extraTitulo })
+    if (o.fio) linha(o.x, o.y, o.w, 2, s.linha, { parentId: b.id, sizingW: 'fill', enterAnimation: { type: 'reveal', duration: dur(900), delay: 200, easing: 'easeOut' } })
+    if (o.texto && d.texto) {
+      const tw = Math.min(o.texto.w ?? o.w, o.w)
+      texto('texto', d.texto, { x: o.x, y: o.y, w: tw, tamanhos: o.texto.tamanhos, max: o.texto.max ?? 3, cor: o.texto.cor ?? s.suave, align: al, pai: b.id, fill: tw >= o.w })
+    }
+    return b
+  }
+
+  /**
+   * Espaço para imagem: frame listrado (fixo) com a descrição sugerida no pé, ou a foto da pessoa. Dentro de um
+   * frame de auto layout (`pai`), entra no fluxo com o tamanho dado.
+   */
+  const espacoImagem = (x: number, y: number, w: number, h: number, descricao: string, raio = 0, pai?: string) => {
     // fotos da pessoa (enviadas antes de gerar) ocupam os espaços de imagem na ordem das telas, sem custo de IA
-    const foto = c.foto?.()
+    const foto = proximaFoto()
+    const caixaImg = { x: Math.round(x), y: Math.round(y), width: Math.max(1, Math.round(w)), height: Math.max(1, Math.round(h)) }
     if (foto) {
-      const l: Camada = { id: c.uid('foto'), type: 'image', assetId: foto.assetId, fit: 'cover', radius: raio, x: Math.round(x), y: Math.round(y), width: Math.max(1, Math.round(w)), height: Math.max(1, Math.round(h)), ariaLabel: (foto.legenda || descricao || 'Foto').slice(0, 200), enterAnimation: { type: 'fadeIn', duration: dur(700), delay: 100, easing: 'easeOut' } }
+      const l: Camada = { id: c.uid('foto'), type: 'image', assetId: foto.assetId, fit: 'cover', radius: raio, ...caixaImg, ...(pai ? { parentId: pai } : {}), ariaLabel: (foto.legenda || descricao || 'Foto').slice(0, 200), enterAnimation: { type: 'fadeIn', duration: dur(700), delay: 100, easing: 'easeOut' } }
       L.push(l)
-      return
+      return l
     }
     const base = s.tipo === 'escuro' ? misturar(s.fundo, s.tinta, 0.1) : misturar(s.fundo, s.tinta, 0.13)
-    forma('imagem', 'rect', x, y, w, h, { fill: base, pattern: 'stripes', radius: raio, ariaLabel: `Espaço para imagem${descricao ? `: ${descricao}` : ''}`, enterAnimation: { type: 'fadeIn', duration: 700, delay: 100, easing: 'easeOut' } })
+    const pad = st ? 36 : 32
+    const f = frame('imagem', x, y, w, h, { h: 'fixed', alY: 'end', pad: { top: pad, right: pad, bottom: Math.max(16, (st ? 84 : 72) - (st ? 44 : 36)), left: pad }, pai, extra: { radius: raio, clip: true, ariaLabel: `Espaço para imagem${descricao ? `: ${descricao}` : ''}`, enterAnimation: { type: 'fadeIn', duration: 700, delay: 100, easing: 'easeOut' } } })
+    // as listras ficam atrás, fora do fluxo (absolutas), do tamanho do espaço
+    forma('listras', 'rect', x, y, w, h, { parentId: f.id, absolute: true, fill: base, pattern: 'stripes', radius: raio, enterAnimation: { type: 'fadeIn', duration: 700, delay: 100, easing: 'easeOut' } })
     const leg = `▢  ${descricao.trim() || 'arraste sua imagem aqui'}`
-    texto('legenda', leg.slice(0, 90), { x: x + 32, y: y + h - (st ? 84 : 72), w: Math.max(200, w - 64), fonte: 'mono', tamanhos: [st ? 22 : 18, 16], max: 2, cor: legivel(base, [s.suave, s.tinta], 3), anim: null })
+    texto('legenda', leg.slice(0, 90), { x: x + pad, y: y + h - (st ? 84 : 72), w: Math.max(120, w - pad * 2), fonte: 'mono', tamanhos: [st ? 22 : 18, 16], max: 2, cor: legivel(base, [s.suave, s.tinta], 3), anim: null, pai: f.id, fill: true })
+    return f
   }
 
   // ---------- motivo do tema ----------
@@ -518,24 +677,18 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
   }
 
   // ---------- cabeçalho e rodapé das telas de conteúdo ----------
-  /** Rótulo + título + texto. Devolve onde o conteúdo pode começar. */
+  const temRodape = !['capa', 'secao', 'conceito', 'encerramento', 'cta', 'paleta', 'tipografia'].includes(d.tipo) && !['imagem.cheia', 'imagem.lateral', 'citacao.grande'].includes(d.variante)
+  const fimConteudo = temRodape ? H - MB - (st ? 56 : 40) : H - MB
+  /** Rótulo + título + texto num bloco de auto layout. Devolve onde o conteúdo pode começar. */
   const cabecalho = (o: { w?: number; x?: number; tamanhos?: number[]; max?: number; semTexto?: boolean; textoW?: number; y?: number } = {}) => {
     const x = o.x ?? M
     const w = o.w ?? (centro ? W - M * 2 : st ? W - M * 2 : wc(9))
-    const al = centro ? 'center' : 'left'
-    let y = o.y ?? MT
-    const k = kicker(d.rotulo, x, y, w, al)
-    if (k) y = k.fim + (st ? 22 : 18)
-    const tt = tituloEnfase(d.titulo, { x, y, w, tamanhos: o.tamanhos ?? (st ? [88, 80, 72, 64, 56] : [88, 80, 72, 64, 56]), max: o.max ?? (st ? 3 : 2), align: al })
-    y = tt.fim
-    if (d.texto && !o.semTexto) {
-      const tx = texto('texto', d.texto, { x: centro ? x + (w - (o.textoW ?? (st ? w : wc(8)))) / 2 : x, y: y + (st ? 28 : 22), w: o.textoW ?? (st ? w : wc(8)), tamanhos: st ? [38, 34] : [32, 29], max: 3, cor: s.suave, align: al })
-      y = tx.fim
-    }
-    return y + (st ? 72 : 56)
+    const b = bloco({
+      x, y: o.y ?? MT, w, rotulo: d.rotulo, tamanhos: o.tamanhos ?? [88, 80, 72, 64, 56], max: o.max ?? (st ? 3 : 2), align: centro ? 'center' : 'left',
+      texto: o.semTexto ? null : { w: o.textoW ?? (st ? w : wc(8)), tamanhos: st ? [38, 34] : [32, 29], max: 3 }, gapTexto: st ? 28 : 22,
+    })
+    return fimDe(b) + (st ? 72 : 56)
   }
-  const temRodape = !['capa', 'secao', 'conceito', 'encerramento', 'cta', 'paleta', 'tipografia'].includes(d.tipo) && !['imagem.cheia', 'imagem.lateral', 'citacao.grande'].includes(d.variante)
-  const fimConteudo = temRodape ? H - MB - (st ? 56 : 40) : H - MB
   const rodape = () => {
     const tam = st ? 22 : 16
     const esquerda = (c.marca || c.tituloProjeto).slice(0, 48)
@@ -548,25 +701,16 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
     texto('pagina', `${String(c.numero).padStart(2, '0')} / ${String(c.total).padStart(2, '0')}`, { x: W - M - 200, y, w: 200, fonte: 'mono', tamanhos: [tam], max: 1, cor: s.suave, opacity: 0.8, align: 'right', anim: null, extra: { name: 'pagina' } })
   }
 
-  /** Grade de n células numa área: colunas por linha conforme a quantidade. */
-  const grade = (n: number, x: number, y: number, w: number, h: number, maxCols = st ? 1 : 4, gap = st ? 28 : GUT) => {
-    const cols = Math.max(1, Math.min(maxCols, n <= 4 ? n : Math.ceil(n / 2)))
-    const linhas = Math.ceil(n / cols)
-    const cwid = (w - (cols - 1) * gap) / cols
-    const chei = (h - (linhas - 1) * gap) / linhas
-    return Array.from({ length: n }, (_, k) => ({ x: x + (k % cols) * (cwid + gap), y: y + Math.floor(k / cols) * (chei + gap), w: cwid, h: chei }))
-  }
-
   const itens = d.itens.filter((i) => i.trim())
   const ehDestaque = (k: number) => d.destaque === k
-  /** Posição de um bloco de altura `h` na área de conteúdo: um pouco acima do centro, como na grade de um editorial. */
-  const noMeio = (y0: number, h: number) => y0 + Math.max(0, (fimConteudo - y0 - h) * 0.42)
-  /** Altura que um texto vai ocupar (sem criar a camada). */
-  const medir = (txt: string, fonte: OpTexto['fonte'], w: number, tamanhos: number[], max: number, lh?: number) => {
-    const f = familia(fonte)
-    const r = caber(txt, f, w, tamanhos, max, { tracking: fonte === 'titulo' ? F.tracking : 0 })
-    return Math.ceil(r.tamanho * (lh ?? (fonte === 'titulo' ? 1.04 : 1.42)) * r.linhas + r.tamanho * 0.12)
+  /** Avatar redondo com as iniciais centradas (frame com auto layout). */
+  const avatar = (pai: string | undefined, x: number, y: number, dia: number, fill: string, corIniciais: string, nome: string, anim: Record<string, unknown>) => {
+    const a = frame('avatar', x, y, dia, dia, { h: 'fixed', alX: 'center', alY: 'center', pai, extra: { fill, radius: Math.round(dia / 2), enterAnimation: anim } })
+    texto('iniciais', iniciais(nome), { x, y, w: dia, fonte: 'titulo', tamanhos: [Math.max(16, Math.round(dia * 0.36))], max: 1, align: 'center', cor: corIniciais, anim: null, pai: a.id, lh: 1.1 })
+    return a
   }
+  /** Aspas grandes da citação: caixa da altura do sinal (não da linha inteira), para não invadir a frase. */
+  const aspas = (pai: string, tam: number) => texto('aspas', '“', { x: 0, y: 0, w: Math.round(tam * 0.9), fonte: 'titulo', tamanhos: [tam], max: 1, lh: 0.62, cor: forte, peso: 400, anim: animForma(0), pai, justo: true })
 
   switch (d.variante) {
     // ================================================================ capa
@@ -575,34 +719,42 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
     default: {
       if (d.tipo !== 'capa' && d.variante !== 'capa.classica' && d.variante !== 'capa.tipografica') {
         // variante desconhecida: cai no layout da ideia central
-        return montarTela({ ...d, variante: 'conceito.frase' }, c)
+        return montarTela({ ...d, variante: 'conceito.frase' }, c, interno)
       }
       const tipografica = d.variante === 'capa.tipografica'
       const direita = !tipografica && !c.reservarDireita
-      kicker(d.rotulo || c.marca || 'Apresentação', M, MT, st ? W - M * 2 : W * 0.5)
-      if (direita && c.placeholders) espacoImagem(st ? 0 : W * 0.6, 0, st ? W : W * 0.4, st ? H * 0.42 : H, d.imagem)
+      const imagemDireita = direita && c.placeholders
+      // no story com imagem em cima, o rótulo desce para o bloco do título (não fica sobre a imagem)
+      const rotuloNoBloco = st && imagemDireita
+      const rotuloCapa = d.rotulo || c.marca || 'Apresentação'
+      if (!rotuloNoBloco) kicker(rotuloCapa, M, MT, st ? W - M * 2 - (c.logo ? 360 : 0) : W * 0.5)
+      if (imagemDireita) espacoImagem(st ? 0 : W * 0.6, 0, st ? W : W * 0.4, st ? H * 0.42 : H, d.imagem)
       else if (direita) motivo(st ? W * 0.18 : W * 0.63, st ? H * 0.12 : H * 0.12, st ? W * 0.64 : W * 0.3, st ? W * 0.64 : H * 0.76)
       if (tipografica && decorar) linha(M, MT + 52, W - M * 2, 3, corMotivo, { name: 'motivo' })
-      const larg = st ? W - M * 2 : tipografica || c.reservarDireita ? (c.reservarDireita ? W * 0.5 : W - M * 2) : W * 0.55
+      const larg = st ? W - M * 2 : tipografica || c.reservarDireita ? (c.reservarDireita ? W * 0.5 : W - M * 2) : imagemDireita ? W * 0.6 - M - 72 : W * 0.55
       const tam = tipografica ? (st ? [170, 150, 130, 110, 96] : [250, 220, 190, 160, 136, 116]) : st ? [168, 148, 128, 112, 96] : [176, 152, 132, 116, 100, 88]
-      const yTexto = st ? H * 0.8 : H * 0.76
-      // orçamento de altura: o título não pode invadir a linha de apoio
-      const hMax = (d.texto ? yTexto - 44 : H * 0.86) - (MT + (tipografica && !st ? 110 : 90))
-      const prev = caberTitulo(d.titulo, larg, tam, 3, { tracking: F.tracking, peso: F.pesoTitulo, alturaMax: hMax })
-      const altura = Math.min(hMax, prev.tamanho * 1.04 * (prev.linhas + (dividirEnfase(d.titulo, d.enfase) ? 1 : 0)))
-      const yTitulo = tipografica && !st ? MT + 110 : Math.max(MT + 90, (d.texto ? yTexto - 44 : H * 0.84) - altura)
-      const tt = tituloEnfase(d.titulo, { x: M, y: yTitulo, w: larg, tamanhos: tam, max: 3, hMax, extra: c.numero === 1 ? { name: 'titulo' } : {} })
-      if (d.texto) texto('texto', d.texto, { x: M, y: tipografica && !st ? Math.max(tt.fim + 48, H * 0.74) : Math.max(yTexto, tt.fim + 32), w: st ? W - M * 2 : Math.min(larg, W * 0.5), tamanhos: st ? [42, 38, 34] : [38, 34, 30], max: 2, cor: s.suave })
+      const topo = rotuloNoBloco ? H * 0.42 + 72 : MT + (tipografica && !st ? 110 : 90)
+      const fimBloco = st ? H - MB - 40 : H - MB - 30
+      // orçamento de altura: título + apoio cabem entre o topo e o pé
+      const hMax = fimBloco - topo - (d.texto ? (st ? 190 : 150) : 0) - (rotuloNoBloco ? 60 : 0)
+      const b = bloco({
+        x: M, y: topo, w: larg, rotulo: rotuloNoBloco ? rotuloCapa : null, tamanhos: tam, max: 3, hMax, extraTitulo: c.numero === 1 ? { name: 'titulo' } : {},
+        texto: { w: st ? W - M * 2 : Math.min(larg, W * 0.5), tamanhos: st ? [42, 38, 34] : [38, 34, 30], max: 2 }, gapTexto: tipografica ? 48 : 36,
+      })
+      if (!(tipografica && !st)) colocar(b, M, Math.max(topo, fimBloco - altura(b)))
       break
     }
     case 'capa.centrada': {
       const larg = st ? W - M * 2 : W * 0.8
       const x = (W - larg) / 2
       const tam = st ? [130, 112, 96, 84] : [168, 144, 124, 108, 92]
-      const prev = caberTitulo(d.titulo, larg, tam, 3, { tracking: F.tracking })
-      const hTitulo = prev.tamanho * 1.04 * (prev.linhas + (dividirEnfase(d.titulo, d.enfase) ? 1 : 0))
-      const bloco = 40 + 40 + hTitulo + (d.texto ? 120 : 0)
-      let y = (H - bloco) / 2
+      const b = bloco({
+        x, y: 0, w: larg, rotulo: d.rotulo || c.marca || 'Apresentação', tamanhos: tam, max: 3, align: 'center', gapRotulo: 36, gapTexto: 40, extraTitulo: c.numero === 1 ? { name: 'titulo' } : {},
+        texto: { w: st ? larg : W * 0.56, tamanhos: st ? [40, 36] : [36, 32, 28], max: 2 },
+      })
+      const h = altura(b)
+      const y = Math.max(MT + (c.logo ? 110 : 60), (H - h) / 2)
+      colocar(b, x, y)
       if (decorar) {
         linha(W / 2 - 40, y - 36, 80, 6, corMotivo, { name: 'motivo', radius: 3 })
         if (t.motivo === 'formas') {
@@ -611,10 +763,6 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
           forma('forma', 'ellipse', W - k * 0.55, -k * 0.4, k * 0.8, k * 0.8, { fill: legivel(s.fundo, [t.acento2, s.tinta], 1.5), enterAnimation: animForma(320) })
         }
       }
-      const k = kicker(d.rotulo || c.marca || 'Apresentação', x, y, larg, 'center')
-      if (k) y = k.fim + 36
-      const tt = tituloEnfase(d.titulo, { x, y, w: larg, tamanhos: tam, max: 3, align: 'center', extra: c.numero === 1 ? { name: 'titulo' } : {} })
-      if (d.texto) texto('texto', d.texto, { x: (W - (st ? larg : W * 0.56)) / 2, y: tt.fim + 40, w: st ? larg : W * 0.56, tamanhos: st ? [40, 36] : [36, 32, 28], max: 2, cor: s.suave, align: 'center' })
       break
     }
     case 'capa.dividida': {
@@ -630,11 +778,12 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
       }
       const x = st ? M : W * 0.52
       const larg = st ? W - M * 2 : W * 0.48 - M
-      let y = st ? painelH + 90 : H * 0.3
-      const k = kicker(d.rotulo || c.marca || 'Apresentação', x, y, larg)
-      if (k) y = k.fim + 28
-      const tt = tituloEnfase(d.titulo, { x, y, w: larg, tamanhos: st ? [120, 104, 92, 80] : [120, 104, 92, 80, 70], max: 4, extra: c.numero === 1 ? { name: 'titulo' } : {} })
-      if (d.texto) texto('texto', d.texto, { x, y: tt.fim + 36, w: larg, tamanhos: st ? [38, 34] : [32, 28], max: 3, cor: s.suave })
+      const b = bloco({
+        x, y: 0, w: larg, rotulo: d.rotulo || c.marca || 'Apresentação', tamanhos: st ? [120, 104, 92, 80] : [120, 104, 92, 80, 70], max: 4, gapRotulo: 28, gapTexto: 36, extraTitulo: c.numero === 1 ? { name: 'titulo' } : {},
+        texto: { tamanhos: st ? [38, 34] : [32, 28], max: 3 },
+      })
+      const topo = st ? painelH + 90 : MT + (c.logo ? 110 : 40)
+      colocar(b, x, st ? topo : Math.max(topo, (H - altura(b)) / 2))
       break
     }
 
@@ -644,34 +793,36 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
       const colunas = d.variante === 'agenda.colunas' && !st && itens.length <= 4
       if (colunas) {
         const y0 = cabecalho()
-        const cel = grade(itens.length, M, y0, W - M * 2, fimConteudo - y0, 4)
+        const n = Math.max(1, itens.length)
+        const { g, cw } = gradeAL('grade', M, y0, W - M * 2, n, GUT)
         itens.forEach((it, k) => {
           const [nome = '', desc = ''] = partes(it)
-          const p = cel[k]!
-          const n = texto('indice', String(k + 1).padStart(2, '0'), { x: p.x, y: p.y, w: p.w, fonte: 'titulo', tamanhos: [96], max: 1, cor: forte, anim: animItem(k) })
-          linha(p.x, n.fim + 16, p.w, 2, s.linha)
-          const it1 = texto('item', nome, { x: p.x, y: n.fim + 40, w: p.w - 12, fonte: 'titulo', tamanhos: [40, 36, 32], max: 3, anim: animItem(k) })
-          if (desc) texto('texto', desc, { x: p.x, y: it1.fim + 12, w: p.w - 12, tamanhos: [26, 24], max: 3, cor: s.suave, anim: animItem(k) })
+          const cel = frame('celula', 0, 0, cw, 1, { gap: 18, pai: g.id })
+          texto('indice', String(k + 1).padStart(2, '0'), { x: 0, y: 0, w: cw, fonte: 'titulo', tamanhos: [96], max: 1, cor: forte, anim: animItem(k), pai: cel.id, fill: true })
+          linha(0, 0, cw, 2, s.linha, { parentId: cel.id, sizingW: 'fill' })
+          const grupo = frame('grupo', 0, 0, cw, 1, { gap: 12, pai: cel.id, w: 'fill' })
+          texto('item', nome, { x: 0, y: 0, w: cw - 12, fonte: 'titulo', tamanhos: [40, 36, 32], max: 3, anim: animItem(k), pai: grupo.id })
+          if (desc) texto('texto', desc, { x: 0, y: 0, w: cw - 12, tamanhos: [26, 24], max: 3, cor: s.suave, anim: animItem(k), pai: grupo.id })
         })
+        assentar(g, y0, fimConteudo, 0.2)
       } else {
         const esquerdaW = st ? W - M * 2 : wc(5)
-        let y = MT
-        const k = kicker(d.rotulo, M, y, esquerdaW)
-        if (k) y = k.fim + 18
-        const tt = tituloEnfase(d.titulo, { x: M, y, w: esquerdaW, tamanhos: st ? [96, 84, 72] : [96, 84, 72, 64], max: 3 })
-        if (d.texto) texto('texto', d.texto, { x: M, y: tt.fim + 24, w: esquerdaW, tamanhos: st ? [36, 32] : [28, 26], max: 4, cor: s.suave })
+        const b = bloco({ x: M, y: MT, w: esquerdaW, rotulo: d.rotulo, tamanhos: st ? [96, 84, 72] : [96, 84, 72, 64], max: 3, gapTexto: 24, texto: { tamanhos: st ? [36, 32] : [28, 26], max: 4 } })
         const x0 = st ? M : xc(6)
         const larg = st ? W - M * 2 : wc(6)
-        const y0 = st ? tt.fim + 200 : MT + 96
-        const passo = (fimConteudo - y0) / Math.max(1, itens.length)
+        const y0 = st ? fimDe(b) + 96 : MT + 96
+        const lista = frame('lista', x0, y0, larg, 1, { gap: st ? 28 : 24 })
+        const recuo = st ? 130 : 120
         itens.forEach((it, j) => {
           const [nome = '', desc = ''] = partes(it)
-          const y1 = y0 + j * passo
-          texto('indice', String(j + 1).padStart(2, '0'), { x: x0, y: y1, w: 120, fonte: 'titulo', tamanhos: [st ? 64 : 56], max: 1, cor: forte, anim: animItem(j) })
-          const n = texto('item', nome, { x: x0 + (st ? 130 : 120), y: y1 + 6, w: larg - 120, fonte: 'titulo', tamanhos: st ? [48, 44, 40] : [46, 42, 38], max: 2, anim: animItem(j) })
-          if (desc) texto('texto', desc, { x: x0 + (st ? 130 : 120), y: n.fim + 6, w: larg - 120, tamanhos: st ? [30, 28] : [24, 22], max: 2, cor: s.suave, anim: animItem(j) })
-          if (j < itens.length - 1) linha(x0, y1 + passo - 14, larg, 2, s.linha)
+          const lin = frame('linha', 0, 0, larg, 1, { dir: 'horizontal', pai: lista.id, w: 'fill' })
+          texto('indice', String(j + 1).padStart(2, '0'), { x: 0, y: 0, w: recuo, fonte: 'titulo', tamanhos: [st ? 64 : 56], max: 1, cor: forte, anim: animItem(j), pai: lin.id })
+          const col = frame('grupo', 0, 0, larg - recuo, 1, { gap: 6, pad: { top: 6, right: 0, bottom: 0, left: 0 }, pai: lin.id, w: 'fill' })
+          texto('item', nome, { x: 0, y: 0, w: larg - recuo, fonte: 'titulo', tamanhos: st ? [48, 44, 40] : [46, 42, 38], max: 2, anim: animItem(j), pai: col.id, fill: true })
+          if (desc) texto('texto', desc, { x: 0, y: 0, w: larg - recuo, tamanhos: st ? [30, 28] : [24, 22], max: 2, cor: s.suave, anim: animItem(j), pai: col.id, fill: true })
+          if (j < itens.length - 1) linha(0, 0, larg, 2, s.linha, { parentId: lista.id, sizingW: 'fill' })
         })
+        espalhar(lista, fimConteudo - y0, st ? 72 : 56)
       }
       break
     }
@@ -680,31 +831,26 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
     case 'secao.numero': {
       const num = String(Math.max(1, c.indiceSecao)).padStart(2, '0')
       const tamNum = st ? 300 : 380
-      const n = texto('indice', num, { x: M - tamNum * 0.04, y: st ? H * 0.2 : (H - tamNum) / 2 - 20, w: st ? W - M * 2 : tamNum * 1.3, fonte: 'titulo', tamanhos: [tamNum], max: 1, cor: forte, lh: 1, anim: animForma(0) })
-      const x = st ? M : M + tamNum * 1.3 + 40
+      const n = texto('indice', num, { x: M - tamNum * 0.04, y: st ? H * 0.2 : (H - tamNum) / 2 - 20, w: st ? W - M * 2 : tamNum * 1.45, fonte: 'titulo', tamanhos: [tamNum], max: 1, cor: forte, lh: 1, anim: animForma(0) })
+      const x = st ? M : M + tamNum * 1.45 + 24
       const larg = st ? W - M * 2 : W - x - M
-      let y = st ? n.fim + 40 : H * 0.36
-      const k = kicker(d.rotulo, x, y, larg)
-      if (k) y = k.fim + 22
-      const tt = tituloEnfase(d.titulo, { x, y, w: larg, tamanhos: st ? [110, 96, 84, 72] : [120, 104, 88, 76], max: 3 })
-      if (d.texto) texto('texto', d.texto, { x, y: tt.fim + 32, w: Math.min(larg, wc(6)), tamanhos: st ? [38, 34] : [32, 28], max: 3, cor: s.suave })
+      const b = bloco({ x, y: 0, w: larg, rotulo: d.rotulo, tamanhos: st ? [110, 96, 84, 72] : [120, 104, 88, 76], max: 3, gapRotulo: 22, gapTexto: 32, texto: { w: Math.min(larg, wc(6)), tamanhos: st ? [38, 34] : [32, 28], max: 3 } })
+      colocar(b, x, st ? n.fim + 40 : Math.max(MT, (H - altura(b)) / 2))
       break
     }
     case 'secao.faixa':
     case 'secao.minimal': {
       const minimal = d.variante === 'secao.minimal'
-      const larg = st ? W - M * 2 : wc(10)
+      const larg = minimal ? W - M * 2 : st ? W - M * 2 : wc(10)
       const x = centro ? (W - larg) / 2 : M
       const al = centro ? 'center' : 'left'
       const tam = st ? [120, 104, 90, 78] : minimal ? [120, 104, 88, 76] : [150, 128, 110, 96]
-      const prev = caberTitulo(d.titulo, larg, tam, 3, { tracking: F.tracking })
-      let y = (H - prev.tamanho * 1.04 * prev.linhas) / 2 - 40
-      const k = kicker(d.rotulo || `Parte ${String(Math.max(1, c.indiceSecao)).padStart(2, '0')}`, x, y - 64, larg, al)
-      if (k) y = Math.max(y, k.fim + 24)
-      const tt = tituloEnfase(d.titulo, { x, y, w: larg, tamanhos: tam, max: 3, align: al })
-      if (minimal) linha(M, tt.fim + 48, W - M * 2, 2, s.linha, { enterAnimation: { type: 'reveal', duration: 900, delay: 200, easing: 'easeOut' } })
-      else motivo(st ? W * 0.55 : W * 0.78, st ? H * 0.06 : H * 0.08, st ? W * 0.4 : W * 0.18, st ? W * 0.4 : W * 0.18, 'pequeno')
-      if (d.texto) texto('texto', d.texto, { x: centro ? (W - Math.min(larg, wc(7))) / 2 : x, y: tt.fim + (minimal ? 84 : 40), w: Math.min(larg, st ? larg : wc(7)), tamanhos: st ? [38, 34] : [32, 28], max: 3, cor: s.suave, align: al })
+      const b = bloco({
+        x, y: 0, w: larg, rotulo: d.rotulo || `Parte ${String(Math.max(1, c.indiceSecao)).padStart(2, '0')}`, tamanhos: tam, max: 3, align: al, gapRotulo: 24, gapTexto: minimal ? 44 : 40, fio: minimal,
+        texto: { w: Math.min(larg, st ? larg : wc(7)), tamanhos: st ? [38, 34] : [32, 28], max: 3 },
+      })
+      colocar(b, x, Math.max(MT, (H - altura(b)) / 2))
+      if (!minimal) motivo(st ? W * 0.55 : W * 0.78, st ? H * 0.06 : H * 0.08, st ? W * 0.4 : W * 0.18, st ? W * 0.4 : W * 0.18, 'pequeno')
       break
     }
 
@@ -716,77 +862,68 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
       const x = enf ? (W - larg) / 2 : M
       const al = enf ? 'center' : 'left'
       const tam = st ? [124, 108, 94, 82, 72] : [112, 100, 88, 76, 66, 58]
-      const prev = caberTitulo(d.titulo, larg, tam, 4, { tracking: F.tracking })
-      const hT = prev.tamanho * 1.04 * (prev.linhas + (dividirEnfase(d.titulo, d.enfase) ? 1 : 0))
-      let y = enf ? (H - hT - (d.texto ? 130 : 0)) / 2 : st ? H * 0.3 : Math.min(H * 0.3, (H - hT) / 2 - 60)
       if (!enf) motivo(st ? W * 0.62 : W * 0.8, st ? H * 0.05 : MT - 10, st ? W * 0.28 : W * 0.12, st ? W * 0.28 : W * 0.12, 'pequeno')
-      const k = kicker(d.rotulo, x, y - 64, larg, al)
-      if (!k && !enf) y = Math.max(y, MT)
-      const tt = tituloEnfase(d.titulo, { x, y, w: larg, tamanhos: tam, max: 4, align: al })
-      if (d.texto) texto('texto', d.texto, { x: enf ? (W - (st ? larg : W * 0.56)) / 2 : x, y: tt.fim + (st ? 56 : 48), w: st ? larg : W * 0.56, tamanhos: st ? [44, 40, 36] : [34, 30], max: 4, cor: s.suave, align: al })
+      const b = bloco({ x, y: 0, w: larg, rotulo: d.rotulo, tamanhos: tam, max: 4, align: al, gapRotulo: 24, gapTexto: st ? 56 : 48, texto: { w: st ? larg : W * 0.56, tamanhos: st ? [44, 40, 36] : [34, 30], max: 4 } })
+      const h = altura(b)
+      const y = enf ? (H - h) / 2 : st ? H * 0.3 - 64 : Math.min(H * 0.3 - 64, (H - h) / 2 - 60)
+      colocar(b, x, Math.max(MT, y))
       break
     }
     case 'conceito.lateral': {
-      if (st) return montarTela({ ...d, variante: 'conceito.frase' }, c)
+      if (st) return montarTela({ ...d, variante: 'conceito.frase' }, c, interno)
       const esquerdaW = wc(7)
-      let y = MT
-      const k = kicker(d.rotulo, M, y, esquerdaW)
-      if (k) y = k.fim + 22
-      const prev = caberTitulo(d.titulo, esquerdaW, [100, 88, 76, 66, 58], 5, { tracking: F.tracking })
-      const hT = prev.tamanho * 1.04 * prev.linhas
-      const yT = Math.max(y, (H - hT) / 2 - 20)
-      const tt = tituloEnfase(d.titulo, { x: M, y: yT, w: esquerdaW, tamanhos: [100, 88, 76, 66, 58], max: 5 })
+      const b = bloco({ x: M, y: 0, w: esquerdaW, rotulo: d.rotulo, tamanhos: [100, 88, 76, 66, 58], max: 5, gapRotulo: 22 })
+      const hB = altura(b)
+      const yB = Math.max(MT, (H - hB) / 2 - 20)
+      colocar(b, M, yB)
       const xd = xc(8)
-      linha(xd, yT + 8, 3, Math.max(120, tt.fim - yT - 8), forte, { enterAnimation: { type: 'reveal', duration: 800, delay: 200, easing: 'easeOut' } })
-      if (d.texto) texto('texto', d.texto, { x: xd + 48, y: yT, w: wc(4) - 48, tamanhos: [34, 30, 28], max: 8, cor: s.suave })
+      // fio vertical (preenche a altura) + texto, lado a lado
+      const lado = frame('lateral', xd, yB, W - M - xd, 1, { dir: 'horizontal', gap: 45 })
+      linha(0, 0, 3, 1, forte, { parentId: lado.id, sizingH: 'fill', enterAnimation: { type: 'reveal', duration: 800, delay: 200, easing: 'easeOut' } })
+      if (d.texto) texto('texto', d.texto, { x: 0, y: 0, w: W - M - xd - 48, tamanhos: [34, 30, 28], max: 8, cor: s.suave, pai: lado.id })
+      else lado.sizingH = 'fixed'
+      if (!d.texto) lado.height = Math.max(120, hB)
       break
     }
 
     // ================================================================ lista
     case 'lista.numerada': {
-      if (st) {
-        const y0 = cabecalho()
-        const passo = Math.min(240, (fimConteudo - y0) / Math.max(1, itens.length))
+      const listaNum = (x0: number, y0: number, larg: number, recuo: number, tamNum: number, tamTexto: number[], maxGap: number) => {
+        const lista = frame('lista', x0, y0, larg, 1, { gap: st ? 28 : 24 })
         itens.forEach((it, k) => {
-          texto('num', String(k + 1).padStart(2, '0'), { x: M, y: y0 + k * passo + 8, w: 90, fonte: 'mono', tamanhos: [26], max: 1, cor: forte, anim: animItem(k) })
-          texto('texto', it, { x: M + 100, y: y0 + k * passo, w: W - M * 2 - 100, tamanhos: [42, 38, 34], max: 3, anim: animItem(k) })
-          linha(M, y0 + (k + 1) * passo - 24, W - M * 2, 2, s.linha)
+          const lin = frame('linha', 0, 0, larg, 1, { dir: 'horizontal', pai: lista.id, w: 'fill' })
+          const marca = frame('grupo', 0, 0, recuo, 1, { pad: { top: 8, right: 0, bottom: 0, left: 0 }, pai: lin.id })
+          texto('num', String(k + 1).padStart(2, '0'), { x: 0, y: 0, w: recuo - 16, fonte: 'mono', tamanhos: [tamNum], max: 1, cor: forte, anim: animItem(k), pai: marca.id })
+          texto('texto', it, { x: 0, y: 0, w: larg - recuo, tamanhos: tamTexto, max: 3, anim: animItem(k), pai: lin.id, fill: true })
+          if (k < itens.length - 1) linha(0, 0, larg, 2, s.linha, { parentId: lista.id, sizingW: 'fill' })
         })
+        espalhar(lista, fimConteudo - y0, maxGap)
+        return lista
+      }
+      if (st) {
+        listaNum(M, cabecalho(), W - M * 2, 100, 26, [42, 38, 34], 64)
         break
       }
-      let y = MT
-      const esquerdaW = wc(5)
-      const k0 = kicker(d.rotulo, M, y, esquerdaW)
-      if (k0) y = k0.fim + 18
-      const tt = tituloEnfase(d.titulo, { x: M, y, w: esquerdaW, tamanhos: [88, 76, 66, 58, 52], max: 4 })
-      if (d.texto) texto('texto', d.texto, { x: M, y: tt.fim + 28, w: esquerdaW, tamanhos: [28, 26], max: 5, cor: s.suave })
-      const x0 = xc(6)
-      const larg = wc(6)
+      bloco({ x: M, y: MT, w: wc(5), rotulo: d.rotulo, tamanhos: [88, 76, 66, 58, 52], max: 4, gapTexto: 28, texto: { tamanhos: [28, 26], max: 5 } })
       // começa abaixo da marca do motivo no canto
-      const y0 = MT + 96
-      const passo = Math.min(200, (fimConteudo - y0) / Math.max(1, itens.length))
-      itens.forEach((it, k) => {
-        const yk = y0 + k * passo
-        texto('num', String(k + 1).padStart(2, '0'), { x: x0, y: yk + 8, w: 80, fonte: 'mono', tamanhos: [22], max: 1, cor: forte, anim: animItem(k) })
-        texto('texto', it, { x: x0 + 96, y: yk, w: larg - 96, tamanhos: [40, 36, 32, 28], max: passo > 150 ? 3 : 2, anim: animItem(k) })
-        linha(x0, yk + passo - 26, larg, 2, s.linha)
-      })
+      listaNum(xc(6), MT + 96, wc(6), 96, 22, [40, 36, 32, 28], 56)
       break
     }
     case 'lista.colunas': {
       const y0 = cabecalho()
       const colsL = st ? 1 : itens.length === 4 ? 2 : Math.min(3, itens.length)
-      const linhasL = Math.ceil(itens.length / colsL)
-      const hL = Math.min(fimConteudo - y0, linhasL * (st ? 200 : 190))
-      const cel = grade(itens.length, M, noMeio(y0, hL), W - M * 2, hL, colsL)
+      const { g, cw } = gradeAL('grade', M, y0, W - M * 2, Math.max(1, colsL), GUT, st ? 44 : 52)
       // poucos pontos curtos ganham corpo de subtítulo
       const curtos = itens.length <= 3 && itens.every((x) => x.length <= 48)
       itens.forEach((it, k) => {
-        const p = cel[k]!
         const lado = st ? 22 : curtos ? 24 : 18
-        forma('marcador', formaMotivo === 'rect' ? 'rect' : 'ellipse', p.x, p.y + (curtos ? 22 : 14), lado, lado, { fill: forte, enterAnimation: animItem(k) })
-        texto('item', it, { x: p.x + lado + 22, y: p.y, w: p.w - lado - 30, fonte: curtos ? 'titulo' : 'texto', tamanhos: st ? [42, 38, 34] : curtos ? [54, 48, 42, 38] : [40, 36, 32], max: 4, anim: animItem(k) })
+        const cel = frame('celula', 0, 0, cw, 1, { dir: 'horizontal', gap: 22, pai: g.id })
+        const marca = frame('grupo', 0, 0, lado, 1, { w: 'hug', pad: { top: curtos ? 22 : 14, right: 0, bottom: 0, left: 0 }, pai: cel.id })
+        forma('marcador', formaMotivo === 'rect' ? 'rect' : 'ellipse', 0, 0, lado, lado, { fill: forte, enterAnimation: animItem(k), parentId: marca.id })
+        texto('item', it, { x: 0, y: 0, w: cw - lado - 22, fonte: curtos ? 'titulo' : 'texto', tamanhos: st ? [42, 38, 34] : curtos ? [54, 48, 42, 38] : [40, 36, 32], max: 4, anim: animItem(k), pai: cel.id, fill: true })
       })
+      if (st) espalhar(g, fimConteudo - y0, 120)
+      assentar(g, y0)
       break
     }
 
@@ -796,29 +933,38 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
       const abertos = d.variante === 'cartoes.linhas'
       const y0 = cabecalho()
       const colsC = st ? 1 : itens.length === 4 ? 4 : Math.min(3, itens.length <= 4 ? itens.length : Math.ceil(itens.length / 2))
-      const linhasC = Math.ceil(itens.length / colsC)
-      const hC = Math.min(fimConteudo - y0, linhasC * (abertos ? (st ? 250 : 340) : st ? 300 : 440) + (linhasC - 1) * GUT)
-      const cel = grade(itens.length, M, noMeio(y0, hC), W - M * 2, hC, colsC)
+      const linhasC = Math.ceil(itens.length / Math.max(1, colsC))
+      const gapC = st ? 28 : GUT
+      const { g, cw } = gradeAL('grade', M, y0, W - M * 2, Math.max(1, colsC), gapC)
+      const pad = abertos ? 0 : st ? 44 : 40
+      const tamTit = st ? [52, 46, 42] : itens.length > 3 ? [42, 38, 34] : [52, 46, 40, 36]
+      const tamDesc = st ? [34, 31, 28] : itens.length > 3 ? [27, 25, 23] : [30, 27, 25]
+      const cartoes: Camada[] = []
       itens.forEach((it, k) => {
         const [tit = '', desc = ''] = partes(it)
-        const p = cel[k]!
         const dest = ehDestaque(k)
-        const pad = abertos ? 0 : st ? 44 : 40
         const corT = dest && !abertos ? sobreDestaque : s.tinta
         const corS = dest && !abertos ? alfa(sobreDestaque, 0.82) : s.suave
-        if (abertos) forma('fio', 'rect', p.x, p.y, st ? 120 : Math.min(p.w, 140), 5, { fill: forte, enterAnimation: animItem(k) })
-        else forma('cartao', 'rect', p.x, p.y, p.w, p.h, { ...cartao(dest), radius: raioCartao, enterAnimation: animItem(k) })
-        const yi = p.y + (abertos ? 36 : pad)
-        texto('indice', String(k + 1).padStart(2, '0'), { x: p.x + pad, y: yi, w: 80, fonte: 'mono', tamanhos: [st ? 24 : 20], max: 1, cor: dest && !abertos ? corT : forte, anim: animItem(k) })
-        const tamTit = st ? [52, 46, 42] : itens.length > 3 ? [42, 38, 34] : [52, 46, 40, 36]
-        const tamDesc = st ? [34, 31, 28] : itens.length > 3 ? [27, 25, 23] : [30, 27, 25]
-        // nos cartões com fundo, título e descrição ficam no pé do cartão (alinhados entre os cartões); o número, no topo
-        const hTit = Math.max(...itens.map((x) => medir(partes(x)[0] ?? '', 'titulo', p.w - pad * 2, tamTit, 2)))
-        const hDesc = Math.max(0, ...itens.map((x) => (partes(x)[1] ? medir(partes(x)[1]!, 'texto', p.w - pad * 2, tamDesc, st ? 3 : 5) + 16 : 0)))
-        const yTit = abertos ? yi + (st ? 56 : 48) : Math.max(yi + (st ? 56 : 48), p.y + p.h - pad - hDesc - hTit)
-        const h1 = texto('item', tit, { x: p.x + pad, y: yTit, w: p.w - pad * 2, fonte: 'titulo', tamanhos: tamTit, max: 2, cor: corT, anim: animItem(k) })
-        if (desc) texto('texto', desc, { x: p.x + pad, y: h1.fim + 16, w: p.w - pad * 2, tamanhos: tamDesc, max: st ? 3 : 5, cor: corS, anim: animItem(k) })
+        const iw = cw - pad * 2
+        const card = frame('cartao', 0, 0, cw, 1, { gap: abertos ? 18 : st ? 56 : 48, pad, pai: g.id, extra: abertos ? { enterAnimation: animItem(k) } : { ...cartao(dest), radius: raioCartao, enterAnimation: animItem(k) } })
+        cartoes.push(card)
+        if (abertos) {
+          const topo = frame('grupo', 0, 0, cw, 1, { gap: 31, pai: card.id, w: 'fill' })
+          forma('fio', 'rect', 0, 0, st ? 120 : Math.min(cw, 140), 5, { fill: forte, enterAnimation: animItem(k), parentId: topo.id })
+          texto('indice', String(k + 1).padStart(2, '0'), { x: 0, y: 0, w: 80, fonte: 'mono', tamanhos: [st ? 24 : 20], max: 1, cor: forte, anim: animItem(k), pai: topo.id })
+        } else texto('indice', String(k + 1).padStart(2, '0'), { x: 0, y: 0, w: 80, fonte: 'mono', tamanhos: [st ? 24 : 20], max: 1, cor: dest ? corT : forte, anim: animItem(k), pai: card.id })
+        // título e descrição juntos: nos cartões com fundo, assentam no pé (alinhados entre os cartões)
+        const corpo = frame('grupo', 0, 0, iw, 1, { gap: 16, pai: card.id, w: 'fill' })
+        texto('item', tit, { x: 0, y: 0, w: iw, fonte: 'titulo', tamanhos: tamTit, max: 2, cor: corT, anim: animItem(k), pai: corpo.id, fill: true })
+        if (desc) texto('texto', desc, { x: 0, y: 0, w: iw, tamanhos: tamDesc, max: st ? 3 : 5, cor: corS, anim: animItem(k), pai: corpo.id, fill: true })
       })
+      if (!abertos) {
+        // cartões da mesma altura: o alvo do estilo, sem passar da área (o conteúdo manda se for maior)
+        const alvo = Math.min(esc(st ? 300 : 440), (fimConteudo - y0 - (linhasC - 1) * gapC) / Math.max(1, linhasC))
+        igualar(cartoes, alvo)
+        for (const card of cartoes) layoutDe(card).gapAuto = true
+      }
+      assentar(g, y0)
       break
     }
 
@@ -828,45 +974,53 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
       const circulos = d.variante === 'processo.circulos' && !st
       const y0 = cabecalho()
       if (st) {
-        const passo = (fimConteudo - y0) / Math.max(1, itens.length)
-        linha(M + 36, y0 + 20, 3, passo * (itens.length - 1) + 10, s.linha)
+        // fio vertical atrás dos marcadores (posicionado depois do layout)
+        const fio = linha(M + 36, y0, 3, 10, s.linha)
+        const lista = frame('lista', M, y0, W - M * 2, 1, { gap: 40, pad: { top: 0, right: 0, bottom: 0, left: 8 } })
+        const marcas: Camada[] = []
         itens.forEach((it, k) => {
           const [tit = '', desc = ''] = partes(it)
-          const yk = y0 + k * passo
-          forma('marcador', 'ellipse', M + 8, yk + 4, 60, 60, { fill: forte, enterAnimation: animItem(k) })
-          texto('indice', String(k + 1), { x: M + 8, y: yk + 14, w: 60, fonte: 'mono', tamanhos: [24], max: 1, cor: sobreDestaque, align: 'center', anim: animItem(k) })
-          const h1 = texto('item', tit, { x: M + 110, y: yk, w: W - M * 2 - 110, fonte: 'titulo', tamanhos: [48, 44, 40], max: 2, anim: animItem(k) })
-          if (desc) texto('texto', desc, { x: M + 110, y: h1.fim + 10, w: W - M * 2 - 110, tamanhos: [32, 30], max: 3, cor: s.suave, anim: animItem(k) })
+          const lin = frame('linha', 0, 0, W - M * 2 - 8, 1, { dir: 'horizontal', gap: 42, pai: lista.id, w: 'fill' })
+          const m = frame('marcador', 0, 0, 60, 60, { h: 'fixed', alX: 'center', alY: 'center', pai: lin.id, extra: { fill: forte, radius: 30, enterAnimation: animItem(k) } })
+          marcas.push(m)
+          texto('indice', String(k + 1), { x: 0, y: 0, w: 60, fonte: 'mono', tamanhos: [24], max: 1, cor: sobreDestaque, align: 'center', anim: animItem(k), pai: m.id })
+          const col = frame('grupo', 0, 0, W - M * 2 - 110, 1, { gap: 10, pai: lin.id, w: 'fill' })
+          texto('item', tit, { x: 0, y: 0, w: W - M * 2 - 110, fonte: 'titulo', tamanhos: [48, 44, 40], max: 2, anim: animItem(k), pai: col.id, fill: true })
+          if (desc) texto('texto', desc, { x: 0, y: 0, w: W - M * 2 - 110, tamanhos: [32, 30], max: 3, cor: s.suave, anim: animItem(k), pai: col.id, fill: true })
         })
+        espalhar(lista, fimConteudo - y0, 120)
+        const r = resolver()
+        const ys = marcas.map((m) => r.find((l) => l.id === m.id)!).map((b) => b.y + b.height / 2)
+        fio.y = Math.round(ys[0] ?? y0)
+        fio.height = Math.max(1, Math.round((ys[ys.length - 1] ?? y0) - (ys[0] ?? y0)))
+        fio.x = Math.round((r.find((l) => l.id === marcas[0]?.id)?.x ?? M + 8) + 28)
         break
       }
       const n = Math.max(1, itens.length)
       const gap = 48
-      const colW = (W - M * 2 - (n - 1) * gap) / n
-      const dia = Math.min(200, colW * 0.62)
-      const hDescs = Math.max(0, ...itens.map((it) => (partes(it)[1] ? medir(partes(it)[1]!, 'texto', colW, n > 4 ? [26, 24] : [30, 27], 4) + 14 : 0)))
-      const hBloco = (circulos ? dia + 40 : 140) + 90 + hDescs
-      const yP = noMeio(y0, hBloco)
-      const yLinha = circulos ? yP + dia / 2 : yP + 52
-      if (circulos) linha(M, yLinha, W - M * 2, 2, s.linha, { enterAnimation: { type: 'reveal', duration: 900, delay: 150, easing: 'easeOut' } })
+      const colW = Math.floor((W - M * 2 - (n - 1) * gap) / n)
+      const dia = Math.round(Math.min(200, colW * 0.62))
+      // fios atrás (decoração): posicionados depois do layout
+      const fioCirculos = circulos ? linha(M, y0, W - M * 2, 2, s.linha, { enterAnimation: { type: 'reveal', duration: 900, delay: 150, easing: 'easeOut' } }) : null
+      const fiosPassos = circulos ? [] : itens.slice(0, -1).map((_, k) => linha(M, y0, colW + gap - 170, 2, s.linha, { enterAnimation: { type: 'reveal', duration: 700, delay: 200 + k * 120, easing: 'easeOut' } }))
+      const fila = frame('etapas', M, y0, W - M * 2, 1, { dir: 'horizontal', gap })
       itens.forEach((it, k) => {
         const [tit = '', desc = ''] = partes(it)
-        const x = M + k * (colW + gap)
-        // passos: um fio entre o número desta etapa e a próxima
-        if (!circulos && k < n - 1) linha(x + 150, yLinha, colW + gap - 170, 2, s.linha, { enterAnimation: { type: 'reveal', duration: 700, delay: 200 + k * 120, easing: 'easeOut' } })
-        let yt: number
+        const col = frame('etapa', 0, 0, colW, 1, { gap: 14, alX: circulos ? 'center' : 'start', pai: fila.id })
+        const cabeca = frame('grupo', 0, 0, colW, 1, { w: 'fill', alX: circulos ? 'center' : 'start', pad: { top: 0, right: 0, bottom: circulos ? 26 : 36, left: 0 }, pai: col.id })
         if (circulos) {
-          const xc0 = x + (colW - dia) / 2
-          forma('marcador', 'ellipse', xc0, yP, dia, dia, { fill: ehDestaque(k) || d.destaque < 0 ? forte : s.cartao, enterAnimation: animItem(k) })
-          texto('indice', String(k + 1).padStart(2, '0'), { x: xc0, y: yP + dia / 2 - 44, w: dia, fonte: 'titulo', tamanhos: [72], max: 1, cor: ehDestaque(k) || d.destaque < 0 ? sobreDestaque : forte, align: 'center', anim: animItem(k) })
-          yt = yP + dia + 40
-        } else {
-          texto('indice', String(k + 1).padStart(2, '0'), { x, y: yP, w: 160, fonte: 'titulo', tamanhos: [88], max: 1, cor: forte, lh: 1, anim: animItem(k) })
-          yt = yP + 140
-        }
-        const h1 = texto('item', tit, { x, y: yt, w: colW, fonte: 'titulo', tamanhos: n > 4 ? [36, 32] : [48, 42, 38], max: 2, align: circulos ? 'center' : 'left', anim: animItem(k) })
-        if (desc) texto('texto', desc, { x, y: h1.fim + 14, w: colW, tamanhos: n > 4 ? [26, 24] : [30, 27], max: 4, cor: s.suave, align: circulos ? 'center' : 'left', anim: animItem(k) })
+          const cheio = ehDestaque(k) || d.destaque < 0
+          const m = frame('marcador', 0, 0, dia, dia, { h: 'fixed', alX: 'center', alY: 'center', pai: cabeca.id, extra: { fill: cheio ? forte : s.cartao, radius: Math.round(dia / 2), enterAnimation: animItem(k) } })
+          texto('indice', String(k + 1).padStart(2, '0'), { x: 0, y: 0, w: dia, fonte: 'titulo', tamanhos: [72, 60, 48], max: 1, cor: cheio ? sobreDestaque : forte, align: 'center', anim: animItem(k), pai: m.id, lh: 1 })
+        } else texto('indice', String(k + 1).padStart(2, '0'), { x: 0, y: 0, w: 160, fonte: 'titulo', tamanhos: [88], max: 1, cor: forte, lh: 1, anim: animItem(k), pai: cabeca.id })
+        texto('item', tit, { x: 0, y: 0, w: colW, fonte: 'titulo', tamanhos: n > 4 ? [36, 32] : [48, 42, 38], max: 2, align: circulos ? 'center' : 'left', anim: animItem(k), pai: col.id, fill: true })
+        if (desc) texto('texto', desc, { x: 0, y: 0, w: colW, tamanhos: n > 4 ? [26, 24] : [30, 27], max: 4, cor: s.suave, align: circulos ? 'center' : 'left', anim: animItem(k), pai: col.id, fill: true })
       })
+      assentar(fila, y0)
+      const r = resolver()
+      const yP = r.find((l) => l.id === fila.id)!.y
+      if (fioCirculos) fioCirculos.y = Math.round(yP + dia / 2)
+      fiosPassos.forEach((f, k) => { f.x = Math.round(M + k * (colW + gap) + 150); f.y = Math.round(yP + 52) })
       break
     }
 
@@ -877,21 +1031,30 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
       const y0 = cabecalho()
       const lista = itens.length ? itens : ['—|sem dados']
       const n = lista.length
-      const hArea = Math.min(fimConteudo - y0, cartoes ? 460 : 420)
-      const yArea = y0 + Math.max(0, (fimConteudo - y0 - hArea) * 0.35)
-      const cel = st ? lista.map((_, k) => ({ x: M, y: y0 + (k * (fimConteudo - y0)) / n, w: W - M * 2, h: (fimConteudo - y0) / n - 24 })) : grade(n, M, yArea, W - M * 2, hArea, 4, cartoes ? GUT : 64)
+      const cols = st ? 1 : Math.max(1, Math.min(4, n <= 4 ? n : Math.ceil(n / 2)))
+      const gapN = st ? 24 : cartoes ? GUT : 64
+      const { g, cw } = gradeAL('grade', M, y0, W - M * 2, cols, gapN, st ? 24 : cartoes ? GUT : 48)
+      const pad = cartoes ? 44 : 0
+      const celulas: Camada[] = []
       lista.forEach((it, k) => {
         const [valor = '', ...resto] = partes(it)
         const legenda = resto.join(' ')
-        const p = cel[k]!
         const dest = ehDestaque(k)
-        const pad = cartoes ? 44 : 0
-        if (cartoes) forma('cartao', 'rect', p.x, p.y, p.w, p.h, { ...cartao(dest), radius: raioCartao, enterAnimation: animItem(k) })
-        else if (k > 0 && !st) linha(p.x - 32, p.y + 10, 2, p.h - 20, s.linha)
+        const cel = frame(cartoes ? 'cartao' : 'celula', 0, 0, cw, 1, { gap: st ? 18 : 24, pad, pai: g.id, extra: cartoes ? { ...cartao(dest), radius: raioCartao, enterAnimation: animItem(k) } : {} })
+        celulas.push(cel)
         const corV = cartoes ? (dest ? sobreDestaque : s.tinta) : dest ? forte : s.tinta
-        const v = texto('valor', valor, { x: p.x + pad, y: p.y + (cartoes ? pad : 0), w: p.w - pad * 2, fonte: 'titulo', tamanhos: st ? [200, 170, 140, 120] : n <= 2 ? [220, 190, 160, 136, 116] : n === 3 ? [176, 152, 132, 112, 96, 84] : [136, 116, 100, 86, 74], max: 1, cor: corV, lh: 1, anim: { type: 'slideUp', duration: 700, delay: 150 + k * 140, easing: 'spring' } })
-        texto('texto', legenda, { x: p.x + pad, y: v.fim + (st ? 18 : 24), w: p.w - pad * 2, tamanhos: st ? [38, 34] : [33, 30, 27], max: 3, cor: cartoes && dest ? alfa(sobreDestaque, 0.85) : s.suave, anim: animItem(k) })
+        texto('valor', valor, { x: 0, y: 0, w: cw - pad * 2, fonte: 'titulo', tamanhos: st ? [200, 170, 140, 120] : n <= 2 ? [220, 190, 160, 136, 116] : n === 3 ? [176, 152, 132, 112, 96, 84] : [136, 116, 100, 86, 74], max: 1, cor: corV, lh: 1, anim: { type: 'slideUp', duration: 700, delay: 150 + k * 140, easing: 'spring' }, pai: cel.id, fill: true })
+        texto('texto', legenda, { x: 0, y: 0, w: cw - pad * 2, tamanhos: st ? [38, 34] : [33, 30, 27], max: 3, cor: cartoes && dest ? alfa(sobreDestaque, 0.85) : s.suave, anim: animItem(k), pai: cel.id, fill: true })
       })
+      if (cartoes) igualar(celulas, 0)
+      if (st) espalhar(g, fimConteudo - y0, 96)
+      assentar(g, y0, fimConteudo, 0.35)
+      if (!cartoes && !st) {
+        // fios entre as colunas de uma mesma linha
+        const r = resolver()
+        const caixas = celulas.map((cel) => r.find((l) => l.id === cel.id)!)
+        caixas.forEach((b, k) => { if (k > 0 && caixas[k - 1]!.y === b.y) linha(b.x - gapN / 2, b.y + 10, 2, Math.max(20, b.height - 20), s.linha) })
+      }
       break
     }
 
@@ -899,7 +1062,7 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
     case 'grafico.barras':
     case 'grafico.colunas': {
       const dados = itens.map((it) => { const [v = '', ...r] = partes(it); return { valor: v, rotulo: r.join(' '), n: numeroDe(v) } })
-      if (dados.filter((x) => x.n !== null).length < 2) return montarTela({ ...d, tipo: 'numeros', variante: 'numeros.grandes', itens: itens.slice(0, 4) }, c)
+      if (dados.filter((x) => x.n !== null).length < 2) return montarTela({ ...d, tipo: 'numeros', variante: 'numeros.grandes', itens: itens.slice(0, 4) }, c, interno)
       const max = Math.max(...dados.map((x) => Math.abs(x.n ?? 0)), 1)
       const destaque = d.destaque >= 0 && d.destaque < dados.length ? d.destaque : dados.reduce((m, x, k) => ((x.n ?? 0) > (dados[m]!.n ?? 0) ? k : m), 0)
       const corBarra = misturar(s.fundo, s.tinta, s.tipo === 'escuro' ? 0.28 : 0.2)
@@ -926,7 +1089,7 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
         const xb = st ? M : xc(3)
         const larguraMax = (st ? W - M * 2 : W - M - xb) - 170
         const hb = Math.min(st ? 52 : 46, passo * 0.5)
-        const yB = noMeio(y0, n * passo)
+        const yB = y0 + Math.max(0, (fimConteudo - y0 - n * passo) * 0.42)
         dados.forEach((x, k) => {
           const yk = yB + k * passo
           texto('item', x.rotulo, { x: M, y: st ? yk : yk + (hb - 30) / 2, w: rotW - 24, tamanhos: st ? [32, 28] : [28, 25, 22], max: st ? 1 : 2, cor: s.tinta, anim: animItem(k) })
@@ -947,29 +1110,26 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
       const cabA = itens[0] ?? 'Hoje'
       const cabB = itens[1] ?? 'Depois'
       const [a, b] = [itens.slice(2).filter((_, k) => k % 2 === 0), itens.slice(2).filter((_, k) => k % 2 === 1)]
+      const tamSeta = st ? 64 : 72
       const seta = antes ? (st ? 90 : 120) : 0
-      const w = st ? W - M * 2 : (W - M * 2 - (antes ? seta : GUT)) / 2
-      const linhasMax = Math.max(1, a.length, b.length)
-      const necessario = (st ? 48 : 52) * 2 + 120 + linhasMax * (st ? 36 : 32) * 1.7 + 40
-      const hCaixa = Math.min(st ? (fimConteudo - y0 - (antes ? seta : 40)) / 2 : fimConteudo - y0, Math.max(st ? 300 : 400, necessario))
-      const yC = noMeio(y0, st ? hCaixa * 2 + (antes ? seta : 40) : hCaixa)
+      const w = st ? W - M * 2 : Math.floor((W - M * 2 - (antes ? seta : GUT)) / 2)
       const destaqueA = d.destaque === 0
+      const fila = frame('comparacao', M, y0, W - M * 2, 1, { dir: st ? 'vertical' : 'horizontal', gap: antes ? (seta - tamSeta) / 2 : st ? 40 : GUT, alX: st ? 'center' : 'start', alY: 'center' })
+      const caixas: Camada[] = []
+      const pad = st ? 48 : 52
       ;[{ cab: cabA, linhas: a }, { cab: cabB, linhas: b }].forEach((col, k) => {
-        const x = st ? M : M + k * (w + (antes ? seta : GUT))
-        const y = st ? yC + k * (hCaixa + (antes ? seta : 40)) : yC
         const dest = antes ? k === 1 : destaqueA ? k === 0 : k === 1
         const fill = dest ? forte : antes ? s.fundo : s.cartao
-        forma('caixa', 'rect', x, y, w, hCaixa, { ...(antes && !dest ? { fill, stroke: s.linha, strokeWidth: 2 } : cartao(dest, fill)), radius: raioCartao, enterAnimation: animItem(k) })
+        const cx = frame('caixa', 0, 0, w, 1, { gap: 24, pad, pai: fila.id, extra: { ...(antes && !dest ? { fill, stroke: s.linha, strokeWidth: 2 } : cartao(dest, fill)), radius: raioCartao, enterAnimation: animItem(k) } })
+        caixas.push(cx)
         const corT = dest ? sobreDestaque : antes ? s.suave : s.tinta
-        const pad = st ? 48 : 52
-        const h1 = texto('cab', col.cab, { x: x + pad, y: y + pad, w: w - pad * 2, fonte: 'titulo', tamanhos: st ? [52, 46, 40] : [52, 46, 40], max: 2, cor: corT, anim: animItem(k) })
-        linha(x + pad, h1.fim + 22, w - pad * 2, 2, dest ? alfa(sobreDestaque, 0.3) : s.linha)
-        texto('texto', col.linhas.join('\n') || '—', { x: x + pad, y: h1.fim + 52, w: w - pad * 2, tamanhos: st ? [38, 34, 30] : [34, 31, 28], max: 8, lh: 1.7, cor: dest ? sobreDestaque : antes ? s.suave : s.tinta, anim: animItem(k + 1) })
+        texto('cab', col.cab, { x: 0, y: 0, w: w - pad * 2, fonte: 'titulo', tamanhos: [52, 46, 40], max: 2, cor: corT, anim: animItem(k), pai: cx.id, fill: true })
+        linha(0, 0, w - pad * 2, 2, dest ? alfa(sobreDestaque, 0.3) : s.linha, { parentId: cx.id, sizingW: 'fill' })
+        texto('texto', col.linhas.join('\n') || '—', { x: 0, y: 0, w: w - pad * 2, tamanhos: st ? [38, 34, 30] : [34, 31, 28], max: 8, lh: 1.7, cor: dest ? sobreDestaque : antes ? s.suave : s.tinta, anim: animItem(k + 1), pai: cx.id, fill: true })
+        if (antes && k === 0) forma('seta', 'arrow', 0, 0, tamSeta, tamSeta, { fill: forte, rotation: st ? 90 : 0, enterAnimation: animForma(400), parentId: fila.id })
       })
-      if (antes) {
-        const tam = st ? 64 : 72
-        forma('seta', 'arrow', st ? W / 2 - tam / 2 : M + w + (seta - tam) / 2, st ? yC + hCaixa + (seta - tam) / 2 : yC + hCaixa / 2 - tam / 2, tam, tam, { fill: forte, rotation: st ? 90 : 0, enterAnimation: animForma(400) })
-      }
+      igualar(caixas, esc(st ? 300 : 400))
+      assentar(fila, y0)
       break
     }
 
@@ -980,28 +1140,55 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
       const marcos = itens.map((it) => { const [data = '', ...r] = partes(it); return { data, marco: r.join(' ') } })
       const n = Math.max(1, marcos.length)
       if (d.variante === 'linhaTempo.horizontal' && !st) {
-        const yL = y0 + (fimConteudo - y0) * 0.36
-        const passo = (W - M * 2) / n
-        linha(M, yL, W - M * 2, 3, s.linha, { enterAnimation: { type: 'reveal', duration: 1000, delay: 100, easing: 'easeOut' } })
+        const passo = Math.floor((W - M * 2) / n)
+        const tams = n > 4 ? [38, 34, 30] : [50, 44, 38]
+        // mesmo corpo em todas as datas: os pontos ficam numa linha só
+        const tamData = Math.min(...marcos.map((x) => caberTitulo(x.data || '—', passo - 28, tams, 1).tamanho))
+        const fio = linha(M, y0, W - M * 2, 3, s.linha, { enterAnimation: { type: 'reveal', duration: 1000, delay: 100, easing: 'easeOut' } })
+        const fila = frame('marcos', M, y0, W - M * 2, 1, { dir: 'horizontal' })
+        const pontos: Camada[] = []
         marcos.forEach((x, k) => {
-          const xk = M + k * passo
           const dest = ehDestaque(k)
           const dot = dest ? 40 : 26
-          forma('marcador', 'ellipse', xk, yL - dot / 2 + 1, dot, dot, { fill: forte, enterAnimation: animItem(k) })
-          texto('item', x.data, { x: xk, y: yL - (n > 4 ? 88 : 104), w: passo - 28, fonte: 'titulo', tamanhos: n > 4 ? [38, 34, 30] : [50, 44, 38], max: 1, cor: dest ? forte : s.tinta, anim: animItem(k) })
-          texto('texto', x.marco, { x: xk, y: yL + 48, w: passo - 36, tamanhos: n > 4 ? [28, 26, 24] : [33, 30, 27], max: 4, cor: s.suave, anim: animItem(k) })
+          const col = frame('marco', 0, 0, passo, 1, { gap: 20, pai: fila.id })
+          texto('item', x.data, { x: 0, y: 0, w: passo - 28, fonte: 'titulo', tamanhos: [tamData], escalado: true, max: 1, cor: dest ? forte : s.tinta, anim: animItem(k), pai: col.id })
+          const ponto = frame('grupo', 0, 0, passo, 40, { h: 'fixed', alY: 'center', pai: col.id, w: 'fill' })
+          pontos.push(ponto)
+          forma('marcador', 'ellipse', 0, 0, dot, dot, { fill: forte, enterAnimation: animItem(k), parentId: ponto.id })
+          texto('texto', x.marco, { x: 0, y: 0, w: passo - 36, tamanhos: n > 4 ? [28, 26, 24] : [33, 30, 27], max: 4, cor: s.suave, anim: animItem(k), pai: col.id })
         })
+        assentar(fila, y0, fimConteudo, 0.3)
+        const p0 = resolver().find((l) => l.id === pontos[0]?.id)
+        if (p0) fio.y = Math.round(p0.y + p0.height / 2 - 1)
       } else {
-        const passo = (fimConteudo - y0) / n
-        const xL = M + 12
-        linha(xL, y0 + 14, 3, passo * (n - 1) + 4, s.linha, { enterAnimation: { type: 'reveal', duration: 1000, delay: 100, easing: 'easeOut' } })
+        const fio = linha(M + 12, y0, 3, 10, s.linha, { enterAnimation: { type: 'reveal', duration: 1000, delay: 100, easing: 'easeOut' } })
+        const lista = frame('lista', M, y0, W - M * 2, 1, { gap: 32 })
+        const pontos: Camada[] = []
+        // slides: ponto · data (até a coluna 4) · descrição (da coluna 5 ao fim); story: ponto · data sobre a descrição
+        const xMarco = xc(4)
+        const gapL = st ? 30 : 24
+        const wData = st ? W - M * 2 - 26 - 6 - gapL : Math.round(xMarco - (M + 26 + 6 + gapL) - gapL)
         marcos.forEach((x, k) => {
-          const yk = y0 + k * passo
           const dest = ehDestaque(k)
-          forma('marcador', 'ellipse', xL - 11, yk + 4, 26, 26, { fill: forte, enterAnimation: animItem(k) })
-          const dt = texto('item', x.data, { x: xL + 56, y: yk - 4, w: st ? W - M * 2 - 70 : wc(3), fonte: st ? 'mono' : 'titulo', tamanhos: st ? [26] : [36, 32, 28], max: 1, cor: dest || st ? forte : s.tinta, upper: st, anim: animItem(k) })
-          texto('texto', x.marco, { x: st ? xL + 56 : xc(4), y: st ? dt.fim + 8 : yk - 2, w: st ? W - M * 2 - 70 : wc(8), tamanhos: st ? [40, 36, 32] : [32, 29, 26], max: 2, cor: st ? s.tinta : s.suave, anim: animItem(k) })
+          const lin = frame('linha', 0, 0, W - M * 2, 1, { dir: 'horizontal', gap: gapL, pai: lista.id, w: 'fill' })
+          const ponto = frame('grupo', 0, 0, 32, 1, { w: 'hug', pad: { top: 6, right: 6, bottom: 0, left: 0 }, pai: lin.id })
+          pontos.push(ponto)
+          forma('marcador', 'ellipse', 0, 0, 26, 26, { fill: forte, enterAnimation: animItem(k), parentId: ponto.id })
+          if (st) {
+            const col = frame('grupo', 0, 0, wData, 1, { gap: 8, pai: lin.id, w: 'fill' })
+            texto('item', x.data, { x: 0, y: 0, w: wData, fonte: 'mono', tamanhos: [26], max: 1, cor: forte, upper: true, anim: animItem(k), pai: col.id, fill: true })
+            texto('texto', x.marco, { x: 0, y: 0, w: wData, tamanhos: [40, 36, 32], max: 2, cor: s.tinta, anim: animItem(k), pai: col.id, fill: true })
+          } else {
+            texto('item', x.data, { x: 0, y: 0, w: wData, fonte: 'titulo', tamanhos: [36, 32, 28], max: 1, cor: dest ? forte : s.tinta, anim: animItem(k), pai: lin.id })
+            texto('texto', x.marco, { x: 0, y: 0, w: W - M - xMarco, tamanhos: [32, 29, 26], max: 2, cor: s.suave, anim: animItem(k), pai: lin.id, fill: true })
+          }
         })
+        espalhar(lista, fimConteudo - y0, st ? 96 : 72)
+        const r = resolver()
+        const cs = pontos.map((p) => r.find((l) => l.id === p.id)!).map((b) => ({ x: b.x + 13, y: b.y + 6 + 13 }))
+        fio.x = Math.round((cs[0]?.x ?? M + 13) - 1.5)
+        fio.y = Math.round(cs[0]?.y ?? y0)
+        fio.height = Math.max(1, Math.round((cs[cs.length - 1]?.y ?? y0) - (cs[0]?.y ?? y0)))
       }
       break
     }
@@ -1009,31 +1196,35 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
     // ================================================================ citação
     case 'citacao.grande': {
       const larg = st ? W - M * 2 : W * 0.78
-      texto('aspas', '“', { x: M - 12, y: st ? H * 0.12 : MT - 20, w: 360, fonte: 'titulo', tamanhos: [st ? 300 : 340], max: 1, lh: 1, cor: forte, peso: 400, anim: animForma(0) })
       const tam = st ? [84, 74, 64, 56, 50] : [96, 84, 74, 64, 56, 50]
-      const prev = caberTitulo(d.titulo, larg, tam, 6, { tracking: F.tracking * 0.6 })
-      const yQ = st ? H * 0.32 : Math.max(MT + 200, (H - prev.tamanho * 1.08 * prev.linhas) / 2)
-      const q = texto('titulo', d.titulo, { x: M, y: yQ, w: larg, fonte: 'titulo', tamanhos: tam, max: 6, italic: F.italicoCitacao, tracking: F.tracking * 0.6, lh: 1.08, anim: animTitulo() })
+      const col = frame('citacao', M, 0, larg, 1, { gap: 48 })
+      const frase = frame('grupo', M, 0, larg, 1, { gap: 8, pai: col.id, w: 'fill' })
+      aspas(frase.id, st ? 300 : 340)
+      texto('titulo', d.titulo, { x: 0, y: 0, w: larg, fonte: 'titulo', tamanhos: tam, max: 6, italic: F.italicoCitacao, tracking: F.tracking * 0.6, lh: 1.08, anim: animTitulo(), pai: frase.id, fill: true })
       if (d.texto) {
-        linha(M, q.fim + 56, 56, 3, forte)
-        texto('autor', d.texto, { x: M + 80, y: q.fim + 42, w: larg - 80, fonte: 'mono', tamanhos: [st ? 26 : 22], max: 2, upper: true, tracking: -0.1, cor: s.suave })
+        const autor = frame('grupo', 0, 0, larg, 1, { dir: 'horizontal', gap: 24, alY: 'center', pai: col.id, w: 'fill' })
+        linha(0, 0, 56, 3, forte, { parentId: autor.id })
+        texto('autor', d.texto, { x: 0, y: 0, w: larg - 80, fonte: 'mono', tamanhos: [st ? 26 : 22], max: 2, upper: true, tracking: -0.1, cor: s.suave, pai: autor.id, fill: true })
       }
+      const h = altura(col)
+      colocar(col, M, st ? Math.max(H * 0.12, (H - h) / 2) : Math.max(MT - 20, (H - h) / 2))
       break
     }
     case 'citacao.depoimento': {
-      const y0 = d.rotulo ? (kicker(d.rotulo, M, MT, W - M * 2)?.fim ?? MT) + 48 : MT + 40
+      if (d.rotulo) kicker(d.rotulo, M, MT, W - M * 2)
+      const y0 = d.rotulo ? MT + (R.rotulo === 'fio' ? 96 : 80) : MT + 40
       const cx = st ? M : M + wc(1) + GUT
       const cwid = st ? W - M * 2 : wc(10)
       const ch = fimConteudo - y0
-      forma('cartao', 'rect', cx, y0, cwid, ch, { ...cartao(false), radius: raioCartao, enterAnimation: animForma(0) })
       const pad = st ? 64 : 88
-      texto('aspas', '“', { x: cx + pad - 8, y: y0 + pad - 40, w: 200, fonte: 'titulo', tamanhos: [180], max: 1, lh: 1, cor: forte, peso: 400, anim: null })
-      const q = texto('titulo', d.titulo, { x: cx + pad, y: y0 + pad + 110, w: cwid - pad * 2, fonte: 'titulo', tamanhos: st ? [64, 56, 50, 44] : [64, 56, 50, 44, 40], max: st ? 8 : 4, italic: F.italicoCitacao, tracking: F.tracking * 0.5, lh: 1.12, anim: animTitulo() })
+      const card = frame('cartao', cx, y0, cwid, ch, { h: 'fixed', gap: 56, pad, alY: 'center', extra: { ...cartao(false), radius: raioCartao, enterAnimation: animForma(0) } })
+      const frase = frame('grupo', 0, 0, cwid - pad * 2, 1, { gap: 12, pai: card.id, w: 'fill' })
+      aspas(frase.id, 180)
+      texto('titulo', d.titulo, { x: 0, y: 0, w: cwid - pad * 2, fonte: 'titulo', tamanhos: st ? [64, 56, 50, 44] : [64, 56, 50, 44, 40], max: st ? 8 : 4, italic: F.italicoCitacao, tracking: F.tracking * 0.5, lh: 1.12, anim: animTitulo(), pai: frase.id, fill: true })
       if (d.texto) {
-        const yA = Math.min(y0 + ch - pad - 80, q.fim + 64)
-        forma('avatar', 'ellipse', cx + pad, yA, 80, 80, { fill: forte, enterAnimation: animForma(300) })
-        texto('iniciais', iniciais(d.texto), { x: cx + pad, y: yA + 20, w: 80, fonte: 'titulo', tamanhos: [32], max: 1, align: 'center', cor: sobreDestaque, anim: null })
-        texto('autor', d.texto, { x: cx + pad + 108, y: yA + 22, w: cwid - pad * 2 - 108, tamanhos: st ? [30, 26] : [28, 25], max: 2, peso: 600, cor: s.tinta })
+        const autor = frame('grupo', 0, 0, cwid - pad * 2, 1, { dir: 'horizontal', gap: 28, alY: 'center', pai: card.id, w: 'fill' })
+        avatar(autor.id, 0, 0, 80, forte, sobreDestaque, d.texto, animForma(300))
+        texto('autor', d.texto, { x: 0, y: 0, w: cwid - pad * 2 - 108, tamanhos: st ? [30, 26] : [28, 25], max: 2, peso: 600, cor: s.tinta, pai: autor.id, fill: true })
       }
       break
     }
@@ -1044,36 +1235,26 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
       const imgH = st ? H * 0.5 : H
       espacoImagem(st ? 0 : W - imgW, 0, imgW, imgH, d.imagem)
       const larg = st ? W - M * 2 : W - imgW - M - 72
-      let y = st ? imgH + 80 : MT
-      const k = kicker(d.rotulo, M, y, larg)
-      if (k) y = k.fim + 22
-      const prev = caberTitulo(d.titulo, larg, [96, 84, 72, 64, 56], 4, { tracking: F.tracking })
-      if (!st) y = Math.max(y, (H - prev.tamanho * 1.04 * prev.linhas - (d.texto ? 200 : 0)) / 2)
-      const tt = tituloEnfase(d.titulo, { x: M, y, w: larg, tamanhos: st ? [88, 76, 66, 58] : [96, 84, 72, 64, 56], max: 4 })
-      if (d.texto) texto('texto', d.texto, { x: M, y: tt.fim + 32, w: larg, tamanhos: st ? [36, 32] : [30, 27], max: 6, cor: s.suave })
+      const b = bloco({ x: M, y: 0, w: larg, rotulo: d.rotulo, tamanhos: st ? [88, 76, 66, 58] : [96, 84, 72, 64, 56], max: 4, gapRotulo: 22, gapTexto: 32, texto: { tamanhos: st ? [36, 32] : [30, 27], max: 6 } })
+      colocar(b, M, st ? imgH + 80 : Math.max(MT, (H - altura(b)) / 2))
       break
     }
     case 'imagem.cheia': {
       espacoImagem(0, 0, W, H, d.imagem)
       forma('veu', 'rect', 0, H * 0.4, W, H * 0.6, { fill: s.fundo, gradient: { type: 'linear', angle: 180, stops: [{ color: alfa(s.fundo, 0), pos: 0 }, { color: alfa(s.fundo, 0.92), pos: 100 }] } })
       const larg = st ? W - M * 2 : W * 0.7
-      const prev = caberTitulo(d.titulo, larg, [120, 104, 90, 78], 3, { tracking: F.tracking })
-      const hT = prev.tamanho * 1.06 * (prev.linhas + (dividirEnfase(d.titulo, d.enfase) && c.estilo !== 'minimal' ? 1 : 0))
-      const yT = H - MB - hT - (d.texto ? (st ? 180 : 130) : 0)
-      kicker(d.rotulo, M, yT - 60, larg)
-      const tt = tituloEnfase(d.titulo, { x: M, y: yT, w: larg, tamanhos: [120, 104, 90, 78], max: 3 })
-      if (d.texto) texto('texto', d.texto, { x: M, y: tt.fim + 28, w: st ? larg : W * 0.5, tamanhos: st ? [36, 32] : [30, 27], max: 3, cor: s.suave })
+      const b = bloco({ x: M, y: 0, w: larg, rotulo: d.rotulo, tamanhos: [120, 104, 90, 78], max: 3, gapTexto: 28, texto: { w: st ? larg : W * 0.5, tamanhos: st ? [36, 32] : [30, 27], max: 3 } })
+      colocar(b, M, Math.max(MT, H - MB - altura(b)))
       break
     }
     case 'imagem.moldura': {
-      let y = MT
-      const k = kicker(d.rotulo, M, y, W - M * 2)
-      if (k) y = k.fim + 18
-      const tt = texto('titulo', d.titulo, { x: M, y, w: st ? W - M * 2 : wc(8), fonte: 'titulo', tamanhos: st ? [72, 64, 56] : [64, 56, 50], max: 2, anim: animTitulo() })
-      const yI = tt.fim + 44
-      const hI = fimConteudo - yI - (d.texto ? (st ? 170 : 90) : 0)
-      espacoImagem(M, yI, W - M * 2, hI, d.imagem, raioCartao)
-      if (d.texto) texto('texto', d.texto, { x: M, y: yI + hI + 28, w: st ? W - M * 2 : wc(8), tamanhos: st ? [32, 28] : [26, 24], max: 2, cor: s.suave })
+      const col = frame('coluna', M, MT, W - M * 2, 1, { gap: 28 })
+      const b = bloco({ x: M, y: MT, w: st ? W - M * 2 : wc(8), rotulo: d.rotulo, tamanhos: st ? [72, 64, 56] : [64, 56, 50], max: 2, simples: true, pai: col.id })
+      layoutDe(b).padding.bottom = 16
+      const yI = MT + altura(b) + 28
+      const hI = Math.max(200, fimConteudo - yI - (d.texto ? (st ? 170 : 90) : 0))
+      espacoImagem(M, yI, W - M * 2, hI, d.imagem, raioCartao, col.id)
+      if (d.texto) texto('texto', d.texto, { x: M, y: 0, w: st ? W - M * 2 : wc(8), tamanhos: st ? [32, 28] : [26, 24], max: 2, cor: s.suave, pai: col.id })
       break
     }
 
@@ -1082,25 +1263,40 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
     case 'galeria.mosaico': {
       const y0 = cabecalho()
       const lista = itens.length ? itens : ['Imagem', 'Imagem', 'Imagem']
-      const legenda = st ? 96 : 84
+      const legenda = st ? 110 : 100
       const mosaico = d.variante === 'galeria.mosaico' && !st && lista.length >= 3
-      const area = { x: M, y: y0, w: W - M * 2, h: fimConteudo - y0 }
-      const menores = Math.min(lista.length, 4) - 1
-      const hMenor = (area.h - (menores - 1) * GUT) / Math.max(1, menores)
-      const cel = mosaico
-        ? [{ x: area.x, y: area.y, w: wc(7), h: area.h }, ...Array.from({ length: menores }, (_, k) => ({ x: xc(7), y: area.y + k * (hMenor + GUT), w: wc(5), h: hMenor }))]
-        : grade(lista.length, area.x, area.y, area.w, area.h, st ? 2 : lista.length === 4 ? 4 : 3)
-      lista.slice(0, cel.length).forEach((it, k) => {
-        const [tit = '', desc = ''] = partes(it)
-        const p = cel[k]!
-        const comLegenda = !mosaico || k === 0
-        const hImg = comLegenda ? p.h - legenda : p.h
-        espacoImagem(p.x, p.y, p.w, hImg, mosaico && k > 0 ? tit : '', Math.min(raioCartao, 20))
+      const areaH = fimConteudo - y0
+      const celula = (pai: string, w: number, hImg: number, tit: string, desc: string, k: number, comLegenda: boolean) => {
+        const cel = frame('celula', 0, 0, w, 1, { gap: 18, pai })
+        espacoImagem(0, 0, w, hImg, comLegenda ? '' : tit, Math.min(raioCartao, 20), cel.id)
         if (comLegenda) {
-          const t1 = texto('item', tit, { x: p.x, y: p.y + hImg + 18, w: p.w, tamanhos: st ? [30, 26] : [26, 24], max: 1, peso: 600, anim: animItem(k) })
-          if (desc) texto('texto', desc, { x: p.x, y: t1.fim + 2, w: p.w, tamanhos: st ? [24, 22] : [21, 19], max: 1, cor: s.suave, anim: animItem(k) })
+          const leg = frame('grupo', 0, 0, w, 1, { gap: 2, pai: cel.id, w: 'fill' })
+          texto('item', tit, { x: 0, y: 0, w, tamanhos: st ? [30, 26] : [26, 24], max: 1, peso: 600, anim: animItem(k), pai: leg.id, fill: true })
+          if (desc) texto('texto', desc, { x: 0, y: 0, w, tamanhos: st ? [24, 22] : [21, 19], max: 1, cor: s.suave, anim: animItem(k), pai: leg.id, fill: true })
         }
-      })
+        return cel
+      }
+      if (mosaico) {
+        const menores = Math.min(lista.length, 4) - 1
+        const hMenor = Math.floor((areaH - (menores - 1) * GUT) / Math.max(1, menores))
+        const fila = frame('galeria', M, y0, W - M * 2, 1, { dir: 'horizontal', gap: GUT })
+        const [tit0 = '', desc0 = ''] = partes(lista[0]!)
+        celula(fila.id, Math.round(wc(7)), areaH - legenda, tit0, desc0, 0, true)
+        const lado = frame('grupo', 0, 0, Math.round(wc(5)), 1, { gap: GUT, pai: fila.id })
+        lista.slice(1, menores + 1).forEach((it) => {
+          const [tit = ''] = partes(it)
+          espacoImagem(0, 0, Math.round(wc(5)), hMenor, tit, Math.min(raioCartao, 20), lado.id)
+        })
+      } else {
+        const cols = st ? 2 : lista.length === 4 ? 4 : Math.min(3, Math.max(1, lista.length))
+        const linhasG = Math.ceil(lista.length / cols)
+        const { g, cw } = gradeAL('galeria', M, y0, W - M * 2, cols, GUT)
+        const hCel = Math.floor((areaH - (linhasG - 1) * GUT) / linhasG)
+        lista.forEach((it, k) => {
+          const [tit = '', desc = ''] = partes(it)
+          celula(g.id, cw, Math.max(120, hCel - legenda), tit, desc, k, true)
+        })
+      }
       break
     }
 
@@ -1110,30 +1306,39 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
       const y0 = cabecalho()
       const pessoas = itens.map((it) => { const [nome = '', ...r] = partes(it); return { nome, papel: r.join(' · ') } })
       if (d.variante === 'equipe.lista' || (st && pessoas.length > 4)) {
-        const passo = Math.min(st ? 220 : 130, (fimConteudo - y0) / Math.max(1, pessoas.length))
+        const av = esc(st ? 96 : 72)
+        const lista = frame('lista', M, y0, W - M * 2, 1, { gap: 22 })
+        const wNome = st ? W - M * 2 - av - 32 : wc(5)
         pessoas.forEach((p, k) => {
-          const yk = y0 + k * passo
-          const av = st ? 96 : 72
-          forma('avatar', 'ellipse', M, yk, av, av, { fill: k % 2 ? s.cartao : forte, enterAnimation: animItem(k) })
-          texto('iniciais', iniciais(p.nome), { x: M, y: yk + av / 2 - (st ? 22 : 17), w: av, fonte: 'titulo', tamanhos: [st ? 36 : 28], max: 1, align: 'center', cor: k % 2 ? forte : sobreDestaque, anim: null })
-          texto('item', p.nome, { x: M + av + 32, y: yk + (st ? 8 : 4), w: st ? W - M * 2 - av - 32 : wc(5), fonte: 'titulo', tamanhos: st ? [44, 40] : [38, 34, 30], max: 1, anim: animItem(k) })
-          texto('texto', p.papel, { x: st ? M + av + 32 : xc(6), y: st ? yk + 64 : yk + 10, w: st ? W - M * 2 - av - 32 : wc(6), tamanhos: st ? [30, 28] : [28, 25], max: 1, cor: s.suave, anim: animItem(k) })
-          if (k < pessoas.length - 1) linha(M, yk + passo - 22, W - M * 2, 2, s.linha)
+          const lin = frame('linha', 0, 0, W - M * 2, 1, { dir: 'horizontal', gap: 32, alY: 'center', pai: lista.id, w: 'fill' })
+          avatar(lin.id, 0, 0, av, k % 2 ? s.cartao : forte, k % 2 ? forte : sobreDestaque, p.nome, animItem(k))
+          if (st) {
+            const col = frame('grupo', 0, 0, wNome, 1, { gap: 6, pai: lin.id, w: 'fill' })
+            texto('item', p.nome, { x: 0, y: 0, w: wNome, fonte: 'titulo', tamanhos: [44, 40], max: 1, anim: animItem(k), pai: col.id, fill: true })
+            texto('texto', p.papel, { x: 0, y: 0, w: wNome, tamanhos: [30, 28], max: 1, cor: s.suave, anim: animItem(k), pai: col.id, fill: true })
+          } else {
+            texto('item', p.nome, { x: 0, y: 0, w: wNome, fonte: 'titulo', tamanhos: [38, 34, 30], max: 1, anim: animItem(k), pai: lin.id })
+            texto('texto', p.papel, { x: 0, y: 0, w: wc(6), tamanhos: [28, 25], max: 1, cor: s.suave, anim: animItem(k), pai: lin.id, fill: true })
+          }
+          if (k < pessoas.length - 1) linha(0, 0, W - M * 2, 2, s.linha, { parentId: lista.id, sizingW: 'fill' })
         })
+        espalhar(lista, fimConteudo - y0, st ? 64 : 40)
         break
       }
       const colsE = st ? 2 : pessoas.length <= 4 ? Math.max(1, pessoas.length) : 3
-      const hE = Math.min(fimConteudo - y0, Math.ceil(pessoas.length / colsE) * (st ? 480 : 420))
-      const cel = grade(pessoas.length, M, noMeio(y0, hE), W - M * 2, hE, colsE)
+      const linhasE = Math.ceil(pessoas.length / colsE)
+      const { g, cw } = gradeAL('grade', M, y0, W - M * 2, colsE, GUT, st ? 48 : 56)
+      const hCel = (fimConteudo - y0 - (linhasE - 1) * (st ? 48 : 56)) / Math.max(1, linhasE)
+      const dia = Math.round(Math.max(64, Math.min(cw * 0.62, hCel - 150, st ? 300 : 230)))
       pessoas.forEach((p, k) => {
-        const c0 = cel[k]!
-        const dia = Math.max(64, Math.min(c0.w * 0.62, c0.h - 150, st ? 300 : 230))
-        const xa = c0.x + (c0.w - dia) / 2
-        forma('avatar', 'ellipse', xa, c0.y, dia, dia, { fill: k % 2 ? s.cartao : misturar(s.fundo, forte, 0.85), enterAnimation: animItem(k) })
-        texto('iniciais', iniciais(p.nome), { x: xa, y: c0.y + dia / 2 - dia * 0.2, w: dia, fonte: 'titulo', tamanhos: [Math.round(dia * 0.32)], max: 1, align: 'center', cor: k % 2 ? forte : legivel(misturar(s.fundo, forte, 0.85), [sobreDestaque, s.tinta, s.fundo], 3), anim: null })
-        const n1 = texto('item', p.nome, { x: c0.x, y: c0.y + dia + 26, w: c0.w, fonte: 'titulo', tamanhos: st ? [42, 38, 34] : [40, 36, 32], max: 2, align: 'center', anim: animItem(k) })
-        if (p.papel) texto('texto', p.papel, { x: c0.x, y: n1.fim + 8, w: c0.w, tamanhos: st ? [30, 27] : [27, 25], max: 2, cor: s.suave, align: 'center', anim: animItem(k) })
+        const cel = frame('celula', 0, 0, cw, 1, { gap: 26, alX: 'center', pai: g.id })
+        const fundoAv = k % 2 ? s.cartao : misturar(s.fundo, forte, 0.85)
+        avatar(cel.id, 0, 0, dia, fundoAv, k % 2 ? forte : legivel(fundoAv, [sobreDestaque, s.tinta, s.fundo], 3), p.nome, animItem(k))
+        const nomes = frame('grupo', 0, 0, cw, 1, { gap: 8, alX: 'center', pai: cel.id, w: 'fill' })
+        texto('item', p.nome, { x: 0, y: 0, w: cw, fonte: 'titulo', tamanhos: st ? [42, 38, 34] : [40, 36, 32], max: 2, align: 'center', anim: animItem(k), pai: nomes.id, fill: true })
+        if (p.papel) texto('texto', p.papel, { x: 0, y: 0, w: cw, tamanhos: st ? [30, 27] : [27, 25], max: 2, cor: s.suave, align: 'center', anim: animItem(k), pai: nomes.id, fill: true })
       })
+      assentar(g, y0)
       break
     }
 
@@ -1142,46 +1347,58 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
       const y0 = cabecalho({ semTexto: false })
       const planos = itens.map((it) => { const [nome = '', preco = '', ...r] = partes(it); return { nome, preco, beneficios: r.join(';').split(/;\s*/).map((b) => b.trim()).filter(Boolean).slice(0, 5) } })
       const destaque = d.destaque >= 0 && d.destaque < planos.length ? d.destaque : planos.length >= 3 ? 1 : planos.length - 1
-      const cel = st ? planos.map((_, k) => ({ x: M, y: y0 + (k * (fimConteudo - y0)) / planos.length, w: W - M * 2, h: (fimConteudo - y0) / planos.length - 28 })) : grade(planos.length, M, noMeio(y0, Math.min(fimConteudo - y0, 560)), W - M * 2, Math.min(fimConteudo - y0, 560), 4)
+      const cols = st ? 1 : Math.max(1, Math.min(4, planos.length <= 4 ? planos.length : Math.ceil(planos.length / 2)))
+      const { g, cw } = gradeAL('grade', M, y0, W - M * 2, cols, st ? 28 : GUT)
+      const pad = 44
+      const iw = cw - pad * 2
+      const cartoes: Camada[] = []
       planos.forEach((p, k) => {
-        const c0 = cel[k]!
         const dest = k === destaque && planos.length > 1
         const corT = dest ? sobreDestaque : s.tinta
-        const pad = st ? 44 : 44
-        forma('cartao', 'rect', c0.x, c0.y, c0.w, c0.h, { ...cartao(dest), radius: raioCartao, enterAnimation: animItem(k) })
-        if (dest) texto('selo', 'Recomendado', { x: c0.x + c0.w - pad - 200, y: c0.y + pad - 4, w: 200, fonte: 'mono', tamanhos: [st ? 20 : 17], max: 1, upper: true, align: 'right', cor: corT, anim: null })
-        const n1 = texto('item', p.nome, { x: c0.x + pad, y: c0.y + pad, w: c0.w - pad * 2 - (dest ? 200 : 0), fonte: 'titulo', tamanhos: st ? [44, 40] : [38, 34, 30], max: 1, cor: corT, anim: animItem(k) })
-        const pr = texto('preco', p.preco || '—', { x: c0.x + pad, y: n1.fim + (st ? 12 : 20), w: c0.w - pad * 2, fonte: 'titulo', tamanhos: st ? [72, 64, 56] : planos.length > 3 ? [56, 48, 42] : [68, 60, 52, 46], max: 1, cor: corT, lh: 1.05, anim: animItem(k) })
+        const card = frame('cartao', 0, 0, cw, 1, { dir: st ? 'horizontal' : 'vertical', gap: st ? 32 : 20, pad, pai: g.id, extra: { ...cartao(dest), radius: raioCartao, enterAnimation: animItem(k) } })
+        cartoes.push(card)
+        const wTopo = st ? Math.round(iw * 0.5 - 16) : iw
+        const topo = frame('grupo', 0, 0, wTopo, 1, { gap: st ? 12 : 20, pai: card.id, w: 'fill' })
+        const cab = frame('grupo', 0, 0, wTopo, 1, { dir: 'horizontal', gap: 16, alY: 'center', pai: topo.id, w: 'fill' })
+        texto('item', p.nome, { x: 0, y: 0, w: wTopo - (dest ? 216 : 0), fonte: 'titulo', tamanhos: st ? [44, 40] : [38, 34, 30], max: 1, cor: corT, anim: animItem(k), pai: cab.id, fill: true })
+        if (dest) texto('selo', 'Recomendado', { x: 0, y: 0, w: 200, fonte: 'mono', tamanhos: [st ? 20 : 17], max: 1, upper: true, align: 'right', cor: corT, anim: null, pai: cab.id })
+        texto('preco', p.preco || '—', { x: 0, y: 0, w: wTopo, fonte: 'titulo', tamanhos: st ? [72, 64, 56] : planos.length > 3 ? [56, 48, 42] : [68, 60, 52, 46], max: 1, cor: corT, lh: 1.05, anim: animItem(k), pai: topo.id, fill: true })
         if (p.beneficios.length) {
-          if (!st) linha(c0.x + pad, pr.fim + 28, c0.w - pad * 2, 2, dest ? alfa(sobreDestaque, 0.3) : s.linha)
-          texto('beneficios', p.beneficios.map((b) => `+  ${b}`).join('\n'), { x: st ? c0.x + c0.w * 0.5 : c0.x + pad, y: st ? c0.y + pad : pr.fim + 56, w: st ? c0.w * 0.5 - pad : c0.w - pad * 2, tamanhos: st ? [28, 26, 24] : [26, 24, 22], max: 6, lh: 1.65, cor: dest ? alfa(sobreDestaque, 0.9) : s.suave, anim: animItem(k + 1) })
+          if (!st) linha(0, 0, iw, 2, dest ? alfa(sobreDestaque, 0.3) : s.linha, { parentId: card.id, sizingW: 'fill' })
+          texto('beneficios', p.beneficios.map((b) => `+  ${b}`).join('\n'), { x: 0, y: 0, w: st ? Math.round(iw * 0.5 - 16) : iw, tamanhos: st ? [28, 26, 24] : [26, 24, 22], max: 6, lh: 1.65, cor: dest ? alfa(sobreDestaque, 0.9) : s.suave, anim: animItem(k + 1), pai: card.id, fill: !st })
         }
       })
+      if (!st) igualar(cartoes, 0)
+      if (st) espalhar(g, fimConteudo - y0, 48)
+      assentar(g, y0)
       break
     }
 
     // ================================================================ paleta e tipografia
     case 'paleta.faixas': {
       const cores = (itens.length ? itens : [`Principal|${t.acento}`, `Fundo|${t.claro.fundo}`, `Tinta|${t.claro.tinta}`]).slice(0, 5).map((it) => { const [nome = '', hex = ''] = partes(it); return { nome, hex: /^#[0-9a-f]{6}$/i.test(hex) ? hex.toUpperCase() : t.acento } })
-      const larg = st ? W : W / cores.length
-      const alt = st ? H / cores.length : H
-      cores.forEach((cor, k) => {
-        forma('cor', 'rect', st ? 0 : k * larg, st ? k * alt : 0, larg + 1, alt + 1, { fill: cor.hex, enterAnimation: { type: 'slideUp', duration: 650, delay: k * 100, easing: 'easeOut' } })
-        texto('nomecor', `${cor.nome}\n${cor.hex}`, { x: (st ? 0 : k * larg) + 48, y: (st ? k * alt : 0) + alt - (st ? 130 : 150), w: larg - 96, fonte: 'mono', tamanhos: [st ? 26 : 24], max: 3, lh: 1.6, cor: legivel(cor.hex, ['#141414', '#FAFAF9'], 4.5), anim: animItem(k) })
+      const larg = st ? W : Math.ceil(W / cores.length)
+      const alt = st ? Math.ceil(H / cores.length) : H
+      const faixas = cores.map((cor, k) => {
+        const f = frame('cor', st ? 0 : k * larg, st ? k * alt : 0, larg, alt, { h: 'fixed', alY: 'end', pad: { top: 48, right: 48, bottom: st ? 44 : 64, left: 48 }, extra: { fill: cor.hex, enterAnimation: { type: 'slideUp', duration: 650, delay: k * 100, easing: 'easeOut' } } })
+        texto('nomecor', `${cor.nome}\n${cor.hex}`, { x: 0, y: 0, w: larg - 96, fonte: 'mono', tamanhos: [st ? 26 : 24], max: 3, lh: 1.6, cor: legivel(cor.hex, ['#141414', '#FAFAF9'], 4.5), anim: animItem(k), pai: f.id, fill: true })
+        return f
       })
       const cor0 = cores[0]!.hex
-      texto('rotulo', `${String(c.numero).padStart(2, '0')} · ${d.titulo}`, { x: 48, y: st ? 56 : 48, w: (st ? W : larg) - 96, fonte: 'mono', tamanhos: [st ? 24 : 20], max: 1, upper: true, cor: legivel(cor0, ['#141414', '#FAFAF9'], 4.5), anim: null })
+      // o rótulo fica no alto da primeira faixa, fora do fluxo (absoluto)
+      texto('rotulo', `${String(c.numero).padStart(2, '0')} · ${d.titulo}`, { x: 48, y: st ? 56 : 48, w: (st ? W : larg) - 96, fonte: 'mono', tamanhos: [st ? 24 : 20], max: 1, upper: true, cor: legivel(cor0, ['#141414', '#FAFAF9'], 4.5), anim: null, extra: { parentId: faixas[0]!.id, absolute: true } })
       break
     }
     case 'tipografia.amostra': {
-      let y = MT
-      const k = kicker(d.rotulo || 'Tipografia', M, y, W - M * 2)
-      if (k) y = k.fim + 20
-      texto('titulo', d.titulo, { x: M, y, w: st ? W - M * 2 : wc(6), fonte: 'titulo', tamanhos: st ? [72, 64] : [64, 56], max: 2, anim: animTitulo() })
-      texto('aa', 'Aa', { x: M - 10, y: st ? H * 0.22 : H * 0.28, w: st ? W - M * 2 : W * 0.42, fonte: 'titulo', tamanhos: [st ? 380 : 460], max: 1, lh: 1, cor: forte, anim: animForma(150) })
+      const b = bloco({ x: M, y: MT, w: st ? W - M * 2 : wc(6), rotulo: d.rotulo || 'Tipografia', tamanhos: st ? [72, 64] : [64, 56], max: 2, simples: true, gapRotulo: 20 })
+      const fimB = fimDe(b)
+      const aa = texto('aa', 'Aa', { x: M - 10, y: Math.max(st ? H * 0.22 : H * 0.28, fimB + 32), w: st ? W - M * 2 : W * 0.42, fonte: 'titulo', tamanhos: [st ? 380 : 460], max: 1, lh: 1, cor: forte, anim: animForma(150) })
+      const xA = st ? M : W * 0.52
+      const wA = st ? W - M * 2 : W * 0.48 - M
+      const col = frame('amostras', xA, st ? Math.max(H * 0.52, aa.fim + 40) : Math.max(H * 0.32, fimB + 48), wA, 1, { gap: 48 })
       const amostra = `${F.titulo} — títulos\n${F.texto} — textos\n\nABCDEFGHIJKLMNOPQRSTUVWXYZ\nabcdefghijklmnopqrstuvwxyz\n0123456789 — !?&@`
-      texto('amostra', amostra, { x: st ? M : W * 0.52, y: st ? H * 0.52 : H * 0.32, w: st ? W - M * 2 : W * 0.48 - M, tamanhos: st ? [34, 30] : [34, 30], max: 8, cor: s.tinta })
-      if (d.texto) texto('texto', d.texto, { x: st ? M : W * 0.52, y: st ? H * 0.8 : H * 0.76, w: st ? W - M * 2 : W * 0.48 - M, tamanhos: [26, 24], max: 3, cor: s.suave })
+      texto('amostra', amostra, { x: 0, y: 0, w: wA, tamanhos: st ? [34, 30] : [34, 30], max: 8, cor: s.tinta, pai: col.id, fill: true })
+      if (d.texto) texto('texto', d.texto, { x: 0, y: 0, w: wA, tamanhos: [26, 24], max: 3, cor: s.suave, pai: col.id, fill: true })
       break
     }
 
@@ -1189,59 +1406,69 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
     case 'cta.botao':
     case 'cta.faixa': {
       const faixa = d.variante === 'cta.faixa' || centro
-      const larg = st ? W - M * 2 : faixa ? W * 0.76 : W * 0.66
+      const larg = st ? W - M * 2 : faixa ? W * 0.76 : W * 0.62
       const x = faixa ? (W - larg) / 2 : M
       const al = faixa ? 'center' : 'left'
       const [botao = '', ...contatos] = itens
       const tam = st ? [110, 96, 84, 72] : [128, 110, 96, 84, 72]
-      const prev = caberTitulo(d.titulo, larg, tam, 3, { tracking: F.tracking })
-      const hT = prev.tamanho * 1.04 * (prev.linhas + (dividirEnfase(d.titulo, d.enfase) ? 1 : 0))
-      let y = (H - hT - (d.texto ? 120 : 0) - (botao ? 160 : 0)) / 2
       if (!faixa) motivo(st ? W * 0.6 : W * 0.72, st ? H * 0.06 : H * 0.56, st ? W * 0.32 : W * 0.2, st ? W * 0.32 : W * 0.2, 'pequeno')
-      const k = kicker(d.rotulo, x, y - 64, larg, al)
-      if (!k) y = Math.max(MT, y)
-      const tt = tituloEnfase(d.titulo, { x, y, w: larg, tamanhos: tam, max: 3, align: al })
-      let fim = tt.fim
-      if (d.texto) fim = texto('texto', d.texto, { x: faixa ? (W - (st ? larg : W * 0.56)) / 2 : x, y: fim + 36, w: st ? larg : W * 0.56, tamanhos: st ? [36, 32] : [32, 28], max: 3, cor: s.suave, align: al }).fim
+      const col = frame('chamada', x, 0, larg, 1, { gap: 52, alX: faixa ? 'center' : 'start' })
+      bloco({ x, y: 0, w: larg, rotulo: d.rotulo, tamanhos: tam, max: 3, align: al, gapRotulo: 24, gapTexto: 36, pai: col.id, texto: { w: st ? larg : W * 0.56, tamanhos: st ? [36, 32] : [32, 28], max: 3 } })
       if (botao) {
         const tamB = st ? 34 : 30
         const wB = Math.min(larg, Math.round(botao.length * tamB * 0.58 + tamB * 2.6 + 40))
         const fundoB = s.tipo === 'acento' ? s.tinta : forte
-        texto('item', `${botao}  →`, { x: faixa ? (W - wB) / 2 : x, y: fim + 56, w: wB, tamanhos: [tamB], max: 1, peso: 600, cor: legivel(fundoB, [s.fundo, sobreDestaque, '#FFFFFF', '#141414'], 4.5), align: 'center', anim: animForma(400), extra: { background: fundoB, padding: Math.round(tamB * 0.7), radius: 999 }, hMin: Math.round(tamB * 2.8) })
-        fim = fim + 56 + tamB * 2.8
+        texto('item', `${botao}  →`, { x: 0, y: 0, w: wB, tamanhos: [tamB], max: 1, peso: 600, cor: legivel(fundoB, [s.fundo, sobreDestaque, '#FFFFFF', '#141414'], 4.5), align: 'center', anim: animForma(400), extra: { background: fundoB, padding: Math.round(tamB * 0.7), radius: 999 }, hMin: Math.round(tamB * 2.8), pai: col.id })
       }
-      contatos.slice(0, 2).forEach((ct, j) => {
-        const [rot = '', valor = ''] = partes(ct)
+      const cts = contatos.slice(0, 2)
+      if (cts.length) {
         const wct = st ? larg : 520
-        const xct = faixa ? (st ? x : W / 2 - (contatos.length > 1 ? wct + 20 : wct / 2) + j * (wct + 40)) : x + j * (wct + 40)
-        texto('contato', valor ? `${rot}\n${valor}` : rot, { x: xct, y: fim + 48 + (st ? j * 120 : 0), w: wct, tamanhos: st ? [30, 26] : [26, 24], max: 2, lh: 1.5, cor: s.suave, align: faixa && !st ? 'center' : al, anim: animTexto(500) })
-      })
+        const fila = frame('contatos', 0, 0, larg, 1, { dir: st ? 'vertical' : 'horizontal', gap: st ? 28 : 40, alX: faixa ? 'center' : 'start', pai: col.id, w: 'fill' })
+        cts.forEach((ct, j) => {
+          const [rot = '', valor = ''] = partes(ct)
+          texto('contato', valor ? `${rot}\n${valor}` : rot, { x: 0, y: 0, w: wct, tamanhos: st ? [30, 26] : [26, 24], max: 2, lh: 1.5, cor: s.suave, align: faixa && !st ? 'center' : al, anim: animTexto(500 + j * 100), pai: fila.id })
+        })
+      }
+      colocar(col, x, Math.max(MT, (H - altura(col)) / 2))
       break
     }
     case 'encerramento.centrado':
     case 'encerramento.contato': {
       const contato = d.variante === 'encerramento.contato' && !st
+      const topoLivre = MT + (c.logo ? 110 : 0)
       if (contato) {
-        const tt = tituloEnfase(d.titulo, { x: M, y: H * 0.34, w: wc(7), tamanhos: [168, 144, 124, 104, 88], max: 3 })
-        kicker(d.rotulo, M, H * 0.34 - 64, wc(7))
         const linhas = itens.length ? itens : d.texto ? [d.texto] : []
-        let y = H * 0.36
-        linha(xc(8), y, 3, Math.max(160, linhas.length * 120), forte)
-        linhas.slice(0, 3).forEach((ct, j) => {
-          const [rot = '', valor = ''] = partes(ct)
-          const b = texto('contato', valor ? `${rot}\n${valor}` : rot, { x: xc(8) + 44, y, w: wc(4) - 44, tamanhos: [30, 27, 24], max: 3, lh: 1.5, cor: s.tinta, anim: animItem(j) })
-          y = b.fim + 36
-        })
-        if (itens.length && d.texto) texto('texto', d.texto, { x: M, y: tt.fim + 40, w: wc(6), tamanhos: [30, 27], max: 2, cor: s.suave })
+        const b = bloco({ x: M, y: 0, w: wc(7), rotulo: d.rotulo, tamanhos: [168, 144, 124, 104, 88], max: 3, gapTexto: 40, texto: itens.length ? { w: wc(6), tamanhos: [30, 27], max: 2 } : null })
+        colocar(b, M, Math.max(topoLivre, (H - altura(b)) / 2))
+        if (linhas.length) {
+          const xd = xc(8)
+          const lado = frame('contatos', xd, 0, W - M - xd, 1, { dir: 'horizontal', gap: 41 })
+          linha(0, 0, 3, 1, forte, { parentId: lado.id, sizingH: 'fill' })
+          const lista = frame('grupo', 0, 0, wc(4) - 44, 1, { gap: 36, pai: lado.id, w: 'fill' })
+          linhas.slice(0, 3).forEach((ct, j) => {
+            const [rot = '', valor = ''] = partes(ct)
+            texto('contato', valor ? `${rot}\n${valor}` : rot, { x: 0, y: 0, w: W - M - xd - 44, tamanhos: [30, 27, 24], max: 3, lh: 1.5, cor: s.tinta, anim: animItem(j), pai: lista.id, fill: true })
+          })
+          colocar(lado, xd, Math.max(topoLivre, (H - altura(lado)) / 2))
+        }
         break
       }
       const larg = W - M * 2
       const tam = st ? [150, 128, 110, 96, 84] : [200, 170, 144, 124, 104, 92]
       // cabe o título, o motivo acima e o texto/contatos abaixo
       const hMax = H - MT * 2 - (decorar ? 160 : 40) - (d.texto ? 110 : 0) - itens.length * 52
-      const prev = caberTitulo(d.titulo, larg, tam, 3, { tracking: F.tracking, peso: F.pesoTitulo, alturaMax: hMax })
-      const hT = Math.min(hMax, prev.tamanho * 1.04 * (prev.linhas + (dividirEnfase(d.titulo, d.enfase) ? 1 : 0)))
-      const yT = Math.max(MT + (decorar ? 140 : 0), (H - hT) / 2 - (d.texto || itens.length ? 60 : 0))
+      const col = frame('encerramento', M, 0, larg, 1, { gap: 28, alX: 'center' })
+      bloco({ x: M, y: 0, w: larg, rotulo: null, tamanhos: tam, max: 3, hMax, align: 'center', gapTexto: 40, pai: col.id, texto: { tamanhos: st ? [38, 34] : [34, 30], max: 2 } })
+      if (itens.length) {
+        const cts = frame('contatos', 0, 0, larg, 1, { gap: 22, alX: 'center', pai: col.id, w: 'fill' })
+        itens.slice(0, 3).forEach((ct, j) => {
+          const [rot = '', valor = ''] = partes(ct)
+          texto('contato', valor ? `${rot}  ${valor}` : rot, { x: 0, y: 0, w: larg, fonte: 'mono', tamanhos: [st ? 26 : 22], max: 1, cor: s.suave, align: 'center', anim: animItem(j), pai: cts.id, fill: true })
+        })
+      }
+      const h = altura(col)
+      const yT = Math.max(topoLivre + (decorar ? 140 : 0), (H - h) / 2 - (d.texto || itens.length ? 30 : 0))
+      colocar(col, M, yT)
       if (decorar) {
         const lado = st ? 120 : 96
         const alt = formaMotivo === 'semicircle' ? lado / 2 : lado
@@ -1249,13 +1476,6 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
         else if (t.motivo === 'brilho') motivo(W / 2 - (st ? 400 : 520), H / 2 - (st ? 400 : 420), st ? 800 : 1040, st ? 800 : 840, 'pequeno')
         else linha(W / 2 - 40, yT - 64, 80, 6, corMotivo, { name: 'motivo', radius: 3 })
       }
-      const tt = tituloEnfase(d.titulo, { x: M, y: yT, w: larg, tamanhos: tam, max: 3, hMax, align: 'center' })
-      let fim = tt.fim
-      if (d.texto) fim = texto('texto', d.texto, { x: M, y: fim + 40, w: larg, tamanhos: st ? [38, 34] : [34, 30], max: 2, cor: s.suave, align: 'center' }).fim
-      itens.slice(0, 3).forEach((ct, j) => {
-        const [rot = '', valor = ''] = partes(ct)
-        texto('contato', valor ? `${rot}  ${valor}` : rot, { x: M, y: fim + 28 + j * 52, w: larg, fonte: 'mono', tamanhos: [st ? 26 : 22], max: 1, cor: s.suave, align: 'center', anim: animItem(j) })
-      })
       break
     }
   }
@@ -1268,19 +1488,25 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
   }
   // logo da marca na capa e no encerramento (canto superior; centrado na capa centrada)
   if (c.logo && (d.tipo === 'capa' || d.tipo === 'encerramento')) {
-    const hl = st ? 76 : d.variante === 'capa.tipografica' ? 44 : 64
-    const wl = st ? 280 : 300
+    const hl = st ? 84 : d.variante === 'capa.tipografica' ? 44 : 72
+    const wl = st ? 320 : 340
     if (d.tipo === 'encerramento') logo(M, MT - 10, wl * 0.8, hl * 0.85)
     else if (d.variante === 'capa.centrada') logo((W - wl) / 2, MT - 10, wl, hl, 'center')
     else logo(W - M - wl, MT - 10, wl, hl, 'right')
   }
+  // auto layout resolvido: posição e tamanho finais (o editor continua o layout ao editar)
+  const final = resolver()
+  // conteúdo maior que a área (textos longos, muitos itens): monta de novo, menor, em vez de transbordar
+  const limite = temRodape ? fimConteudo + 6 : H - Math.round(MB * 0.4)
+  const transborda = d.variante !== 'paleta.faixas' && final.some((l) => (l.type === 'text' || l.type === 'frame') && !/^(rodape|pagina|imagem|logo)/.test(l.id) && (l.y + l.height > limite || l.x + l.width > W + 2))
+  if (transborda && E > 0.5) return montarTela(d, c, { escala: E * 0.88, fotos: interno.fotos })
   // garante que nada saia muito da tela (o schema aceita, mas a prévia corta)
-  for (const l of L) {
+  for (const l of final) {
     if (l.type === 'text') l.height = Math.max(1, Math.min(l.height, H * 1.2))
   }
   const gradiente = s.tipo !== 'acento' && (s as Superficie).gradiente ? (s as Superficie).gradiente : undefined
   return {
-    layers: L.map((l, i) => ({ ...l, z: i })),
+    layers: final.map((l, i) => ({ ...l, z: i })),
     background: s.fundo,
     ...(gradiente ? { backgroundGradient: { type: 'linear' as const, angle: gradiente.angle, stops: gradiente.stops } } : {}),
   }

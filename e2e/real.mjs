@@ -51,10 +51,12 @@ async function imagemCarregada(loc) {
 
 const carimbo = Date.now().toString(36)
 const EMAIL = `e2e-real-${carimbo}@exemplo.com`
+const EMAIL_2 = `e2e-real-${carimbo}-b@exemplo.com`
 const SENHA = 'senhaforte-e2e-123'
 const NOME_PROJETO = `Projeto Real ${carimbo}`
 let idProjeto = ''
 let idUsuario = ''
+let idUsuario2 = ''
 
 // PNG de teste: um screenshot pequeno de uma página local
 {
@@ -268,9 +270,60 @@ await passo('Biblioteca: envio sem projeto e lista vinda do servidor', async () 
   await imagemCarregada(page.locator('img[src*="/api/midias/"]').first())
 })
 
+let idKit = ''
+let idLogo = ''
+await passo('Criar com IA: logo enviado (POST /api/assets/upload), paleta do logo e kit de marca salvo no Neon', async () => {
+  fs.writeFileSync(`${SHOTS}/logo.svg`, '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120" width="400" height="120"><circle cx="60" cy="60" r="44" fill="#E4572E"/><rect x="130" y="34" width="250" height="22" rx="11" fill="#1F3B4D"/><rect x="130" y="66" width="160" height="22" rx="11" fill="#F2C14E"/></svg>')
+  await page.goto(`${BASE}/app/criar?prompt=Pitch%20de%20uma%20padaria%20de%20bairro&formato=slides`, { waitUntil: 'networkidle' })
+  await page.getByRole('heading', { name: 'A sua marca, antes de gerar' }).waitFor({ timeout: 30000 })
+  await page.getByLabel('Arquivo do logo').setInputFiles(`${SHOTS}/logo.svg`)
+  await page.getByText('Paletas do seu logo').waitFor({ timeout: 30000 })
+  await page.getByLabel('Nome da marca').fill('Padaria Real')
+  await page.getByRole('button', { name: 'Salvar como kit de marca' }).click()
+  await page.getByRole('button', { name: 'Usar o kit Padaria Real' }).waitFor({ timeout: 20000 })
+  const kits = await page.evaluate(async () => (await (await fetch('/api/marcas')).json()).data)
+  if (kits.length !== 1 || kits[0].nome !== 'Padaria Real' || kits[0].cores[0] !== '#E4572E' || !kits[0].logo) throw new Error(`kit no servidor: ${JSON.stringify(kits)}`)
+  idKit = kits[0].id
+  idLogo = kits[0].logo.assetId
+  // a mídia do logo é do workspace e é servida pela rota de mídias
+  await imagemCarregada(page.getByAltText(/^Logo/).first())
+})
+
+await passo('Kits de marca: outra conta não vê, não altera e não apaga o kit (filtro por workspace)', async () => {
+  // contexto sem vigia de console: as respostas 404/400 abaixo são o que se espera (o navegador as registra como erro)
+  const outra = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'pt-BR' })
+  const p = await outra.newPage()
+  await p.goto(`${BASE}/signup`, { waitUntil: 'networkidle' })
+  await esperarHidratacao(p)
+  await p.getByLabel('Nome').fill('Outra Pessoa')
+  await p.getByLabel('E-mail').fill(EMAIL_2)
+  await p.getByLabel('Senha').fill(SENHA)
+  await p.getByRole('button', { name: 'Criar conta' }).click()
+  await p.waitForURL(`${BASE}/app`, { timeout: 30000 })
+  const r = await p.evaluate(async ({ id, logo }) => {
+    const lista = (await (await fetch('/api/marcas')).json()).data
+    const corpo = JSON.stringify({ nome: 'Roubado', cores: [], logo: null })
+    const patch = await fetch(`/api/marcas/${id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: corpo })
+    const del = await fetch(`/api/marcas/${id}`, { method: 'DELETE' })
+    // usar o logo de outro workspace num kit próprio é recusado
+    const comLogo = await fetch('/api/marcas', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ nome: 'Meu', cores: [], logo: { assetId: logo, largura: 400, altura: 120, cor: '#E4572E' } }) })
+    const conta = (await (await fetch('/api/conta')).json()).data
+    return { lista, patch: patch.status, del: del.status, comLogo: comLogo.status, id: conta.usuario.id }
+  }, { id: idKit, logo: idLogo })
+  idUsuario2 = r.id
+  if (r.lista.length !== 0 || r.patch !== 404 || r.del !== 404 || r.comLogo !== 400) throw new Error(`isolamento: ${JSON.stringify(r)}`)
+  // sem sessão, a rota recusa
+  const semSessao = await novoContexto()
+  const anon = (await semSessao.request.get(`${BASE}/api/marcas`)).status()
+  await semSessao.close()
+  if (anon !== 401) throw new Error(`/api/marcas sem sessão respondeu ${anon}`)
+  await outra.close()
+})
+
 await passo('Criar com IA: rota /api/ai/roteiro com sessão → projeto salvo no servidor', async () => {
-  await page.goto(`${BASE}/app/criar?prompt=Pitch%20de%20uma%20padaria%20de%20bairro&formato=slides`)
+  await page.getByRole('navigation', { name: 'Passos' }).getByRole('button', { name: /Tamanho/ }).click()
   await page.getByRole('radio', { name: '6 telas', exact: true }).click()
+  await page.getByRole('button', { name: 'Ir para revisar' }).click()
   await page.getByRole('button', { name: 'Gerar roteiro →' }).click()
   await page.getByText('Roteiro · 6 telas').waitFor({ timeout: 60000 })
   await page.getByRole('button', { name: 'Gerar apresentação' }).click()
@@ -280,6 +333,8 @@ await passo('Criar com IA: rota /api/ai/roteiro com sessão → projeto salvo no
   const id = page.url().match(/projects\/([0-9a-f-]{36})\//)[1]
   const detalhe = await page.evaluate(async (pid) => (await (await fetch(`/api/projects/${pid}`)).json()).data, id)
   if (detalhe.scenes.length !== 6) throw new Error(`esperava 6 telas no servidor, há ${detalhe.scenes.length}`)
+  // o logo do kit entrou na capa (camada de imagem com a mídia do workspace), sem IA
+  if (!JSON.stringify(detalhe.scenes[0]).includes(idLogo)) throw new Error('logo não está na capa salva no servidor')
   // sem ANTHROPIC_API_KEY a rota usa o gerador local e não cobra; com a chave, debita no servidor
   const conta = await page.evaluate(async () => (await (await fetch('/api/conta')).json()).data)
   console.log(`   saldo depois da IA: ${conta.creditos.saldo} créditos (${conta.creditos.movimentos.length} movimento(s) no extrato)`)
@@ -304,5 +359,5 @@ await browser.close()
 console.log('\n' + passos.join('\n'))
 console.log(`\nErros de console/página: ${erros.length}`)
 for (const e of erros.slice(0, 20)) console.log('  ', e)
-console.log(`\nUsuário de teste criado: ${EMAIL} (id ${idUsuario || '?'}) — apague no branch de teste.`)
+console.log(`\nUsuários de teste criados: ${EMAIL} (id ${idUsuario || '?'}) e ${EMAIL_2} (id ${idUsuario2 || '?'}) — apague no branch de teste.`)
 process.exit(passos.some((p) => p.startsWith('✘')) ? 1 : 0)
