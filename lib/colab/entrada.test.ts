@@ -6,7 +6,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const sessao = vi.fn<(req: Request) => Promise<{ id: string; email: string; nome: string } | null>>()
 const acesso = vi.fn<(userId: string, projetoId: string) => Promise<{ workspaceId: string; papel: 'owner' | 'editor' | 'viewer' } | null>>()
-vi.mock('@/lib/auth/servidor', () => ({ sessaoDaRequisicao: (req: Request) => sessao(req) }))
+class AuthIndisponivel extends Error {
+  constructor(public tenteEmS = 2) { super('indisponível') }
+}
+vi.mock('@/lib/auth/servidor', () => ({ sessaoDaRequisicao: (req: Request) => sessao(req), AuthIndisponivel }))
 vi.mock('./salaServidor', () => ({ acessoAoProjeto: (u: string, p: string) => acesso(u, p) }))
 vi.mock('@/lib/db/neon', () => ({ sql: () => () => Promise.resolve([]) }))
 
@@ -49,6 +52,11 @@ describe('entrarNaSala', () => {
     expect((await entrarNaSala(pedido(), salas, PROJETO)).status).toBe(404)
     expect(acesso).toHaveBeenCalledWith(USUARIO.id, PROJETO)
     expect(repassado).toBeNull()
+  })
+  it('Neon Auth sem responder (limite de taxa) → 503, não 401: o cliente segue reconectando em vez de ir ao login', async () => {
+    sessao.mockRejectedValue(new AuthIndisponivel(3))
+    expect((await entrarNaSala(pedido(), salas, PROJETO)).status).toBe(503)
+    expect(acesso).not.toHaveBeenCalled()
   })
   it('cliente fora do formato → 400', async () => {
     expect((await entrarNaSala(pedido({}, '../x'), salas, PROJETO)).status).toBe(400)
