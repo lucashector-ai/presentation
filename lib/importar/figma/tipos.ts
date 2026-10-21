@@ -92,6 +92,8 @@ export interface DadosTextoDerivados {
 }
 export interface DadosTexto extends DadosTextoDerivados {
   characters?: string
+  /** Um por parágrafo: tipo de linha (PLAIN, ORDERED_LIST, UNORDERED_LIST…). */
+  lines?: { lineType?: string; indentationLevel?: number }[]
   characterStyleIDs?: number[]
   styleOverrideTable?: NodeChange[]
 }
@@ -168,6 +170,23 @@ export interface NodeChange {
   textDecoration?: string
   textData?: DadosTexto
   derivedTextData?: DadosTextoDerivados
+  /** NONE | CAP_HEIGHT ("Vertical trim": altura das maiúsculas até a linha de base). */
+  leadingTrim?: string
+  /** DISABLED | ENDING (truncar com reticências). */
+  textTruncation?: string
+  maxLines?: number
+  paragraphSpacing?: number
+  /** SOLID | DOTTED | WAVY */
+  textDecorationStyle?: string
+  textDecorationThickness?: Numero
+  textUnderlineOffset?: Numero
+  textDecorationSkipInk?: boolean
+  textDecorationFillPaints?: Paint[]
+  /** NORMAL | SMALL | ALL_SMALL | … */
+  fontVariantCaps?: string
+  /** PROPORTIONAL | TABULAR */
+  fontVariantNumericSpacing?: string
+  fontVariantCommonLigatures?: boolean
   // componentes
   symbolData?: { symbolID?: GUID; symbolOverrides?: NodeChange[] }
   derivedSymbolData?: NodeChange[]

@@ -12,6 +12,7 @@ import { coresDoSvg } from '@/lib/importar/svg'
 import type { AssetDemo } from '@/lib/demo/tipos'
 import { BotaoMini, CampoCor, CampoNum, CampoTexto, Deslizante, Interruptor, Linha, Secao, Segmentado, SeletorLista } from './controles'
 import { LinhaPintura } from './CampoCor'
+import { BotaoOpcoesTexto } from './OpcoesTexto'
 import { BotaoGrupo, GrupoBotoes } from './SecaoPosicao'
 import { IconeEntrelinha, IconeEspacamento, IconeTamanho } from './icones'
 import { useCamadas, type PropsSecao } from './selecao'
@@ -82,9 +83,11 @@ function SecaoTexto({ c, set }: { c: CamadaTexto; set: Set }) {
       <div className="flex gap-2">
         <GrupoBotoes className="!flex-none w-[72px]">
           <BotaoGrupo rotulo="Itálico" ativo={c.italic} onClick={() => s({ italic: !c.italic })}><Italic className="h-3.5 w-3.5" /></BotaoGrupo>
-          <BotaoGrupo rotulo="Sublinhado" ativo={c.underline} onClick={() => s({ underline: !c.underline })}><Underline className="h-3.5 w-3.5" /></BotaoGrupo>
+          <BotaoGrupo rotulo="Sublinhado" ativo={c.underline} onClick={() => s({ underline: !c.underline, ...(!c.underline && c.strikethrough ? { strikethrough: undefined } : {}) })}><Underline className="h-3.5 w-3.5" /></BotaoGrupo>
         </GrupoBotoes>
         <Segmentado rotulo="Caixa" valor={c.transform} aoMudar={(transform) => s({ transform })} opcoes={[{ id: 'none', rotulo: 'Aa' }, { id: 'uppercase', rotulo: 'AA' }, { id: 'lowercase', rotulo: 'aa' }]} />
+        {/* como o "Type settings" do Figma: decoração, caixa, corte vertical, listas, truncar, quebra */}
+        <BotaoOpcoesTexto c={c} set={s} />
       </div>
     </Secao>
   )

@@ -196,6 +196,10 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 /* sombra "carimbo" das superfícies da landing (deslocada, sólida) */
 .sombra-carimbo { box-shadow: 6px 6px 0 0 #171717; }
 .borda-carimbo { border: 1.5px solid #171717; }
+/* corte vertical do texto (altura das maiúsculas até a linha de base): nativo onde houver text-box; senão margens
+   negativas calculadas com as métricas da fonte (lib/scene/tipografia.ts → corteVertical) */
+.texto-corte { margin-top: calc(-1 * var(--corte-topo, 0px)); margin-bottom: calc(-1 * var(--corte-base, 0px)); }
+@supports (text-box: trim-both cap alphabetic) { .texto-corte { margin-top: 0; margin-bottom: 0; text-box: trim-both cap alphabetic; } }
 /* textura listrada usada em placeholders de foto do design */
 .listras { background-image: repeating-linear-gradient(135deg, rgb(255 255 255 / .08) 0 1px, transparent 1px 14px); }
 @keyframes marquee { from { transform: translateX(0) } to { transform: translateX(-50%) } }

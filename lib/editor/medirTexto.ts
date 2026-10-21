@@ -4,7 +4,7 @@
  * então o tamanho gravado no documento bate com o que o visualizador desenha.
  */
 import type { Camada, CamadaTexto } from '@/lib/scene/schema'
-import { pilhaFonte } from '@/lib/design-tokens'
+import { aplicarEstilo, estiloCaixaTexto, montarCorpo } from '@/lib/scene/tipografia'
 
 let medidor: HTMLDivElement | null = null
 
@@ -26,25 +26,30 @@ export function medirTexto(c: CamadaTexto): { width: number; height: number } {
   if (!medidor || !medidor.isConnected) {
     medidor = document.createElement('div')
     medidor.setAttribute('aria-hidden', 'true')
-    Object.assign(medidor.style, { position: 'absolute', left: '-100000px', top: '0', visibility: 'hidden', pointerEvents: 'none', boxSizing: 'border-box', wordBreak: 'break-word', contain: 'layout style' })
     document.body.appendChild(medidor)
   }
   const hugW = c.sizingW === 'hug'
-  const s = medidor.style
-  s.fontFamily = pilhaFonte(c.fontFamily)
-  s.fontSize = `${c.fontSize}px`
-  s.fontWeight = String(c.fontWeight)
-  s.fontStyle = c.italic ? 'italic' : 'normal'
-  s.letterSpacing = `${c.letterSpacing}px`
-  s.lineHeight = String(c.lineHeight)
-  s.textTransform = c.transform === 'none' ? 'none' : c.transform
-  s.padding = `${c.padding}px`
-  s.whiteSpace = hugW ? 'pre' : 'pre-wrap'
-  s.width = hugW ? 'max-content' : `${c.width}px`
-  // linha vazia (ou terminada em \n) ainda ocupa uma linha
-  medidor.textContent = !c.text ? '​' : c.text.endsWith('\n') ? `${c.text}​` : c.text
+  // mesma estrutura e estilos do renderizador (caixa → corpo → parágrafos): lista, espaço entre parágrafos,
+  // corte vertical e truncar entram na medida
+  medidor.removeAttribute('style')
+  Object.assign(medidor.style, { position: 'absolute', left: '-100000px', top: '0', visibility: 'hidden', pointerEvents: 'none', boxSizing: 'border-box', contain: 'layout style' })
+  aplicarEstilo(medidor, { ...estiloCaixaTexto(c), overflow: 'visible', fontSize: c.fontSize, letterSpacing: c.letterSpacing, width: hugW ? 'max-content' : c.width, height: 'auto' })
+  medidor.replaceChildren(montarCorpo(document, c))
   const r = medidor.getBoundingClientRect()
   return { width: hugW ? Math.max(1, Math.ceil(r.width)) : c.width, height: Math.max(1, Math.ceil(r.height)) }
+}
+
+/**
+ * Troca o modo de redimensionamento do texto já com o tamanho medido (um único passo de desfazer: o efeito de
+ * medição do canvas não precisa gravar nada depois). Largura automática cresce conforme o alinhamento.
+ */
+export function comDimensionamento<T extends CamadaTexto>(c: T, d: Pick<Camada, 'sizingW' | 'sizingH'>, livre = true): T {
+  const n = { ...c, ...d }
+  if (!textoAutomatico(n)) return n
+  const m = medirTexto(n)
+  const dw = m.width - c.width
+  const x = livre && n.sizingW === 'hug' ? (n.align === 'center' ? Math.round(c.x - dw / 2) : n.align === 'right' ? c.x - dw : c.x) : c.x
+  return { ...n, ...m, x }
 }
 
 /** Posição (índice no texto) sob o ponteiro, para colocar o cursor onde o usuário clicou duas vezes. */
@@ -61,5 +66,15 @@ export function indiceNoPonto(clientX: number, clientY: number, raiz: Element | 
     if (r) { no = r.startContainer; offset = r.startOffset }
   }
   if (!no || !raiz.contains(no) || no.nodeType !== Node.TEXT_NODE) return null
+  // texto em parágrafos (lista, espaço entre parágrafos): soma os parágrafos anteriores e as quebras de linha
+  const par = no.parentElement?.closest('[data-paragrafo]')
+  if (par && raiz.contains(par)) {
+    let antes = 0
+    for (const p of raiz.querySelectorAll('[data-paragrafo]')) {
+      if (p === par) break
+      antes += (p.textContent ?? '').replace(/​/g, '').length + 1
+    }
+    return antes + Math.min(offset, (no.textContent ?? '').replace(/​/g, '').length)
+  }
   return offset
 }

@@ -394,6 +394,55 @@ await passo('Criar com IA: roteiro de 6 telas → apresentação → editor', as
   await esperarTelas(6)
 })
 
+await passo('Texto: duplo clique na borda de baixo abraça a altura (um desfazer)', async () => {
+  await telas().nth(0).click()
+  await page.getByRole('tab', { name: 'Blocos' }).click()
+  await page.getByRole('button', { name: 'Texto', exact: true }).click()
+  await page.getByLabel('Conteúdo do texto').fill('Caixa justa E2E')
+  await page.evaluate(() => document.activeElement?.blur())
+  const modo = page.getByRole('radiogroup', { name: 'Redimensionar texto' })
+  await modo.getByRole('radio', { name: 'Tamanho fixo' }).click()
+  const alt = page.getByLabel('Altura', { exact: true })
+  await alt.fill('300')
+  await alt.press('Enter')
+  if ((await esperarValor(alt, 300)) !== 300) throw new Error('altura fixa não ficou em 300')
+  await page.screenshot({ path: `${SHOTS}/13-texto-borda-antes.png` })
+  // a alça do meio fica por cima do centro da borda: clica num quarto da largura (a borda inteira vale)
+  const b = await page.getByTestId('borda-s').boundingBox()
+  await page.mouse.dblclick(b.x + b.width * 0.25, b.y + b.height / 2)
+  let h = Number(await alt.inputValue())
+  for (let t = 0; t < 2000 && h >= 300; t += 100) { await page.waitForTimeout(100); h = Number(await alt.inputValue()) }
+  if (!(h > 0 && h < 300)) throw new Error(`altura não abraçou o texto: ${h}`)
+  if ((await modo.getByRole('radio', { name: /^Auto vertical/ }).getAttribute('aria-checked')) !== 'true') throw new Error('Redimensionar não mostra "Auto vertical"')
+  await page.screenshot({ path: `${SHOTS}/14-texto-borda-depois.png` })
+  // um passo de desfazer volta o modo e a altura de antes
+  await page.getByRole('button', { name: /^Desfazer/ }).first().click()
+  await page.getByTestId('canvas').getByText('Caixa justa E2E').click()
+  if ((await esperarValor(alt, 300)) !== 300) throw new Error(`desfazer não voltou a altura: ${await alt.inputValue()}`)
+  await page.getByRole('button', { name: /^Refazer/ }).first().click()
+  await page.getByTestId('canvas').getByText('Caixa justa E2E').click()
+  if ((await esperarValor(alt, h)) !== h) throw new Error('refazer não reaplicou a altura automática')
+})
+
+await passo('Texto: corte vertical (opções de texto) deixa a caixa justa nas maiúsculas', async () => {
+  const alt = page.getByLabel('Altura', { exact: true })
+  const antes = Number(await alt.inputValue())
+  await page.getByRole('button', { name: 'Opções de texto' }).click()
+  const painel = page.getByRole('dialog', { name: 'Opções de texto' })
+  await painel.getByRole('tab', { name: 'Básico' }).waitFor()
+  await painel.getByRole('radiogroup', { name: 'Corte vertical' }).getByRole('radio', { name: 'Justo' }).click()
+  let h = Number(await alt.inputValue())
+  for (let t = 0; t < 2000 && h >= antes; t += 100) { await page.waitForTimeout(100); h = Number(await alt.inputValue()) }
+  const fs = Number(await page.getByLabel('Tamanho da fonte').inputValue())
+  // Geist: altura das maiúsculas = 0,71 do tamanho
+  if (Math.abs(h - Math.ceil(fs * 0.71)) > 1) throw new Error(`altura com corte ${h}, esperado ~${Math.ceil(fs * 0.71)} (antes ${antes})`)
+  await page.screenshot({ path: `${SHOTS}/15-texto-corte.png` })
+  await painel.getByRole('tab', { name: 'Detalhes' }).click()
+  await painel.getByRole('radiogroup', { name: 'Quebra de linha' }).waitFor()
+  await painel.getByRole('button', { name: 'Fechar opções de texto' }).click()
+  await painel.waitFor({ state: 'detached' })
+})
+
 await passo('AC-14 Reduced motion respeitado (animações encurtadas)', async () => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto(`${BASE}/p/demo_cafe_aurora_proposta_01_token_fixo_xx`)

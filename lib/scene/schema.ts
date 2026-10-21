@@ -439,6 +439,10 @@ export const CamadaVideoSchema = CamadaBase.extend({
   radii: RaiosSchema.optional(),
 })
 
+/** Caixa do texto (none/uppercase/lowercase desde a v1; os demais são aditivos). */
+export const CAIXAS_TEXTO = ['none', 'uppercase', 'lowercase', 'capitalize', 'smallCaps', 'allSmallCaps'] as const
+export const ESTILOS_DECORACAO = ['solid', 'dotted', 'wavy'] as const
+
 export const CamadaTextoSchema = CamadaBase.extend({
   type: z.literal('text'),
   text: z.string().max(5000),
@@ -447,7 +451,11 @@ export const CamadaTextoSchema = CamadaBase.extend({
   fontWeight: z.number().int().min(100).max(900).default(500),
   italic: z.boolean().default(false),
   underline: z.boolean().default(false),
-  transform: z.enum(['none', 'uppercase', 'lowercase']).default('none'),
+  /**
+   * Caixa (como o "Case" do Figma). `capitalize` = Primeira Maiúscula; `smallCaps` = versalete (minúsculas viram
+   * versaletes); `allSmallCaps` = versalete forçado (tudo em versalete). Os três últimos são aditivos.
+   */
+  transform: z.enum(CAIXAS_TEXTO).default('none'),
   color: CorSchema.default('#171717'),
   /** Texto com gradiente (preenche as letras). */
   gradient: GradienteSchema.optional(),
@@ -461,6 +469,39 @@ export const CamadaTextoSchema = CamadaBase.extend({
   radius: z.number().min(0).max(999).default(0),
   /** Cantos independentes do fundo da caixa. */
   radii: RaiosSchema.optional(),
+  // --- opções de texto (painel "Opções de texto", como o "Type settings" do Figma). Todas aditivas:
+  // ausentes = o visual de antes (documentos antigos abrem iguais). Ver lib/scene/tipografia.ts.
+  /** Tachado (exclusivo com `underline` no painel, como a "Decoração" do Figma). */
+  strikethrough: z.boolean().optional(),
+  /** Estilo da linha do sublinhado/tachado (ausente = contínua). */
+  decorationStyle: z.enum(ESTILOS_DECORACAO).optional(),
+  /** Espessura da linha em px (ausente = automática, a da fonte). */
+  decorationThickness: z.number().min(0.5).max(100).optional(),
+  /** Distância do sublinhado até a linha de base, em px (ausente = automática). */
+  decorationOffset: z.number().min(-100).max(100).optional(),
+  /** Pular descendentes (a linha se interrompe em g, p, y). Ausente = sim. */
+  decorationSkipInk: z.boolean().optional(),
+  /** Cor da linha (ausente = cor do texto). */
+  decorationColor: CorSchema.optional(),
+  /**
+   * Corte vertical ("Vertical trim" do Figma): `cap` = da altura das maiúsculas até a linha de base — a caixa fica
+   * justa nas letras (sem o respiro da entrelinha em cima e embaixo). Ausente/`none` = padrão.
+   */
+  leadingTrim: z.enum(['none', 'cap']).optional(),
+  /** Estilo de lista: cada parágrafo (linha separada por Enter) vira um item com marcador ou número. */
+  listStyle: z.enum(['none', 'bullet', 'number']).optional(),
+  /** Espaço extra entre parágrafos, em px. */
+  paragraphSpacing: z.number().min(0).max(1000).optional(),
+  /** Truncar com reticências: corta no fim da caixa (altura fixa) ou em `maxLines` linhas. */
+  truncate: z.boolean().optional(),
+  /** Máximo de linhas quando `truncate` está ligado (ausente = até onde a caixa couber). */
+  maxLines: z.number().int().min(1).max(999).optional(),
+  /** Quebra de linha: automática, equilibrada (linhas de tamanho parecido) ou "bonita" (evita palavra sozinha no fim). */
+  textWrap: z.enum(['auto', 'balance', 'pretty']).optional(),
+  /** Algarismos tabulares (todos com a mesma largura — tabelas, contadores). */
+  tabularNums: z.boolean().optional(),
+  /** Ligaduras comuns (fi, fl). Ausente = ligadas, como na fonte. */
+  ligatures: z.boolean().optional(),
 })
 
 /** `path` = caminho vetorial editável (`vetor`); as demais são primitivas desenhadas pelo renderizador. */

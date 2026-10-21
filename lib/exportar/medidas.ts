@@ -4,6 +4,7 @@
  */
 import type { Camada, Cena } from '@/lib/scene/schema'
 import { comDescendentes, raizesDaSelecao } from '@/lib/scene/arvore'
+import { corteVertical } from '@/lib/scene/tipografia'
 
 export type FormatoImagem = 'png' | 'jpg'
 export const ESCALAS = [1, 2, 3] as const
@@ -51,7 +52,8 @@ export function cenaDaSelecao(cena: Cena, ids: readonly string[]): Cena | null {
   const camadasRaiz = cena.layers.filter((l) => r.has(l.id) && !l.hidden)
   if (!camadasRaiz.length) return null
   const todos = new Set(comDescendentes(camadasRaiz.map((l) => l.id), cena.layers))
-  const caixas = camadasRaiz.map(caixaVisivel)
+  // texto com corte vertical: as letras passam da caixa (acentos, descendentes); a exportação inclui a linha inteira
+  const caixas = camadasRaiz.map((l) => { if (l.type !== 'text' || l.leadingTrim !== 'cap') return caixaVisivel(l); const k = corteVertical(l); return caixaVisivel({ ...l, y: l.y - k.topo, height: l.height + k.topo + k.base }) })
   const x0 = Math.floor(Math.min(...caixas.map((c) => c.x)))
   const y0 = Math.floor(Math.min(...caixas.map((c) => c.y)))
   const x1 = Math.ceil(Math.max(...caixas.map((c) => c.x + c.width)))
