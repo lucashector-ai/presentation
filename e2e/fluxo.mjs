@@ -380,10 +380,18 @@ await passo('Detalhes, compartilhamento e configurações renderizam', async () 
   await page.screenshot({ path: `${SHOTS}/11-settings.png`, fullPage: true })
 })
 
+const nav = () => page.getByRole('navigation', { name: 'Passos' })
+/** Saldo de créditos mostrado no cabeçalho do Criar com IA. */
+const saldoNoCabecalho = async () => Number((await page.locator('button[title^="Comprar créditos"] .mono').first().innerText()).replace(/\D/g, ''))
+
 await passo('Criar com IA: roteiro de 6 telas → apresentação → editor', async () => {
+  // com o prompt na URL, o briefing chega preenchido e o fluxo abre no passo da marca
   await page.goto(`${BASE}/criar?prompt=Pitch%20da%20Aurora%2C%20startup%20de%20energia%20solar&formato=slides`)
+  await nav().getByRole('button', { name: /Marca/ }).and(page.locator('[aria-current="step"]')).waitFor({ timeout: 15000 })
+  await nav().getByRole('button', { name: /Tamanho/ }).click()
   await page.getByRole('radio', { name: '6 telas', exact: true }).click()
   if ((await page.getByRole('radio', { name: '6 telas', exact: true }).getAttribute('aria-checked')) !== 'true') throw new Error('6 telas não selecionado')
+  await page.getByRole('button', { name: 'Ir para revisar' }).click()
   await page.getByRole('button', { name: 'Gerar roteiro →' }).click()
   await page.getByText('Roteiro · 6 telas').waitFor({ timeout: 30000 })
   await page.getByRole('button', { name: 'Gerar apresentação' }).click()
@@ -392,6 +400,86 @@ await passo('Criar com IA: roteiro de 6 telas → apresentação → editor', as
   await page.getByRole('button', { name: 'Abrir no editor →' }).click()
   await page.waitForURL(/\/app\/projects\/.+\/edit/, { timeout: 15000 })
   await esperarTelas(6)
+})
+
+const LOGO = `${SHOTS}/logo-aurora.svg`
+fs.writeFileSync(LOGO, '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120" width="400" height="120"><circle cx="60" cy="60" r="44" fill="#E4572E"/><rect x="38" y="38" width="44" height="44" rx="6" fill="#1F3B4D"/><rect x="130" y="34" width="250" height="22" rx="11" fill="#1F3B4D"/><rect x="130" y="66" width="160" height="22" rx="11" fill="#F2C14E"/></svg>')
+
+await passo('Criar com IA: atalho do painel (20 telas) → marca com logo, paleta do logo e kit salvo', async () => {
+  await page.goto(`${BASE}/app`, { waitUntil: 'networkidle' })
+  await page.locator('#painel-prompt').fill('Pitch da Aurora, startup de energia solar por assinatura para pequenos comércios')
+  await page.getByRole('radiogroup', { name: 'Telas' }).getByRole('radio', { name: '20', exact: true }).click()
+  await page.getByRole('button', { name: 'Continuar', exact: true }).click()
+  await page.waitForURL(/\/app\/criar\?/)
+  await page.getByRole('heading', { name: 'A sua marca, antes de gerar' }).waitFor()
+  await page.getByLabel('Arquivo do logo').setInputFiles(LOGO)
+  await page.getByText('Paletas do seu logo').waitFor({ timeout: 15000 })
+  // a 1ª paleta do logo entra sozinha: a cor principal (laranja) é a 1ª cor da marca
+  const cor1 = await page.getByLabel('Código da cor 1').inputValue()
+  if (cor1.toUpperCase() !== '#E4572E') throw new Error(`cor principal tirada do logo: ${cor1}`)
+  await page.getByLabel('Nome da marca').fill('Aurora')
+  await page.getByRole('button', { name: 'Salvar como kit de marca' }).click()
+  await page.getByRole('button', { name: 'Usar o kit Aurora' }).waitFor()
+  // a prévia da capa já tem o logo (camada de imagem do logo, aplicada sem IA)
+  const logoNaPrevia = await page.locator('[data-layer-id^="logo-"] img').count()
+  if (!logoNaPrevia) throw new Error('logo não aparece na prévia da capa')
+  await page.screenshot({ path: `${SHOTS}/13-criar-marca.png` })
+})
+
+await passo('Criar com IA: material (números), galeria de estilos com filtro e busca, tamanho e revisão com custo', async () => {
+  await page.getByRole('button', { name: 'Continuar →' }).click()
+  await page.getByRole('textbox', { name: 'Números-chave' }).fill('38% | mais clientes atendidos\n6 semanas | até o lançamento')
+  await page.getByRole('button', { name: 'Continuar →' }).click()
+  const galeria = page.getByRole('radiogroup', { name: 'Estilo de design' })
+  const total = await galeria.getByRole('radio').count()
+  if (total < 16) throw new Error(`galeria com ${total} opções (esperava ≥ 15 estilos + sugestão)`)
+  await page.getByRole('radiogroup', { name: 'Categoria de estilo' }).getByRole('radio', { name: /^Elegante/ }).click()
+  await galeria.getByRole('radio', { name: 'Luxo', exact: true }).waitFor()
+  await page.getByRole('radiogroup', { name: 'Categoria de estilo' }).getByRole('radio', { name: /^Todos/ }).click()
+  await page.getByLabel('Buscar estilo').fill('memphis')
+  if ((await galeria.getByRole('radio').count()) !== 1) throw new Error('busca de estilo não filtrou')
+  await page.getByLabel('Buscar estilo').fill('')
+  await galeria.getByRole('radio', { name: 'Luxo', exact: true }).click()
+  await page.getByLabel('Prévia do estilo escolhido').waitFor()
+  await page.getByRole('button', { name: 'Continuar →' }).click()
+  if ((await page.getByRole('radio', { name: '20 telas', exact: true }).getAttribute('aria-checked')) !== 'true') throw new Error('20 telas do atalho do painel não vieram')
+  await page.getByRole('button', { name: 'Continuar →' }).click()
+  await page.getByRole('heading', { name: 'Revisar e gerar' }).waitFor()
+  const resumo = await page.locator('aside').filter({ hasText: 'Total' }).innerText()
+  if (!/Design de 20 telas/.test(resumo) || !/grátis/.test(resumo)) throw new Error(`resumo de custo: ${resumo}`)
+  await page.screenshot({ path: `${SHOTS}/14-criar-revisar.png` })
+})
+
+await passo('Criar com IA: 20 telas com o logo; trocar o estilo depois é grátis; abre no editor', async () => {
+  await page.getByRole('button', { name: 'Gerar roteiro →' }).click()
+  await page.getByText('Roteiro · 20 telas').waitFor({ timeout: 60000 })
+  await page.getByRole('button', { name: 'Gerar apresentação' }).click()
+  await page.getByText('Pronto · 20 telas').waitFor({ timeout: 90000 })
+  const capa = page.locator('[data-layer-id^="logo-"]')
+  if ((await capa.count()) < 2) throw new Error('logo não está na capa e no encerramento')
+  const antes = await saldoNoCabecalho()
+  const trocar = page.getByRole('radiogroup', { name: 'Trocar estilo' })
+  for (const nome of ['Suíço', 'Neo-Memphis']) {
+    await trocar.getByRole('radio', { name: nome }).click()
+    await page.getByText('Pronto · 20 telas').waitFor({ timeout: 20000 })
+    if ((await trocar.getByRole('radio', { name: nome }).getAttribute('aria-checked')) !== 'true') throw new Error(`estilo ${nome} não aplicado`)
+  }
+  await page.waitForTimeout(500)
+  if ((await saldoNoCabecalho()) !== antes) throw new Error('trocar o estilo gastou créditos')
+  await page.screenshot({ path: `${SHOTS}/15-criar-estilos.png` })
+  await page.getByText('Salvando o projeto…').waitFor({ state: 'hidden', timeout: 20000 }).catch(() => {})
+  await page.getByRole('button', { name: 'Abrir no editor →' }).click()
+  await page.waitForURL(/\/app\/projects\/.+\/edit/, { timeout: 15000 })
+  await esperarTelas(20)
+  await page.getByTestId('canvas').locator('img').first().waitFor({ timeout: 10000 })
+})
+
+await passo('Criar com IA: o kit de marca fica salvo no espaço para a próxima apresentação', async () => {
+  await page.goto(`${BASE}/app/criar?prompt=Outra%20apresenta%C3%A7%C3%A3o`, { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Usar o kit Aurora' }).click()
+  if ((await page.getByLabel('Nome da marca').inputValue()) !== 'Aurora') throw new Error('kit não aplicou o nome')
+  if ((await page.getByLabel('Código da cor 1').inputValue()).toUpperCase() !== '#E4572E') throw new Error('kit não aplicou as cores')
+  await page.getByAltText(/^Logo/).first().waitFor()
 })
 
 await passo('AC-14 Reduced motion respeitado (animações encurtadas)', async () => {

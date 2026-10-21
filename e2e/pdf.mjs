@@ -86,15 +86,17 @@ await passo('Cadastro (demo)', async () => {
 
 await passo('Criar com IA: anexar PDF mostra o que foi lido e o custo', async () => {
   await page.goto(`${BASE}/app/criar`, { waitUntil: 'networkidle' })
+  // o material fica no passo 3 (Material) do Criar com IA
+  await page.getByRole('navigation', { name: 'Passos' }).getByRole('button', { name: /Material/ }).click()
   await page.getByRole('radio', { name: 'Importar arquivo' }).click()
   await page.getByLabel('Arquivo de material').setInputFiles(pdfRelatorio)
   const resumo = page.getByTestId('resumo-material')
   await resumo.waitFor({ timeout: 20000 })
   const t = await resumo.innerText()
-  for (const esperado of ['3 páginas', 'caracteres lidos', 'títulos', 'itens de lista', '1 tabela', 'página 3', 'Ler 1 página com a IA', 'No roteiro, este material soma']) if (!t.includes(esperado)) throw new Error(`resumo sem "${esperado}": ${t}`)
+  for (const esperado of ['3 páginas', 'caracteres lidos', 'títulos', 'itens de lista', '1 tabela', 'página 3', 'Ler 1 página com a IA', 'No roteiro, este material']) if (!t.includes(esperado)) throw new Error(`resumo sem "${esperado}": ${t}`)
   // custo da leitura pela IA mostrado antes: 4 + 15 por página
   if (!/Ler 1 página com a IA\s*·\s*19\s*créditos/.test(t)) throw new Error(`custo da leitura não aparece: ${t}`)
-  const texto = await page.locator('#criar-prompt').inputValue()
+  const texto = await page.locator('#criar-material').inputValue()
   for (const esperado of ['# Relatório anual 2025', 'R$ 1.234.567,89', 'três lojas', '- NPS de 72 pontos', '| Sudeste | R$ 640 mil | 21% |']) if (!texto.includes(esperado)) throw new Error(`texto sem "${esperado}"`)
   if (texto.includes('Página 1 de 3') || texto.includes('Relatório 2025\n')) throw new Error('rodapé/cabeçalho não foi removido')
   if (!workers.some((u) => /pdf\.worker\.min(\.[\w-]+)?\.mjs$/.test(u))) throw new Error(`worker do pdf.js não subiu: ${workers.join(', ')}`)
@@ -102,7 +104,10 @@ await passo('Criar com IA: anexar PDF mostra o que foi lido e o custo', async ()
 })
 
 await passo('Criar com IA: gerar roteiro e apresentação a partir do PDF', async () => {
+  const nav = page.getByRole('navigation', { name: 'Passos' })
+  await nav.getByRole('button', { name: /Tamanho/ }).click()
   await page.getByRole('radio', { name: '6 telas', exact: true }).click()
+  await nav.getByRole('button', { name: /Revisar e gerar/ }).click()
   await page.getByRole('button', { name: 'Gerar roteiro →' }).click()
   await page.getByText('Roteiro · 6 telas').waitFor({ timeout: 30000 })
   await page.screenshot({ path: `${SHOTS}/pdf-2-criar-roteiro.png` })
@@ -118,11 +123,13 @@ await passo('Criar com IA: anexar .docx lê títulos, lista e tabela', async () 
   const corpo = p('Briefing da campanha', 'Heading1') + p('Lançamento do app Rota em março, com verba de R$ 80 mil.') + p('Canais', 'Heading2') + p('Instagram', null, true) + p('Rádio local', null, true)
   fs.writeFileSync(`${SHOTS}/teste-briefing.docx`, zipSync({ 'word/document.xml': strToU8(`<w:document ${W}><w:body>${corpo}</w:body></w:document>`) }))
   await page.goto(`${BASE}/app/criar`, { waitUntil: 'networkidle' })
+  // o material fica no passo 3 (Material) do Criar com IA
+  await page.getByRole('navigation', { name: 'Passos' }).getByRole('button', { name: /Material/ }).click()
   await page.getByRole('radio', { name: 'Importar arquivo' }).click()
   await page.getByLabel('Arquivo de material').setInputFiles(`${SHOTS}/teste-briefing.docx`)
   const t = await page.getByTestId('resumo-material').innerText()
   if (!/2 títulos · 2 itens de lista/.test(t)) throw new Error(`resumo do docx: ${t}`)
-  const texto = await page.locator('#criar-prompt').inputValue()
+  const texto = await page.locator('#criar-material').inputValue()
   if (!texto.startsWith('# Briefing da campanha') || !texto.includes('- Rádio local') || !texto.includes('R$ 80 mil')) throw new Error(`texto do docx: ${texto}`)
 })
 

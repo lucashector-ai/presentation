@@ -6,7 +6,7 @@
 import { z } from 'zod'
 import { FORMATOS, SCHEMA_VERSION, type DocumentoProjeto, type ModoProjeto } from '@/lib/scene/schema'
 import { parseDocumento } from '@/lib/scene/migrar'
-import { TEMAS, TIPOS_TELA, resolverTema, type Marca, type TemaEscolhido, type TemaId, type TemaVisual, type TipoTela } from './designSystem'
+import { COMPONENTES, TEMAS, TIPOS_TELA, regrasDe, resolverTema, type Marca, type TemaEscolhido, type TemaId, type TemaVisual, type TipoTela } from './designSystem'
 import { desenharLocal } from './desenhoLocal'
 import { montarTela, type Estilo, type FotoMontagem, type LogoMontagem, type TelaDesenhada } from './montagem'
 
@@ -59,7 +59,11 @@ export interface OpcoesDocumento {
 const corta = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s)
 
 /** Aplica densidade e imagens ao desenho antes da montagem. */
-function prepararDesenho(d: TelaDesenhada, imagens: OpcaoImagens, densidade: Densidade): TelaDesenhada {
+function prepararDesenho(d0: TelaDesenhada, imagens: OpcaoImagens, densidade: Densidade, tema: TemaVisual, story: boolean): TelaDesenhada {
+  let d = d0
+  // o estilo tem composição própria: ao trocar de estilo, a variante que ele não usa vira a preferida dele (grátis, sem IA)
+  const preferidas = (regrasDe(tema).variantes[d.tipo] ?? []).filter((id) => COMPONENTES[d.tipo].variantes.some((v) => v.id === id && !(story && v.soSlides)))
+  if (preferidas.length && !preferidas.includes(d.variante)) d = { ...d, variante: preferidas[0]!, alinhamento: ['capa.centrada', 'conceito.enfase', 'encerramento.centrado', 'cta.faixa'].includes(preferidas[0]!) ? 'centro' : 'esquerda' }
   let r = d
   if (imagens === 'nenhuma' && r.tipo === 'imagem') r = { ...r, tipo: 'conceito', variante: 'conceito.frase' }
   if (imagens === 'nenhuma' && r.tipo === 'galeria') r = { ...r, tipo: 'cartoes', variante: 'cartoes.linhas' }
@@ -115,7 +119,7 @@ export function montarDocumento(roteiro: Roteiro, opcoes: OpcoesDocumento): Docu
   const foto = () => fotos.shift() ?? null
   const montadas = roteiro.telas.map((t, i) => {
     if (t.tipo === 'secao') secoes++
-    const d = prepararDesenho({ ...(opcoes.desenho?.[i] ?? locais[i]!), notas: opcoes.desenho?.[i]?.notas || t.notas }, imagens, densidade)
+    const d = prepararDesenho({ ...(opcoes.desenho?.[i] ?? locais[i]!), notas: opcoes.desenho?.[i]?.notas || t.notas }, imagens, densidade, tema, story)
     const m = montarTela(explorar && i === 0 ? { ...d, variante: d.variante === 'capa.dividida' || d.variante === 'capa.centrada' ? 'capa.classica' : d.variante } : d, {
       tema, estilo: opcoes.estilo, story, numero: i + 1, total: roteiro.telas.length, tituloProjeto: roteiro.titulo, marca: opcoes.marca?.nome.trim() ?? '',
       motivos: imagens === 'formas', placeholders: imagens === 'placeholders', indiceSecao: secoes, reservarDireita: explorar && i === 0, uid,

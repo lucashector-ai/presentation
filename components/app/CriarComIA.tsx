@@ -229,7 +229,10 @@ export function CriarComIA() {
     abortar.current = ctrl
     setDesenhando(true)
     const base = { roteiro: limpo, formato: modo, estilo: estiloEf, tema: temaEfetivo, tipo: briefing.tipo === 'auto' ? tipoDetectado : briefing.tipo, publico: briefing.publico.trim().slice(0, 200), ...(briefing.tom ? { tom: briefing.tom } : {}), marca: marcaMont }
-    const guardar = (lista: { indice: number; desenho: TelaDesenhada }[]) => setDesenhos((d) => ({ ...d, ...Object.fromEntries(lista.map((t) => [chaves[t.indice]!, t.desenho])) }))
+    // guarda a base do estilo em que a tela foi desenhada: trocar para um estilo de base oposta inverte claro e escuro
+    const base0 = temaVisual.base
+    const estilo0 = estiloEf
+    const guardar = (lista: { indice: number; desenho: TelaDesenhada }[]) => setDesenhos((d) => ({ ...d, ...Object.fromEntries(lista.map((t) => [chaves[t.indice]!, { ...t.desenho, baseTema: base0, estiloDesenho: estilo0 }])) }))
     const lote = async (ids: number[]) => {
       try {
         const r = await desenharTelas({ ...base, indices: ids }, ctrl.signal)
@@ -410,7 +413,7 @@ export function CriarComIA() {
                 {{ briefing: 'O que você quer apresentar?', marca: 'A sua marca, antes de gerar', material: 'O que você já tem', estilo: 'Escolha o estilo de design', tamanho: 'Formato e tamanho', revisar: 'Revisar e gerar', roteiro: '', design: '' }[passo]}
               </h2>
               <p className="mt-2 max-w-[640px] text-[15px] text-[#525252]">
-                {{ briefing: 'Descreva o assunto. Nos próximos passos você dá a marca, o material e o estilo: tudo entra de uma vez, sem gerar de novo.', marca: 'Logo, cores e fontes entram nas telas sem usar IA. Sem cores definidas, sugerimos paletas.', material: 'Texto, PDF, fotos e números que já existem. Pule se não tiver.', estilo: `Mais de ${TEMAS.length - 1} estilos com tipografia, cor, forma e composição próprias. Trocar depois é grátis.`, tamanho: `De ${MIN_TELAS_IA} até ${limite} telas no plano ${PLANOS[planoId].nome}. Cada tela entra no custo; o resto é grátis.`, revisar: 'Confira tudo. O custo abaixo é o que será cobrado.', roteiro: '', design: '' }[passo]}
+                {{ briefing: 'Descreva o assunto. Nos próximos passos você dá a marca, o material e o estilo: tudo entra de uma vez, sem gerar de novo.', marca: 'Logo, cores e fontes entram nas telas sem usar IA. Sem cores definidas, sugerimos paletas.', material: 'Texto, PDF, fotos e números que já existem. Pule se não tiver.', estilo: `${TEMAS.length} estilos com tipografia, cor, forma e composição próprias. Trocar depois é grátis.`, tamanho: `De ${MIN_TELAS_IA} até ${limite} telas no plano ${PLANOS[planoId].nome}. Cada tela entra no custo; o resto é grátis.`, revisar: 'Confira tudo. O custo abaixo é o que será cobrado.', roteiro: '', design: '' }[passo]}
               </p>
             </div>
           </div>

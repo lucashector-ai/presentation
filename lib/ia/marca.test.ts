@@ -3,6 +3,8 @@ import { validarDocumento } from '@/lib/scene/validate'
 import { CATEGORIAS_ESTILO, PARES_FONTES, TEMAS, aplicarMarca, contraste, regrasDe, resolverTema, superficie, temaPorId } from './designSystem'
 import { coresDoLogo, coresDoTexto, deHsl, hsl, ordenarCoresDaMarca, paletasDoLogo, PALETAS_PRONTAS } from './marca'
 import { montarDocumento, type Roteiro } from './roteiro'
+import { gerarRoteiroLocal } from './local'
+import { PedidoRoteiroSchema, caracteresMaterial } from './pedido'
 import { desenharLocal } from './desenhoLocal'
 
 /** Pixels RGBA de um "logo": n pixels de cada cor (alfa 255) e alguns transparentes. */
@@ -92,6 +94,22 @@ describe('estilos de design', () => {
   })
 })
 
+describe('material da pessoa no roteiro local', () => {
+  const pedido = (material: Partial<{ numeros: string[]; fotos: string[]; obrigatorio: string }>) => PedidoRoteiroSchema.parse({ prompt: 'Pitch de uma startup de energia solar', telas: 10, material })
+  it('números substituem os números-guia, fotos viram galeria, "não pode faltar" vira lista', () => {
+    const r = gerarRoteiroLocal(pedido({ numeros: ['38% | mais clientes', '6 semanas | até o lançamento'], fotos: ['Telhado', 'App'], obrigatorio: 'assinatura; economia na conta' }))
+    expect(r.telas).toHaveLength(10)
+    expect(r.telas.find((t) => t.tipo === 'numeros')?.itens).toEqual(['38%|mais clientes', '6 semanas|até o lançamento'])
+    expect(r.telas.some((t) => t.tipo === 'galeria' && t.itens.length === 2)).toBe(true)
+    expect(r.telas.some((t) => t.tipo === 'lista' && t.itens.includes('assinatura'))).toBe(true)
+  })
+  it('o pedido aceita até 30 telas e o material entra no preço do roteiro', () => {
+    expect(PedidoRoteiroSchema.safeParse({ prompt: 'abc', telas: 30 }).success).toBe(true)
+    expect(PedidoRoteiroSchema.safeParse({ prompt: 'abc', telas: 31 }).success).toBe(false)
+    expect(caracteresMaterial({ conteudo: 'a'.repeat(100), material: { numeros: ['1|a'], obrigatorio: 'xyz', evitar: '' } })).toBe(106)
+  })
+})
+
 describe('logo e fotos na montagem (sem IA)', () => {
   const roteiro: Roteiro = {
     titulo: 'Aurora',
@@ -122,6 +140,17 @@ describe('logo e fotos na montagem (sem IA)', () => {
     const doc = montarDocumento(roteiro, { modo: 'slides', tema: 'luxo', estilo: 'editorial', logo: { ...logo, cor: '#151515' } })
     const l = doc.scenes[0]!.layers.find((x) => x.type === 'image' && x.name === 'logo')
     expect(l && l.type === 'image' ? l.adjust : null).toMatchObject({ brightness: 0, invert: 1 })
+  })
+  it('trocar para um estilo de base oposta inverte claro/escuro e aplica a composição do estilo novo', () => {
+    const base = { tipo: 'conceito' as const, variante: 'conceito.frase', fundo: 'claro' as const, alinhamento: 'esquerda' as const, rotulo: '', titulo: 'Uma ideia', enfase: '', texto: '', itens: [], destaque: -1, imagem: '', decoracao: 'nenhuma' as const, notas: '' }
+    const r: Roteiro = { titulo: 'X', telas: [{ ...roteiro.telas[0]!, tipo: 'conceito', titulo: 'Uma ideia' }] }
+    const desenhada = { ...base, baseTema: 'claro' as const, estiloDesenho: 'minimal' as const }
+    const luxo = montarDocumento(r, { modo: 'slides', tema: 'luxo', estilo: 'editorial', desenho: [desenhada] })
+    expect(luxo.scenes[0]!.background).toBe(temaPorId('luxo').escuro.fundo)
+    // desenhada em "minimal" (sem decoração): no luxo ganha a moldura do estilo
+    expect(luxo.scenes[0]!.layers.some((l) => l.name === 'motivo')).toBe(true)
+    const suico = montarDocumento(r, { modo: 'slides', tema: 'suico', estilo: 'minimal', desenho: [desenhada] })
+    expect(suico.scenes[0]!.background).toBe(temaPorId('suico').claro.fundo)
   })
   it('apresentação de 30 telas monta inteira e válida', () => {
     const telas = Array.from({ length: 30 }, (_, i) => ({ tipo: i === 0 ? 'capa' as const : i === 29 ? 'encerramento' as const : (['conceito', 'lista', 'cartoes', 'numeros', 'processo'] as const)[i % 5]!, rotulo: '', titulo: `Tela ${i + 1} com um título`, texto: 'Texto de apoio.', itens: i % 5 === 3 ? ['10%|a', '20%|b'] : ['A|a', 'B|b', 'C|c'], notas: '' }))

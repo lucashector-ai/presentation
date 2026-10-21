@@ -151,8 +151,15 @@ export function encaixarMaterial(meio: Tela[], p: Pick<PedidoRoteiro, 'material'
       return
     }
   }
-  const numeros = m.numeros.map((n) => n.trim()).filter((n) => /\d/.test(n)).map((n) => (n.includes('|') ? n : n.replace(/^\s*([^\s]+)\s+/, '$1|'))).filter((n) => n.split('|')[1]?.trim())
-  if (numeros.length) encaixar(tela('numeros', 'Os números que importam', '', numeros.slice(0, 4), 'Comente cada número e o que ele prova.', 'Em números'), (t) => t.tipo === 'numeros' || t.tipo === 'grafico')
+  const numeros = m.numeros.map((n) => n.trim()).filter((n) => /\d/.test(n)).map((n) => (n.includes('|') ? n.split('|').map((x) => x.trim()).join('|') : n.replace(/^\s*([^\s]+)\s+/, '$1|'))).filter((n) => n.split('|')[1]?.trim())
+  if (numeros.length) {
+    // os números da pessoa substituem os números-guia do arco (que são só exemplo)
+    const k = saida.findIndex((t) => t.tipo === 'numeros')
+    if (k >= 0) {
+      saida[k] = { ...saida[k]!, itens: numeros.slice(0, 4) }
+      usados.add(k)
+    } else encaixar(tela('numeros', 'Os números que importam', '', numeros.slice(0, 4), 'Comente cada número e o que ele prova.', 'Em números'), () => false)
+  }
   if (m.fotos.length) {
     const fotos = m.fotos.map((f, i) => (f.trim() || `Foto ${i + 1}`).slice(0, 60))
     encaixar(fotos.length === 1 ? tela('imagem', fotos[0]!, 'Uma imagem que mostra o resultado.', [], '', 'Na prática') : tela('galeria', 'Veja de perto', '', fotos.slice(0, 6).map((f) => `${f}|`), 'Passe pelas imagens e destaque uma.', 'Galeria'), (t) => t.tipo === 'galeria')

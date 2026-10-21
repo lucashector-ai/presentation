@@ -166,6 +166,9 @@ export function PassoMaterial({ material, aoMudar, telas, planoId, aoLer }: {
   const extraMaterial = material.origem === 'zero' ? 0 : material.conteudo.length
   const creditosMaterial = custoRoteiro(telas, extraMaterial) - custoRoteiro(telas)
   const numeros = linhasDeNumeros(material.numeros)
+  const notaCusto = creditosMaterial > 0
+    ? <>No roteiro, este material soma <span className="mono text-texto">{creditosMaterial}</span> {creditosMaterial === 1 ? 'crédito' : 'créditos'} (1 a cada {MATERIAL_CREDITOS.caracteres.toLocaleString('pt-BR')} caracteres), já no total. Revise o texto antes de gerar.</>
+    : <>No roteiro, este material não soma créditos (grátis). Revise o texto antes de gerar.</>
 
   return (
     <div className="flex flex-col gap-4">
@@ -199,6 +202,7 @@ export function PassoMaterial({ material, aoMudar, telas, planoId, aoLer }: {
                       {lido.lidasPelaIa.length > 0 && <> · {lido.lidasPelaIa.length === 1 ? 'página' : 'páginas'} {listaDePaginas(lido.lidasPelaIa)} {lido.lidasPelaIa.length === 1 ? 'lida' : 'lidas'} pela IA</>}
                       {lido.cortado && <> · usamos os primeiros {MAX_TEXTO.toLocaleString('pt-BR')} caracteres</>}
                     </div>
+                    {material.conteudo.length > 0 && <div className="text-texto3">{notaCusto}</div>}
                     {lido.semTexto.length > 0 && (
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[10px] bg-[#FFF7E8] px-3 py-2.5 text-[#6B4E16]">
                         <span className="min-w-0 flex-1">
@@ -226,7 +230,7 @@ export function PassoMaterial({ material, aoMudar, telas, planoId, aoLer }: {
             />
           </div>
         )}
-        {extraMaterial > 0 && <p className="text-[12px] text-texto3">Este material soma <span className="mono text-texto">{creditosMaterial}</span> {creditosMaterial === 1 ? 'crédito' : 'créditos'} ao roteiro (1 a cada {MATERIAL_CREDITOS.caracteres.toLocaleString('pt-BR')} caracteres), já no total.</p>}
+        {extraMaterial > 0 && !lido && <p className="text-[12px] text-texto3">{notaCusto}</p>}
       </Secao>
 
       <Secao titulo="Fotos próprias" dica={`Produto, equipe, obra, portfólio: entram nos espaços de imagem das telas, na ordem. Até ${MAX_FOTOS}.`} selo={<SeloCusto />} id="titulo-fotos">

@@ -31,6 +31,13 @@ export interface TelaDesenhada {
   imagem: string
   decoracao: Decoracao
   notas: string
+  /**
+   * Superfície base do estilo em que a tela foi desenhada. Ao trocar para um estilo de base oposta (claro ↔
+   * escuro), "claro" e "escuro" trocam de lugar: o ritmo de respiro continua o mesmo e o estilo novo aparece inteiro.
+   */
+  baseTema?: 'claro' | 'escuro'
+  /** Energia em que a tela foi desenhada: desenhada em "minimal" (sem decoração) ganha a decoração do estilo novo. */
+  estiloDesenho?: Estilo
 }
 
 export interface ContextoMontagem {
@@ -158,7 +165,8 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
   const t = c.tema
   const R = regrasDe(t)
   // estilos sem telas de acento (luxo, acadêmico, vidro…) trocam o acento cheio pela superfície oposta
-  const fundoPedido: Fundo = R.semAcento && d.fundo === 'acento' ? (t.base === 'claro' ? 'escuro' : 'claro') : d.fundo
+  const relativo: Fundo = d.baseTema && d.baseTema !== t.base && d.fundo !== 'acento' ? (d.fundo === 'claro' ? 'escuro' : 'claro') : d.fundo
+  const fundoPedido: Fundo = R.semAcento && relativo === 'acento' ? (t.base === 'claro' ? 'escuro' : 'claro') : relativo
   const fundo: Fundo = d.variante === 'imagem.cheia' ? 'escuro' : fundoPedido
   const s = superficie(t, fundo)
   const st = c.story
@@ -176,8 +184,10 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
   const L: Camada[] = []
   const F = t.fontes
   const raioCartao = Math.min(t.raio, 36)
-  const decorar = c.motivos && c.estilo !== 'minimal' && d.decoracao !== 'nenhuma' && t.motivo !== 'nenhum'
-  const marcante = d.decoracao === 'marcante' || c.estilo === 'ousado'
+  // tela desenhada em "minimal" (sem decoração) montada agora numa energia com decoração: ganha a decoração do estilo
+  const decoracao = d.decoracao === 'nenhuma' && d.estiloDesenho === 'minimal' && c.estilo !== 'minimal' ? (c.estilo === 'ousado' ? 'marcante' : 'sutil') : d.decoracao
+  const decorar = c.motivos && c.estilo !== 'minimal' && decoracao !== 'nenhuma' && t.motivo !== 'nenhum'
+  const marcante = decoracao === 'marcante' || c.estilo === 'ousado'
   const centro = d.alinhamento === 'centro'
   const forte = s.destaque
   const sobreDestaque = legivel(forte, [s.fundo, s.tinta, '#FFFFFF', '#141414'], 4.5)
