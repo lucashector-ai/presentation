@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { Sparkles } from 'lucide-react'
 import { definirUsuario, reiniciarDemo, uso } from '@/lib/demo/store'
 import { useDemo } from '@/lib/demo/useDemo'
-import { ACOES_IA, CUSTO_CREDITOS, PLANOS, TELAS_REFERENCIA, apresentacoesCom, custoApresentacao, formatarBytes, formatarLimite, percentualUso, precoComCiclo, textoApresentacoes } from '@/lib/planos'
+import { ACOES_IA, PLANOS, resumoCobranca, TELAS_REFERENCIA, apresentacoesCom, custoApresentacao, formatarBytes, formatarLimite, percentualUso, precoComCiclo, textoApresentacoes } from '@/lib/planos'
 import { alternarTema, sair } from '@/lib/sessao'
 import { Botao, Campo, Entrada, ModalConfirmar, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
@@ -88,7 +88,7 @@ export function Configuracoes() {
               ))}
             </ul>
             <p className="mt-3 rounded-lg bg-acentoSuave px-3 py-2.5 text-[12px] leading-relaxed text-texto">
-              Uma apresentação de {TELAS_REFERENCIA} telas custa {CUSTO_CREDITOS.roteiro} + {TELAS_REFERENCIA} × {CUSTO_CREDITOS.tela} = <strong className="font-medium">{custoApresentacao(TELAS_REFERENCIA)} créditos</strong>, cobrados uma vez, quando a IA escreve o roteiro. Ajustar o roteiro, trocar o tema e redesenhar as telas é grátis.
+              {resumoCobranca(TELAS_REFERENCIA)}
             </p>
           </div>
         </div>

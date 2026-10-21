@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { ESTILOS, TEMAS, TEMPLATES, TIPOS_TELA, montarDocumento, type Roteiro } from './roteiro'
 import { validarDocumento } from '@/lib/scene/validate'
 
-const todos: Roteiro = { titulo: 'Teste', telas: TIPOS_TELA.map((tipo) => ({ tipo, titulo: `Tela ${tipo}`, texto: 'Um texto de apoio curto.', itens: tipo === 'paleta' ? ['A|#B4532A', 'B|#EEE7DB'] : tipo === 'numeros' ? ['38%|mais', '2×|conversão'] : ['um', 'dois', 'três'], notas: 'nota' })) }
+const todos: Roteiro = { titulo: 'Teste', telas: TIPOS_TELA.map((tipo) => ({ tipo, rotulo: '', titulo: `Tela ${tipo}`, texto: 'Um texto de apoio curto.', itens: tipo === 'paleta' ? ['A|#B4532A', 'B|#EEE7DB'] : tipo === 'numeros' ? ['38%|mais', '2×|conversão'] : ['um', 'dois', 'três'], notas: 'nota' })) }
 
 describe('motor de layout do roteiro', () => {
   for (const modo of ['slides', 'story', 'explorar'] as const) {

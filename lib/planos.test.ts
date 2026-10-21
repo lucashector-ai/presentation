@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ACOES_IA, CUSTO_CREDITOS, PACOTES_AVULSOS, PLANOS, apresentacoesCom, custoApresentacao, custoDe, formatarBytes, podeCriarProjeto, podeEnviarArquivo, podeGastarCreditos, podeGerarTelas, podeUsarSenhaNoLink, precoComCiclo, somenteLeitura, textoApresentacoes } from './planos'
+import { ACOES_IA, CUSTO_CREDITOS, DIVISAO_TELA, custoDesenho, custoRoteiro, resumoCobranca, PACOTES_AVULSOS, PLANOS, apresentacoesCom, custoApresentacao, custoDe, formatarBytes, podeCriarProjeto, podeEnviarArquivo, podeGastarCreditos, podeGerarTelas, podeUsarSenhaNoLink, precoComCiclo, somenteLeitura, textoApresentacoes } from './planos'
 
 describe('planos', () => {
   const uso = { projetosAtivos: 0, armazenamentoBytes: 0, bandaMesBytes: 0 }
@@ -29,24 +29,38 @@ describe('planos', () => {
   it('créditos: custo de roteiro + 8 telas e checagem de saldo', () => {
     const custo = custoDe({ roteiro: 1, tela: 8 })
     expect(custo).toBe(CUSTO_CREDITOS.roteiro + 8 * CUSTO_CREDITOS.tela)
-    expect(podeGastarCreditos(49, custo).ok).toBe(false)
-    expect(podeGastarCreditos(50, custo).ok).toBe(true)
+    expect(podeGastarCreditos(custo - 1, custo).ok).toBe(false)
+    expect(podeGastarCreditos(custo, custo).ok).toBe(true)
   })
-  it('créditos falam em apresentações: 10 telas = 60 créditos', () => {
-    expect(custoApresentacao(10)).toBe(60)
-    expect(custoApresentacao(6)).toBe(40)
+  it('créditos falam em apresentações: 10 telas = 210 créditos, em duas etapas', () => {
+    expect(custoApresentacao(10)).toBe(210)
+    expect(custoApresentacao(6)).toBe(130)
     expect(custoApresentacao(10)).toBe(custoDe({ roteiro: 1, tela: 10 }))
-    expect(ACOES_IA[0]).toMatchObject({ id: 'apresentacao', creditos: 60 })
+    expect(custoRoteiro(10) + custoDesenho(10)).toBe(custoApresentacao(10))
+    expect(custoRoteiro(10)).toBe(10 + 10 * DIVISAO_TELA.roteiro)
+    expect(DIVISAO_TELA.roteiro + DIVISAO_TELA.desenho).toBe(CUSTO_CREDITOS.tela)
+    expect(ACOES_IA[0]).toMatchObject({ id: 'apresentacao', creditos: 210 })
+  })
+  it('material longo encarece só o roteiro: 1 crédito a cada 2.500 caracteres', () => {
+    expect(custoRoteiro(10, 0)).toBe(40)
+    expect(custoRoteiro(10, 1)).toBe(41)
+    expect(custoRoteiro(10, 2500)).toBe(41)
+    expect(custoRoteiro(10, 60000)).toBe(64)
+    expect(custoApresentacao(10, 60000) - custoApresentacao(10)).toBe(24)
+  })
+  it('resumo da cobrança cita as duas etapas', () => {
+    expect(resumoCobranca(10)).toContain('210 créditos')
+    expect(resumoCobranca(10)).toContain('17 por tela')
   })
   it('planos e pacotes traduzidos em apresentações de 10 telas', () => {
-    expect(apresentacoesCom(PLANOS.free.creditos.quantidade)).toBe(6)
-    expect(apresentacoesCom(PLANOS.plus.creditos.quantidade)).toBe(16)
-    expect(apresentacoesCom(PLANOS.pro.creditos.quantidade)).toBe(66)
-    expect(apresentacoesCom(PLANOS.studio.creditos.quantidade)).toBe(333)
-    expect(PACOTES_AVULSOS.map((p) => apresentacoesCom(p.creditos))).toEqual([8, 33, 166])
-    expect(apresentacoesCom(59)).toBe(0)
-    expect(textoApresentacoes(1000)).toBe('≈ 16 apresentações')
-    expect(textoApresentacoes(60)).toBe('≈ 1 apresentação')
+    expect(apresentacoesCom(PLANOS.free.creditos.quantidade)).toBe(2)
+    expect(apresentacoesCom(PLANOS.plus.creditos.quantidade)).toBe(3)
+    expect(apresentacoesCom(PLANOS.pro.creditos.quantidade)).toBe(9)
+    expect(apresentacoesCom(PLANOS.studio.creditos.quantidade)).toBe(19)
+    expect(PACOTES_AVULSOS.map((p) => apresentacoesCom(p.creditos))).toEqual([2, 9, 47])
+    expect(apresentacoesCom(209)).toBe(0)
+    expect(textoApresentacoes(1000)).toBe('≈ 4 apresentações')
+    expect(textoApresentacoes(210)).toBe('≈ 1 apresentação')
     expect(textoApresentacoes(10)).toBe('menos de 1 apresentação')
   })
   it('vídeo não faz parte da tabela de créditos', () => {

@@ -3,18 +3,23 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { abrirApresentacao } from '@/components/viewer/retorno'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ArrowDown, ArrowUp, FileText, RotateCcw, Sparkles, Upload, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, FileText, Palette, Plus, RotateCcw, Sparkles, Upload, X } from 'lucide-react'
 import { cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 import { SceneRenderer } from '@/components/renderer/SceneRenderer'
-import { useFontesDoDocumento } from '@/components/renderer/fontes'
+import { carregarFontes, useFontesDoDocumento } from '@/components/renderer/fontes'
 import { api, ErroApiCliente } from '@/lib/api/cliente'
 import { atualizarProjeto, criarProjeto, ErroDemo, gastarCreditos, obterProjeto, salvarDocumento, saldoCreditos } from '@/lib/demo/store'
 import { useDemo } from '@/lib/demo/useDemo'
-import { PALETA } from '@/lib/design-tokens'
-import { FORMATOS_IA, ORIGENS, QUANTIDADES_TELAS } from '@/lib/ia/pedido'
-import { ESTILOS, TEMAS, TIPOS_TELA, montarDocumento, type Densidade, type Estilo, type OpcaoImagens, type Roteiro, type TemaId, type TelaRoteiro, type TipoTela } from '@/lib/ia/roteiro'
-import { PLANOS, custoApresentacao, podeGastarCreditos, podeGerarTelas, textoApresentacoes } from '@/lib/planos'
+import { desenharTelas } from '@/lib/ia/clienteDesign'
+import { chaveDesenho, MAX_TELAS_POR_PEDIDO_DESIGN } from '@/lib/ia/design'
+import { COMPONENTES, NOMES_TIPO_TELA, RE_HEX, TEMAS, resolverTema, type TemaEscolhido, type TemaId, type TemaVisual } from '@/lib/ia/designSystem'
+import { desenharLocal } from '@/lib/ia/desenhoLocal'
+import type { TelaDesenhada } from '@/lib/ia/montagem'
+import { FORMATOS_IA, ORIGENS, QUANTIDADES_TELAS, tipoEfetivo } from '@/lib/ia/pedido'
+import { ESTILOS, TIPOS_TELA, montarDocumento, type Densidade, type Estilo, type OpcaoImagens, type Roteiro, type TelaRoteiro, type TipoTela } from '@/lib/ia/roteiro'
+import { NOMES_TOM, TIPOS, TIPOS_APRESENTACAO, TONS, type TipoPedido, type Tom } from '@/lib/ia/tiposApresentacao'
+import { PLANOS, custoApresentacao, custoDesenho, custoRoteiro, podeGastarCreditos, podeGerarTelas, textoApresentacoes } from '@/lib/planos'
 import { useCreditos } from './Creditos'
 import type { Cena, DocumentoProjeto } from '@/lib/scene/schema'
 
@@ -24,18 +29,22 @@ type Origem = (typeof ORIGENS)[number]
 const NOMES_ORIGEM: Record<Origem, string> = { zero: 'Gerar do zero', texto: 'Colar texto', arquivo: 'Importar arquivo' }
 const NOMES_FORMATO: Record<Formato, string> = { slides: 'Slides', story: 'Story', explorar: 'Explorar' }
 const NOMES_ESTILO: Record<Estilo, string> = { editorial: 'Editorial', ousado: 'Ousado', minimal: 'Minimal' }
-const NOMES_TIPO: Record<TipoTela, string> = { capa: 'Capa', conceito: 'Conceito', secao: 'Seção', lista: 'Lista', numeros: 'Números', citacao: 'Citação', paleta: 'Paleta', tipografia: 'Tipografia', imagem: 'Imagem', comparacao: 'Comparação', encerramento: 'Encerramento' }
-const DICA_ITENS: Partial<Record<TipoTela, string>> = { lista: 'Um ponto por linha', numeros: 'valor|legenda — ex.: 38%|mais passageiros', paleta: 'Nome|#hex — ex.: Terracota|#B4532A', comparacao: 'Linhas alternadas: esquerda, direita, esquerda…' }
+const NOMES_TIPO_CURTO: Record<TipoPedido, string> = {
+  auto: 'Automático', pitch: 'Pitch', proposta: 'Proposta', projeto: 'Projeto', relatorio: 'Relatório', aula: 'Aula', portfolio: 'Portfólio',
+  lancamento: 'Lançamento', case: 'Case', evento: 'Evento', institucional: 'Institucional', identidade: 'Identidade visual', geral: 'Outro',
+}
 const PLACEHOLDER: Record<Origem, string> = {
-  zero: 'Ex.: Identidade visual para uma marca de cerâmica artesanal, com conceito, paleta, tipografia e aplicações…',
-  texto: 'Cole aqui seu briefing, roteiro ou anotações. A IA transforma em telas.',
+  zero: 'Ex.: Proposta de identidade visual para uma marca de cerâmica artesanal, com conceito, paleta, tipografia e aplicações…',
+  texto: 'Cole aqui seu briefing, roteiro, relatório ou anotações. A IA organiza em telas.',
   arquivo: 'Arraste um arquivo de texto (.txt, .md, .html) — o conteúdo aparece aqui para você revisar.',
 }
-const EXEMPLOS = [
-  { texto: 'Rebrand de uma cafeteria de bairro em São Paulo, com conceito, paleta, tipografia e aplicações.', cor: '#B4532A', raio: '50%' },
-  { texto: 'Proposta de campanha de verão para uma marca de moda praia, com key visual e peças digitais.', cor: '#1F3B4D', raio: '6px' },
-  { texto: 'Portfólio de diretora de arte com 5 cases, focado em identidade visual e editorial.', cor: '#D7F25C', raio: '0' },
-  { texto: 'Pitch para festival de música independente buscando patrocinadores.', cor: '#E4572E', raio: '999px 999px 0 0' },
+const EXEMPLOS: { texto: string; tipo: TipoPedido; cor: string; raio: string }[] = [
+  { texto: 'Pitch da Aurora, startup de energia solar por assinatura para pequenos comércios, buscando rodada seed.', tipo: 'pitch', cor: '#D7F25C', raio: '0' },
+  { texto: 'Proposta de rebrand para uma cafeteria de bairro em São Paulo, com conceito, entregas, cronograma e investimento.', tipo: 'proposta', cor: '#B4532A', raio: '50%' },
+  { texto: 'Relatório do 3º trimestre do time de vendas: resultados, metas, o que funcionou e prioridades.', tipo: 'relatorio', cor: '#2F6BFF', raio: '6px' },
+  { texto: 'Aula de introdução à fotossíntese para o 7º ano, com conceitos, passo a passo e exercícios.', tipo: 'aula', cor: '#E07A00', raio: '999px 999px 0 0' },
+  { texto: 'Lançamento do app Rota, que organiza entregas de pequenos negócios, com recursos e planos.', tipo: 'lancamento', cor: '#7C8CFF', raio: '50%' },
+  { texto: 'Festival de música independente em Belo Horizonte buscando patrocinadores para a 5ª edição.', tipo: 'evento', cor: '#E4572E', raio: '0' },
 ]
 const FORMAS = ['50%', '6px', '0', '999px 999px 0 0']
 const CORES_CARTAO = ['#E4572E', '#5965F2', '#F2C14E', '#1F3B4D', '#D7F25C', '#B4532A']
@@ -43,7 +52,6 @@ const EXTENSOES_TEXTO = '.txt,.md,.markdown,.html,.htm,.csv'
 const MAX_TEXTO = 60000
 const DEMO = process.env.NEXT_PUBLIC_DEMO === '1'
 
-const cor = (id: string) => PALETA.find((p) => p.id === id) ?? PALETA[0]!
 const tinta = (hex: string) => (['#D7F25C', '#F2C14E', '#F1D3B3', '#EEE7DB', '#F2E9D8'].includes(hex) ? '#171717' : '#fff')
 
 /** Lê arquivos de texto no navegador; HTML vira texto puro. */
@@ -98,6 +106,24 @@ function MiniaturaFluida({ cena }: { cena: Cena }) {
   )
 }
 
+/** Amostra de um tema: capa em miniatura com a fonte, o fundo e o acento do tema. */
+function AmostraTema({ t, i, ativo, sugerido, aoEscolher }: { t: TemaVisual; i: number; ativo: boolean; sugerido: boolean; aoEscolher: () => void }) {
+  const s = t.capa === 'escuro' ? t.escuro : t.capa === 'acento' ? { fundo: t.acento, tinta: t.sobreAcento } : t.claro
+  const forma = t.raio === 0 ? '0' : t.raio >= 40 || t.motivo === 'formas' ? '50%' : FORMAS[i % 4]!
+  return (
+    <button type="button" role="radio" aria-checked={ativo} onClick={aoEscolher} title={t.descricao} className="flex flex-col gap-1.5 text-left">
+      <span className={cx('relative block aspect-[16/10] w-full overflow-hidden rounded-lg shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)] outline outline-2 outline-offset-2', ativo ? 'outline-violeta' : 'outline-transparent')} style={{ background: s.fundo }}>
+        <span className="absolute right-[10%] top-[14%] aspect-square w-[28%]" style={{ background: t.capa === 'acento' ? t.acento2 : t.acento, borderRadius: forma, opacity: t.motivo === 'brilho' ? 0.75 : 1, filter: t.motivo === 'brilho' ? 'blur(6px)' : undefined }} />
+        <span className="absolute bottom-[12%] left-[10%] text-[19px] leading-none tracking-[-0.03em]" style={{ color: s.tinta, fontFamily: t.fontes.titulo === 'Geist' ? undefined : t.fontes.titulo, fontWeight: t.fontes.pesoTitulo }}>Aa</span>
+        {sugerido && <span className="mono absolute left-[8%] top-[10%] rounded-full bg-white/90 px-1.5 py-0.5 text-[8px] font-medium text-[#171717]">SUGERIDO</span>}
+      </span>
+      <span className="truncate text-[12px] text-[#525252]">{t.nome}</span>
+    </button>
+  )
+}
+
+const noIntervalo = <T,>(itens: T[], n: number) => Array.from({ length: Math.ceil(itens.length / n) }, (_, k) => itens.slice(k * n, k * n + n))
+
 export function CriarComIA() {
   const router = useRouter()
   const params = useSearchParams()
@@ -113,14 +139,23 @@ export function CriarComIA() {
     const n = Number(params.get('telas'))
     return (QUANTIDADES_TELAS as readonly number[]).includes(n) ? n : 8
   })
+  const [tipo, setTipo] = useState<TipoPedido>(() => ((TIPOS_APRESENTACAO as readonly string[]).includes(params.get('tipo') ?? '') ? (params.get('tipo') as TipoPedido) : 'auto'))
+  const [publico, setPublico] = useState('')
+  const [tom, setTom] = useState<Tom | ''>('')
+  const [marcaNome, setMarcaNome] = useState('')
+  const [cores, setCores] = useState<string[]>([])
   const [estilo, setEstilo] = useState<Estilo>('editorial')
   const [gerando, setGerando] = useState(false)
   const [roteiro, setRoteiro] = useState<Roteiro | null>(null)
   const [nota, setNota] = useState('')
-  const [tema, setTema] = useState<TemaId>('argila')
+  const [tema, setTema] = useState<TemaEscolhido>('argila')
+  const [temaIa, setTemaIa] = useState<TemaId | null>(null)
   const [imagens, setImagens] = useState<OpcaoImagens>('formas')
-  const [densidade, setDensidade] = useState<Densidade>('medio')
-  const [desenhadas, setDesenhadas] = useState(0)
+  const [densidade, setDensidade] = useState<Densidade>('detalhado')
+  /** Desenhos já feitos, pela chave do conteúdo da tela (mudar o tema não redesenha; mudar o texto, sim). */
+  const [desenhos, setDesenhos] = useState<Record<string, TelaDesenhada>>({})
+  const [desenhando, setDesenhando] = useState(false)
+  const [revelar, setRevelar] = useState(0)
   const [projetoId, setProjetoId] = useState<string | null>(null)
   const [arrastando, setArrastando] = useState(false)
   const abortar = useRef<AbortController | null>(null)
@@ -130,17 +165,22 @@ export function CriarComIA() {
   const { abrirCompra } = useCreditos()
   const opcoesTelas = QUANTIDADES_TELAS.filter((n) => podeGerarTelas(planoId, n).ok)
   useEffect(() => { if (!podeGerarTelas(planoId, telas).ok) setTelas(opcoesTelas[opcoesTelas.length - 1] ?? 6) }, [planoId, telas, opcoesTelas])
+  useEffect(() => { carregarFontes(TEMAS.map((t) => t.fontes.titulo)) }, [])
 
   const textoBase = origem === 'zero' ? prompt : conteudo
   const podeGerar = textoBase.trim().length >= (origem === 'zero' ? 3 : 20) && !gerando
-  // "Gerar uma apresentação" = roteiro + telas, cobrado uma vez quando a IA escreve o roteiro (mesma conta da rota /api/ai/roteiro)
-  const custo = custoApresentacao(telas)
-  const semSaldo = !podeGastarCreditos(saldo, custo).ok
+  const material = origem === 'zero' ? 0 : conteudo.length
+  const marca = useMemo(() => ({ nome: marcaNome.trim().slice(0, 60), cores: cores.filter((c) => RE_HEX.test(c)) }), [marcaNome, cores])
+  // "Gerar uma apresentação" = roteiro (agora) + design de cada tela (no passo 3)
+  const custoTotal = custoApresentacao(telas, material)
+  const custoDoRoteiro = custoRoteiro(telas, material)
+  const semSaldo = !podeGastarCreditos(saldo, custoTotal).ok
+  const tipoDetectado = tipoEfetivo({ tipo, prompt, conteudo: origem === 'zero' ? '' : conteudo })
   useEffect(() => () => abortar.current?.abort(), [])
 
   const gerarRoteiro = async (outro = false) => {
     if (!podeGerar && !outro) return
-    const decisao = podeGastarCreditos(saldoCreditos(), custo)
+    const decisao = podeGastarCreditos(saldoCreditos(), custoDoRoteiro)
     if (!decisao.ok) return abrirCompra(`${decisao.motivo.replace(' Compre um pacote avulso ou faça upgrade.', '')} Escolha um pacote para continuar.`)
     abortar.current?.abort()
     const ctrl = new AbortController()
@@ -155,18 +195,25 @@ export function CriarComIA() {
           formato,
           telas,
           estilo,
+          tipo,
+          publico: publico.trim().slice(0, 200),
+          ...(tom ? { tom } : {}),
+          marca,
         },
         ctrl.signal
       )
       // no modo demonstração os créditos são fictícios e o débito acontece aqui, para o saldo refletir o uso;
       // no backend real a rota debita (só quando o Claude escreve) e estorna se falhar
-      if (r.gerador === 'claude' || DEMO) gastarCreditos(custo, `Apresentação com IA · ${telas} telas`)
+      const cobrado = DEMO ? custoDoRoteiro : r.creditos
+      if (cobrado > 0) gastarCreditos(cobrado, `Roteiro com IA · ${telas} telas`)
       setNota(r.gerador === 'claude'
-        ? `Escrito pela IA · ${custo} créditos usados. Ajustar o roteiro, o tema e redesenhar não custa mais nada.`
+        ? `Escrito pela IA · ${cobrado} créditos do roteiro. O design de cada tela vem no próximo passo; reordenar e trocar o tema é grátis.`
         : DEMO
-          ? `Roteiro-guia gerado localmente (a IA não está conectada neste ambiente) · ${custo} créditos de demonstração debitados. Ajustar e redesenhar é grátis.`
+          ? `Roteiro-guia gerado localmente (a IA não está conectada neste ambiente) · ${cobrado} créditos de demonstração debitados. Revise o texto: ele é um guia do tipo "${TIPOS[r.tipo].nome}".`
           : 'Roteiro-guia gerado localmente (a IA não está conectada neste ambiente). Nenhum crédito foi cobrado.')
       setRoteiro(r.roteiro)
+      setTemaIa(r.tema)
+      setTema(marca.cores.length ? 'marca' : r.tema)
       setPasso(2)
     } catch (e) {
       if (ctrl.signal.aborted) return
@@ -205,29 +252,79 @@ export function CriarComIA() {
       return { ...r, telas: t }
     })
   const remover = (i: number) => setRoteiro((r) => (r && r.telas.length > 1 ? { ...r, telas: r.telas.filter((_, k) => k !== i) } : r))
-  const adicionar = () => setRoteiro((r) => (r ? { ...r, telas: [...r.telas, { tipo: 'conceito', titulo: 'Nova tela', texto: 'Descreva o que esta tela deve mostrar.', itens: [], notas: '' }] } : r))
+  const adicionar = () => setRoteiro((r) => (r ? { ...r, telas: [...r.telas, { tipo: 'conceito', rotulo: '', titulo: 'Nova tela', texto: 'Descreva o que esta tela deve mostrar.', itens: [], notas: '' }] } : r))
 
   const modo = formato
+  const limpo = useMemo<Roteiro | null>(() => (roteiro ? { titulo: roteiro.titulo.trim() || 'Nova apresentação', telas: roteiro.telas.map((t) => ({ ...t, titulo: t.titulo.trim() || 'Sem título' })) } : null), [roteiro])
+  const chaves = useMemo(() => (limpo ? limpo.telas.map((t) => chaveDesenho(t, modo)) : []), [limpo, modo])
+  const pendentes = chaves.map((k, i) => (desenhos[k] ? -1 : i)).filter((i) => i >= 0)
+  const custoDoDesenho = custoDesenho(pendentes.length)
+  const prontas = chaves.filter((k) => desenhos[k]).length
+
   const documento = useMemo(() => {
-    if (!roteiro || passo !== 3) return null
-    const limpo: Roteiro = { titulo: roteiro.titulo.trim() || 'Nova apresentação', telas: roteiro.telas.map((t) => ({ ...t, titulo: t.titulo.trim() || 'Sem título' })) }
-    return montarDocumento(limpo, { modo, tema, estilo, imagens, densidade })
-  }, [roteiro, passo, modo, tema, estilo, imagens, densidade])
+    if (!limpo || passo !== 3) return null
+    return montarDocumento(limpo, { modo, tema, estilo, imagens, densidade, marca, desenho: chaves.map((k) => desenhos[k]) })
+  }, [limpo, passo, modo, tema, estilo, imagens, densidade, marca, chaves, desenhos])
   useFontesDoDocumento(documento ?? { scenes: [] })
 
-  const gerarApresentacao = () => {
-    if (!roteiro) return
-    setDesenhadas(0)
-    setPasso(3)
+  /** Desenha as telas que ainda não têm desenho: a primeira sozinha (escreve o cache do roteiro), depois em lotes. */
+  const desenhar = async (indices: number[]) => {
+    if (!limpo || !indices.length) return
+    const ctrl = new AbortController()
+    abortar.current?.abort()
+    abortar.current = ctrl
+    setDesenhando(true)
+    const base = { roteiro: limpo, formato: modo, estilo, tema, tipo: tipo === 'auto' ? tipoDetectado : tipo, publico: publico.trim().slice(0, 200), ...(tom ? { tom } : {}), marca }
+    const guardar = (lista: { indice: number; desenho: TelaDesenhada }[]) => setDesenhos((d) => ({ ...d, ...Object.fromEntries(lista.map((t) => [chaves[t.indice]!, t.desenho])) }))
+    const lote = async (ids: number[]) => {
+      try {
+        const r = await desenharTelas({ ...base, indices: ids }, ctrl.signal)
+        const cobrado = DEMO ? custoDesenho(ids.length) : r.creditos
+        if (cobrado > 0) gastarCreditos(cobrado, `Design com IA · ${ids.length} ${ids.length === 1 ? 'tela' : 'telas'}`)
+        guardar(r.telas)
+      } catch (e) {
+        if (ctrl.signal.aborted) return
+        // sem a rota (ou sem saldo no servidor), a tela não fica em branco: entra o desenho local
+        const locais = desenharLocal(limpo, { story: modo === 'story', estilo, tema: resolverTema(tema, marca) })
+        guardar(ids.map((i) => ({ indice: i, desenho: locais[i]! })))
+        mostrar(e instanceof ErroApiCliente || e instanceof ErroDemo ? e.message : 'Algumas telas foram desenhadas localmente.', 'erro')
+      }
+    }
+    try {
+      const [primeira, ...resto] = indices
+      await lote([primeira!])
+      const lotes = noIntervalo(resto, Math.min(3, MAX_TELAS_POR_PEDIDO_DESIGN))
+      for (const par of noIntervalo(lotes, 2)) await Promise.all(par.map(lote))
+    } finally {
+      if (abortar.current === ctrl) setDesenhando(false)
+    }
   }
 
-  // cria o projeto assim que o documento existe e revela as telas uma a uma
+  const gerarApresentacao = () => {
+    if (!limpo) return
+    const decisao = podeGastarCreditos(saldoCreditos(), custoDoDesenho)
+    if (!decisao.ok) return abrirCompra(`${decisao.motivo.replace(' Compre um pacote avulso ou faça upgrade.', '')} Escolha um pacote para continuar.`)
+    setRevelar(0)
+    setPasso(3)
+    void desenhar(pendentes)
+  }
+
+  const total = documento?.scenes.length ?? 0
+  const pronto = passo === 3 && total > 0 && prontas >= total && revelar >= total
+
+  // revela as telas uma a uma, conforme os desenhos chegam
   useEffect(() => {
-    if (passo !== 3 || !documento || !roteiro) return
-    if (criadoPara.current !== documento) try {
+    if (passo !== 3 || revelar >= prontas) return
+    const t = setTimeout(() => setRevelar((n) => n + 1), revelar === 0 ? 120 : 300)
+    return () => clearTimeout(t)
+  }, [passo, revelar, prontas])
+
+  // cria o projeto quando todas as telas estão desenhadas (e atualiza o mesmo projeto ao trocar tema ou voltar ao roteiro)
+  useEffect(() => {
+    if (!pronto || !documento || !roteiro || criadoPara.current === documento) return
+    try {
       criadoPara.current = documento
       const nome = roteiro.titulo.trim().slice(0, 80) || 'Nova apresentação'
-      // voltar ao roteiro e gerar de novo atualiza o mesmo projeto em vez de criar outro
       const existente = projetoId ? obterProjeto(projetoId) : undefined
       if (existente && existente.modo === modo) {
         salvarDocumento(existente.id, documento, existente.revisaoAtual)
@@ -238,21 +335,12 @@ export function CriarComIA() {
     } catch (e) {
       mostrar(e instanceof ErroDemo ? e.message : 'Não foi possível criar o projeto.', 'erro')
       setPasso(2)
-      return
     }
-    const total = documento.scenes.length
-    let n = 0
-    const t = setInterval(() => {
-      n++
-      setDesenhadas(n)
-      if (n >= total) clearInterval(t)
-    }, 380)
-    return () => clearInterval(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [passo, documento])
+  }, [pronto, documento])
 
-  const total = documento?.scenes.length ?? 0
-  const pronto = passo === 3 && total > 0 && desenhadas >= total
+  const temas: TemaVisual[] = [...(marca.cores.length ? [resolverTema('marca', marca)] : []), ...TEMAS]
+  const definirCor = (k: number, v: string) => setCores((c) => c.map((x, j) => (j === k ? v.toUpperCase() : x)))
 
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-col">
@@ -283,12 +371,20 @@ export function CriarComIA() {
             <div className="absolute right-[10%] top-[230px] h-[55px] w-[110px] rounded-t-full bg-ipe" />
             <div className="absolute bottom-20 left-[4%] h-20 w-[120px] [background-image:radial-gradient(#171717_2.5px,transparent_3px)] [background-size:16px_16px]" />
           </div>
-          <div className="relative mx-auto flex w-full max-w-[820px] flex-col gap-8 pb-10 pt-10 sm:pt-14">
+          <div className="relative mx-auto flex w-full max-w-[860px] flex-col gap-7 pb-10 pt-10 sm:pt-14">
             <div className="text-center">
               <h2 className="titulo-display text-balance text-[clamp(34px,4.6vw,60px)] font-semibold leading-[0.95] tracking-[-0.05em]">O que você quer apresentar hoje?</h2>
-              <p className="mt-4 text-[17px] text-[#525252]">Descreva o projeto. A IA monta o roteiro, você ajusta e ela desenha as telas.</p>
+              <p className="mt-4 text-[17px] text-[#525252]">Descreva o assunto. A IA escreve o roteiro, você ajusta e ela desenha cada tela com o design system.</p>
             </div>
             <div className="self-center"><Segmento claro rotulo="Origem do conteúdo" opcoes={ORIGENS} valor={origem} aoMudar={setOrigem} nomes={(o) => NOMES_ORIGEM[o]} /></div>
+
+            <div role="radiogroup" aria-label="Tipo de apresentação" className="-mt-2 flex flex-wrap justify-center gap-1.5">
+              {(['auto', ...TIPOS_APRESENTACAO] as TipoPedido[]).map((t) => (
+                <button key={t} type="button" role="radio" aria-checked={tipo === t} title={t === 'auto' ? `A IA reconhece pelo pedido${prompt.trim() ? ` (agora: ${TIPOS[tipoDetectado].nome})` : ''}` : TIPOS[t].descricao} onClick={() => setTipo(t)} className={cx('rounded-full border-[1.5px] px-3 py-1 text-[13px] font-medium transition-colors', tipo === t ? 'border-grafite bg-grafite text-fundo' : 'border-[#E2E1DE] bg-white text-[#525252] hover:border-grafite hover:text-texto')}>
+                  {NOMES_TIPO_CURTO[t]}
+                </button>
+              ))}
+            </div>
 
             <div
               className={cx('overflow-hidden rounded-[18px] border-2 border-grafite bg-white shadow-[8px_8px_0_#171717]', arrastando && 'ring-4 ring-acento/40')}
@@ -313,7 +409,31 @@ export function CriarComIA() {
                 placeholder={PLACEHOLDER[origem]}
                 className="w-full resize-none bg-transparent px-6 pb-3 pt-6 text-[19px] leading-normal outline-none placeholder:text-[#A3A3A3]"
               />
-              <div className="flex flex-wrap items-center gap-2 px-4 pb-4 pt-3">
+              <div className="flex flex-wrap items-center gap-2 border-t border-[#F0EFED] px-5 py-3 text-[13px]">
+                <label className="flex min-w-[200px] flex-1 items-center gap-2 text-texto3">
+                  <span className="shrink-0">Para quem</span>
+                  <input value={publico} maxLength={200} onChange={(e) => setPublico(e.target.value)} placeholder={TIPOS[tipoDetectado].publico || 'ex.: diretoria, alunos, clientes'} className="min-w-0 flex-1 rounded-md bg-[#F5F5F4] px-2.5 py-1.5 text-texto outline-none placeholder:text-[#B5B5B5]" />
+                </label>
+                <label className="flex items-center gap-2 text-texto3">
+                  <span>Tom</span>
+                  <select aria-label="Tom" value={tom} onChange={(e) => setTom(e.target.value as Tom | '')} className="rounded-md bg-[#F5F5F4] px-2 py-1.5 text-texto outline-none">
+                    <option value="">Padrão ({NOMES_TOM[TIPOS[tipoDetectado].tom]})</option>
+                    {TONS.map((t) => <option key={t} value={t}>{NOMES_TOM[t]}</option>)}
+                  </select>
+                </label>
+                <div className="flex items-center gap-2 text-texto3">
+                  <Palette className="h-3.5 w-3.5" aria-hidden />
+                  <input aria-label="Nome da marca" value={marcaNome} maxLength={60} onChange={(e) => setMarcaNome(e.target.value)} placeholder="Marca (opcional)" className="w-[130px] rounded-md bg-[#F5F5F4] px-2.5 py-1.5 text-texto outline-none placeholder:text-[#B5B5B5]" />
+                  {cores.map((c, k) => (
+                    <span key={k} className="relative flex items-center">
+                      <input type="color" aria-label={`Cor da marca ${k + 1}`} value={c} onChange={(e) => definirCor(k, e.target.value)} className="h-7 w-7 cursor-pointer rounded-full border border-borda bg-transparent p-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-full [&::-webkit-color-swatch]:border-0" />
+                      <button type="button" aria-label={`Remover cor ${k + 1}`} onClick={() => setCores((x) => x.filter((_, j) => j !== k))} className="absolute -right-1 -top-1 hidden h-3.5 w-3.5 items-center justify-center rounded-full bg-grafite text-[9px] text-white [span:hover>&]:flex">×</button>
+                    </span>
+                  ))}
+                  {cores.length < 3 && <button type="button" onClick={() => setCores((x) => [...x, x.length === 0 ? '#5965F2' : x.length === 1 ? '#171717' : '#F2C14E'])} className="flex h-7 items-center gap-1 rounded-full border border-dashed border-[#D6D4D0] px-2 text-[12px] hover:border-grafite hover:text-texto"><Plus className="h-3 w-3" />{cores.length ? 'cor' : 'cores da marca'}</button>}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 px-4 pb-4 pt-1">
                 <Segmento rotulo="Formato" opcoes={FORMATOS_IA} valor={formato} aoMudar={setFormato} nomes={(f) => NOMES_FORMATO[f]} />
                 <Segmento rotulo="Quantidade de telas" opcoes={opcoesTelas.map(String)} valor={String(telas)} aoMudar={(v) => setTelas(Number(v))} nomes={(n) => `${n} telas`} />
                 <Segmento rotulo="Estilo" opcoes={ESTILOS} valor={estilo} aoMudar={setEstilo} nomes={(e) => NOMES_ESTILO[e]} />
@@ -328,8 +448,8 @@ export function CriarComIA() {
                 </button>
               </div>
             </div>
-            <div className="-mt-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-[12px] text-texto3">
-              <span>Apresentação de {telas} telas · <span className="mono text-texto">{custo}</span> créditos, cobrados uma vez</span>
+            <div className="-mt-3 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-[12px] text-texto3">
+              <span>Apresentação de {telas} telas · <span className="mono text-texto">{custoTotal}</span> créditos (roteiro {custoDoRoteiro} agora + design {custoDesenho(telas)} no fim)</span>
               <span>·</span>
               {semSaldo
                 ? <span className="text-perigo">você tem {saldo.toLocaleString('pt-BR')} <button type="button" onClick={() => abrirCompra()} className="ml-1 font-medium text-acento underline-offset-2 hover:underline">Comprar créditos</button></span>
@@ -341,11 +461,11 @@ export function CriarComIA() {
             {origem === 'zero' && (
               <div className="flex flex-col gap-3">
                 <div className="rotulo-mono text-center">Ou comece por um exemplo</div>
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-3">
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-3">
                   {EXEMPLOS.map((ex) => (
-                    <button key={ex.texto} type="button" onClick={() => setPrompt(ex.texto)} className="flex items-center gap-3 rounded-[14px] border-[1.5px] border-[#E7E5E4] bg-white p-3.5 text-left hover:border-grafite">
+                    <button key={ex.texto} type="button" onClick={() => { setPrompt(ex.texto); setTipo(ex.tipo) }} className="flex items-center gap-3 rounded-[14px] border-[1.5px] border-[#E7E5E4] bg-white p-3.5 text-left hover:border-grafite">
                       <span className="h-10 w-10 flex-none" style={{ background: ex.cor, borderRadius: ex.raio }} />
-                      <span className="text-[14px] leading-[1.4] text-[#3F3F3F]">{ex.texto}</span>
+                      <span className="text-[14px] leading-[1.4] text-[#3F3F3F]"><span className="mono mb-0.5 block text-[10px] uppercase tracking-[0.08em] text-texto3">{NOMES_TIPO_CURTO[ex.tipo]}</span>{ex.texto}</span>
                     </button>
                   ))}
                 </div>
@@ -363,7 +483,7 @@ export function CriarComIA() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="rotulo-mono">Roteiro · {roteiro.telas.length} telas</div>
                   <button type="button" onClick={() => void gerarRoteiro(true)} disabled={gerando} className="flex h-[34px] items-center gap-2 rounded-full border-[1.5px] border-[#E2E1DE] bg-white px-3.5 text-[13px] font-medium hover:border-grafite disabled:opacity-50">
-                    <RotateCcw className={cx('h-3.5 w-3.5', gerando && 'animate-spin')} />Gerar outro roteiro <span className="mono text-texto3">· {custo} créditos</span>
+                    <RotateCcw className={cx('h-3.5 w-3.5', gerando && 'animate-spin')} />Gerar outro roteiro <span className="mono text-texto3">· {custoDoRoteiro} créditos</span>
                   </button>
                 </div>
                 <label htmlFor="titulo-roteiro" className="sr-only">Título da apresentação</label>
@@ -372,20 +492,23 @@ export function CriarComIA() {
               {nota && <div className="text-[13px] text-texto3">{nota}</div>}
               {roteiro.telas.map((t, i) => {
                 const c = CORES_CARTAO[i % CORES_CARTAO.length]!
-                const usaItens = t.tipo in DICA_ITENS
+                const comp = COMPONENTES[t.tipo]
                 return (
                   <div key={i} className="flex items-start gap-4 rounded-[14px] border-[1.5px] border-[#E7E5E4] bg-white py-4 pl-3 pr-4 hover:border-[#A3A3A3]">
                     <span className="flex h-[34px] w-[34px] flex-none items-center justify-center text-[13px] font-semibold" style={{ background: c, color: tinta(c), borderRadius: FORMAS[i % 4] === '0' ? '4px' : FORMAS[i % 4] }}>{i + 1}</span>
                     <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                       <div className="flex items-center gap-2">
-                        <input aria-label={`Título da tela ${i + 1}`} value={t.titulo} maxLength={120} onChange={(e) => atualizarTela(i, { titulo: e.target.value })} className="min-w-0 flex-1 bg-transparent p-0 text-[17px] font-semibold tracking-[-0.02em] outline-none" />
+                        <input aria-label={`Rótulo da tela ${i + 1}`} value={t.rotulo} maxLength={40} placeholder="rótulo" onChange={(e) => atualizarTela(i, { rotulo: e.target.value })} className="mono w-[120px] shrink-0 bg-transparent p-0 text-[11px] uppercase tracking-[0.06em] text-texto3 outline-none placeholder:normal-case placeholder:text-[#C5C5C5]" />
+                        <span className="flex-1" />
+                        {desenhos[chaves[i] ?? ''] && <span className="mono rounded-full bg-[#F0F7EC] px-1.5 py-0.5 text-[9px] text-[#3F6B4A]" title="Já desenhada: trocar o tema não custa nada">DESENHADA</span>}
                         <select aria-label={`Tipo da tela ${i + 1}`} value={t.tipo} onChange={(e) => atualizarTela(i, { tipo: e.target.value as TipoTela })} className="rounded-md bg-[#F5F5F4] px-2 py-1 text-[12px] text-[#525252] outline-none hover:bg-hover">
-                          {TIPOS_TELA.map((tp) => <option key={tp} value={tp}>{NOMES_TIPO[tp]}</option>)}
+                          {TIPOS_TELA.map((tp) => <option key={tp} value={tp}>{NOMES_TIPO_TELA[tp]}</option>)}
                         </select>
                       </div>
-                      <textarea aria-label={`Texto da tela ${i + 1}`} value={t.texto} maxLength={600} rows={2} placeholder="Texto de apoio (opcional)" onChange={(e) => atualizarTela(i, { texto: e.target.value })} className="w-full resize-none bg-transparent p-0 text-[14px] leading-normal text-[#525252] outline-none placeholder:text-[#B5B5B5]" />
-                      {usaItens && (
-                        <textarea aria-label={`Itens da tela ${i + 1}`} value={t.itens.join('\n')} rows={Math.max(2, Math.min(6, t.itens.length))} placeholder={DICA_ITENS[t.tipo]} onChange={(e) => atualizarTela(i, { itens: e.target.value.split('\n').slice(0, 6).map((l) => l.slice(0, 160)) })} className="mono w-full resize-none rounded-md bg-[#FAFAF9] px-2 py-1.5 text-[13px] leading-relaxed text-[#3F3F3F] outline-none placeholder:text-[#B5B5B5]" />
+                      <input aria-label={`Título da tela ${i + 1}`} value={t.titulo} maxLength={160} onChange={(e) => atualizarTela(i, { titulo: e.target.value })} className="min-w-0 bg-transparent p-0 text-[17px] font-semibold tracking-[-0.02em] outline-none" />
+                      {comp.limites.texto > 0 && <textarea aria-label={`Texto da tela ${i + 1}`} value={t.texto} maxLength={600} rows={2} placeholder="Texto de apoio (opcional)" onChange={(e) => atualizarTela(i, { texto: e.target.value })} className="w-full resize-none bg-transparent p-0 text-[14px] leading-normal text-[#525252] outline-none placeholder:text-[#B5B5B5]" />}
+                      {comp.maxItens > 0 && (
+                        <textarea aria-label={`Itens da tela ${i + 1}`} value={t.itens.join('\n')} rows={Math.max(2, Math.min(6, t.itens.length))} placeholder={`Um por linha: ${comp.itens}`} onChange={(e) => atualizarTela(i, { itens: e.target.value.split('\n').slice(0, 6).map((l) => l.slice(0, 160)) })} className="mono w-full resize-none rounded-md bg-[#FAFAF9] px-2 py-1.5 text-[13px] leading-relaxed text-[#3F3F3F] outline-none placeholder:text-[#B5B5B5]" />
                       )}
                       {t.notas && <details className="text-[13px] text-texto3"><summary className="cursor-pointer select-none">Notas do apresentador</summary><textarea aria-label={`Notas da tela ${i + 1}`} value={t.notas} maxLength={1200} rows={3} onChange={(e) => atualizarTela(i, { notas: e.target.value })} className="mt-1 w-full resize-none rounded-md bg-[#FAFAF9] px-2 py-1.5 outline-none" /></details>}
                     </div>
@@ -402,25 +525,18 @@ export function CriarComIA() {
           </div>
           <aside aria-label="Aparência da apresentação" className="flex flex-col gap-7 self-start rounded-xl border border-borda bg-white p-5 lg:sticky lg:top-6">
             <div className="flex flex-col gap-3">
-              <div className="text-[14px] font-semibold">Tema</div>
-              <div role="radiogroup" aria-label="Tema" className="grid grid-cols-2 gap-2.5">
-                {TEMAS.map((t, i) => {
-                  const base = cor(t.base)
-                  return (
-                    <button key={t.id} type="button" role="radio" aria-checked={tema === t.id} onClick={() => setTema(t.id)} className="flex flex-col gap-1.5 text-left">
-                      <span className={cx('relative block aspect-[16/10] w-full overflow-hidden rounded-lg shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)] outline outline-2 outline-offset-2', tema === t.id ? 'outline-violeta' : 'outline-transparent')} style={{ background: base.fundo }}>
-                        <span className="absolute right-[10%] top-[12%] aspect-square w-[30%]" style={{ background: t.acento, borderRadius: FORMAS[i % 4] }} />
-                        <span className="absolute bottom-[10%] left-[10%] text-[18px] font-semibold tracking-[-0.04em]" style={{ color: base.tinta, fontFamily: t.fonteTitulo === 'Geist' ? undefined : t.fonteTitulo }}>Aa</span>
-                      </span>
-                      <span className="text-[12px] text-[#525252]">{t.nome}</span>
-                    </button>
-                  )
-                })}
+              <div className="flex items-baseline justify-between"><span className="text-[14px] font-semibold">Tema</span><span className="text-[12px] text-texto3">cores, fontes e formas</span></div>
+              <div role="radiogroup" aria-label="Tema" className="grid grid-cols-3 gap-2.5">
+                {temas.map((t, i) => <AmostraTema key={t.id} t={t} i={i} ativo={tema === t.id} sugerido={t.id === temaIa} aoEscolher={() => setTema(t.id as TemaEscolhido)} />)}
               </div>
             </div>
             <div className="flex flex-col gap-2.5">
+              <div className="text-[14px] font-semibold">Estilo</div>
+              <div className="[&>div]:w-full [&_button]:flex-1"><Segmento rotulo="Estilo da apresentação" opcoes={ESTILOS} valor={estilo} aoMudar={setEstilo} nomes={(e) => NOMES_ESTILO[e]} /></div>
+            </div>
+            <div className="flex flex-col gap-2.5">
               <div className="text-[14px] font-semibold">Imagens</div>
-              {([['formas', 'Formas e cor', 'Memphis'], ['placeholders', 'Placeholders', 'você envia'], ['nenhuma', 'Sem imagens', 'só tipografia']] as const).map(([id, rotulo, sub]) => (
+              {([['formas', 'Formas do tema', 'motivos e cor'], ['placeholders', 'Espaços para imagens', 'você envia'], ['nenhuma', 'Sem imagens', 'só tipografia']] as const).map(([id, rotulo, sub]) => (
                 <button key={id} type="button" aria-pressed={imagens === id} onClick={() => setImagens(id)} className={cx('flex justify-between gap-2 rounded-[10px] border-[1.5px] px-3.5 py-3 text-left text-[14px]', imagens === id ? 'border-violeta bg-[#F4F5FE]' : 'border-borda bg-white hover:border-bordaForte')}>
                   <span>{rotulo}</span><span className="text-[12px] text-texto3">{sub}</span>
                 </button>
@@ -434,6 +550,7 @@ export function CriarComIA() {
             </div>
             <div className="flex flex-col gap-2.5 pt-1">
               <button type="button" onClick={gerarApresentacao} className="h-[52px] rounded-full border-2 border-grafite bg-grafite text-[15px] font-semibold text-fundo shadow-[5px_5px_0_#5965F2] transition-transform hover:-translate-x-0.5 hover:-translate-y-0.5">Gerar apresentação</button>
+              <p className="text-center text-[12px] text-texto3">{pendentes.length ? <>A IA desenha {pendentes.length} {pendentes.length === 1 ? 'tela' : 'telas'} · <span className="mono text-texto">{custoDoDesenho}</span> créditos</> : 'Todas as telas já estão desenhadas · grátis'}</p>
               <button type="button" onClick={() => setPasso(1)} className="h-10 text-[14px] text-texto3 hover:text-texto">← Voltar ao prompt</button>
             </div>
           </aside>
@@ -447,7 +564,7 @@ export function CriarComIA() {
               <div>
                 <div className="rotulo-mono flex items-center gap-2" aria-live="polite">
                   {!pronto && <span aria-hidden className="h-3 w-3 animate-spin rounded-full border-2 border-[#E7E5E4] border-t-violeta" />}
-                  {pronto ? `Pronto · ${total} telas` : `Desenhando tela ${Math.min(desenhadas + 1, total)} de ${total}`}
+                  {pronto ? `Pronto · ${total} telas` : `Desenhando tela ${Math.min(revelar + 1, total)} de ${total}`}
                 </div>
                 <h2 className="mt-2 text-[clamp(28px,4vw,40px)] font-semibold tracking-[-0.045em]">{roteiro?.titulo}</h2>
               </div>
@@ -458,16 +575,28 @@ export function CriarComIA() {
                 {projetoId && <button type="button" onClick={() => router.push(`/app/projects/${projetoId}/edit`)} className="flex h-11 items-center rounded-full border-2 border-grafite bg-violeta px-[18px] text-[14px] font-semibold text-white hover:bg-[#4A55E0]">Abrir no editor →</button>}
               </div>
             </div>
-            <div className="h-1 overflow-hidden rounded-sm bg-[#EDECEA]"><div className="h-1 bg-violeta transition-[width] duration-400" style={{ width: `${total ? (Math.min(desenhadas, total) / total) * 100 : 0}%` }} /></div>
-            <div className={cx('grid gap-5', formato === 'story' ? 'grid-cols-[repeat(auto-fill,minmax(180px,1fr))]' : 'grid-cols-[repeat(auto-fill,minmax(min(300px,100%),1fr))]')}>
-              {documento.scenes.map((cena, i) => (
-                <div key={cena.id} className="flex flex-col gap-2">
-                  <div className={cx('overflow-hidden rounded-[10px] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)] transition-[opacity,transform] duration-500 ease-[cubic-bezier(.16,1,.3,1)]', i < desenhadas ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-40')}>
-                    {i < desenhadas ? <MiniaturaFluida cena={cena} /> : <div className="flex items-center justify-center bg-[#F0EFED]" style={{ aspectRatio: `${cena.size.width} / ${cena.size.height}` }}><span aria-hidden className="h-[22px] w-[22px] animate-spin rounded-full border-[2.5px] border-[#E2E1DE] border-t-violeta" /></div>}
-                  </div>
-                  <div className="truncate text-[13px] text-[#525252]">{String(i + 1).padStart(2, '0')} · {cena.title}</div>
-                </div>
+            <div className="h-1 overflow-hidden rounded-sm bg-[#EDECEA]"><div className="h-1 bg-violeta transition-[width] duration-400" style={{ width: `${total ? (Math.min(revelar, total) / total) * 100 : 0}%` }} /></div>
+            <div role="radiogroup" aria-label="Trocar tema" className={cx('flex flex-wrap items-center gap-2 text-[12px] text-texto3 transition-opacity', !pronto && 'pointer-events-none opacity-35')}>
+              <span className="mr-1">Tema · grátis:</span>
+              {temas.map((t) => (
+                <button key={t.id} type="button" role="radio" aria-checked={tema === t.id} title={t.nome} onClick={() => setTema(t.id as TemaEscolhido)} className={cx('flex h-7 items-center gap-1.5 rounded-full border-[1.5px] pl-1 pr-2.5', tema === t.id ? 'border-grafite text-texto' : 'border-[#E2E1DE] hover:border-grafite')}>
+                  <span className="h-4 w-4 rounded-full" style={{ background: `linear-gradient(135deg, ${t.capa === 'escuro' ? t.escuro.fundo : t.claro.fundo} 50%, ${t.acento} 50%)`, boxShadow: 'inset 0 0 0 1px rgba(0,0,0,.08)' }} />{t.nome}
+                </button>
               ))}
+              {desenhando && <span className="ml-auto">a IA está desenhando…</span>}
+            </div>
+            <div className={cx('grid gap-5', formato === 'story' ? 'grid-cols-[repeat(auto-fill,minmax(180px,1fr))]' : 'grid-cols-[repeat(auto-fill,minmax(min(300px,100%),1fr))]')}>
+              {documento.scenes.map((cena, i) => {
+                const visivel = i < revelar && !!desenhos[chaves[i] ?? '']
+                return (
+                  <div key={cena.id} className="flex flex-col gap-2">
+                    <div className={cx('overflow-hidden rounded-[10px] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)] transition-[opacity,transform] duration-500 ease-[cubic-bezier(.16,1,.3,1)]', visivel ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-40')}>
+                      {visivel ? <MiniaturaFluida cena={cena} /> : <div className="flex items-center justify-center bg-[#F0EFED]" style={{ aspectRatio: `${cena.size.width} / ${cena.size.height}` }}><span aria-hidden className="h-[22px] w-[22px] animate-spin rounded-full border-[2.5px] border-[#E2E1DE] border-t-violeta" /></div>}
+                    </div>
+                    <div className="truncate text-[13px] text-[#525252]">{String(i + 1).padStart(2, '0')} · {cena.title}</div>
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>

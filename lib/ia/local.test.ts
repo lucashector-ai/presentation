@@ -35,7 +35,11 @@ describe('gerador local', () => {
   it('reconhece o tipo', () => {
     expect(tipoDoPrompt('pitch para investidores')).toBe('pitch')
     expect(tipoDoPrompt('nova marca da padaria')).toBe('identidade')
-    expect(tipoDoPrompt('relatório trimestral')).toBe('geral')
+    expect(tipoDoPrompt('relatório trimestral')).toBe('relatorio')
+    expect(tipoDoPrompt('aula de química para o ensino médio')).toBe('aula')
+    expect(tipoDoPrompt('lançamento do novo app')).toBe('lancamento')
+    expect(tipoDoPrompt('estudo de caso da loja')).toBe('case')
+    expect(tipoDoPrompt('uma conversa sobre o tempo')).toBe('geral')
   })
   it.each([3, 6, 8, 12, 20])('gera exatamente %i telas, capa primeiro e encerramento por último', (n) => {
     const r = gerarRoteiroLocal(pedido({ prompt: 'Pitch da Aurora para investidores', telas: n }))

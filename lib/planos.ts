@@ -38,7 +38,7 @@ export interface Plano {
   /** "por membro" no Studio. */
   porMembro: boolean
   /** Créditos: mensais (renovam) ou únicos no cadastro (Free). */
-  creditos: { quantidade: number; recorrencia: 'mensal' | 'cadastro'; compartilhados?: boolean }
+  creditos: { quantidade: number; recorrencia: 'mensal' | 'cadastro'; compartilhados?: boolean; /** Studio: a quantidade vale por membro e soma no saldo da equipe. */ porMembro?: boolean }
   limites: Limites
   capacidades: Capacidades
 }
@@ -52,51 +52,58 @@ export const DESCONTO_ANUAL = 0.2
 export const PLANOS: Record<PlanoId, Plano> = {
   free: {
     id: 'free', nome: 'Free', precoMensalBRL: 0, precoAnualBRL: 0, porMembro: false,
-    creditos: { quantidade: 400, recorrencia: 'cadastro' },
+    creditos: { quantidade: 450, recorrencia: 'cadastro' },
     limites: { projetos: 3, armazenamentoBytes: 1 * GB, tamanhoArquivoBytes: 50 * MB, bandaMensalBytes: 10 * GB, membros: 1, telasPorPrompt: 10, dominios: 0 },
     capacidades: { marcaDaPlataforma: true, linksPrivados: true, senhaNoLink: false, metricas: false, interacoesCompletas: true, modelos3d: true, imagensIaPremium: false, api: false, equipe: false, marcaPropria: false },
   },
   plus: {
     id: 'plus', nome: 'Plus', precoMensalBRL: 29, precoAnualBRL: 24, porMembro: false,
-    creditos: { quantidade: 1000, recorrencia: 'mensal' },
+    creditos: { quantidade: 800, recorrencia: 'mensal' },
     limites: { projetos: ILIMITADO, armazenamentoBytes: 20 * GB, tamanhoArquivoBytes: 200 * MB, bandaMensalBytes: 100 * GB, membros: 1, telasPorPrompt: 50, dominios: 0 },
     capacidades: { marcaDaPlataforma: false, linksPrivados: true, senhaNoLink: false, metricas: false, interacoesCompletas: true, modelos3d: true, imagensIaPremium: true, api: false, equipe: false, marcaPropria: false },
   },
   pro: {
     id: 'pro', nome: 'Pro', precoMensalBRL: 74, precoAnualBRL: 59, porMembro: false,
-    creditos: { quantidade: 4000, recorrencia: 'mensal' },
+    creditos: { quantidade: 2000, recorrencia: 'mensal' },
     limites: { projetos: ILIMITADO, armazenamentoBytes: 50 * GB, tamanhoArquivoBytes: 500 * MB, bandaMensalBytes: 300 * GB, membros: 1, telasPorPrompt: 100, dominios: 10 },
     capacidades: { marcaDaPlataforma: false, linksPrivados: true, senhaNoLink: true, metricas: true, interacoesCompletas: true, modelos3d: true, imagensIaPremium: true, api: true, equipe: false, marcaPropria: true },
   },
   studio: {
     id: 'studio', nome: 'Studio', precoMensalBRL: 149, precoAnualBRL: 119, porMembro: true,
-    creditos: { quantidade: 20000, recorrencia: 'mensal', compartilhados: true },
+    creditos: { quantidade: 4000, recorrencia: 'mensal', compartilhados: true, porMembro: true },
     limites: { projetos: ILIMITADO, armazenamentoBytes: 50 * GB, tamanhoArquivoBytes: 1024 * MB, bandaMensalBytes: 1024 * GB, membros: 50, telasPorPrompt: 100, dominios: 100 },
     capacidades: { marcaDaPlataforma: false, linksPrivados: true, senhaNoLink: true, metricas: true, interacoesCompletas: true, modelos3d: true, imagensIaPremium: true, api: true, equipe: true, marcaPropria: true },
   },
 }
 
 /**
- * Custo em créditos de cada ação de IA. O Mostra gera APRESENTAÇÕES: a ação principal é
- * "Gerar uma apresentação" = roteiro (estrutura e textos) + cada tela desenhada.
- * Ex.: 10 telas = 10 + 10 × 5 = 60 créditos (ver `custoApresentacao`).
+ * Custo em créditos de cada ação de IA (1 crédito cobre até US$ 0,002 de IA; conta completa, margem e câmbio
+ * em docs/economia-ia.md, verificados por lib/ia/economia.test.ts). O Mostra gera APRESENTAÇÕES: a ação
+ * principal é "Gerar uma apresentação" = roteiro (Claude Sonnet) + o desenho de cada tela (Claude Opus).
+ * Ex.: 10 telas = 10 + 10 × 20 = 210 créditos (ver `custoApresentacao`), cobrados em duas etapas:
+ * o roteiro (10 + 3 por tela) quando a IA escreve, e o desenho (17 por tela) quando ela desenha.
  * As demais ações acontecem dentro de uma apresentação que já existe.
  * Vídeo foi retirado da tabela: não serve ao ciclo apresentação → link → cliente e distorcia
  * a conta "créditos ≈ apresentações" (ver docs/ux/DIRECAO.md, decisão D2).
  */
 export const CUSTO_CREDITOS = {
-  /** Roteiro da apresentação (estrutura, títulos, textos, notas). Cobrado uma vez por geração. */
+  /** Parte fixa do roteiro (estrutura, títulos, textos, notas). Cobrada a cada roteiro gerado. */
   roteiro: 10,
-  /** Cada tela desenhada a partir do roteiro. */
-  tela: 5,
+  /** Cada tela da apresentação: a parte dela no roteiro + o desenho (ver DIVISAO_TELA). */
+  tela: 20,
   /** Refazer uma tela de uma apresentação existente (novo texto no mesmo layout; rota /api/ai/tela). */
-  refazerTela: 5,
+  refazerTela: 8,
   /** Reescrever ou traduzir o texto de uma tela (rota /api/ai/texto). */
-  reescrever: 2,
-  /** Gerar uma imagem para uma tela. */
+  reescrever: 1,
+  /** Gerar uma imagem para uma tela (ainda indisponível; preço a confirmar com o fornecedor). */
   imagem: 20,
 } as const
 export type RecursoIa = keyof typeof CUSTO_CREDITOS
+
+/** Como os créditos de cada tela se dividem entre as duas etapas. */
+export const DIVISAO_TELA = { roteiro: 3, desenho: 17 } as const satisfies Record<string, number>
+/** Material colado/importado longo: 1 crédito a cada 2.500 caracteres (entrada do roteiro). */
+export const MATERIAL_CREDITOS = { caracteres: 2500, creditos: 1 } as const
 
 /** Tamanho de referência usado para traduzir créditos em apresentações ("≈ 16 apresentações de 10 telas"). */
 export const TELAS_REFERENCIA = 10
@@ -104,14 +111,14 @@ export const TELAS_REFERENCIA = 10
 /** Pacotes avulsos (não expiram). */
 export const PACOTES_AVULSOS = [
   { creditos: 500, precoBRL: 19 },
-  { creditos: 2000, precoBRL: 59, destaque: true },
-  { creditos: 10000, precoBRL: 229 },
+  { creditos: 2000, precoBRL: 69, destaque: true },
+  { creditos: 10000, precoBRL: 299 },
 ] as const
 export type PacoteAvulso = (typeof PACOTES_AVULSOS)[number]
 
 /** Ações de IA como a pessoa as entende, todas no contexto de uma apresentação (fonte única para landing, painel e configurações). */
 export const ACOES_IA: { id: 'apresentacao' | Exclude<RecursoIa, 'roteiro' | 'tela'>; rotulo: string; detalhe: string; creditos: number; disponivel: boolean }[] = [
-  { id: 'apresentacao', rotulo: 'Gerar uma apresentação', detalhe: `roteiro + telas · ${CUSTO_CREDITOS.roteiro} créditos + ${CUSTO_CREDITOS.tela} por tela`, creditos: CUSTO_CREDITOS.roteiro + TELAS_REFERENCIA * CUSTO_CREDITOS.tela, disponivel: true },
+  { id: 'apresentacao', rotulo: 'Gerar uma apresentação', detalhe: `roteiro + design de cada tela · ${CUSTO_CREDITOS.roteiro} créditos + ${CUSTO_CREDITOS.tela} por tela`, creditos: CUSTO_CREDITOS.roteiro + TELAS_REFERENCIA * CUSTO_CREDITOS.tela, disponivel: true },
   { id: 'refazerTela', rotulo: 'Refazer uma tela', detalhe: 'novo texto para a tela, no mesmo layout', creditos: CUSTO_CREDITOS.refazerTela, disponivel: true },
   { id: 'reescrever', rotulo: 'Reescrever o texto de uma tela', detalhe: 'mais curto, formal, simples… ou traduzir', creditos: CUSTO_CREDITOS.reescrever, disponivel: true },
   { id: 'imagem', rotulo: 'Gerar imagem para uma tela', detalhe: 'foto, textura ou ilustração', creditos: CUSTO_CREDITOS.imagem, disponivel: false },
@@ -176,9 +183,25 @@ export function custoDe(itens: Partial<Record<RecursoIa, number>>): number {
   return (Object.entries(itens) as [RecursoIa, number][]).reduce((s, [k, n]) => s + CUSTO_CREDITOS[k] * n, 0)
 }
 
-/** Custo de "Gerar uma apresentação" com N telas (roteiro + telas). É o que a rota /api/ai/roteiro debita. */
-export function custoApresentacao(telas: number): number {
-  return custoDe({ roteiro: 1, tela: Math.max(0, Math.round(telas)) })
+/** Créditos do roteiro (etapa 1, rota /api/ai/roteiro): parte fixa + parte de cada tela + material longo. */
+export function custoRoteiro(telas: number, caracteresMaterial = 0): number {
+  const n = Math.max(0, Math.round(telas))
+  return CUSTO_CREDITOS.roteiro + n * DIVISAO_TELA.roteiro + Math.ceil(Math.max(0, caracteresMaterial) / MATERIAL_CREDITOS.caracteres) * MATERIAL_CREDITOS.creditos
+}
+
+/** Créditos do desenho de N telas (etapa 2, rota /api/ai/design). Só telas novas ou alteradas são redesenhadas. */
+export function custoDesenho(telas: number): number {
+  return Math.max(0, Math.round(telas)) * DIVISAO_TELA.desenho
+}
+
+/** Custo de "Gerar uma apresentação" com N telas (roteiro + desenho de todas as telas). */
+export function custoApresentacao(telas: number, caracteresMaterial = 0): number {
+  return custoRoteiro(telas, caracteresMaterial) + custoDesenho(telas)
+}
+
+/** Como a cobrança funciona, numa frase (configurações, créditos). */
+export function resumoCobranca(telas: number = TELAS_REFERENCIA): string {
+  return `Uma apresentação de ${telas} telas custa ${CUSTO_CREDITOS.roteiro} + ${telas} × ${CUSTO_CREDITOS.tela} = ${custoApresentacao(telas)} créditos, em duas etapas: o roteiro (${custoRoteiro(telas)}) quando a IA escreve e o design (${DIVISAO_TELA.desenho} por tela) quando ela desenha. Trocar o tema, reordenar e ajustar o texto é grátis; só telas novas ou alteradas são redesenhadas.`
 }
 
 /** Quantas apresentações de N telas cabem num saldo (arredonda para baixo). */

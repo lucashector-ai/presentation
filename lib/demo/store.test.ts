@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { comprarPacote, criarLink, criarProjeto, definirUsuario, desbloquear, ErroDemo, estado, gastarCreditos, publicar, reiniciarDemo, resolverToken, revogarLink, salvarDocumento, trocarPlano } from './store'
 import { TOKEN_DEMO } from './dados'
+import { PLANOS } from '@/lib/planos'
 
 describe('store de demonstração (contratos do backend)', () => {
   beforeEach(() => reiniciarDemo())
@@ -83,13 +84,13 @@ describe('store de demonstração (contratos do backend)', () => {
   it('trocar de plano: upgrade credita os créditos do mês; downgrade não apaga nada', () => {
     reiniciarDemo({ vazio: true })
     expect(estado().workspace.planoId).toBe('free')
-    expect(estado().creditos.saldo).toBe(400)
+    expect(estado().creditos.saldo).toBe(PLANOS.free.creditos.quantidade)
     trocarPlano('plus')
     expect(estado().workspace.planoId).toBe('plus')
-    expect(estado().creditos.saldo).toBe(1400)
+    expect(estado().creditos.saldo).toBe(PLANOS.free.creditos.quantidade + PLANOS.plus.creditos.quantidade)
     trocarPlano('free')
     expect(estado().workspace.planoId).toBe('free')
-    expect(estado().creditos.saldo).toBe(1400)
+    expect(estado().creditos.saldo).toBe(PLANOS.free.creditos.quantidade + PLANOS.plus.creditos.quantidade)
   })
 
   it('espaço vazio simula conta nova; cadastro define o nome', () => {

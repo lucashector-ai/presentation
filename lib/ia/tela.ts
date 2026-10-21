@@ -7,7 +7,7 @@
  */
 import { z } from 'zod'
 import type { Camada, CamadaTexto, Cena } from '@/lib/scene/schema'
-import { TIPOS_TELA, type TipoTela } from './roteiro'
+import { COMPONENTES, TIPOS_TELA, type TipoTela } from './designSystem'
 import { encurtar, formalizar, impactar, simplificar, type PapelTexto } from './texto'
 
 export const MAX_ITENS_TELA = 12
@@ -57,7 +57,9 @@ export function normalizarTela(bruto: TelaModelo, p: Pick<PedidoTela, 'tipo' | '
     const novo = novos[k]
     if (!novo) return orig
     // números e paleta dependem do separador "|": sem ele, mantém o original
-    if ((p.tipo === 'numeros' || p.tipo === 'paleta') && orig.includes('|') && !novo.includes('|')) return orig
+    if ((p.tipo === 'numeros' || p.tipo === 'grafico' || p.tipo === 'paleta') && orig.includes('|') && !novo.includes('|')) return orig
+    // valores de números e gráficos não mudam
+    if ((p.tipo === 'numeros' || p.tipo === 'grafico') && orig.includes('|')) return corta(`${orig.split('|')[0]}|${novo.split('|').slice(1).join('|').trim()}`, 160)
     if (p.tipo === 'paleta') {
       const hexOrig = orig.split('|')[1]?.trim() ?? ''
       const [nome] = novo.split('|')
@@ -75,19 +77,23 @@ export function normalizarTela(bruto: TelaModelo, p: Pick<PedidoTela, 'tipo' | '
 
 // ---------------------------------------------------------------- prompt
 
-const TIPO_DESCRICAO: Record<TipoTela, string> = {
-  capa: 'capa: título da apresentação e uma linha de apoio (cliente, data ou promessa)',
-  conceito: 'conceito: uma ideia central, título forte e texto de 1 a 2 frases',
-  secao: 'seção: abertura de capítulo, título curto',
-  lista: 'lista: cada item é um ponto com até 12 palavras',
-  numeros: 'números: cada item no formato "valor|legenda"; mantenha os valores, só reescreva a legenda',
-  citacao: 'citação: a frase vai no título; o texto diz quem disse (não mude o autor)',
-  paleta: 'paleta: cada item no formato "Nome|#RRGGBB"; nunca mude o código da cor',
-  tipografia: 'tipografia: apresenta as fontes; título curto',
-  imagem: 'imagem: tela com espaço para foto; título e legenda curta no texto',
-  comparacao: 'comparação: itens alternados entre duas colunas (1º, 3º, 5º à esquerda; 2º, 4º, 6º à direita)',
-  encerramento: 'encerramento: agradecimento ou próximo passo; texto com contato ou chamada',
+/** Regras específicas de reescrita; os demais tipos usam a descrição do componente no design system. */
+const REGRAS_TIPO: Partial<Record<TipoTela, string>> = {
+  numeros: 'cada item no formato "valor|legenda"; mantenha os valores, só reescreva a legenda',
+  grafico: 'cada item no formato "valor|rótulo"; mantenha os valores, só reescreva o rótulo',
+  citacao: 'a frase vai no título; o texto diz quem disse (não mude o autor)',
+  paleta: 'cada item no formato "Nome|#RRGGBB"; nunca mude o código da cor',
+  comparacao: 'itens alternados entre duas colunas: o 1º e o 2º são os nomes das colunas; depois 3º, 5º… à esquerda e 4º, 6º… à direita',
+  linhaTempo: 'cada item no formato "Data|marco"; mantenha as datas',
+  cartoes: 'cada item no formato "Título|descrição"',
+  processo: 'cada item no formato "Etapa|descrição"',
+  equipe: 'cada item no formato "Nome|cargo"; nunca mude os nomes',
+  galeria: 'cada item no formato "Título|legenda"',
+  agenda: 'cada item é uma parte da apresentação, no formato "Parte" ou "Parte|o que vamos ver"',
+  precos: 'cada item é o nome de um plano; não mude preços',
+  cta: 'o primeiro item é o texto do botão',
 }
+const TIPO_DESCRICAO = Object.fromEntries(TIPOS_TELA.map((t) => [t, `${COMPONENTES[t].nome.toLowerCase()}: ${REGRAS_TIPO[t] ?? COMPONENTES[t].uso}`])) as Record<TipoTela, string>
 
 export const INSTRUCOES_TELA = `Você é roteirista de apresentações de um estúdio de design. Reescreve UMA tela de uma apresentação que já existe (proposta para cliente, pitch, portfólio), em português do Brasil.
 
@@ -147,7 +153,7 @@ const RE_ROTULO = /^(\d{2}\s+—\s+)(.*)$/s
 export function ehDecorativo(l: CamadaTexto): boolean {
   const t = l.text.trim()
   if (!t) return true
-  if (prefixo(l, 'aspas', 'num', 'aa', 'nomecor', 'legenda', 'menu', 'voltar')) return true
+  if (prefixo(l, 'aspas', 'num', 'aa', 'nomecor', 'legenda', 'menu', 'voltar', 'indice', 'rodape', 'pagina', 'iniciais', 'selo', 'contato', 'preco', 'beneficios', 'amostra')) return true
   return /^\d{1,3}$/.test(t) || /^[“”"«»'’]+$/.test(t) || /#[0-9a-f]{6}/i.test(t)
 }
 
@@ -161,6 +167,10 @@ export interface MapaTela {
   colunas?: [string, string]
   /** Rótulo "02 — Título" que acompanha o título. */
   rotulo?: string
+  /** Final do título em destaque (camada separada logo abaixo do título). */
+  enfase?: string
+  /** Comparação com cabeçalho próprio em cada coluna. */
+  cabecalhos?: [string, string]
 }
 
 /**
@@ -170,36 +180,64 @@ export interface MapaTela {
 export function mapearTela(cena: Cena, indice: number, total: number): { mapa: MapaTela; atual: ConteudoTela } | null {
   const textos = cena.layers.filter(ehTexto).filter((l) => !l.hidden)
   const porId = new Map(textos.map((l) => [l.id, l]))
+  const ordem = (l: Camada) => cena.layers.indexOf(l)
   const rotulo = textos.find((l) => prefixo(l, 'rotulo') && RE_ROTULO.test(l.text.trim()))
   const tituloGerado = textos.find((l) => prefixo(l, 'titulo'))
+  const enfase = tituloGerado ? textos.find((l) => prefixo(l, 'enfase')) : undefined
   const conteudo = textos.filter((l) => !ehDecorativo(l) && l !== rotulo)
-  const depois = (ref: CamadaTexto) => textos.slice(textos.indexOf(ref) + 1).find((l) => prefixo(l, 'texto'))
+  /** Próxima camada "texto-" depois de `ref` (e antes de `ate`, a ordem da próxima camada de item). */
+  const depois = (ref: Camada, ate = Infinity) => textos.find((l) => prefixo(l, 'texto') && ordem(l) > ordem(ref) && ordem(l) < ate)
+  /** Texto de apoio do cabeçalho: o "texto-" entre o título e o primeiro elemento de conteúdo. */
+  const apoio = (primeiro?: Camada) => (tituloGerado ? depois(enfase ?? tituloGerado, primeiro ? ordem(primeiro) : Infinity) : undefined)
+  // telas do design system: o tipo vem no id da tela ("tela-03-cartoes")
+  const tipoDoId = /^tela-\d+-([a-zA-Z]+)$/.exec(cena.id)?.[1]
+  const tipoCena = (TIPOS_TELA as readonly string[]).includes(tipoDoId ?? '') ? (tipoDoId as TipoTela) : null
   let mapa: MapaTela
 
   const valores = textos.filter((l) => prefixo(l, 'valor'))
   const numeros = textos.filter((l) => prefixo(l, 'num'))
   const caixas = cena.layers.filter((l) => prefixo(l, 'caixa'))
+  const itensGerados = textos.filter((l) => prefixo(l, 'item'))
   if (valores.length) {
-    mapa = { tipo: 'numeros', titulo: tituloGerado?.id, itens: valores.map((v) => ({ id: depois(v)?.id ?? v.id, valor: v.id })) }
+    mapa = { tipo: 'numeros', titulo: tituloGerado?.id, texto: apoio(valores[0])?.id, itens: valores.map((v, k) => ({ id: depois(v, valores[k + 1] ? ordem(valores[k + 1]!) : Infinity)?.id ?? v.id, valor: v.id })) }
   } else if (numeros.length) {
-    mapa = { tipo: 'lista', titulo: tituloGerado?.id, itens: numeros.map((n) => depois(n)).filter((l): l is CamadaTexto => !!l).map((l) => ({ id: l.id })) }
+    mapa = { tipo: 'lista', titulo: tituloGerado?.id, texto: apoio(numeros[0])?.id, itens: numeros.map((n) => depois(n)).filter((l): l is CamadaTexto => !!l).map((l) => ({ id: l.id })) }
   } else if (caixas.length >= 2) {
-    const cols = textos.filter((l) => prefixo(l, 'texto')).slice(0, 2)
-    mapa = { tipo: 'comparacao', titulo: tituloGerado?.id, itens: [], ...(cols.length === 2 ? { colunas: [cols[0]!.id, cols[1]!.id] as [string, string] } : {}) }
+    const cabs = textos.filter((l) => prefixo(l, 'cab')).slice(0, 2)
+    const cols = cabs.length === 2 ? cabs.map((c) => depois(c)).filter((l): l is CamadaTexto => !!l) : textos.filter((l) => prefixo(l, 'texto')).slice(0, 2)
+    mapa = {
+      tipo: 'comparacao', titulo: tituloGerado?.id, texto: cabs.length === 2 ? apoio(caixas[0])?.id : undefined, itens: [],
+      ...(cols.length === 2 ? { colunas: [cols[0]!.id, cols[1]!.id] as [string, string] } : {}),
+      ...(cabs.length === 2 && cols.length === 2 ? { cabecalhos: [cabs[0]!.id, cabs[1]!.id] as [string, string] } : {}),
+    }
   } else if (cena.layers.some((l) => prefixo(l, 'aspas'))) {
-    const autor = textos.find((l) => prefixo(l, 'rotulo') && l !== rotulo)
+    const autor = textos.find((l) => prefixo(l, 'autor')) ?? textos.find((l) => prefixo(l, 'rotulo') && l !== rotulo)
     mapa = { tipo: 'citacao', titulo: tituloGerado?.id, texto: autor?.id, itens: [] }
   } else if (cena.layers.some((l) => prefixo(l, 'cor', 'aa'))) {
     // paleta e tipografia: cores e amostras de fonte não se reescrevem; só o título (no rótulo)
-    mapa = { tipo: cena.layers.some((l) => prefixo(l, 'cor')) ? 'paleta' : 'tipografia', titulo: tituloGerado?.id, itens: [] }
+    mapa = { tipo: cena.layers.some((l) => prefixo(l, 'cor')) ? 'paleta' : 'tipografia', titulo: tituloGerado?.id, texto: cena.layers.some((l) => prefixo(l, 'aa')) ? apoio()?.id : undefined, itens: [] }
+  } else if (itensGerados.length && tituloGerado) {
+    // componentes com itens compostos (cartões, processo, equipe, linha do tempo, gráfico…): "cabeça|descrição"
+    const tipo: TipoTela = tipoCena ?? 'lista'
+    const primeiro = cena.layers.find((l) => ordem(l) > ordem(enfase ?? tituloGerado) && (prefixo(l, 'item', 'cartao', 'marcador', 'barra', 'avatar', 'imagem', 'fio', 'indice') && !prefixo(l, 'texto')))
+    const descricoes = textos.filter((l) => prefixo(l, 'texto') && l !== apoio(primeiro))
+    const itens = tipo === 'grafico'
+      // gráfico: "valor|rótulo" (o valor é a camada de texto de cada barra)
+      ? itensGerados.map((it, k) => (descricoes[k] ? { id: it.id, valor: descricoes[k]!.id } : { id: it.id }))
+      : itensGerados.map((it, k) => {
+          const desc = depois(it, itensGerados[k + 1] ? ordem(itensGerados[k + 1]!) : Infinity)
+          return desc ? { id: desc.id, valor: it.id } : { id: it.id }
+        })
+    mapa = { tipo, titulo: tituloGerado.id, texto: apoio(primeiro)?.id, itens: itens.slice(0, MAX_ITENS_TELA) }
   } else {
     // o rótulo da capa (nome do projeto) e botões/navegação (textos com interação) não entram
-    const candidatos = conteudo.filter((l) => !prefixo(l, 'rotulo') && !l.interactions.length)
+    const candidatos = conteudo.filter((l) => !prefixo(l, 'rotulo', 'enfase', 'autor') && !l.interactions.length)
     const titulo = tituloGerado ?? [...candidatos].sort((a, b) => b.fontSize - a.fontSize || a.y - b.y)[0]
     const [texto, ...itens] = candidatos.filter((l) => l !== titulo).sort((a, b) => a.y - b.y || a.x - b.x)
-    const tipo: TipoTela = indice === 0 ? 'capa' : indice === total - 1 && total > 1 ? 'encerramento' : itens.length ? 'lista' : 'conceito'
+    const tipo: TipoTela = tipoCena ?? (indice === 0 ? 'capa' : indice === total - 1 && total > 1 ? 'encerramento' : itens.length ? 'lista' : 'conceito')
     mapa = { tipo, titulo: titulo?.id, texto: texto?.id, itens: itens.slice(0, MAX_ITENS_TELA).map((l) => ({ id: l.id })) }
   }
+  if (enfase && mapa.titulo === tituloGerado?.id) mapa.enfase = enfase.id
   if (rotulo) mapa.rotulo = rotulo.id
   if (!mapa.titulo && !mapa.texto && !mapa.itens.length && !mapa.colunas && !mapa.rotulo) return null
 
@@ -208,15 +246,17 @@ export function mapearTela(cena: Cena, indice: number, total: number): { mapa: M
   let itens: string[]
   if (mapa.colunas) {
     const [a, b] = [linhas(mapa.colunas[0]), linhas(mapa.colunas[1])]
-    itens = Array.from({ length: Math.max(a.length, b.length) * 2 }, (_, k) => (k % 2 ? b[(k - 1) / 2] : a[k / 2])).filter((s): s is string => s !== undefined).slice(0, MAX_ITENS_TELA)
+    const corpo = Array.from({ length: Math.max(a.length, b.length) * 2 }, (_, k) => (k % 2 ? b[(k - 1) / 2] : a[k / 2])).filter((s): s is string => s !== undefined)
+    itens = (mapa.cabecalhos ? [txt(mapa.cabecalhos[0]).trim(), txt(mapa.cabecalhos[1]).trim(), ...corpo] : corpo).slice(0, MAX_ITENS_TELA)
   } else {
     itens = mapa.itens.map((it) => (it.valor ? `${txt(it.valor).trim()}|${it.id === it.valor ? '' : txt(it.id).trim()}` : txt(it.id).trim()))
   }
   const tituloRotulo = rotulo ? (RE_ROTULO.exec(rotulo.text.trim())?.[2] ?? '') : ''
-  return { mapa, atual: { titulo: txt(mapa.titulo).trim() || tituloRotulo || cena.title, texto: txt(mapa.texto).trim(), itens, notas: cena.notes } }
+  const tituloAtual = [txt(mapa.titulo).trim(), txt(mapa.enfase).trim()].filter(Boolean).join(' ')
+  return { mapa, atual: { titulo: tituloAtual || tituloRotulo || cena.title, texto: txt(mapa.texto).trim(), itens, notas: cena.notes } }
 }
 
-/** Quantos itens o resultado precisa ter (comparação: as linhas das duas colunas). */
+/** Quantos itens o resultado precisa ter (comparação: as linhas das duas colunas, com os nomes das colunas). */
 export const quantidadeDeItens = (m: MapaTela, atual: ConteudoTela) => (m.colunas ? atual.itens.length : m.itens.length)
 
 /** Novos textos por camada (só os que mudam), para pré-visualizar e checar se cabem. */
@@ -225,10 +265,17 @@ export function textosDaTela(cena: Cena, m: MapaTela, novo: ConteudoTela): Map<s
   const atual = new Map(cena.layers.filter(ehTexto).map((l) => [l.id, l.text]))
   const por = (id: string | undefined, texto: string) => { if (id && atual.has(id) && atual.get(id) !== texto) r.set(id, texto) }
   if (m.titulo) por(m.titulo, novo.titulo)
+  // o título novo vai inteiro na camada do título; a do destaque fica vazia
+  if (m.enfase) por(m.enfase, '')
   if (m.texto) por(m.texto, novo.texto)
   if (m.colunas) {
-    por(m.colunas[0], novo.itens.filter((_, k) => k % 2 === 0).join('\n'))
-    por(m.colunas[1], novo.itens.filter((_, k) => k % 2 === 1).join('\n'))
+    const corpo = m.cabecalhos ? novo.itens.slice(2) : novo.itens
+    if (m.cabecalhos) {
+      por(m.cabecalhos[0], novo.itens[0] ?? '')
+      por(m.cabecalhos[1], novo.itens[1] ?? '')
+    }
+    por(m.colunas[0], corpo.filter((_, k) => k % 2 === 0).join('\n'))
+    por(m.colunas[1], corpo.filter((_, k) => k % 2 === 1).join('\n'))
   }
   m.itens.forEach((it, k) => {
     const s = novo.itens[k]
@@ -250,11 +297,17 @@ export function textosDaTela(cena: Cena, m: MapaTela, novo: ConteudoTela): Map<s
 /** Aplica o resultado à tela: textos nas camadas existentes, título da tela e notas. Estilos e caixas ficam. */
 export function aplicarTela(cena: Cena, m: MapaTela, novo: ConteudoTela): Cena {
   const textos = textosDaTela(cena, m, novo)
+  const enfase = m.enfase ? cena.layers.find((l) => l.id === m.enfase) : undefined
   return {
     ...cena,
     title: m.titulo || m.rotulo || !cena.title ? novo.titulo.slice(0, 60) : cena.title,
     notes: novo.notas || cena.notes,
-    layers: cena.layers.map((l) => (l.type === 'text' && textos.has(l.id) ? { ...l, text: textos.get(l.id)! } : l)),
+    layers: cena.layers.map((l) => {
+      if (l.type !== 'text' || !textos.has(l.id)) return l
+      // o título passa a ocupar também o espaço da camada de destaque (que fica vazia)
+      const altura = enfase && l.id === m.titulo ? Math.max(l.height, enfase.y + enfase.height - l.y) : l.height
+      return { ...l, text: textos.get(l.id)!, height: altura }
+    }),
   }
 }
 
