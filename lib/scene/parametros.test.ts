@@ -82,6 +82,10 @@ describe('texto profissional', () => {
     expect(divisao(anim({ type: 'lines' }))).toBe('line')
     expect(divisao(anim({ type: 'typewriter', split: 'word' }))).toBe('letter')
     expect(keyframeDaParte(anim({ type: 'words' }))).toBe('seg-movBlur')
+    // parágrafo: o desfoque padrão sai (pesado demais por palavra); o ajustado à mão fica
+    expect(keyframeDaParte(anim({ type: 'words' }), 12)).toBe('seg-movBlur')
+    expect(keyframeDaParte(anim({ type: 'words' }), 13)).toBe('seg-mov')
+    expect(keyframeDaParte(anim({ type: 'words', blur: 8 }), 60)).toBe('seg-movBlur')
     expect(keyframeDaParte(anim({ type: 'letters' }))).toBe('seg-mov')
     expect(keyframeDaParte(anim({ type: 'lines' }))).toBe('seg-linha')
   })

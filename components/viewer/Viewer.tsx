@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { ChevronLeft, ChevronRight, LayoutGrid, Maximize2, Minimize2, Proportions, X } from 'lucide-react'
 import type { Camada, Cena, DocumentoProjeto, Interacao } from '@/lib/scene/schema'
 import { adaptarTransicao, aoEntrarNaCena, aoSairHover, cenaAtual, estadoInicialRuntime, executar, irPara, type Efeito, type EstadoRuntime, EASING_CSS } from '@/lib/scene/motor'
-import { tempoSaida } from '@/lib/scene/animacoes'
+import { fimDasEntradas, tempoSaida } from '@/lib/scene/animacoes'
 import { SceneRenderer, type AssetsResolvidos } from '@/components/renderer/SceneRenderer'
 import { usePreferencias, useTamanho } from '@/components/renderer/useTamanho'
 import { aguardarFontes, fontesDoDocumento, useFontesDoDocumento } from '@/components/renderer/fontes'
@@ -167,12 +167,20 @@ export function Viewer(props: ViewerProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runtime.indice, documento])
 
-  // remove a tela que saiu ao fim da transição
+  // remove a tela que saiu depois da transição — e depois das entradas da tela nova, com a página ociosa:
+  // tirar a tela antiga do DOM recalcula o estilo da tela nova inteira (~600 elementos numa tela de texto
+  // animado), e no fim da transição isso caía no meio das entradas, como um tranco. Até sair ela fica
+  // invisível (fade terminado) e sem receber cliques.
+  const fimEntradasAtual = cena ? fimDasEntradas(cena.layers) : 0
   useEffect(() => {
     if (!anterior) return
-    const t = window.setTimeout(() => setAnterior(null), (transicao?.duration ?? 400) + saidaMs + 60)
-    return () => window.clearTimeout(t)
-  }, [anterior, transicao?.duration, saidaMs])
+    let ocioso = 0
+    const remover = () => setAnterior(null)
+    const t = window.setTimeout(() => {
+      ocioso = typeof requestIdleCallback === 'function' ? requestIdleCallback(remover, { timeout: 1000 }) : window.setTimeout(remover, 0)
+    }, Math.max(transicao?.duration ?? 400, fimEntradasAtual) + saidaMs + 60)
+    return () => { window.clearTimeout(t); if (ocioso && typeof cancelIdleCallback === 'function') cancelIdleCallback(ocioso) }
+  }, [anterior, transicao?.duration, saidaMs, fimEntradasAtual])
 
   useEffect(() => {
     let ativo = true
@@ -343,6 +351,7 @@ export function Viewer(props: ViewerProps) {
           <TelaEntrando
             transicao={!ehMorph && transicao && transicao.type !== 'none' && runtime.historico.length ? transicao.type : undefined}
             espera={!iniciado}
+            fimEntradas={fimDasEntradas(cena.layers)}
             style={{ position: 'absolute', left: encaixe.offsetX, top: encaixe.offsetY, zIndex: 1, ['--dur' as string]: `${duracao}ms` }}
           >
             {camadaDeCena(cena, encaixe, !ehMorph)}
@@ -402,13 +411,22 @@ export function Viewer(props: ViewerProps) {
  * numa camada composta. Estado próprio (e os filhos vêm prontos do Viewer): ao soltar, só este nó re-renderiza,
  * não a cena com as entradas ainda tocando.
  */
-function TelaEntrando({ transicao, espera, style, children }: { transicao?: string; espera: boolean; style: CSSProperties; children: ReactNode }) {
+function TelaEntrando({ transicao, espera, fimEntradas, style, children }: { transicao?: string; espera: boolean; fimEntradas: number; style: CSSProperties; children: ReactNode }) {
   const [feita, setFeita] = useState(false)
+  const [terminou, setTerminou] = useState(false)
+  // soltar a classe recalcula o estilo da tela inteira (a tela deixa de ser uma camada composta): espera as
+  // entradas terminarem e a página ficar ociosa, para não cair no meio delas
+  useEffect(() => {
+    if (!terminou || feita) return
+    let ocioso = 0
+    const t = window.setTimeout(() => { ocioso = typeof requestIdleCallback === 'function' ? requestIdleCallback(() => setFeita(true), { timeout: 2000 }) : window.setTimeout(() => setFeita(true), 0) }, fimEntradas)
+    return () => { window.clearTimeout(t); if (ocioso && typeof cancelIdleCallback === 'function') cancelIdleCallback(ocioso) }
+  }, [terminou, feita, fimEntradas])
   return (
     <div
       className={[transicao && !feita ? `cena-transicao-${transicao}` : '', espera ? 'animacoes-em-espera' : ''].filter(Boolean).join(' ') || undefined}
       style={style}
-      onAnimationEnd={(e) => { if (e.target === e.currentTarget) setFeita(true) }}
+      onAnimationEnd={(e) => { if (e.target === e.currentTarget) setTerminou(true) }}
     >
       {children}
     </div>

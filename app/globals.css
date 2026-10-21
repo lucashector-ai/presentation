@@ -136,8 +136,8 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 .seg-texto { display: inline-block; animation-fill-mode: both; }
 .seg-texto-linha { display: inline; animation-fill-mode: both; }
 /* cursor da máquina de escrever: um elemento só, no canto da letra atual (keyframes gerados pelo renderizador
-   com a posição de cada letra; transform e opacidade, na GPU). Parado ele fica invisível. */
-.seg-cursor { position: absolute; left: 0; top: 0; width: .07em; background: var(--cursor-cor, currentColor); opacity: 0; pointer-events: none; animation-fill-mode: both; animation-timing-function: linear; }
+   com a posição de cada letra, ver keyframesCursor). Parado ele fica invisível. */
+.seg-cursor { position: absolute; left: 0; top: 0; width: .07em; background: var(--cursor-cor, currentColor); visibility: hidden; pointer-events: none; animation-fill-mode: both; animation-timing-function: linear; }
 .seg-cursor[data-fim] { display: none; }
 .seg-palavra { display: inline-block; white-space: nowrap; }
 /* linha por linha: cada linha renderizada é um bloco; com máscara, a linha sobe de trás da própria borda
@@ -150,7 +150,11 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 /* decodificar: a letra real segura o espaço (sem tremer o texto) e o caractere sorteado aparece por cima */
 .seg-scramble { position: relative; }
 .seg-scramble[data-g] { color: transparent !important; -webkit-text-fill-color: transparent !important; background-image: none !important; }
-.seg-scramble[data-g]::after { content: attr(data-g); position: absolute; left: 0; right: 0; top: 0; text-align: center; color: var(--scr-cor, currentColor); -webkit-text-fill-color: var(--scr-cor, currentColor); }
+/* o caractere sorteado é um <span> fixo por cima da letra: trocar só o texto dele refaz o layout dele e de mais
+   nada (contain: layout size; tamanho vem da letra). Com ::after { content: attr(...) }, cada troca refazia o
+   layout do parágrafo inteiro. Escondido com visibility (também sai do texto copiado). */
+.seg-glifo { position: absolute; left: 0; right: 0; top: 0; bottom: 0; text-align: center; contain: layout size style; visibility: hidden; pointer-events: none; user-select: none; color: var(--scr-cor, currentColor); -webkit-text-fill-color: var(--scr-cor, currentColor); }
+.seg-scramble[data-g] > .seg-glifo { visibility: visible; }
 /* destaque / sublinhado desenhado: o marcador corre por trás das palavras (atravessa as linhas em sequência) */
 .seg-marca { background-image: linear-gradient(var(--marca-cor, currentColor), var(--marca-cor, currentColor)); background-repeat: no-repeat; background-position: 0 var(--marca-y, 88%); background-size: 100% var(--marca-h, .38em); animation-fill-mode: both; }
 .seg-contador { font-variant-numeric: tabular-nums; animation-fill-mode: both; }

@@ -43,22 +43,22 @@ describe('cursor único da máquina de escrever (keyframesCursor)', () => {
     // fim da digitação (200 + 100) + 4 piscadas de 1 s
     expect(duracao).toBe(4300)
     expect(css.startsWith('@keyframes cursor-t {')).toBe(true)
-    expect(css).toContain('0% { transform: translate(10px, 0px); opacity: 1; animation-timing-function: step-end }')
+    expect(css).toContain('0% { transform: translate(10px, 0px); visibility: visible; animation-timing-function: step-end }')
     expect(css).toContain(`${(100 / 4300) * 100}`.slice(0, 5))
     expect(css).toContain('translate(8px, 40px)')
-    // só transform e opacidade (rodam na GPU), sempre em degraus
-    expect(css).not.toMatch(/box-shadow|left:|top:/)
-    expect(css.match(/step-end/g)!.length).toBe(css.match(/opacity/g)!.length)
+    // só posição (transform) e visibilidade, sempre em degraus
+    expect(css).not.toMatch(/box-shadow|left:|top:|opacity/)
+    expect(css.match(/step-end/g)!.length).toBe(css.match(/visibility/g)!.length)
     // termina invisível
-    expect(css).toMatch(/100% \{ transform: translate\(8px, 40px\); opacity: 0;/)
+    expect(css).toMatch(/100% \{ transform: translate\(8px, 40px\); visibility: hidden;/)
   })
   it('segue a ordem em que as letras aparecem (do fim para o início)', () => {
     const { css } = keyframesCursor('c', pontos, [200, 100, 0], 100)
     // a 1ª a aparecer é a última letra
-    expect(css).toMatch(/^@keyframes c \{ 0% \{ transform: translate\(8px, 40px\); opacity: 1;/)
+    expect(css).toMatch(/^@keyframes c \{ 0% \{ transform: translate\(8px, 40px\); visibility: visible;/)
   })
   it('fica invisível até a primeira letra aparecer', () => {
     const { css } = keyframesCursor('c', pontos, [50, 150, 250], 100)
-    expect(css).toMatch(/^@keyframes c \{ 0% \{ transform: translate\(10px, 0px\); opacity: 0;/)
+    expect(css).toMatch(/^@keyframes c \{ 0% \{ transform: translate\(10px, 0px\); visibility: hidden;/)
   })
 })

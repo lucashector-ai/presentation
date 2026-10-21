@@ -53,12 +53,13 @@ function montarDocumentos({ texto, forma, svg }) {
           ...cartoes.map((tipo, i) => F({ id: `e-c${i}`, x: 120 + (i % 6) * 290, y: 420 + Math.floor(i / 6) * 320, width: 250, height: 280, fill: cores[i % cores.length], effects: { blur: 0, backdropBlur: 0, blend: 'normal', shadow: { x: 0, y: 24, blur: 60, spread: -12, color: '#00000059' } }, enterAnimation: a(tipo, 800, 150 + i * 80) })),
         ],
       },
+      // texto: oito efeitos de texto na mesma tela, com textos do tamanho de um slide de verdade
       {
         id: 'p-texto', title: 'Texto', size: tam, background: '#171717', transition: { type: 'slide', duration: 500, easing: 'easeInOut' },
         layers: [
           T({ id: 't-cascata', name: 'Título cascata', text: 'Texto animado', x: 100, y: 40, width: 1100, height: 150, fontSize: 130, color: '#FAFAF9', enterAnimation: a('cascade', 1200, 0) }),
-          T({ id: 't-letras', name: 'Parágrafo letras', text: lorem, x: 100, y: 220, width: 850, height: 260, fontSize: 40, fontWeight: 400, lineHeight: 1.3, color: '#E7E5E1', enterAnimation: a('letters', 1400, 100) }),
-          T({ id: 't-palavras', name: 'Parágrafo palavras', text: lorem2, x: 1000, y: 220, width: 820, height: 300, fontSize: 38, fontWeight: 400, lineHeight: 1.3, color: '#E7E5E1', enterAnimation: a('words', 1400, 200) }),
+          T({ id: 't-letras', name: 'Subtítulo letras', text: 'Forma que nasce do fogo e do tempo.', x: 100, y: 220, width: 850, height: 120, fontSize: 52, fontWeight: 400, lineHeight: 1.2, color: '#E7E5E1', enterAnimation: a('letters', 1200, 100) }),
+          T({ id: 't-palavras', name: 'Parágrafo palavras', text: 'Menos força, mais precisão. Movimento curto e elegante, ritmo com boa cadência e hierarquia clara: título, depois subtítulo, depois imagem.', x: 1000, y: 220, width: 820, height: 300, fontSize: 38, fontWeight: 400, lineHeight: 1.3, color: '#E7E5E1', enterAnimation: a('words', 1400, 200) }),
           T({ id: 't-linhas', name: 'Linhas', text: 'Linha por linha\ncom máscara\nque sobe de trás\nda própria borda', x: 100, y: 520, width: 850, height: 300, fontSize: 56, color: '#D7F25C', enterAnimation: a('lines', 1000, 300) }),
           T({ id: 't-maquina', name: 'Máquina', text: 'Máquina de escrever: cada letra aparece no tempo certo, com cursor piscando no fim da frase.', x: 1000, y: 560, width: 820, height: 150, fontSize: 34, fontWeight: 400, color: '#A3A3A3', enterAnimation: a('typewriter', 2000, 300) }),
           T({ id: 't-decod', name: 'Decodificar', text: 'DECODIFICANDO SINAL 2026', x: 1000, y: 740, width: 820, height: 60, fontSize: 40, fontFamily: 'Geist Mono', color: '#5965F2', enterAnimation: a('scramble', 1400, 300) }),
@@ -91,6 +92,20 @@ function montarDocumentos({ texto, forma, svg }) {
           F({ id: 'mb-c', name: 'circulo', shape: 'ellipse', x: 1500, y: 160, width: 300, height: 300, fill: '#E4572E', radius: 0 }),
           T({ id: 'mb-r', name: 'rotulo', text: 'Forma, fogo e tempo.', x: 900, y: 600, width: 900, height: 120, fontSize: 96, fontWeight: 500, color: '#2B1D16' }),
           T({ id: 'mb-n', text: 'Camada nova entra depois', x: 900, y: 760, width: 900, height: 60, fontSize: 40, color: '#5B4335', enterAnimation: a('words', 800) }),
+        ],
+      },
+      // texto pesado (diagnóstico): a mesma tela com dois parágrafos longos (150 letras por letra, 39 palavras)
+      {
+        id: 'p-texto-pesado', title: 'Texto pesado', size: tam, background: '#171717', transition: { type: 'slide', duration: 500, easing: 'easeInOut' },
+        layers: [
+          T({ id: 'tp-cascata', name: 'Título cascata', text: 'Texto animado', x: 100, y: 40, width: 1100, height: 150, fontSize: 130, color: '#FAFAF9', enterAnimation: a('cascade', 1200, 0) }),
+          T({ id: 'tp-letras', name: 'Parágrafo letras', text: lorem, x: 100, y: 220, width: 850, height: 260, fontSize: 40, fontWeight: 400, lineHeight: 1.3, color: '#E7E5E1', enterAnimation: a('letters', 1400, 100) }),
+          T({ id: 'tp-palavras', name: 'Parágrafo palavras', text: lorem2, x: 1000, y: 220, width: 820, height: 300, fontSize: 38, fontWeight: 400, lineHeight: 1.3, color: '#E7E5E1', enterAnimation: a('words', 1400, 200) }),
+          T({ id: 'tp-linhas', name: 'Linhas', text: 'Linha por linha\ncom máscara\nque sobe de trás\nda própria borda', x: 100, y: 520, width: 850, height: 300, fontSize: 56, color: '#D7F25C', enterAnimation: a('lines', 1000, 300) }),
+          T({ id: 'tp-maquina', name: 'Máquina', text: 'Máquina de escrever: cada letra aparece no tempo certo, com cursor piscando no fim da frase.', x: 1000, y: 560, width: 820, height: 150, fontSize: 34, fontWeight: 400, color: '#A3A3A3', enterAnimation: a('typewriter', 2000, 300) }),
+          T({ id: 'tp-decod', name: 'Decodificar', text: 'DECODIFICANDO SINAL 2026', x: 1000, y: 740, width: 820, height: 60, fontSize: 40, fontFamily: 'Geist Mono', color: '#5965F2', enterAnimation: a('scramble', 1400, 300) }),
+          T({ id: 'tp-contador', name: 'Contador', text: 'R$ 2,4 mi', x: 100, y: 860, width: 600, height: 160, fontSize: 130, color: '#FAFAF9', enterAnimation: a('counter', 1600, 300) }),
+          T({ id: 'tp-destaque', name: 'Destaque', text: 'Cada conteúdo pede um efeito próprio.', x: 1000, y: 860, width: 820, height: 70, fontSize: 44, color: '#FAFAF9', enterAnimation: a('highlight', 900, 600) }),
         ],
       },
       // diagnóstico: um efeito de texto por tela, com um parágrafo longo (cenários "efeito-*")
@@ -173,7 +188,7 @@ function resumoPerfil(perfil, n = 12) {
   perfil.samples.forEach((id, i) => {
     const no = porNo.get(id)
     const f = no.callFrame
-    const chave = `${f.functionName || '(anônima)'} ${f.url.split('/').pop()}:${f.lineNumber}`
+    const chave = `${f.functionName || "(anônima)"} ${f.url.split("/").pop()}:${f.lineNumber}:${f.columnNumber}`
     tempo.set(chave, (tempo.get(chave) ?? 0) + (dt[i] ?? 0) / 1000)
   })
   return [...tempo.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => `${Math.round(v)} ms  ${k}`)
@@ -234,6 +249,12 @@ async function medir(page, cdp, acao, ms) {
     }
     const porNome = new Map()
     for (const e of eventos) if (e.ph === 'X' && e.dur) porNome.set(e.name, (porNome.get(e.name) ?? 0) + e.dur / 1000)
+    if (process.env.DESEMPENHO_RASTRO === '3') {
+      // recálculos de estilo: quantos elementos por vez (o que recalcula a cada quadro)
+      const ult = eventos.filter((e) => e.name === 'UpdateLayoutTree' && e.ph === 'X')
+      const contagens = ult.map((e) => e.args?.elementCount ?? e.args?.endData?.elementCount ?? '?')
+      console.log('    elementos por recálculo:', contagens.slice(0, 120).join(' '))
+    }
     console.log('    ', [...porNome.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, v]) => `${k} ${Math.round(v)}ms`).join(' · '))
     // tarefas longas da thread principal: o que há dentro de cada uma
     const principal = eventos.find((e) => e.name === 'FireAnimationFrame')?.tid
@@ -244,6 +265,11 @@ async function medir(page, cdp, acao, ms) {
       console.log(`     tarefa ${Math.round(t.dur / 1000)} ms:`, [...dentro.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${Math.round(v)}`).join(' · '))
     }
     eventos = []
+  }
+  if (process.env.DESEMPENHO_QUADROS) {
+    // diagnóstico: em que momento (ms desde a ação) caem os quadros lentos
+    let t = 0
+    console.log('    quadros lentos (ms desde o início: duração):', r.quadros.map((q) => { t += q; return [Math.round(t - q), Math.round(q)] }).filter(([, q]) => q > 20).map(([a, q]) => `${a}:${q}`).join(' '))
   }
   const d = (k) => (m1[k] ?? 0) - (m0[k] ?? 0)
   return {
@@ -280,6 +306,8 @@ const CENARIOS = [
     preparar: (p) => abrirApresentar(p, 'pr-atlas'), acao: (p) => avancar(p) },
   { id: 'texto', nome: 'Texto animado (letra, palavra, linha, máquina, decodificar, contador, destaque)', principal: true, ms: 3200,
     preparar: async (p) => { await abrirApresentar(p, 'pr-atlas', 1) }, acao: (p) => avancar(p) },
+  { id: 'texto-pesado', nome: 'Texto pesado (a tela de texto com dois parágrafos longos)', principal: false, ms: 3200,
+    preparar: async (p) => { await abrirApresentar(p, 'pr-atlas', 5) }, acao: (p) => avancar(p) },
   { id: 'loops', nome: 'Loops contínuos (8 camadas)', principal: true, ms: 2000,
     preparar: async (p) => { await abrirApresentar(p, 'pr-atlas', 3) }, acao: () => async () => {} },
   { id: 'saidas', nome: 'Saídas + fade da tela seguinte', principal: true, ms: 2000,
@@ -287,7 +315,7 @@ const CENARIOS = [
   { id: 'morph', nome: 'Transição morph (4 pares + 1 nova)', principal: true, ms: 1800,
     preparar: async (p) => { await abrirApresentar(p, 'pr-atlas', 4) }, acao: (p) => avancar(p) },
   ...EFEITOS_TEXTO.map((tipo, i) => ({ id: `efeito-${tipo}`, nome: `Texto: só ${tipo} (parágrafo longo)`, principal: false, ms: tipo === 'typewriter' ? 2800 : 1800,
-    preparar: async (p) => { await abrirApresentar(p, 'pr-atlas', 5 + i) }, acao: (p) => avancar(p) })),
+    preparar: async (p) => { await abrirApresentar(p, 'pr-atlas', 6 + i) }, acao: (p) => avancar(p) })),
   { id: 'story', nome: 'Story: rolagem com entradas por seção', principal: true, ms: 0,
     preparar: async (p) => { await abrirApresentar(p, 'pr-mare') },
     acao: (p) => async () => { await p.mouse.move(700, 450); for (let i = 0; i < 48; i++) { await p.mouse.wheel(0, 110); await p.waitForTimeout(60) } await p.waitForTimeout(1200) } },
@@ -355,6 +383,26 @@ const cdp = await ctx.newCDPSession(page)
 await cdp.send('Performance.enable')
 const execucoes = []
 const escolhidos = CENARIOS.filter((c) => (SO ? SO.has(c.id) : c.principal))
+
+// DESEMPENHO_CAPTURAS=pasta: em vez de medir, fotografa cada cenário em instantes fixos depois da ação
+// (para comparar o visual antes/depois das otimizações)
+if (process.env.DESEMPENHO_CAPTURAS) {
+  const pasta = process.env.DESEMPENHO_CAPTURAS
+  fs.mkdirSync(pasta, { recursive: true })
+  for (const c of escolhidos) {
+    await c.preparar(page)
+    const t0 = Date.now()
+    const acao = c.acao(page)()
+    for (const t of [80, 250, 500, 900, 1400, 2200, 3500]) {
+      await page.waitForTimeout(Math.max(0, t - (Date.now() - t0)))
+      await page.screenshot({ path: `${pasta}/${c.id}-${String(t).padStart(4, '0')}.png` })
+    }
+    await acao
+  }
+  await browser.close()
+  console.log(`capturas em ${pasta}`)
+  process.exit(0)
+}
 for (const taxa of TAXAS) {
   for (const c of escolhidos) {
     for (let rep = 0; rep < REPETICOES; rep++) {

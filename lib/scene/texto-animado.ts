@@ -48,9 +48,10 @@ export function passosDaOrdem(posicoes: number[]): number {
 export const PISCADAS_CURSOR = 4
 
 /**
- * Keyframes do cursor da máquina de escrever: UM elemento que salta de letra em letra (transform, na GPU) e
- * pisca no fim. Antes cada letra tinha a sua animação de cursor (box-shadow, fora da GPU): num parágrafo eram
- * ~100 animações esperando o seu atraso, revisadas pelo navegador a cada quadro.
+ * Keyframes do cursor da máquina de escrever: UM elemento que salta de letra em letra e pisca no fim. Antes
+ * cada letra tinha a sua animação de cursor (box-shadow): num parágrafo eram ~100 animações esperando o seu
+ * atraso, revisadas pelo navegador a cada quadro. `visibility` (e não opacidade) de propósito: deixa a animação
+ * do cursor na mesma thread que a das letras — na GPU, com a página ocupada, o cursor corria à frente do texto.
  * `pontos[i]`: canto superior direito da letra i (px, no espaço do cursor); `inicios[i]`: quando a letra i
  * aparece (ms desde o início da animação); `passo`: tempo entre letras (o cursor fica nesse tempo na letra).
  */
@@ -63,7 +64,7 @@ export function keyframesCursor(nome: string, pontos: { x: number; y: number }[]
   const duracao = Math.max(1, Math.round(fimDigitacao + PISCADAS_CURSOR * 1000))
   const pct = (t: number) => `${Math.round((Math.min(duracao, Math.max(0, t)) / duracao) * 1e6) / 1e4}%`
   const quadros = new Map<string, string>()
-  const quadro = (t: number, x: number, y: number, opacidade: number) => quadros.set(pct(t), `transform: translate(${Math.round(x * 100) / 100}px, ${Math.round(y * 100) / 100}px); opacity: ${opacidade}; animation-timing-function: step-end`)
+  const quadro = (t: number, x: number, y: number, visivel: number) => quadros.set(pct(t), `transform: translate(${Math.round(x * 100) / 100}px, ${Math.round(y * 100) / 100}px); visibility: ${visivel ? 'visible' : 'hidden'}; animation-timing-function: step-end`)
   const p0 = n ? pontos[ordem[0]!]! : { x: 0, y: 0 }
   quadro(0, p0.x, p0.y, n && inicios[ordem[0]!]! <= 0 ? 1 : 0)
   for (const i of ordem) quadro(inicios[i]!, pontos[i]!.x, pontos[i]!.y, 1)
