@@ -18,7 +18,9 @@ const browser = await chromium.launch()
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'pt-BR' })
 const vigiar = (p) => {
   p.on('pageerror', (e) => erros.push(`pageerror (${p.url()}): ${e.message}`))
-  p.on('console', (m) => { if (m.type() === 'error') erros.push(`console (${p.url()}): ${m.text()}`) })
+  // "Failed to fetch RSC payload": o Next só registra isso quando o próprio teste navega (goto/reload) no meio de um
+  // prefetch de link; ele cai para navegação normal e o usuário não vê nada. Qualquer outro erro continua contando.
+  p.on('console', (m) => { if (m.type() === 'error' && !m.text().startsWith('Failed to fetch RSC payload')) erros.push(`console (${p.url()}): ${m.text()}`) })
 }
 ctx.on('page', vigiar)
 const page = await ctx.newPage()
@@ -357,6 +359,8 @@ await passo('Detalhes, compartilhamento e configurações renderizam', async () 
   await page.getByRole('heading', { level: 1, name: 'Atlas Cerâmica — Identidade' }).waitFor()
   await page.getByRole('heading', { name: 'Detalhes' }).waitFor()
   await page.getByRole('heading', { name: 'Telas · 6' }).waitFor()
+  // espera o prefetch dos links da página terminar: um goto no meio dele aborta o fetch e o Next registra no console
+  await page.waitForLoadState('networkidle')
   await page.goto(`${BASE}/app/projects/pr-atlas/share`)
   await page.getByRole('heading', { level: 1, name: 'Compartilhar' }).waitFor()
   await page.getByText(/Links criados · \d+ ativo/).waitFor()
