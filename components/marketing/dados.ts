@@ -3,6 +3,7 @@
  * reutilizado em outras telas (página de preços, painel de créditos, central de ajuda...).
  */
 import { ACOES_IA, CUSTO_CREDITOS, DESCONTO_ANUAL as DESCONTO, PACOTES_AVULSOS, PLANOS, TELAS_REFERENCIA, apresentacoesCom, custoApresentacao } from '@/lib/planos'
+import { exemploApresentacoes, telasCom, textoTelas } from '@/lib/telasIa'
 
 export const ROTAS = {
   entrar: '/login',
@@ -144,6 +145,9 @@ export interface PlanoMarketing {
   creditosLegenda: string
   /** Créditos traduzidos em apresentações de 10 telas. */
   apresentacoes: number
+  /** Créditos em telas com IA (≈) e um exemplo com 10 e 20 telas. */
+  telas: number
+  exemplo: string
   inclui: string
   itens: string[]
   cta: string
@@ -153,7 +157,7 @@ export interface PlanoMarketing {
 
 const plano = (id: PlanoMarketing['id']) => {
   const p = PLANOS[id]
-  return { id, nome: p.nome, precoAnual: p.precoAnualBRL, precoMensal: p.precoMensalBRL, creditos: p.creditos.quantidade, apresentacoes: apresentacoesCom(p.creditos.quantidade) }
+  return { id, nome: p.nome, precoAnual: p.precoAnualBRL, precoMensal: p.precoMensalBRL, creditos: p.creditos.quantidade, apresentacoes: apresentacoesCom(p.creditos.quantidade), telas: telasCom(p.creditos.quantidade), exemplo: exemploApresentacoes(p.creditos.quantidade) }
 }
 
 export const PLANOS_MARKETING: PlanoMarketing[] = [
@@ -208,13 +212,13 @@ export const CUSTOS_CREDITOS: { id: string; rotulo: string; detalhe: string; cre
 }))
 
 /** Pacotes avulsos: não expiram, valem em qualquer plano. */
-export const PACOTES_CREDITOS = PACOTES_AVULSOS.map((p) => ({ creditos: p.creditos, preco: p.precoBRL, apresentacoes: apresentacoesCom(p.creditos) }))
+export const PACOTES_CREDITOS = PACOTES_AVULSOS.map((p) => ({ creditos: p.creditos, preco: p.precoBRL, apresentacoes: apresentacoesCom(p.creditos), telas: telasCom(p.creditos), exemplo: exemploApresentacoes(p.creditos) }))
 
 // ---------- FAQ ----------
 export const FAQ = [
   { pergunta: 'Preciso saber programar?', resposta: 'Não. Tudo é visual: arraste elementos, escolha gatilhos e ações em listas e veja a prévia na hora.' },
   { pergunta: 'O cliente precisa criar conta para ver?', resposta: 'Não. Ele abre o link no navegador, no computador ou no celular. Se você ativar senha, só quem tiver a senha entra.' },
-  { pergunta: 'Como funcionam os créditos?', resposta: `Créditos pagam a IA que escreve suas apresentações: cada apresentação gerada custa ${CUSTO_CREDITOS.roteiro} créditos pelo roteiro + ${CUSTO_CREDITOS.tela} por tela (10 telas = ${custoApresentacao(10)}). O Free vem com ${PLANOS.free.creditos.quantidade} créditos (≈ ${apresentacoesCom(PLANOS.free.creditos.quantidade)} apresentações) e o Plus renova ${PLANOS.plus.creditos.quantidade.toLocaleString('pt-BR')} por mês (≈ ${apresentacoesCom(PLANOS.plus.creditos.quantidade)}). Editar, apresentar e compartilhar não gastam nada.` },
+  { pergunta: 'Como funcionam os créditos?', resposta: `Créditos pagam a IA que escreve suas apresentações: cada apresentação gerada custa ${CUSTO_CREDITOS.roteiro} créditos pelo roteiro + ${CUSTO_CREDITOS.tela} por tela (10 telas = ${custoApresentacao(10)}, 20 telas = ${custoApresentacao(20)}). O Free vem com ${PLANOS.free.creditos.quantidade} créditos (${textoTelas(PLANOS.free.creditos.quantidade)}: ${exemploApresentacoes(PLANOS.free.creditos.quantidade)}) e o Plus renova ${PLANOS.plus.creditos.quantidade.toLocaleString('pt-BR')} por mês (${textoTelas(PLANOS.plus.creditos.quantidade)}). Logo, cores, estilo e trocar o estilo depois são grátis; editar, apresentar e compartilhar também.` },
   { pergunta: 'Posso importar meus arquivos do Figma ou do Illustrator?', resposta: 'Sim. Copie no Figma ou no Illustrator e cole no editor (⌘V): vetores viram camadas editáveis. Também dá para soltar PNG, JPG, SVG, vídeo, GIF, Lottie e modelos 3D do Blender (GLB); cada imagem pode virar uma tela.' },
   { pergunta: 'Posso cancelar quando quiser?', resposta: 'Sim. Seus projetos continuam acessíveis e voltam para o limite do plano Free.' },
 ] as const

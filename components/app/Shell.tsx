@@ -5,7 +5,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import { ArrowLeftRight, Home, Library, LogOut, Menu, Moon, Search, Send, Settings2, Sparkles, Trash2, X } from 'lucide-react'
 import { alternarTema, MODO_DEMO, sessaoAtiva, verificarSessao } from '@/lib/sessao'
 import { dados, mensagemDeErro, useCarregar, useDados, type EspacoDeTrabalho } from '@/lib/dados'
-import { PLANOS, formatarBytes, percentualUso, textoApresentacoes } from '@/lib/planos'
+import { PLANOS, formatarBytes, percentualUso } from '@/lib/planos'
+import { exemploApresentacoes, textoTelas } from '@/lib/telasIa'
 import { estadoDoLink } from '@/lib/share/token'
 import { Atrasado, Carregando, Marca, cx } from '@/components/ui'
 import { CreditosProvider, useCreditos } from './Creditos'
@@ -124,7 +125,7 @@ function Moldura({ caminho, children }: { caminho: string; children: React.React
             <span className="flex items-center gap-1.5 font-medium"><Sparkles className="h-3.5 w-3.5 text-acento" />{saldo.toLocaleString('pt-BR')} créditos</span>
             <button type="button" onClick={() => abrirCompra()} className="text-[12px] font-medium text-acento hover:underline">Comprar</button>
           </div>
-          <div className="mt-1 text-[11px] text-texto3">{textoApresentacoes(saldo)} de 10 telas</div>
+          <div className="mt-1 text-[11px] text-texto3" title={exemploApresentacoes(saldo)}>{textoTelas(saldo)}</div>
         </div>
         <div className="flex flex-col gap-2 px-2.5">
           <div className="flex justify-between text-[12px] text-texto2"><span>Armazenamento</span><span>{formatarBytes(contagem.armazenamento)} / {formatarBytes(plano.limites.armazenamentoBytes)}</span></div>

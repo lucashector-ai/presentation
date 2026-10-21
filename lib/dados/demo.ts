@@ -118,6 +118,11 @@ export const fonteDemo: FonteDados = {
     },
     ativar: async () => {},
   },
+  marcas: {
+    listar: () => envolver(() => store.listarMarcas()),
+    salvar: (kit) => envolver(() => store.salvarMarca(kit)),
+    excluir: (id) => envolver(() => store.excluirMarca(id)),
+  },
 
   comprarPacote: (creditos) => envolver(() => { store.comprarPacote(creditos) }),
   trocarPlano: (planoId) => envolver(() => store.trocarPlano(planoId)),

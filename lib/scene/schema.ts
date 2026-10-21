@@ -411,6 +411,8 @@ export const AjustesImagemSchema = z.object({
   contrast: z.number().min(0).max(2).default(1),
   saturate: z.number().min(0).max(2).default(1),
   grayscale: z.number().min(0).max(1).default(0),
+  /** Inverter as cores (aditivo; com brilho 0 vira silhueta branca, usada no logo sobre fundo escuro). */
+  invert: z.number().min(0).max(1).optional(),
 })
 
 export const CamadaImagemSchema = CamadaBase.extend({

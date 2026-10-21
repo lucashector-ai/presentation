@@ -67,12 +67,16 @@ describe('planos', () => {
   it('vídeo não faz parte da tabela de créditos', () => {
     expect(Object.keys(CUSTO_CREDITOS)).not.toContain('video')
   })
-  it('limite de telas por apresentação gerada depende do plano', () => {
-    expect(podeGerarTelas('free', 10).ok).toBe(true)
-    const d = podeGerarTelas('free', 12)
+  it('limite de telas por apresentação gerada depende do plano: Free 12, Plus 20, Pro e Studio 30', () => {
+    expect([PLANOS.free, PLANOS.plus, PLANOS.pro, PLANOS.studio].map((p) => p.limites.telasPorPrompt)).toEqual([12, 20, 30, 30])
+    expect(podeGerarTelas('free', 12).ok).toBe(true)
+    const d = podeGerarTelas('free', 13)
     expect(d.ok).toBe(false)
     if (!d.ok) expect(d.upgradePara).toBe('plus')
-    expect(podeGerarTelas('plus', 12).ok).toBe(true)
+    expect(podeGerarTelas('plus', 20).ok).toBe(true)
+    expect(podeGerarTelas('plus', 21)).toMatchObject({ ok: false, upgradePara: 'pro' })
+    expect(podeGerarTelas('pro', 30).ok).toBe(true)
+    expect(podeGerarTelas('studio', 31).ok).toBe(false)
   })
   it('anual sai cerca de 20% mais barato que o mensal', () => {
     expect(precoComCiclo(PLANOS.pro, 'anual')).toBe(59)

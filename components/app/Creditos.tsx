@@ -3,7 +3,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import Link from 'next/link'
 import { Check, Sparkles } from 'lucide-react'
 import { dados, mensagemDeErro, useDados } from '@/lib/dados'
-import { PACOTES_AVULSOS, PLANOS, TELAS_REFERENCIA, apresentacoesCom, custoApresentacao, precoComCiclo, textoApresentacoes, type PlanoId } from '@/lib/planos'
+import { PACOTES_AVULSOS, PLANOS, custoApresentacao, precoComCiclo, type PlanoId } from '@/lib/planos'
+import { MAX_TELAS_IA, MIN_TELAS_IA, exemploApresentacoes, saldoBaixo, telasCom, textoCreditos, textoTelas } from '@/lib/telasIa'
 import { Botao, Modal, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 
@@ -54,11 +55,11 @@ function AvisoSaldoBaixo({ abrirCompra }: { abrirCompra: (motivo?: string) => vo
   useEffect(() => {
     const antes = anterior.current
     anterior.current = saldo
-    if (antes === null || saldo >= antes || apresentacoesCom(saldo) > 1 || jaAvisou()) return
+    if (antes === null || saldo >= antes || !saldoBaixo(saldo) || jaAvisou()) return
     marcarAviso()
-    const n = apresentacoesCom(saldo)
+    const n = telasCom(saldo)
     mostrar(
-      n === 1 ? `Seu saldo dá ≈ 1 apresentação de ${TELAS_REFERENCIA} telas (${fmt(saldo)} créditos).` : `Seu saldo não dá para uma apresentação de ${TELAS_REFERENCIA} telas (${fmt(saldo)} créditos).`,
+      n > 0 ? `Seu saldo dá para ${textoTelas(saldo)} (${fmt(saldo)} créditos).` : `Seu saldo acabou: ${fmt(saldo)} créditos, nenhuma tela com IA.`,
       'info',
       { rotulo: 'Comprar', aoClicar: () => abrirCompra() }
     )
@@ -81,7 +82,7 @@ function ModalComprarCreditos({ aberto, aoFechar, motivo }: { aberto: boolean; a
   const comprar = async () => {
     try {
       await dados.comprarPacote(pacote.creditos)
-      mostrar(`${fmt(pacote.creditos)} créditos adicionados · ${textoApresentacoes(pacote.creditos)} a mais (demonstração, sem cobrança).`, 'sucesso')
+      mostrar(`${fmt(pacote.creditos)} créditos adicionados · ${textoTelas(pacote.creditos)} a mais (demonstração, sem cobrança).`, 'sucesso')
       aoFechar()
     } catch (e) {
       mostrar(mensagemDeErro(e), 'info')
@@ -92,7 +93,7 @@ function ModalComprarCreditos({ aberto, aoFechar, motivo }: { aberto: boolean; a
       aberto={aberto}
       aoFechar={aoFechar}
       titulo="Comprar créditos"
-      descricao={motivo ?? `Créditos avulsos não expiram e valem em qualquer plano. Saldo atual: ${fmt(saldo)} (${textoApresentacoes(saldo)}).`}
+      descricao={motivo ?? `Créditos avulsos não expiram e valem em qualquer plano. Saldo atual: ${fmt(saldo)} (${textoTelas(saldo)}).`}
       rodape={<>
         <Botao variante="secundario" onClick={aoFechar}>Cancelar</Botao>
         <Botao onClick={() => void comprar()}>Comprar {fmt(pacote.creditos)} créditos · R${pacote.precoBRL}</Botao>
@@ -104,12 +105,13 @@ function ModalComprarCreditos({ aberto, aoFechar, motivo }: { aberto: boolean; a
             {'destaque' in p && <span className="mono absolute right-2.5 top-2.5 text-[9px] text-texto2">POPULAR</span>}
             <span className="text-[20px] font-medium tracking-[-0.03em]">{fmt(p.creditos)}</span>
             <span className="text-[12px] text-texto2">créditos</span>
-            <span className="mt-2 text-[13px] font-medium">≈ {fmt(apresentacoesCom(p.creditos))} apresentações</span>
+            <span className="mt-2 text-[13px] font-medium">{textoTelas(p.creditos)}</span>
+            <span className="text-[11px] text-texto3">{exemploApresentacoes(p.creditos)}</span>
             <span className="mt-3 text-[15px] font-medium">R${p.precoBRL}</span>
           </button>
         ))}
       </div>
-      <p className="mt-4 text-[12px] leading-relaxed text-texto2">Conta feita com apresentações de {TELAS_REFERENCIA} telas ({custoApresentacao(TELAS_REFERENCIA)} créditos cada: roteiro + design de cada tela). {simulada ? 'Modo demonstração: nenhuma cobrança é feita.' : 'O pagamento on-line ainda está chegando: por enquanto, fale com a gente para recarregar.'}</p>
+      <p className="mt-4 text-[12px] leading-relaxed text-texto2">Uma apresentação pode ter de {MIN_TELAS_IA} a {MAX_TELAS_IA} telas: 10 telas custam {textoCreditos(custoApresentacao(10))}, 20 custam {textoCreditos(custoApresentacao(20))} (roteiro + design de cada tela). {simulada ? 'Modo demonstração: nenhuma cobrança é feita.' : 'O pagamento on-line ainda está chegando: por enquanto, fale com a gente para recarregar.'}</p>
     </Modal>
   )
 }
@@ -145,7 +147,7 @@ function ModalTrocarPlano({ alvo, aoFechar }: { alvo: { id: PlanoId; ciclo: 'men
       </>}
     >
       <ul className="space-y-2 text-[13px]">
-        <Linha>{fmt(novo.creditos.quantidade)} créditos {novo.creditos.recorrencia === 'mensal' ? 'por mês' : 'no cadastro'} · {textoApresentacoes(novo.creditos.quantidade)} de {TELAS_REFERENCIA} telas</Linha>
+        <Linha>{fmt(novo.creditos.quantidade)} créditos {novo.creditos.recorrencia === 'mensal' ? 'por mês' : 'no cadastro'} · {textoTelas(novo.creditos.quantidade)} ({exemploApresentacoes(novo.creditos.quantidade)})</Linha>
         <Linha>{novo.limites.projetos >= Number.MAX_SAFE_INTEGER ? 'Projetos ilimitados' : `${novo.limites.projetos} projetos`} · apresentações de até {novo.limites.telasPorPrompt} telas com IA</Linha>
         <Linha>{novo.capacidades.senhaNoLink ? 'Links com senha e métricas de visualização' : 'Links privados (senha a partir do Pro)'}</Linha>
         {!novo.capacidades.marcaDaPlataforma && <Linha>Sem a marca Mostra nas apresentações</Linha>}
@@ -166,9 +168,9 @@ export function CartaoCreditos({ className }: { className?: string }) {
   const ws = useDados((e) => e.workspace)
   const plano = PLANOS[ws.planoId]
   const { abrirCompra } = useCreditos()
-  const n = apresentacoesCom(saldo)
+  const n = telasCom(saldo)
   const pct = Math.min(100, Math.round((saldo / Math.max(plano.creditos.quantidade, 1)) * 100))
-  const pouco = n < 2
+  const pouco = saldoBaixo(saldo)
   return (
     <section aria-labelledby="titulo-creditos" className={cx('flex flex-col rounded-xl border border-borda bg-superficie p-5', className)}>
       <div className="flex items-center justify-between gap-2">
@@ -180,7 +182,7 @@ export function CartaoCreditos({ className }: { className?: string }) {
         <span className="text-[28px] font-medium leading-none tracking-[-0.04em]">{fmt(saldo)}</span>
         <span className="text-[13px] text-texto2">créditos</span>
       </div>
-      <p className={cx('mt-1.5 text-[13px]', pouco ? 'text-perigo' : 'text-texto2')}>{n > 0 ? `${textoApresentacoes(saldo)} de ${TELAS_REFERENCIA} telas restantes` : 'Não dá para gerar uma apresentação de 10 telas'}</p>
+      <p className={cx('mt-1.5 text-[13px]', pouco ? 'text-perigo' : 'text-texto2')}>{n > 0 ? `${textoTelas(saldo)} · ${exemploApresentacoes(saldo)}` : 'Sem créditos para telas com IA'}</p>
       <div className="mt-3 h-[3px] overflow-hidden rounded-sm bg-borda" aria-hidden><div className={cx('h-full', pouco ? 'bg-perigo' : 'bg-acento')} style={{ width: `${Math.max(2, pct)}%` }} /></div>
       <p className="mt-2 text-[11px] text-texto3">{plano.creditos.recorrencia === 'mensal' ? `Renova ${fmt(plano.creditos.quantidade)} por mês` : `${fmt(plano.creditos.quantidade)} créditos de boas-vindas`} · editar, apresentar e enviar não gastam créditos</p>
       <div className="mt-auto flex gap-2 pt-4">

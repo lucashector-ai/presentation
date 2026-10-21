@@ -1,5 +1,6 @@
 import type { DocumentoProjeto, ModoProjeto } from '@/lib/scene/schema'
 import type { PlanoId, EstadoAssinatura } from '@/lib/planos'
+import type { KitMarca } from '@/lib/api/contratos'
 
 export type StatusProjeto = 'draft' | 'published' | 'archived'
 export type StatusAsset = 'queued' | 'processing' | 'ready' | 'failed'
@@ -115,4 +116,6 @@ export interface EstadoDemo {
   snapshots: Snapshot[]
   auditoria: EventoAuditoria[]
   creditos: { saldo: number; movimentos: MovimentoCredito[] }
+  /** Kits de marca do espaço (aditivo: estados antigos não têm). */
+  marcas?: KitMarca[]
 }

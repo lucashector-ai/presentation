@@ -5,7 +5,7 @@
  * (mesma origem): o cliente não lê nem guarda token nenhum.
  */
 import type { z } from 'zod'
-import type { AceitarConviteRes, Asset, ContaRes, ConviteInfoRes, CriarConviteRes, CriarProjetoReq, CriarShareLinkReq, DetalheProjetoRes, Envelope, EquipeRes, ProjetoResumo, ResolverShareRes, SalvarCenasRes, ShareLink, WorkspaceItem } from './contratos'
+import type { AceitarConviteRes, Asset, ContaRes, ConviteInfoRes, CriarConviteRes, CriarProjetoReq, CriarShareLinkReq, DetalheProjetoRes, Envelope, EquipeRes, KitMarca, NovoKitMarca, ProjetoResumo, ResolverShareRes, SalvarCenasRes, ShareLink, WorkspaceItem } from './contratos'
 import { MOTIVO_SESSAO_INDISPONIVEL } from './contratos'
 import type { DocumentoProjeto } from '@/lib/scene/schema'
 import type { PedidoRoteiro, RespostaRoteiro } from '@/lib/ia/pedido'
@@ -144,6 +144,12 @@ export const api = {
   convites: {
     obter: (token: string) => chamar<ConviteInfoRes>(`/api/convites/${encodeURIComponent(token)}`),
     aceitar: (token: string) => chamar<z.infer<typeof AceitarConviteRes>>(`/api/convites/${encodeURIComponent(token)}/aceitar`, { method: 'POST', body: '{}' }),
+  },
+  marcas: {
+    listar: () => chamar<KitMarca[]>('/api/marcas'),
+    criar: (b: NovoKitMarca) => chamar<KitMarca>('/api/marcas', { method: 'POST', body: JSON.stringify(b) }),
+    atualizar: (id: string, b: NovoKitMarca) => chamar<KitMarca>(`/api/marcas/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(b) }),
+    excluir: (id: string) => chamar<{ deleted: true }>(`/api/marcas/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   },
   workspaces: {
     listar: () => chamar<WorkspaceItem[]>('/api/workspaces'),
