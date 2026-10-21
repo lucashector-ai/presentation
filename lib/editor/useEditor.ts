@@ -38,6 +38,10 @@ export interface EstadoEditor {
   /** Passo da grade em px da cena (com a grade ligada, posição e tamanho arredondam para ela). */
   gradePasso: number
   snap: boolean
+  /** Encaixe nas frações da tela (1/2, 1/3, 2/3, 1/4, 3/4) ao mover e redimensionar. */
+  fracoes: boolean
+  /** Grade de layout de 12 colunas (com margens) visível e com encaixe. */
+  colunas: boolean
   reguas: boolean
   ferramenta: Ferramenta
   abaEsquerda: AbaEsquerda
@@ -57,7 +61,7 @@ type Acao =
   | { tipo: 'cena'; id: string }
   | { tipo: 'salvamento'; valor: EstadoSalvamento; revisao?: number; salvoEm?: string; conflito?: { currentRevision: number } | null }
   | { tipo: 'substituir'; documento: DocumentoProjeto; revisao: number }
-  | { tipo: 'ui'; patch: Partial<Pick<EstadoEditor, 'zoom' | 'pan' | 'grade' | 'gradePasso' | 'snap' | 'reguas' | 'ferramenta' | 'abaEsquerda' | 'abaDireita' | 'mostrarHotspots' | 'previa'>> }
+  | { tipo: 'ui'; patch: Partial<Pick<EstadoEditor, 'zoom' | 'pan' | 'grade' | 'gradePasso' | 'snap' | 'fracoes' | 'colunas' | 'reguas' | 'ferramenta' | 'abaEsquerda' | 'abaDireita' | 'mostrarHotspots' | 'previa'>> }
 
 const LIMITE_HISTORICO = 150
 
@@ -151,6 +155,8 @@ export function useEditor(projetoId: string) {
     grade: false,
     gradePasso: 8,
     snap: true,
+    fracoes: true,
+    colunas: false,
     reguas: false,
     ferramenta: 'mover',
     abaEsquerda: 'telas',
@@ -359,6 +365,8 @@ export function useEditor(projetoId: string) {
       removerCena: (id: string) => aplicar((d) => (d.scenes.length <= 1 ? d : { ...d, scenes: d.scenes.filter((s) => s.id !== id) })),
       moverCena: (de: number, para: number) => aplicar((d) => ({ ...d, scenes: moverCena(d.scenes, de, para) })),
       atualizarCena: (patch: Partial<Cena>, historico = true) => atualizarCenaAtual((c) => ({ ...c, ...patch }), historico),
+      /** Transformação livre da tela atual num único passo de desfazer (preencher em grade, dividir, vetores). */
+      transformarCena: (fn: (c: Cena) => Cena, historico = true, opcoes?: OpcoesResolver) => atualizarCenaAtual(fn, historico, opcoes),
       atualizarDocumento: (patch: Partial<Pick<DocumentoProjeto, 'theme' | 'mode'>>) => aplicar((d) => ({ ...d, ...patch })),
       /** Transformação do documento inteiro (ex.: estilos de cor que atualizam camadas de várias telas). */
       transformarDocumento: (fn: (d: DocumentoProjeto) => DocumentoProjeto, historico = true) => aplicar(fn, historico),

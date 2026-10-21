@@ -13,6 +13,8 @@
  *   Linha/Seta: arraste do início ao fim (Shift = passos de 45°)
  * - Zoom no cursor (Ctrl/⌘ + roda, pinça), pan (roda, espaço+arrastar, botão do meio, ferramenta Mão)
  * - Soltar arquivos/SVG/links na posição do cursor
+ * - Frações da tela (1/2, 1/3, 2/3, 1/4, 3/4) e grade de layout de 12 colunas como alvos de encaixe (com rótulo)
+ * - Editar vetor: duplo clique (ou Enter) numa forma/SVG selecionada, ou caneta (P) — ver vetor/EditorVetor.tsx
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Camada, CamadaFrame, CamadaTexto, DocumentoProjeto } from '@/lib/scene/schema'
@@ -27,7 +29,12 @@ import { pilhaFonte } from '@/lib/design-tokens'
 import { SceneRenderer, type AssetsResolvidos } from '@/components/renderer/SceneRenderer'
 import { useTamanho } from '@/components/renderer/useTamanho'
 import { MiniaturaCena } from './MiniaturaCena'
-import { GuiasCanvas, LinhaInsercao, SEM_SOBREPOSICAO, type Sobreposicao } from './GuiasCanvas'
+import { ColunasCanvas, GuiasCanvas, LinhaInsercao, PreviaRegiao, SEM_SOBREPOSICAO, type Sobreposicao } from './GuiasCanvas'
+import { alvosDeFracao, colunasDaGrade, gradeLayoutPadrao } from '@/lib/editor/preencher'
+import { EVENTO_PREVIA } from './PreencherGrade'
+import { EditorVetor, type FerramentaVetor } from './vetor/EditorVetor'
+import { editavelComoVetor, formasDoSvg } from '@/lib/editor/vetor/camadas'
+import { normalizarZ } from '@/lib/scene/order'
 import { lerDataTransfer } from '@/lib/importar/clipboard'
 import { importarConteudo, type Avisar } from '@/lib/editor/importar'
 import type { AssetDemo } from '@/lib/demo/tipos'
@@ -78,6 +85,11 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
   const [fontesProntas, setFontesProntas] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const estiloTexto = useRef<EstiloTexto>({})
+  /** Modo "Editar vetor": camada em edição (null = caneta antes do primeiro clique). */
+  const [modoVetor, setModoVetor] = useState<{ id: string | null; ferramenta: FerramentaVetor } | null>(null)
+  const [previaPreencher, setPreviaPreencher] = useState<Retangulo | null>(null)
+  const estadoRef = useRef(estado)
+  estadoRef.current = estado
 
   // prévia de animação: o canvas renderiza em modo apresentação por alguns segundos e volta ao modo edição
   useEffect(() => {
@@ -231,6 +243,56 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edicao?.id])
 
+  // ---------- editar vetor ----------
+  const entrarVetor = useCallback(async (l: Camada | undefined) => {
+    if (!editavelComoVetor(l)) return
+    setHover(null)
+    if (l.type === 'shape') { setModoVetor({ id: l.id, ferramenta: 'mover' }); return }
+    // SVG: vira formas editáveis (uma por cor), num passo de desfazer
+    const markup = l.markup ?? (l.assetId && assets[l.assetId]?.url ? await fetch(assets[l.assetId]!.url).then((r) => r.text()).catch(() => '') : '')
+    const c = editor.acoes.documentoAtual().scenes.find((x) => x.id === estadoRef.current.cenaId)
+    const formas = markup && c ? formasDoSvg(l, markup, c.layers, new DOMParser()) : null
+    if (!formas) { avisar('Este SVG não tem caminhos editáveis (só imagem ou texto).', 'info'); return }
+    acoes.transformarCena((cc) => {
+      const i = cc.layers.findIndex((x) => x.id === l.id)
+      if (i < 0) return cc
+      const layers = [...cc.layers]
+      layers.splice(i, 1, ...formas)
+      return { ...cc, layers: normalizarZ(layers) }
+    })
+    if (formas.length > 1) avisar(`SVG convertido em ${formas.length} vetores agrupados (um por cor).`, 'info')
+    acoes.selecionarExato([formas[0]!.id])
+    setModoVetor({ id: formas[0]!.id, ferramenta: 'mover' })
+  }, [acoes, assets, avisar, editor.acoes])
+
+  const sairVetor = useCallback((id: string | null) => {
+    setModoVetor(null)
+    const c = editor.acoes.documentoAtual().scenes.find((x) => x.id === estadoRef.current.cenaId)
+    const l = id ? c?.layers.find((x) => x.id === id) : undefined
+    // caminho da caneta com um nó só não fica
+    if (l?.type === 'shape' && l.vetor && l.vetor.caminhos.every((k) => k.nos.length < 2)) acoes.removerCamadas([l.id], false)
+    else if (l) acoes.selecionarExato([l.id])
+    if (estadoRef.current.ferramenta === 'caneta') acoes.setFerramenta('mover')
+  }, [acoes, editor.acoes])
+  const criouVetor = useCallback((id: string) => setModoVetor({ id, ferramenta: 'caneta' }), [])
+
+  useEffect(() => {
+    const f = (e: Event) => { const id = (e as CustomEvent<{ id: string }>).detail.id; void entrarVetor(editor.acoes.documentoAtual().scenes.find((x) => x.id === estadoRef.current.cenaId)?.layers.find((l) => l.id === id)) }
+    const p = (e: Event) => setPreviaPreencher((e as CustomEvent<Retangulo | null>).detail)
+    window.addEventListener('mostra:editar-vetor', f)
+    window.addEventListener(EVENTO_PREVIA, p)
+    return () => { window.removeEventListener('mostra:editar-vetor', f); window.removeEventListener(EVENTO_PREVIA, p) }
+  }, [entrarVetor, editor.acoes])
+
+  // trocar de tela, desfazer a conversão ou apagar a camada encerra o modo; desfazer não tira a seleção da camada
+  useEffect(() => {
+    if (!modoVetor?.id) return
+    if (!cena?.layers.some((l) => l.id === modoVetor.id && l.type === 'shape')) setModoVetor(null)
+    else if (!estado.selecao.length) acoes.selecionarExato([modoVetor.id])
+    // escolheu outra camada (painel de camadas): sai do modo
+    else if (!estado.selecao.includes(modoVetor.id)) setModoVetor(null)
+  }, [cena, modoVetor, estado.selecao, acoes])
+
   if (!cena) return null
   const camadas = cena.layers
   const mapa = mapaDe(camadas)
@@ -246,6 +308,9 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
   const interacoesVisiveis = estado.abaDireita === 'interacoes' && estado.mostrarHotspots
   const comInteracao = camadas.filter((l) => l.interactions.length > 0)
   const limiar = vp ? limiarEmCena(LIMIAR_TELA, vp.s) : LIMIAR_TELA
+  const gradeLayout = estado.colunas ? gradeLayoutPadrao(cena.size) : null
+  const extras = alvosDeFracao(cena.size, { fracoes: estado.fracoes, grade: gradeLayout })
+  const vetorAtivo = !!modoVetor || estado.ferramenta === 'caneta'
   const visiveisExceto = (excluir: ReadonlySet<string>) => camadas.filter((l) => !excluir.has(l.id) && !ocultas.has(l.id))
 
   /** Frame sob o ponteiro para soltar (o mais fundo), fora do conjunto que está sendo movido. */
@@ -400,7 +465,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
         let final = { x: naGrade(proposta.x), y: naGrade(proposta.y) }
         if (g.fluxo) final = { x: Math.round(proposta.x), y: Math.round(proposta.y) } // reordenar: só a linha azul, sem guias
         else if (!semEncaixe) {
-          const r = encaixar(proposta, visiveisExceto(movidos), cena.size, limiar, { grade })
+          const r = encaixar(proposta, visiveisExceto(movidos), cena.size, limiar, { grade, extras })
           final = { x: r.x, y: r.y }
           setSobre({ guias: r.guias, espacos: r.espacos, medidas: r.medidas })
         } else setSobre(SEM_SOBREPOSICAO)
@@ -423,7 +488,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
         }
         const svgUnico = g.iniciais.size === 1 && camadas.find((l) => g.iniciais.has(l.id))?.type === 'svg'
         const movidos = new Set(comDescendentes([...g.iniciais.keys()], camadas))
-        const res = redimensionarComEncaixe(g.caixa, g.alca, pc.x - g.inicio.x, pc.y - g.inicio.y, visiveisExceto(movidos), cena.size, limiar, { proporcional: ev.shiftKey || svgUnico, doCentro: ev.altKey, semEncaixe, grade })
+        const res = redimensionarComEncaixe(g.caixa, g.alca, pc.x - g.inicio.x, pc.y - g.inicio.y, visiveisExceto(movidos), cena.size, limiar, { proporcional: ev.shiftKey || svgUnico, doCentro: ev.altKey, semEncaixe, grade, extras })
         setSobre({ guias: res.guias, espacos: [], medidas: res.medidas })
         const nova = res.caixa
         const sx = nova.width / g.caixa.width
@@ -535,6 +600,8 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
     const pc = paraCena(local(ev))
     const atingida = camadaNoPonto(cena, pc, { ignorarTravadas: true })
     if (!atingida) return
+    // duplo clique numa forma/SVG já selecionada: editar vetor (como no Figma)
+    if (unica && unica.id === atingida.id && editavelComoVetor(atingida)) { void entrarVetor(atingida); return }
     // cadeia do frame externo até a camada atingida: o duplo clique desce um nível
     const cadeia: Camada[] = [...ancestrais(atingida, mapa)].reverse()
     cadeia.push(atingida)
@@ -624,7 +691,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
       </div>
 
       {/* hover */}
-      {hover && !estado.selecao.includes(hover) && (!g || g.tipo === 'mover') && !editandoTexto && (() => { const l = mapa.get(hover); return l ? <Contorno r={paraTela(l)} rot={l.rotation} cor={alt && caixaSel ? 'rgb(var(--cor-guia))' : 'rgb(89 101 242 / .55)'} /> : null })()}
+      {hover && !vetorAtivo && !estado.selecao.includes(hover) && (!g || g.tipo === 'mover') && !editandoTexto && (() => { const l = mapa.get(hover); return l ? <Contorno r={paraTela(l)} rot={l.rotation} cor={alt && caixaSel ? 'rgb(var(--cor-guia))' : 'rgb(89 101 242 / .55)'} /> : null })()}
 
       {/* frames: contorno discreto do frame pai da seleção (contexto) */}
       {unica && !editandoTexto && (() => { const p = paiDe(unica, mapa); return p ? <Contorno r={paraTela(p)} rot={p.rotation} cor="rgb(89 101 242 / .35)" tracejado /> : null })()}
@@ -641,8 +708,8 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
       {interacoesVisiveis && unica && <FluxoInteracao camada={unica} editor={editor} assets={assets} r={paraTela(unica)} />}
 
       {/* seleção */}
-      {!editandoTexto && selecionadas.map((l) => <Contorno key={l.id} r={paraTela(l)} rot={l.rotation} cor="rgb(89 101 242)" largura={1.5} />)}
-      {caixaSel && !editandoTexto && !interacoesVisiveis && !(g?.tipo === 'mover' && g.fluxo && g.moveu) && (() => {
+      {!editandoTexto && !vetorAtivo && selecionadas.map((l) => <Contorno key={l.id} r={paraTela(l)} rot={l.rotation} cor="rgb(89 101 242)" largura={1.5} />)}
+      {caixaSel && !editandoTexto && !vetorAtivo && !interacoesVisiveis && !(g?.tipo === 'mover' && g.fluxo && g.moveu) && (() => {
         const r = paraTela(caixaSel)
         const travada = selecionadas.every((l) => l.locked)
         return (
@@ -666,8 +733,27 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
       {g?.tipo === 'mover' && g.fluxo && g.moveu && (() => { const r = paraTela({ ...g.caixa, x: g.caixa.x + g.delta.x, y: g.caixa.y + g.delta.y }); return <div data-testid="fantasma" className="pointer-events-none absolute z-20 border-[1.5px] border-acento bg-acento/15" style={{ left: r.x, top: r.y, width: r.width, height: r.height }} /> })()}
       {insercao && g?.tipo === 'mover' && g.moveu && <LinhaInsercao linha={insercao.linha} paraTela={paraTela} />}
 
+      {/* grade de layout (12 colunas) e prévia de "Preencher" */}
+      {gradeLayout && <ColunasCanvas colunas={colunasDaGrade(cena.size, gradeLayout)} paraTela={paraTela} />}
+      {previaPreencher && <PreviaRegiao r={previaPreencher} paraTela={paraTela} />}
+
       {/* guias inteligentes, vãos iguais e medidas */}
       <GuiasCanvas s={sobreposicao} paraTela={paraTela} />
+
+      {/* editar vetor (nós, alças, barra própria) */}
+      {vetorAtivo && !editandoTexto && (
+        <EditorVetor
+          editor={editor}
+          camadaId={modoVetor?.id ?? null}
+          vp={vp}
+          ferramentaInicial={modoVetor?.ferramenta ?? 'caneta'}
+          outros={camadas.filter((l) => l.id !== modoVetor?.id && !ocultas.has(l.id))}
+          extras={extras}
+          modoMao={modoMao}
+          aoCriar={criouVetor}
+          aoSair={sairVetor}
+        />
+      )}
 
       {/* área e desenho */}
       {g?.tipo === 'area' && (() => { const r = paraTela(retDe(g.inicio, g.atual)); return <div className="pointer-events-none absolute border border-acento bg-acento/10" style={{ left: r.x, top: r.y, width: r.width, height: r.height }} /> })()}

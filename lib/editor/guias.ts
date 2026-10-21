@@ -17,7 +17,12 @@ export interface Guia {
   /** extensão da linha (de/até no outro eixo) */
   de: number
   ate: number
+  /** Fração da tela ("1/2", "1/3"…) ou coluna da grade de layout, mostrada numa etiqueta na guia. */
+  rotulo?: string
 }
+
+/** Alvos extras por eixo (frações da tela, colunas da grade de layout), com rótulo. */
+export interface AlvosExtras { x: readonly { v: number; rotulo: string }[]; y: readonly { v: number; rotulo: string }[] }
 
 /** Segmento medido. eixo 'h' = segmento horizontal (mede distância em x) na altura `pos`. */
 export interface Medida {
@@ -43,6 +48,8 @@ export interface OpcoesEncaixe {
   grade?: number
   /** Desliga o encaixe de espaçamento igual. */
   semEspacamento?: boolean
+  /** Frações da tela / grade de layout (lib/editor/preencher.ts). */
+  extras?: AlvosExtras
 }
 
 /** Limiar padrão de encaixe, em pixels de tela (independe do zoom). */
@@ -59,12 +66,13 @@ const dir = (r: Retangulo) => r.x + r.width
 const base = (r: Retangulo) => r.y + r.height
 const EPS = 0.5
 
-interface Alvo { v: number; ref: Retangulo | null }
+interface Alvo { v: number; ref: Retangulo | null; rotulo?: string }
 
-function alvos(outros: readonly Retangulo[], cena: Tamanho, eixo: 'x' | 'y'): Alvo[] {
+function alvos(outros: readonly Retangulo[], cena: Tamanho, eixo: 'x' | 'y', extras?: AlvosExtras): Alvo[] {
   const tela = { x: 0, y: 0, width: cena.width, height: cena.height }
   const pts = eixo === 'x' ? pontosX : pontosY
-  return [...pts(tela).map((v) => ({ v, ref: null })), ...outros.flatMap((o) => pts(o).map((v) => ({ v, ref: o })))]
+  // frações vêm por último: em empate, bordas de camadas e da tela ganham
+  return [...pts(tela).map((v) => ({ v, ref: null })), ...outros.flatMap((o) => pts(o).map((v) => ({ v, ref: o }))), ...(extras?.[eixo] ?? []).map((a) => ({ v: a.v, ref: null, rotulo: a.rotulo }))]
 }
 
 function maisProximo(pontos: number[], lista: Alvo[], limiar: number): { d: number; ajuste: number } | null {
@@ -115,7 +123,7 @@ export function encaixar(movendo: Retangulo, outros: readonly Retangulo[], cena:
   const ajusteEixo = (eixo: 'x' | 'y'): number => {
     const p0 = eixo === 'x' ? movendo.x : movendo.y
     if (grade) return Math.round(p0 / grade) * grade - p0
-    const borda = maisProximo(eixo === 'x' ? pontosX(movendo) : pontosY(movendo), alvos(outros, cena, eixo), limiar)
+    const borda = maisProximo(eixo === 'x' ? pontosX(movendo) : pontosY(movendo), alvos(outros, cena, eixo, opcoes.extras), limiar)
     let melhor = borda ? { d: borda.d, ajuste: borda.ajuste } : null
     if (!opcoes.semEspacamento) {
       for (const v of candidatosEspaco(movendo, outros, eixo)) {
@@ -128,32 +136,34 @@ export function encaixar(movendo: Retangulo, outros: readonly Retangulo[], cena:
   const x = Math.round(movendo.x + ajusteEixo('x'))
   const y = Math.round(movendo.y + ajusteEixo('y'))
   const final = { ...movendo, x, y }
-  return { x, y, ...guiasDaCaixa(final, outros, cena) }
+  return { x, y, ...guiasDaCaixa(final, outros, cena, opcoes.extras) }
 }
 
 /**
  * Guias, vãos iguais e medidas para uma caixa já posicionada (sem mover).
  * Usado depois do encaixe e ao deslocar com as setas.
  */
-export function guiasDaCaixa(final: Retangulo, outros: readonly Retangulo[], cena: Tamanho): Omit<ResultadoEncaixe, 'x' | 'y'> {
+export function guiasDaCaixa(final: Retangulo, outros: readonly Retangulo[], cena: Tamanho, extras?: AlvosExtras): Omit<ResultadoEncaixe, 'x' | 'y'> {
   const guias: Guia[] = []
   const medidas: Medida[] = []
   for (const eixo of ['x', 'y'] as const) {
     const pts = eixo === 'x' ? pontosX(final) : pontosY(final)
-    const lista = alvos(outros, cena, eixo)
+    const lista = alvos(outros, cena, eixo, extras)
     const feitos = new Set<number>()
     for (const p of pts) {
       const iguais = lista.filter((a) => Math.abs(a.v - p) < EPS)
       if (!iguais.length || feitos.has(Math.round(p * 2))) continue
       feitos.add(Math.round(p * 2))
       const refs = [...new Set(iguais.map((a) => a.ref).filter((r): r is Retangulo => !!r))]
-      const soTela = refs.length === 0
+      const rotulo = iguais.find((a) => a.rotulo)?.rotulo || undefined
+      // fração da tela: a guia atravessa a tela inteira e leva a etiqueta (1/2, 1/3…)
+      const soTela = refs.length === 0 || !!rotulo
       if (eixo === 'x') {
         const ys = [final.y, base(final), ...refs.flatMap((r) => [r.y, base(r)])]
-        guias.push({ eixo: 'v', pos: p, de: soTela ? 0 : Math.min(...ys), ate: soTela ? cena.height : Math.max(...ys) })
+        guias.push({ eixo: 'v', pos: p, de: soTela ? 0 : Math.min(...ys), ate: soTela ? cena.height : Math.max(...ys), ...(rotulo ? { rotulo } : {}) })
       } else {
         const xs = [final.x, dir(final), ...refs.flatMap((r) => [r.x, dir(r)])]
-        guias.push({ eixo: 'h', pos: p, de: soTela ? 0 : Math.min(...xs), ate: soTela ? cena.width : Math.max(...xs) })
+        guias.push({ eixo: 'h', pos: p, de: soTela ? 0 : Math.min(...xs), ate: soTela ? cena.width : Math.max(...xs), ...(rotulo ? { rotulo } : {}) })
       }
       // distância até a camada alinhada mais próxima, ao longo da guia
       const m = medidaAoLongo(final, refs, eixo, p)
@@ -236,7 +246,7 @@ export function redimensionarComEncaixe(
     const b = borda(r0, eixo)
     if (grade) { const v = Math.round(b / grade) * grade; return { d: Math.abs(v - b), v } }
     if (opcoes.semEncaixe) return null
-    const m = maisProximo([b], alvos(outros, cena, eixo), limiar)
+    const m = maisProximo([b], alvos(outros, cena, eixo, opcoes.extras), limiar)
     return m ? { d: m.d, v: b + m.ajuste } : null
   }
   const sx = moveX ? encaixeDe('x') : null
@@ -252,7 +262,7 @@ export function redimensionarComEncaixe(
   const x = Math.round(r.x)
   const y = Math.round(r.y)
   const caixa = { x, y, width: Math.max(1, Math.round(r.x + r.width) - x), height: Math.max(1, Math.round(r.y + r.height) - y) }
-  return { caixa, ...(opcoes.semEncaixe ? { guias: [], espacos: [], medidas: [] } : guiasDaCaixa(caixa, outros, cena)) }
+  return { caixa, ...(opcoes.semEncaixe ? { guias: [], espacos: [], medidas: [] } : guiasDaCaixa(caixa, outros, cena, opcoes.extras)) }
 }
 
 /** Reposiciona a borda arrastada num eixo (e deriva o outro eixo se proporcional). */

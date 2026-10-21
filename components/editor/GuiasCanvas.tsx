@@ -24,7 +24,16 @@ export function GuiasCanvas({ s, paraTela }: { s: Sobreposicao; paraTela: ParaTe
     <>
       {s.guias.map((gu, i) => {
         const a = paraTela(gu.eixo === 'v' ? { x: gu.pos, y: gu.de, width: 0, height: gu.ate - gu.de } : { x: gu.de, y: gu.pos, width: gu.ate - gu.de, height: 0 })
-        return <div key={`g${i}`} data-guia={gu.eixo} className="pointer-events-none absolute z-30" style={gu.eixo === 'v' ? { left: Math.round(a.x), top: a.y, width: 1, height: Math.max(1, a.height), background: VERMELHO } : { left: a.x, top: Math.round(a.y), height: 1, width: Math.max(1, a.width), background: VERMELHO }} />
+        return (
+          <div key={`g${i}`} data-guia={gu.eixo} data-rotulo={gu.rotulo} className="pointer-events-none absolute z-30" style={gu.eixo === 'v' ? { left: Math.round(a.x), top: a.y, width: 1, height: Math.max(1, a.height), background: VERMELHO } : { left: a.x, top: Math.round(a.y), height: 1, width: Math.max(1, a.width), background: VERMELHO }}>
+            {/* frações da tela: etiqueta na ponta da guia (1/2, 1/3…) */}
+            {gu.rotulo && (
+              <span className="mono absolute whitespace-nowrap rounded-[3px] px-1 py-[2px] text-[10px] font-medium leading-none text-white" style={{ background: VERMELHO, ...(gu.eixo === 'v' ? { top: 6, left: 0, transform: 'translateX(-50%)' } : { left: 6, top: 0, transform: 'translateY(-50%)' }) }}>
+                {gu.rotulo}
+              </span>
+            )}
+          </div>
+        )
       })}
       {s.espacos.map((m, i) => <Segmento key={`e${i}`} m={m} paraTela={paraTela} cor={ROSA} tipo="espaco" />)}
       {s.medidas.map((m, i) => <Segmento key={`m${i}`} m={m} paraTela={paraTela} cor={VERMELHO} tipo="medida" />)}
@@ -53,6 +62,24 @@ function Segmento({ m, paraTela, cor, tipo }: { m: Medida; paraTela: ParaTela; c
       </span>
     </div>
   )
+}
+
+/** Grade de layout (colunas): faixas translúcidas como a "Layout grid" de colunas do Figma. */
+export function ColunasCanvas({ colunas, paraTela }: { colunas: Retangulo[]; paraTela: ParaTela }) {
+  return (
+    <>
+      {colunas.map((c, i) => {
+        const a = paraTela(c)
+        return <div key={i} data-testid="coluna-layout" aria-hidden className="pointer-events-none absolute z-[2]" style={{ left: a.x, top: a.y, width: a.width, height: a.height, background: 'rgb(var(--cor-guia) / .07)', boxShadow: 'inset 1px 0 rgb(var(--cor-guia) / .18), inset -1px 0 rgb(var(--cor-guia) / .18)' }} />
+      })}
+    </>
+  )
+}
+
+/** Prévia da região de "Preencher" (tracejado no acento) enquanto o cursor está sobre uma opção. */
+export function PreviaRegiao({ r, paraTela }: { r: Retangulo; paraTela: ParaTela }) {
+  const a = paraTela(r)
+  return <div data-testid="previa-preencher" className="pointer-events-none absolute z-30 rounded-[2px] border-[1.5px] border-dashed border-acento bg-acento/10" style={{ left: a.x, top: a.y, width: a.width, height: a.height }} />
 }
 
 /** Linha azul onde o item vai entrar no auto layout. */

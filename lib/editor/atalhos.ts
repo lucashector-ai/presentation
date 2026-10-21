@@ -5,8 +5,8 @@
  */
 import type { Alinhamento } from '@/lib/scene/transform'
 
-/** Ferramentas do editor (V, F, R, O, L, ⇧L, T, S, H). */
-export type Ferramenta = 'mover' | 'mao' | 'texto' | 'forma' | 'elipse' | 'linha' | 'seta' | 'frame' | 'hotspot'
+/** Ferramentas do editor (V, F, R, O, L, ⇧L, P, T, S, H). */
+export type Ferramenta = 'mover' | 'mao' | 'texto' | 'forma' | 'elipse' | 'linha' | 'seta' | 'frame' | 'hotspot' | 'caneta'
 
 export interface TeclaPressionada {
   key: string
@@ -26,8 +26,8 @@ export type AcaoAtalho =
 /** ⌥A ⌥D ⌥W ⌥S ⌥H ⌥V (alinhar) — iguais ao Figma. */
 const ALINHAR: Record<string, Alinhamento> = { KeyA: 'esquerda', KeyD: 'direita', KeyW: 'topo', KeyS: 'base', KeyH: 'centroH', KeyV: 'centroV' }
 
-/** Teclas de ferramenta sem modificador. H = mão (como no Figma); S = hotspot (área clicável, parecida com a fatia). */
-export const TECLAS_FERRAMENTA: Record<string, Ferramenta> = { v: 'mover', f: 'frame', r: 'forma', o: 'elipse', l: 'linha', t: 'texto', h: 'mao', s: 'hotspot' }
+/** Teclas de ferramenta sem modificador. H = mão (como no Figma); S = hotspot (área clicável, parecida com a fatia); P = caneta. */
+export const TECLAS_FERRAMENTA: Record<string, Ferramenta> = { v: 'mover', f: 'frame', r: 'forma', o: 'elipse', l: 'linha', t: 'texto', h: 'mao', s: 'hotspot', p: 'caneta' }
 
 export function atalhoFigma(e: TeclaPressionada): AcaoAtalho | null {
   if (e.metaKey || e.ctrlKey) return null

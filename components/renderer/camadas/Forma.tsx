@@ -1,9 +1,45 @@
-/** Formas vetoriais. Retângulo e elipse em CSS (borda arredondada, gradiente, padrão); as demais em SVG. */
+/**
+ * Formas vetoriais. Retângulo e elipse em CSS (borda arredondada, gradiente, padrão); as demais em SVG.
+ * `shape: 'path'` desenha o caminho editável (`vetor`) escalado do quadro de referência para o tamanho da camada.
+ */
 import type { CSSProperties } from 'react'
-import type { CamadaForma } from '@/lib/scene/schema'
+import type { CamadaForma, Gradiente, Vetor } from '@/lib/scene/schema'
+import { vetorParaD } from '@/lib/editor/vetor/geometria'
 import { PADROES, gradienteCss, raioCss, sombraCss } from '../estilos'
 
+function DefsGradiente({ id, g }: { id: string; g: Gradiente }) {
+  return (
+    <defs>
+      {g.type === 'radial' ? (
+        <radialGradient id={id}>{g.stops.map((s, i) => <stop key={i} offset={`${s.pos}%`} stopColor={s.color} />)}</radialGradient>
+      ) : (
+        <linearGradient id={id} gradientTransform={`rotate(${g.angle - 90} .5 .5)`}>{g.stops.map((s, i) => <stop key={i} offset={`${s.pos}%`} stopColor={s.color} />)}</linearGradient>
+      )}
+    </defs>
+  )
+}
+
+/** Caminho editável: um <path> preenchido (regiões com preenchimento) e um com o traço de todos os caminhos. */
+function FormaVetor({ c, v }: { c: CamadaForma; v: Vetor }) {
+  const w = c.width
+  const h = c.height
+  const sx = w / v.w
+  const sy = h / v.h
+  const gid = `g-${c.id}`
+  const dFill = vetorParaD(v, sx, sy, (k) => !k.semPreenchimento)
+  const dTraco = vetorParaD(v, sx, sy)
+  const sw = c.strokeWidth
+  return (
+    <svg width="100%" height="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible', display: 'block' }} aria-hidden data-vetor="">
+      {c.gradient && <DefsGradiente id={gid} g={c.gradient} />}
+      {dFill && <path d={dFill} fill={c.gradient ? `url(#${gid})` : c.fill} fillRule={v.fillRule} />}
+      {c.stroke && sw > 0 && dTraco && <path d={dTraco} fill="none" stroke={c.stroke} strokeWidth={sw} strokeDasharray={c.dash ? `${c.dash} ${c.dash}` : undefined} strokeLinejoin="round" strokeLinecap="round" />}
+    </svg>
+  )
+}
+
 export function Forma({ camada: c }: { camada: CamadaForma }) {
+  if (c.shape === 'path' && c.vetor) return <FormaVetor c={c} v={c.vetor} />
   const preenchimento = c.gradient ? gradienteCss(c.gradient) : c.fill
   if (c.shape === 'rect' || c.shape === 'ellipse') {
     const estilo: CSSProperties = {
@@ -63,15 +99,7 @@ export function Forma({ camada: c }: { camada: CamadaForma }) {
   }
   return (
     <svg width="100%" height="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ overflow: 'visible', display: 'block' }} aria-hidden>
-      {c.gradient && (
-        <defs>
-          {c.gradient.type === 'radial' ? (
-            <radialGradient id={gid}>{c.gradient.stops.map((s, i) => <stop key={i} offset={`${s.pos}%`} stopColor={s.color} />)}</radialGradient>
-          ) : (
-            <linearGradient id={gid} gradientTransform={`rotate(${c.gradient.angle - 90} .5 .5)`}>{c.gradient.stops.map((s, i) => <stop key={i} offset={`${s.pos}%`} stopColor={s.color} />)}</linearGradient>
-          )}
-        </defs>
-      )}
+      {c.gradient && <DefsGradiente id={gid} g={c.gradient} />}
       {forma}
     </svg>
   )

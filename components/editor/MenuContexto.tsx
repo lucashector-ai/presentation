@@ -6,6 +6,7 @@ import { importarConteudo } from '@/lib/editor/importar'
 import { serializarCamadas } from '@/lib/importar/clipboard'
 import { CUSTO_CREDITOS } from '@/lib/planos'
 import { abrirIA } from './ia/PainelIA'
+import { abrirPreencher } from './PreencherGrade'
 
 interface Item { rotulo: string; atalho?: string; acao: () => void; desativado?: boolean; perigo?: boolean }
 
@@ -55,6 +56,10 @@ export function MenuContexto({ editor, x, y, aoFechar, avisar }: { editor: Edito
       { rotulo: 'Duplicar', atalho: '⌘D', desativado: !tem, acao: () => acoes.duplicarCamadas(ids) },
     ],
     [
+      { rotulo: 'Preencher…', atalho: '⌃⌥', desativado: !tem, acao: () => abrirPreencher(x, y) },
+      { rotulo: 'Editar vetor', atalho: '↵', desativado: !(sel.length === 1 && (sel[0]!.type === 'shape' || sel[0]!.type === 'svg') && !sel[0]!.locked), acao: () => window.dispatchEvent(new CustomEvent('mostra:editar-vetor', { detail: { id: ids[0] } })) },
+    ],
+    [
       { rotulo: textoSelecionado ? '✦ Reescrever texto com IA' : '✦ Reescrever textos da tela', atalho: `${CUSTO_CREDITOS.reescrever} cr`, desativado: !temTexto, acao: () => abrirIA('texto') },
       { rotulo: '✦ Refazer tela com IA', atalho: `${CUSTO_CREDITOS.refazerTela} cr`, acao: () => abrirIA('tela') },
     ],
@@ -79,7 +84,7 @@ export function MenuContexto({ editor, x, y, aoFechar, avisar }: { editor: Edito
   ]
   const larg = 232
   const left = Math.min(x, window.innerWidth - larg - 8)
-  const top = Math.max(8, Math.min(y, window.innerHeight - 490))
+  const top = Math.max(8, Math.min(y, window.innerHeight - 560))
   return (
     <div ref={ref} role="menu" aria-label="Ações" className="fixed z-50 rounded-lg border border-borda bg-superficie p-1 text-[13px] shadow-painel" style={{ left, top, width: larg }}>
       {grupos.map((g, i) => (

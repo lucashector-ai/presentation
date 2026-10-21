@@ -1,10 +1,10 @@
 'use client'
 /**
  * Ferramentas da barra superior (modelo do Figma): Mover V · Frame F · Formas (R O L ⇧L, num menu) ·
- * Texto T · Mídia · Hotspot S · Mão H.
+ * Caneta P · Texto T · Mídia · Hotspot S · Mão H.
  */
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, Circle, Crosshair, Frame, Hand, Image as ImageIcon, MousePointer2, MoveUpRight, Slash, Square, Type } from 'lucide-react'
+import { ChevronDown, Circle, Crosshair, Frame, Hand, Image as ImageIcon, MousePointer2, MoveUpRight, PenTool, Slash, Square, Type } from 'lucide-react'
 import type { Ferramenta } from '@/lib/editor/atalhos'
 import { BotaoIcone, cx } from '@/components/ui'
 
@@ -50,6 +50,7 @@ export function BarraFerramentas({ ferramenta, aoFerramenta, aoMidia, className,
           </div>
         )}
       </div>
+      <BotaoIcone rotulo="Caneta (P)" ativo={ferramenta === 'caneta'} onClick={() => aoFerramenta('caneta')}><PenTool className="h-4 w-4" /></BotaoIcone>
       <BotaoIcone rotulo="Texto (T)" ativo={ferramenta === 'texto'} onClick={() => aoFerramenta('texto')}><Type className="h-4 w-4" /></BotaoIcone>
       <BotaoIcone rotulo="Imagem, vídeo, SVG ou 3D" onClick={aoMidia}><ImageIcon className="h-4 w-4" /></BotaoIcone>
       <BotaoIcone rotulo="Hotspot (S)" ativo={ferramenta === 'hotspot'} onClick={() => aoFerramenta('hotspot')}><Crosshair className="h-4 w-4" /></BotaoIcone>

@@ -26,9 +26,9 @@ export function CabecalhoCamada({ editor }: PropsSecao) {
           <span className="relative -ml-0.5 flex min-w-0 items-center gap-0.5 rounded-[5px] px-1 py-1 hover:bg-hover focus-within:ring-1 focus-within:ring-acento">
             <span className="truncate text-[13px] font-medium">{titulo}</span>
             <ChevronDown className="h-3 w-3 shrink-0 text-texto3" aria-hidden />
-            <select aria-label="Forma" value={typeof forma === 'string' ? forma : ''} onChange={(e) => set({ shape: e.target.value as CamadaForma['shape'] } as Partial<CamadaForma>)} className="absolute inset-0 cursor-pointer opacity-0">
+            <select aria-label="Forma" value={typeof forma === 'string' ? forma : ''} onChange={(e) => set({ shape: e.target.value as CamadaForma['shape'], vetor: undefined } as Partial<CamadaForma>)} className="absolute inset-0 cursor-pointer opacity-0">
               {typeof forma !== 'string' && <option value="">Misto</option>}
-              {FORMAS.map((f) => <option key={f} value={f}>{NOME_FORMA[f] ?? f}</option>)}
+              {FORMAS.filter((f) => f !== 'path' || forma === 'path').map((f) => <option key={f} value={f}>{NOME_FORMA[f] ?? f}</option>)}
             </select>
           </span>
         ) : (
