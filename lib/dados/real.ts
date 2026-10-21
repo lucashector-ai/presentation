@@ -481,6 +481,11 @@ export const fonteReal: FonteDados = {
       limpar()
     },
   },
+  marcas: {
+    listar: () => chamar(() => api.marcas.listar()),
+    salvar: ({ id, ...kit }) => chamar(() => (id ? api.marcas.atualizar(id, kit) : api.marcas.criar(kit))),
+    async excluir(id) { await chamar(() => api.marcas.excluir(id)) },
+  },
 
   // ---------- conta ----------
   async comprarPacote() {

@@ -55,7 +55,7 @@ export function PlanosPrecos() {
                 <span className="flex flex-col gap-0.5">
                   <span className="text-[18px] font-semibold tracking-[-0.02em]">{formatarNumero(p.creditos)} créditos</span>
                   <span className="text-[12px] opacity-75">{p.creditosLegenda}</span>
-                  <span className="text-[12px] font-semibold opacity-90">≈ {p.apresentacoes} apresentações de {TELAS_EXEMPLO} telas</span>
+                  <span className="text-[12px] font-semibold opacity-90">≈ {formatarNumero(p.telas)} telas com IA · {p.exemplo}</span>
                 </span>
               </div>
               <p className="m-0 text-[13px] font-semibold opacity-75">{p.inclui}</p>
@@ -91,7 +91,7 @@ export function CreditosAvulsos() {
       <div aria-hidden className="absolute -right-[34px] -top-[34px] h-[84px] w-[84px] rounded-full border-2 border-grafite bg-lima sm:-right-[30px] sm:-top-[30px] sm:h-[120px] sm:w-[120px]" />
       <h3 className="relative m-0 text-[22px] font-semibold tracking-[-0.03em]">Créditos avulsos</h3>
       <p className="relative m-0 max-w-[360px] text-[15px] leading-[1.55] text-[#E6E8FD]">
-        Acabou antes do fim do mês? Compre um pacote extra, em qualquer plano. Créditos avulsos não expiram. Contas feitas com apresentações de {TELAS_EXEMPLO} telas.
+        Acabou antes do fim do mês? Compre um pacote extra, em qualquer plano. Créditos avulsos não expiram e cada apresentação pode ter de 6 a 30 telas.
       </p>
       <div role="group" aria-label="Pacotes de créditos" className="relative grid grid-cols-3 gap-2.5">
         {PACOTES_CREDITOS.map((k, i) => (
@@ -104,13 +104,13 @@ export function CreditosAvulsos() {
           >
             <span className="text-[18px] font-semibold tracking-[-0.03em] sm:text-[20px]">{formatarNumero(k.creditos)}</span>
             <span className="text-[12px] text-[#525252]">créditos</span>
-            <span className="text-[12px] leading-tight text-[#525252]">≈ {k.apresentacoes} apresentações</span>
+            <span className="text-[12px] leading-tight text-[#525252]">≈ {formatarNumero(k.telas)} telas com IA</span>
             <span className="mt-1.5 text-[15px] font-semibold">{formatarReais(k.preco)}</span>
           </button>
         ))}
       </div>
       <p className="relative m-0 rounded-xl border-2 border-grafite bg-white px-4 py-3 text-[14px] leading-[1.5] text-grafite">
-        O pacote de {formatarNumero(pacote.creditos)} créditos rende <strong className="font-semibold">≈ {pacote.apresentacoes} apresentações de {TELAS_EXEMPLO} telas</strong> geradas com IA, somadas ao saldo do seu plano.
+        O pacote de {formatarNumero(pacote.creditos)} créditos rende <strong className="font-semibold">≈ {formatarNumero(pacote.telas)} telas com IA</strong> ({pacote.exemplo}), somadas ao saldo do seu plano.
       </p>
       <Link
         href={ROTAS.cadastro}
@@ -122,7 +122,7 @@ export function CreditosAvulsos() {
   )
 }
 
-const OPCOES_TELAS = [6, 8, 10, 12] as const
+const OPCOES_TELAS = [6, 10, 15, 20, 30] as const
 
 /** "Gerar uma apresentação": escolha o número de telas e veja quanto custa (roteiro + telas). */
 export function CalculadoraApresentacao() {

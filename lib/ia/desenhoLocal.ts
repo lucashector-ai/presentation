@@ -4,7 +4,7 @@
  * templates e como reserva quando o modelo de design falha. É também a sugestão inicial enviada ao modelo.
  * Puro: sem rede, sem DOM.
  */
-import { COMPONENTES, type Decoracao, type Fundo, type TemaVisual, type TipoTela } from './designSystem'
+import { COMPONENTES, regrasDe, type Decoracao, type Fundo, type TemaVisual, type TipoTela } from './designSystem'
 import type { Estilo, TelaDesenhada } from './montagem'
 import type { Roteiro, TelaRoteiro } from './roteiro'
 
@@ -76,6 +76,10 @@ export function desenharTelaLocal(t: TelaRoteiro, o: OpcoesDesenhoLocal & { ocor
     case 'cta': variante = estilo === 'minimal' ? por('cta.botao') : rodar(['cta.botao', 'cta.faixa']); break
     default: variante = variantes[0]!.id
   }
+  // o estilo tem composição própria: variantes preferidas por componente (suíço: capa tipográfica; luxo: centrada…)
+  const regras = regrasDe(tema)
+  const preferidas = (regras.variantes[t.tipo] ?? []).filter((id) => variantes.some((v) => v.id === id))
+  if (preferidas.length) variante = preferidas[o.ocorrencia % preferidas.length]!
 
   const base: Fundo = tema.base
   const oposto: Fundo = base === 'claro' ? 'escuro' : 'claro'
@@ -91,6 +95,8 @@ export function desenharTelaLocal(t: TelaRoteiro, o: OpcoesDesenhoLocal & { ocor
     case 'paleta': fundo = base; break
     default: fundo = base
   }
+  // estilos sem telas de acento (luxo, acadêmico, vidro…): a superfície oposta faz o respiro
+  if (regras.semAcento && fundo === 'acento') fundo = oposto
   // ritmo: duas telas de "respiro" seguidas com o mesmo fundo forte viram a superfície base
   if (o.anterior && fundo !== base && o.anterior.fundo === fundo && t.tipo !== 'encerramento') fundo = base
 

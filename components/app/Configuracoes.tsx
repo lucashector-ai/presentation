@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sparkles } from 'lucide-react'
 import { dados, mensagemDeErro, useCarregar, useDados } from '@/lib/dados'
-import { ACOES_IA, PLANOS, resumoCobranca, TELAS_REFERENCIA, apresentacoesCom, custoApresentacao, formatarBytes, formatarLimite, percentualUso, precoComCiclo, textoApresentacoes } from '@/lib/planos'
+import { ACOES_IA, PLANOS, resumoCobranca, TELAS_REFERENCIA, custoApresentacao, formatarBytes, formatarLimite, percentualUso, precoComCiclo } from '@/lib/planos'
+import { exemploApresentacoes, textoTelas } from '@/lib/telasIa'
 import { alternarTema } from '@/lib/sessao'
 import { Botao, Campo, Entrada, ModalConfirmar, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
@@ -62,10 +63,10 @@ export function Configuracoes() {
               <span className="text-[34px] font-medium leading-none tracking-[-0.04em]">{fmt(creditos.saldo)}</span>
               <span className="text-[13px] text-texto2">créditos</span>
             </div>
-            <p className="mt-2 text-[14px]">{textoApresentacoes(creditos.saldo)} de {TELAS_REFERENCIA} telas</p>
+            <p className="mt-2 text-[14px]">{textoTelas(creditos.saldo)}<span className="text-texto2"> · {exemploApresentacoes(creditos.saldo)}</span></p>
             <p className="mt-3 text-[13px] leading-relaxed text-texto2">
               Créditos pagam a IA que escreve suas apresentações. Editar, apresentar, enviar links e acompanhar o cliente não consomem nada.{' '}
-              {plano.creditos.recorrencia === 'mensal' ? `O plano ${plano.nome} renova ${fmt(plano.creditos.quantidade)} créditos por mês${plano.creditos.compartilhados ? ', compartilhados pela equipe' : ''} (${textoApresentacoes(plano.creditos.quantidade)}).` : `O plano Free dá ${fmt(plano.creditos.quantidade)} créditos no cadastro (${textoApresentacoes(plano.creditos.quantidade)}).`}
+              {plano.creditos.recorrencia === 'mensal' ? `O plano ${plano.nome} renova ${fmt(plano.creditos.quantidade)} créditos por mês${plano.creditos.compartilhados ? ', compartilhados pela equipe' : ''} (${textoTelas(plano.creditos.quantidade)}).` : `O plano Free dá ${fmt(plano.creditos.quantidade)} créditos no cadastro (${textoTelas(plano.creditos.quantidade)}).`}
             </p>
             <div className="rotulo-mono mb-2 mt-6">Extrato</div>
             <ul className="max-h-48 divide-y divide-borda overflow-y-auto text-[12px]">
@@ -76,7 +77,7 @@ export function Configuracoes() {
                 </li>
               ))}
             </ul>
-            {usadosNoMes > 0 && <p className="mt-2 text-[12px] text-texto3">Usados no período: {fmt(usadosNoMes)} créditos (≈ {fmt(Math.round(usadosNoMes / custoApresentacao(TELAS_REFERENCIA)))} apresentações).</p>}
+            {usadosNoMes > 0 && <p className="mt-2 text-[12px] text-texto3">Usados no período: {fmt(usadosNoMes)} créditos ({textoTelas(usadosNoMes)}).</p>}
           </div>
           <div>
             <div className="rotulo-mono mb-2">Quanto custa</div>
@@ -87,7 +88,7 @@ export function Configuracoes() {
                     <span className="flex flex-wrap items-center gap-2">{a.rotulo}{!a.disponivel && <span className="mono rounded-full bg-hover px-1.5 py-0.5 text-[9px] font-normal text-texto2">EM BREVE NO EDITOR</span>}</span>
                     <span className="mt-0.5 block text-[12px] font-normal text-texto3">{a.detalhe}</span>
                   </span>
-                  <span className="mono shrink-0 text-texto2">{a.id === 'apresentacao' ? `${TELAS_REFERENCIA} telas = ${a.creditos}` : `${a.creditos} créditos`}</span>
+                  <span className="mono shrink-0 text-texto2">{a.id === 'apresentacao' ? `10 telas = ${custoApresentacao(10)} · 20 = ${custoApresentacao(20)}` : `${a.creditos} créditos`}</span>
                 </li>
               ))}
             </ul>
@@ -114,7 +115,7 @@ export function Configuracoes() {
               <div className="flex items-center justify-between"><span className="font-medium">{p.nome}</span>{p.id === 'pro' && <span className="mono rounded-full bg-lima px-2 py-0.5 text-[9px]">MAIS ESCOLHIDO</span>}</div>
               <div className="mt-2 text-[24px] font-medium tracking-tight">R${precoComCiclo(p, ciclo)}<span className="text-[12px] font-normal text-texto2"> /{p.porMembro ? 'membro/' : ''}mês</span></div>
               <div className="mt-1 text-[12px]">{fmt(p.creditos.quantidade)} créditos {p.creditos.recorrencia === 'mensal' ? 'por mês' : 'no cadastro'}</div>
-              <div className="text-[12px] text-texto2">≈ {fmt(apresentacoesCom(p.creditos.quantidade))} apresentações{p.creditos.recorrencia === 'mensal' ? '/mês' : ''}</div>
+              <div className="text-[12px] text-texto2">{textoTelas(p.creditos.quantidade)}{p.creditos.recorrencia === 'mensal' ? ' por mês' : ''}</div>
               <div className="mt-1 text-[12px] text-texto3">{p.limites.projetos >= Number.MAX_SAFE_INTEGER ? 'Projetos ilimitados' : `${p.limites.projetos} projetos`} · até {p.limites.telasPorPrompt} telas por apresentação</div>
               <div className="min-h-4 flex-1" />
               <Botao tamanho="sm" variante={p.id === plano.id ? 'secundario' : 'primario'} className="w-full" disabled={p.id === plano.id} onClick={() => abrirPlano(p.id, ciclo)}>{p.id === plano.id ? 'Plano atual' : 'Escolher'}</Botao>

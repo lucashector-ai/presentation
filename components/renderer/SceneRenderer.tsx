@@ -297,7 +297,7 @@ function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, an
       const a = assets[c.assetId]
       const fit = mobile && c.mobile?.fit ? c.mobile.fit : c.fit
       const adj = c.adjust
-      const filtroAjuste = adj ? `brightness(${adj.brightness}) contrast(${adj.contrast}) saturate(${adj.saturate}) grayscale(${adj.grayscale})` : ''
+      const filtroAjuste = adj ? `brightness(${adj.brightness}) contrast(${adj.contrast}) saturate(${adj.saturate}) grayscale(${adj.grayscale})${adj.invert ? ` invert(${adj.invert})` : ''}` : ''
       const suave = c.mask === 'none' && temSuavizacao(c)
       const dentro = c.mask === 'none' ? boxShadowCss(internas(e)) : undefined
       const imagem = (
