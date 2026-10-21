@@ -55,7 +55,29 @@ export const TIPOS_ANIMACAO = [
   'blurIn',
   'rotateIn',
   'reveal',
+  // --- presets da aba Animação (aditivos; documentos antigos continuam válidos) ---
+  /** Escala com leve ultrapassagem. */
+  'pop',
+  /** Começa maior e assenta no tamanho final. */
+  'zoomOut',
+  /** Estica e acomoda como borracha. */
+  'elastic',
+  /** Texto: letras aparecem uma a uma (máquina de escrever). */
+  'typewriter',
+  /** Texto: palavra por palavra (sobe com desfoque leve). */
+  'words',
+  /** Texto: letra por letra (sobe com fade). */
+  'letters',
+  // saídas (usadas em `exitAnimation`)
+  'slideOutUp',
+  'slideOutDown',
+  'blurOut',
 ] as const
+
+/** Entradas que dividem o texto em partes (só valem para camadas de texto; nas outras viram fade). */
+export const ANIMACOES_DE_TEXTO = ['typewriter', 'words', 'letters'] as const
+/** Tipos que fazem sentido como saída. */
+export const ANIMACOES_DE_SAIDA = ['fadeOut', 'scaleOut', 'slideOutUp', 'slideOutDown', 'blurOut'] as const
 
 export const EASINGS = ['linear', 'ease', 'easeIn', 'easeOut', 'easeInOut', 'spring'] as const
 
@@ -67,8 +89,21 @@ export const AnimacaoSchema = z.object({
   duration: z.number().int().min(DURACAO_MIN_MS).max(DURACAO_MAX_MS).default(500),
   delay: z.number().int().min(0).max(5000).default(0),
   easing: z.enum(EASINGS).default('easeOut'),
+  /** Curva personalizada (cubic-bezier x1 y1 x2 y2). Quando presente, substitui `easing`. */
+  bezier: z.tuple([z.number().min(0).max(1), z.number().min(-1).max(2), z.number().min(0).max(1), z.number().min(-1).max(2)]).optional(),
 })
 export type Animacao = z.infer<typeof AnimacaoSchema>
+
+/** Ênfase contínua enquanto a tela está visível (começa ao fim da entrada). */
+export const TIPOS_LOOP = ['float', 'pulse', 'wiggle', 'spin'] as const
+export const LoopSchema = z.object({
+  type: z.enum(TIPOS_LOOP),
+  /** Duração de um ciclo, em ms. */
+  duration: z.number().int().min(400).max(20_000).default(3000),
+  /** Multiplicador da amplitude (0,5 = sutil, 1 = normal, 2 = forte). */
+  intensity: z.number().min(0.25).max(3).default(1),
+})
+export type Loop = z.infer<typeof LoopSchema>
 
 /** Transições entre telas. `morph` anima camadas com o mesmo nome/ID entre a tela de origem e a de destino. */
 export const TIPOS_TRANSICAO = ['none', 'fade', 'slide', 'scale', 'morph'] as const
@@ -190,6 +225,10 @@ const CamadaBase = z.object({
   interactions: z.array(InteracaoSchema).max(MAX_INTERACOES_POR_CAMADA).default([]),
   /** Animação ao entrar na tela. */
   enterAnimation: AnimacaoSchema.optional(),
+  /** Ênfase em loop (flutuar, pulsar…) enquanto a tela está visível. */
+  loopAnimation: LoopSchema.optional(),
+  /** Animação ao SAIR da tela (o visualizador espera ela terminar antes da transição). */
+  exitAnimation: AnimacaoSchema.optional(),
   effects: EfeitosSchema.optional(),
   /** Ajustes simples para celular. */
   mobile: z.object({ fit: z.enum(['contain', 'cover']).optional(), hidden: z.boolean().optional() }).optional(),

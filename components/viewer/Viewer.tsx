@@ -5,11 +5,12 @@
  * pré-carregamento da próxima tela, tela de carregamento, fallback de mídia, transições fade/slide/scale/morph,
  * avanço automático e sincronização com a visão do apresentador.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, LayoutGrid, Maximize2, Minimize2, X } from 'lucide-react'
 import type { Camada, Cena, DocumentoProjeto, Interacao } from '@/lib/scene/schema'
 import { adaptarTransicao, aoEntrarNaCena, aoSairHover, cenaAtual, estadoInicialRuntime, executar, irPara, type Efeito, type EstadoRuntime, EASING_CSS } from '@/lib/scene/motor'
 import { calcularEncaixe } from '@/lib/scene/transform'
+import { tempoSaida } from '@/lib/scene/animacoes'
 import { SceneRenderer, type AssetsResolvidos } from '@/components/renderer/SceneRenderer'
 import { usePreferencias, useTamanho } from '@/components/renderer/useTamanho'
 import { useFontesDoDocumento } from '@/components/renderer/fontes'
@@ -57,6 +58,8 @@ export function Viewer(props: ViewerProps) {
   const cena = cenaAtual(documento, runtime)
   const total = documento.scenes.length
   const transicao = adaptarTransicao(runtime.transicao, reduzirMovimento)
+  // animações de saída da tela anterior: tocam primeiro; a próxima tela entra quando terminam
+  const saidaMs = anterior ? (reduzirMovimento ? Math.min(150, tempoSaida(anterior.cena)) : tempoSaida(anterior.cena)) : 0
 
   // ---------- efeitos do motor ----------
   const executarEfeitos = useCallback((efeitos: Efeito[]) => {
@@ -151,9 +154,9 @@ export function Viewer(props: ViewerProps) {
   // remove a tela que saiu ao fim da transição
   useEffect(() => {
     if (!anterior) return
-    const t = window.setTimeout(() => setAnterior(null), (transicao?.duration ?? 400) + 60)
+    const t = window.setTimeout(() => setAnterior(null), (transicao?.duration ?? 400) + saidaMs + 60)
     return () => window.clearTimeout(t)
-  }, [anterior, transicao?.duration])
+  }, [anterior, transicao?.duration, saidaMs])
 
   useEffect(() => {
     let ativo = true
@@ -267,17 +270,18 @@ export function Viewer(props: ViewerProps) {
       {modo === 'slides' && cena && encaixe && (
         <>
           {anterior && anterior.cena.id !== cena.id && (
-            <div key={`sai-${anterior.chave}`} className="cena-saindo" style={{ position: 'absolute', left: encaixe.offsetX, top: encaixe.offsetY, zIndex: 0, ['--dur' as string]: `${transicao?.duration ?? 400}ms` }}>
-              <SceneRenderer cena={anterior.cena} escala={calcularEncaixe(anterior.cena.size, tamanho).scale} assets={assets} modo="viewer" ocultar={ehMorph ? idsCasados(anterior.cena, cena) : undefined} />
+            <div key={`sai-${anterior.chave}`} className="cena-saindo" style={{ position: 'absolute', left: encaixe.offsetX, top: encaixe.offsetY, zIndex: 0, ['--dur' as string]: `${transicao?.duration ?? 400}ms`, animationDelay: saidaMs ? `${saidaMs}ms` : undefined }}>
+              <SceneRenderer cena={anterior.cena} escala={calcularEncaixe(anterior.cena.size, tamanho).scale} assets={assets} modo="viewer" reduzirMovimento={reduzirMovimento} saida={saidaMs > 0} ocultar={ehMorph ? idsCasados(anterior.cena, cena) : undefined} />
             </div>
           )}
+          <AposSaida key={`${cena.id}-${runtime.historico.length}`} ms={saidaMs}>
           <div
-            key={`${cena.id}-${runtime.historico.length}`}
             className={!ehMorph && transicao && transicao.type !== 'none' && runtime.historico.length ? `cena-transicao-${transicao.type}` : undefined}
             style={{ position: 'absolute', left: encaixe.offsetX, top: encaixe.offsetY, zIndex: 1, ['--dur' as string]: `${transicao?.duration ?? 400}ms` }}
           >
             <SceneRenderer cena={cena} escala={encaixe.scale} runtime={runtime} chaveEntrada={cena.id} morphDe={ehMorph ? anterior?.cena : undefined} morphDuracao={transicao?.duration} morphEasing={easing} style={ehMorph ? { background: 'transparent' } : undefined} {...comum} />
           </div>
+          </AposSaida>
         </>
       )}
 
@@ -313,6 +317,17 @@ export function Viewer(props: ViewerProps) {
       )}
     </div>
   )
+}
+
+/** Monta a tela que entra só depois que as animações de saída da anterior terminam. */
+function AposSaida({ ms, children }: { ms: number; children: ReactNode }) {
+  const [pronto, setPronto] = useState(ms <= 0)
+  useEffect(() => {
+    if (pronto) return
+    const t = window.setTimeout(() => setPronto(true), ms)
+    return () => window.clearTimeout(t)
+  }, [ms, pronto])
+  return pronto ? <>{children}</> : null
 }
 
 /** IDs das camadas da tela que sai que têm par na tela que entra (ficam ocultas na saída durante o morph). */
