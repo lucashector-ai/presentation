@@ -12,6 +12,8 @@ import type { Animacao, Camada, Cena, Interacao, CamadaTexto } from '@/lib/scene
 import { EASING_CSS, camadaVisivel, interacoesDe, type EstadoRuntime } from '@/lib/scene/motor'
 import { ordenarParaRender } from '@/lib/scene/order'
 import { calcularLayout } from '@/lib/editor/autolayout'
+import { sangrar, type Sangria } from '@/lib/scene/sangria'
+import { costurar } from '@/lib/scene/costura'
 import { ancestrais, mapaDe } from '@/lib/scene/arvore'
 import { recolorirSvg, svgParaDataUrl } from '@/lib/importar/svg'
 import { pilhaFonte } from '@/lib/design-tokens'
@@ -58,6 +60,8 @@ export interface SceneRendererProps {
   ocultar?: ReadonlySet<string>
   /** Tela saindo: as camadas tocam a animação de saída (exitAnimation). */
   saida?: boolean
+  /** Apresentação: área extra em volta da cena; camadas que encostam na borda se estendem até ela. */
+  sangria?: Sangria
 }
 
 /** Props internas: prévia de animação pedida pelo inspetor (só no modo editor). */
@@ -80,10 +84,12 @@ export function SceneRenderer(props: SceneRendererProps) {
 }
 
 function CenaRender(props: PropsInternas) {
-  const { cena, assets, escala, modo, children, className, style, morphDe, classeTransicao } = props
+  const { cena, assets, escala, modo, children, className, style, morphDe, classeTransicao, sangria } = props
   const fundo = cena.backgroundAssetId ? assets[cena.backgroundAssetId] : undefined
   // auto layout resolvido também aqui: visualizador e miniaturas mostram o mesmo que o editor
-  const camadas = useMemo(() => ordenarParaRender(calcularLayout(cena.layers)), [cena.layers])
+  const dpr = useDensidade()
+  const passo = escala > 0 ? 1 / (escala * dpr) : undefined
+  const camadas = useMemo(() => costurar(ordenarParaRender(sangrar(calcularLayout(cena.layers), cena.size, sangria)), passo), [cena.layers, cena.size, sangria, passo])
   const herdado = useMemo(() => herancaDeFrames(camadas), [camadas])
   const mapaMorph = useMemo(() => (morphDe ? new Map(morphDe.layers.map((l) => [chaveMorph(l), l])) : null), [morphDe])
   const fundoCss = cena.backgroundGradient ? gradienteCss(cena.backgroundGradient) : cena.background
@@ -94,7 +100,7 @@ function CenaRender(props: PropsInternas) {
   }, [fundoCss])
 
   return (
-    <div className={[className, classeTransicao].filter(Boolean).join(' ') || undefined} style={{ width: cena.size.width * escala, height: cena.size.height * escala, position: 'relative', overflow: 'hidden', background: morphDe ? fundoAtual : fundoCss, transition: morphDe ? `background ${props.morphDuracao ?? 600}ms ${props.morphEasing ?? 'ease'}` : undefined, ...(classeTransicao ? { ['--dur' as string]: `${props.morphDuracao ?? 500}ms` } : {}), ...style }}>
+    <div className={[className, classeTransicao].filter(Boolean).join(' ') || undefined} style={{ width: cena.size.width * escala, height: cena.size.height * escala, position: 'relative', overflow: sangria ? 'visible' : 'hidden', background: morphDe ? fundoAtual : fundoCss, transition: morphDe ? `background ${props.morphDuracao ?? 600}ms ${props.morphEasing ?? 'ease'}` : undefined, ...(classeTransicao ? { ['--dur' as string]: `${props.morphDuracao ?? 500}ms` } : {}), ...style }}>
       <div style={{ width: cena.size.width, height: cena.size.height, transform: `scale(${escala})`, transformOrigin: '0 0', position: 'absolute', left: 0, top: 0 }}>
         {fundo && <img src={modo === 'miniatura' ? fundo.thumbUrl || fundo.url : fundo.url} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: cena.backgroundFit, pointerEvents: 'none' }} />}
         {camadas.map((c) => (props.ocultar?.has(c.id) ? null : <LayerView key={c.id} camada={c} props={props} origemMorph={mapaMorph?.get(chaveMorph(c))} heranca={herdado.get(c.id)} />))}
@@ -135,6 +141,18 @@ function herancaDeFrames(camadas: readonly Camada[]): Map<string, Heranca> {
 
 function geometria(c: Camada): CSSProperties {
   return { left: c.x, top: c.y, width: c.width, height: c.height, opacity: c.opacity, transform: transformCss(c) }
+}
+
+/** Densidade de pixels do monitor; 1 no servidor e no primeiro render (evita diferença de hidratação). */
+function useDensidade(): number {
+  const [dpr, setDpr] = useState(1)
+  useEffect(() => {
+    const atualizar = () => setDpr(window.devicePixelRatio || 1)
+    atualizar()
+    window.addEventListener('resize', atualizar)
+    return () => window.removeEventListener('resize', atualizar)
+  }, [])
+  return dpr
 }
 
 function LayerView({ camada: c, props, origemMorph, heranca }: { camada: Camada; props: PropsInternas; origemMorph?: Camada; heranca?: Heranca }) {

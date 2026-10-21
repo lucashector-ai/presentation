@@ -19,6 +19,7 @@ import { useCanal } from './canal'
 import { StoryView } from './StoryView'
 import { ExplorarView } from './ExplorarView'
 import { FundoEstendido } from './FundoEstendido'
+import { sangriaDoEncaixe } from '@/lib/scene/sangria'
 import { encaixar, type ModoEncaixe } from './fundo'
 import { useControles } from './useControles'
 import { Marca } from '@/components/ui/Logo'
@@ -268,6 +269,8 @@ export function Viewer(props: ViewerProps) {
 
   const registrarVideo = useCallback((id: string, el: HTMLVideoElement | null) => { if (el) videos.current.set(id, el); else videos.current.delete(id) }, [])
   const encaixe = useMemo(() => (cena && tamanho.width ? encaixar(cena.size, tamanho, modoEncaixe) : null), [cena, tamanho, modoEncaixe])
+  // camadas que encostam na borda se estendem até a borda da tela (sem faixas em telas de outra proporção)
+  const sangria = useMemo(() => (encaixe ? sangriaDoEncaixe(encaixe.offsetX, encaixe.offsetY, encaixe.scale) : undefined), [encaixe])
   const comum = { assets, modo: 'viewer' as const, reduzirMovimento, semHover, mobile, aoInteragir, registrarVideo }
   const ehMorph = transicao?.type === 'morph' && !!anterior
   const easing = EASING_CSS[transicao?.easing ?? 'easeInOut']
@@ -314,7 +317,7 @@ export function Viewer(props: ViewerProps) {
             return (
               <div key={`sai-${anterior.chave}`} className="cena-saindo" style={{ position: 'absolute', left: e.offsetX, top: e.offsetY, zIndex: 0, ['--dur' as string]: `${duracao}ms`, animationDelay: saidaMs ? `${saidaMs}ms` : undefined }}>
                 {camadaDeCena(anterior.cena, e, !ehMorph)}
-                <SceneRenderer cena={anterior.cena} escala={e.scale} assets={assets} modo="viewer" reduzirMovimento={reduzirMovimento} saida={saidaMs > 0} ocultar={ehMorph ? idsCasados(anterior.cena, cena) : undefined} />
+                <SceneRenderer cena={anterior.cena} escala={e.scale} assets={assets} modo="viewer" sangria={sangriaDoEncaixe(e.offsetX, e.offsetY, e.scale)} reduzirMovimento={reduzirMovimento} saida={saidaMs > 0} ocultar={ehMorph ? idsCasados(anterior.cena, cena) : undefined} />
               </div>
             )
           })()}
@@ -324,7 +327,7 @@ export function Viewer(props: ViewerProps) {
             style={{ position: 'absolute', left: encaixe.offsetX, top: encaixe.offsetY, zIndex: 1, ['--dur' as string]: `${duracao}ms` }}
           >
             {camadaDeCena(cena, encaixe, !ehMorph)}
-            <SceneRenderer cena={cena} escala={encaixe.scale} runtime={runtime} chaveEntrada={cena.id} morphDe={ehMorph ? anterior?.cena : undefined} morphDuracao={transicao?.duration} morphEasing={easing} style={ehMorph ? { background: 'transparent' } : undefined} {...comum} />
+            <SceneRenderer cena={cena} escala={encaixe.scale} sangria={sangria} runtime={runtime} chaveEntrada={cena.id} morphDe={ehMorph ? anterior?.cena : undefined} morphDuracao={transicao?.duration} morphEasing={easing} style={ehMorph ? { background: 'transparent' } : undefined} {...comum} />
           </div>
           </AposSaida>
         </>

@@ -24,7 +24,8 @@ export function encaixar(cena: Tamanho, tela: Tamanho, modo: ModoEncaixe = 'ajus
   const scale = modo === 'preencher' ? Math.max(sx, sy) : Math.min(sx, sy)
   const width = cena.width * scale
   const height = cena.height * scale
-  return { scale, width, height, offsetX: (tela.width - width) / 2, offsetY: (tela.height - height) / 2 }
+  // origem em pixel inteiro: com as bordas das camadas também alinhadas ao pixel, nada vaza entre caixas coladas
+  return { scale, width, height, offsetX: Math.round((tela.width - width) / 2), offsetY: Math.round((tela.height - height) / 2) }
 }
 
 const rad = (g: number) => (g * Math.PI) / 180
