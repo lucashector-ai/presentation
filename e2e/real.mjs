@@ -313,8 +313,11 @@ await passo('Kits de marca: outra conta não vê, não altera e não apaga o kit
   idUsuario2 = r.id
   if (r.lista.length !== 0 || r.patch !== 404 || r.del !== 404 || r.comLogo !== 400) throw new Error(`isolamento: ${JSON.stringify(r)}`)
   // sem sessão, a rota recusa
-  const semSessao = await novoContexto()
-  const anon = (await semSessao.request.get(`${BASE}/api/marcas`)).status()
+  // pelo navegador (o contexto de API do Playwright sai pelo Node, que pode não ter a rota de rede do navegador)
+  const semSessao = await browser.newContext()
+  const pa = await semSessao.newPage()
+  await pa.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' })
+  const anon = await pa.evaluate(async () => (await fetch('/api/marcas')).status)
   await semSessao.close()
   if (anon !== 401) throw new Error(`/api/marcas sem sessão respondeu ${anon}`)
   await outra.close()
