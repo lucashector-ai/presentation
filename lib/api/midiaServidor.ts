@@ -48,7 +48,7 @@ export function lerRange(cabecalho: string | null, tamanho?: number): Intervalo 
 const nomeSeguro = (nome: string) => encodeURIComponent(nome.replace(/[\r\n"]/g, '').slice(0, 120) || 'arquivo')
 
 export async function servirMidia(req: Request, midia: MidiaParaServir, cacheControl: string): Promise<Response> {
-  const arm = armazenamento()
+  const arm = await armazenamento()
   const base: Record<string, string> = {
     'cache-control': cacheControl,
     'accept-ranges': 'bytes',

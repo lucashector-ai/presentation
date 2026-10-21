@@ -12,7 +12,7 @@ Documento do "primeiro entregável" da instrução mestre (seção 20): stack e 
 | Banco/Auth/Storage | Neon Postgres + Neon Auth (Better Auth gerenciado) + Cloudflare R2 (ADR 0010) | Postgres com branches, login no mesmo banco, bucket privado no binding do Worker; autorização no servidor | Supabase (substituído: nunca rodou em produção e a hospedagem foi para Cloudflare) |
 | Renderizador | Camadas DOM posicionadas com `transform: scale()` | Texto selecionável/acessível, vídeos nativos, mesma base no editor e viewer | Canvas raster: acessibilidade e vídeo piores |
 | Testes | Vitest (unitário) + Playwright (E2E) | Rápidos, sem configuração pesada | Jest |
-| Hospedagem | Vercel (sugerido) | Deploy por branch, rollback por promote | Railway/Fly: ok, mas sem preview automático por PR |
+| Hospedagem | Cloudflare Workers via vinext (`wrangler.jsonc`) | Borda global, R2 junto para as mídias, rollback por versão (`wrangler rollback`) | Vercel: o plano inicial; OpenNext no Workers: mais maduro, porém mais pesado |
 
 Regra: o servidor é a autoridade para papéis, acesso, assinatura, cotas e publicação. A UI apenas reflete.
 
@@ -86,5 +86,5 @@ Integridade: toda consulta filtra por `workspace_id` no servidor **e** RLS no ba
 1. **UI de dados ainda no modo demo.** As rotas `/api` já rodam contra o Neon (login, multi-tenant, 409, publicação, links, créditos); falta apontar painel/editor para `lib/api/cliente.ts`.
 2. **Sessão no servidor**: a sessão já é cookie HttpOnly do Neon Auth e as rotas `/api` a conferem; o guard de páginas de `/app` continua no cliente (sem middleware do Next, por causa do vinext — ADR 0010).
 3. **Variantes de mídia**: `finalize` marca `ready` sem gerar thumbnails. O viewer usa o original com lazy loading; cenas com muitas imagens 4K podem pesar. Worker (Sprint 2): sharp para thumbs/webp, ffmpeg para poster/transcodificação.
-4. **Rate limiting** em memória por processo é suficiente para o beta; em produção multi-instância, mover para a borda (Vercel WAF) ou Redis.
+4. **Rate limiting** em memória por processo é suficiente para o beta; em produção multi-instância, mover para a borda (Cloudflare WAF / Rate Limiting) ou Redis.
 5. **Decisões a validar antes de cobrar** (seção 20.1): nome e domínio, limites definitivos por plano, mercado/moeda/provedor de pagamento, retenção e termos de conteúdo autoral.

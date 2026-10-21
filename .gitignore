@@ -13,3 +13,7 @@ e2e/capturas/
 .claude/worktrees/
 .neon
 .armazenamento-dev/
+/dist/
+.vinext/
+.wrangler/
+.dev.vars*

@@ -254,9 +254,10 @@ export function armazenamentoDisco(pasta: string): Armazenamento {
 let devCache: Armazenamento | null = null
 
 /** Armazenamento de mídias do ambiente atual (R2 no Worker; desenvolvimento fora dele). */
-export function armazenamento(): Armazenamento {
-  const bucket = obterBucketMidias()
-  if (bucket) return armazenamentoR2(bucket)
+export async function armazenamento(): Promise<Armazenamento> {
+  const bucket = await obterBucketMidias()
+  // as sobrecargas do R2Bucket (onlyIf, range como Headers) são mais largas que o contrato BucketR2, que usa só um subconjunto
+  if (bucket) return armazenamentoR2(bucket as unknown as BucketR2)
   if (devCache) return devCache
   if (process.env.ARMAZENAMENTO_DEV === 'memoria') return (devCache = armazenamentoMemoria())
   const pasta = process.env.ARMAZENAMENTO_DEV_DIR

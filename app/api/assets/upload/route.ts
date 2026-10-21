@@ -41,7 +41,7 @@ export const POST = rota(async (req, _ctx, requestId) => {
   // registro primeiro (status processing): a cota já conta este arquivo enquanto ele é gravado
   await db`insert into public.assets (id, workspace_id, storage_key, media_type, mime, bytes, status, name, created_by)
            values (${id}, ${ctx.workspaceId}, ${chave}, ${tipoMidia(entrada.mime)}, ${entrada.mime}, ${entrada.bytes}, 'processing', ${entrada.name}, ${ctx.userId})`
-  const arm = armazenamento()
+  const arm = await armazenamento()
   const marcarFalha = async (motivo: string) => {
     await db`update public.assets set status = 'failed', metadata_json = ${JSON.stringify({ erro: motivo })}::jsonb where id = ${id}`
     await arm.remover(chave).catch(() => {})

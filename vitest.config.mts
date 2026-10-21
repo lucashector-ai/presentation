@@ -5,8 +5,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('.', import.meta.url)),
-      // módulos de servidor importam `server-only`, que só o bundler do Next resolve
+      // módulos de servidor importam `server-only`, que só o bundler (vinext) resolve
       'server-only': fileURLToPath(new URL('./lib/teste/vazio.ts', import.meta.url)),
+      // fora do vinext, `next/*` vem dos shims dele (o pacote `next` não está instalado)
+      'next/server': fileURLToPath(new URL('./node_modules/vinext/dist/shims/server.js', import.meta.url)),
     },
   },
   test: {

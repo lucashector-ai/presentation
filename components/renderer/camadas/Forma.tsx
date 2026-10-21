@@ -2,7 +2,7 @@
  * Formas vetoriais. Retângulo e elipse em CSS (borda arredondada, gradiente, padrão); as demais em SVG.
  * `shape: 'path'` desenha o caminho editável (`vetor`) escalado do quadro de referência para o tamanho da camada.
  */
-import type { CSSProperties } from 'react'
+import type { CSSProperties, JSX } from 'react'
 import type { CamadaForma, Gradiente, Vetor } from '@/lib/scene/schema'
 import { vetorParaD } from '@/lib/editor/vetor/geometria'
 import { PADROES, gradienteCss, raioCss, sombraCss } from '../estilos'

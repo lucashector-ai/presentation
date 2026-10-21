@@ -1,0 +1,19 @@
+// Worker do Mostra (vinext no Cloudflare Workers). `npm run build` gera dist/server/wrangler.json a partir deste arquivo;
+// `npm run preview` e `npm run deploy` usam o gerado. Segredos (DATABASE_URL etc.): .dev.vars no local, `wrangler secret put` em produção.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mostra",
+  "compatibility_date": "2026-10-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "vinext/server/fetch-handler",
+  "assets": {
+    "directory": "dist/client",
+    "html_handling": "none",
+    "not_found_handling": "none",
+    "binding": "ASSETS",
+    "run_worker_first": ["/*", "!/_next/static/*", "!/*/_next/static/*"]
+  },
+  // Mídias dos projetos (originais + variantes). Acesso só por lib/cf/ambiente.ts. No local, o Wrangler simula o bucket.
+  "r2_buckets": [{ "binding": "MIDIAS", "bucket_name": "mostra-midias", "preview_bucket_name": "mostra-midias" }],
+  "observability": { "enabled": true }
+}

@@ -1,4 +1,5 @@
 'use client'
+import type { JSX } from 'react'
 import { Clock, Eye, EyeOff, Hand, MousePointerClick, Plus, ScrollText, Trash2 } from 'lucide-react'
 import type { Acao, Camada, Interacao, Transicao, Trigger } from '@/lib/scene/schema'
 import { ACOES_POR_TRIGGER } from '@/lib/scene/schema'

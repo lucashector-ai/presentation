@@ -8,7 +8,7 @@ const pedido = (headers: Record<string, string> = {}) => new Request('http://loc
 const midia = { chave: 'ws/a/original.mp4', mime: 'video/mp4', nome: 'clipe.mp4' }
 
 beforeAll(async () => {
-  await armazenamento().guardar(midia.chave, '0123456789', { tipo: 'video/mp4' })
+  await (await armazenamento()).guardar(midia.chave, '0123456789', { tipo: 'video/mp4' })
 })
 
 describe('lerRange', () => {

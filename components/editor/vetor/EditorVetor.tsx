@@ -6,7 +6,7 @@
  * Cada gesto é um passo de desfazer; ao fim de cada gesto a caixa da camada volta a abraçar o caminho
  * sem mover o desenho. Nós encaixam em outros nós, nas camadas, na tela (e frações) e no pixel; ⌘/Ctrl desliga.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { Check, Eraser, Lasso, MousePointer2, PaintBucket, PenTool, Scissors, Spline } from 'lucide-react'
 import type { Camada, CamadaForma, DocumentoProjeto, Vetor } from '@/lib/scene/schema'
 import type { Editor } from '@/lib/editor/useEditor'

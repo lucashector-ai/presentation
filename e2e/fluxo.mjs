@@ -4,6 +4,7 @@ import fs from 'node:fs'
 /**
  * Fluxo ponta a ponta (seção 17.2): conta → projeto → upload → editor → preview → publicar → link → convidado → revogar.
  * Rodar com o app no ar (npm run dev, NEXT_PUBLIC_DEMO=1): npm run test:e2e
+ * Outro endereço (ex.: o preview do Worker, npm run preview): E2E_BASE_URL=http://localhost:8787 npm run test:e2e
  * Capturas em e2e/capturas/ (ignoradas pelo git).
  */
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:3000'
@@ -48,10 +49,15 @@ async function esperarTelas(n, p = page) {
 /** Contador do visualizador ("01 / 03"), só dentro dos controles do viewer. */
 const contador = (p, texto, raiz) => (raiz ?? p).locator('.viewer-controles').getByText(texto, { exact: true })
 const pad = (n) => String(n).padStart(2, '0')
+/** Espera o React hidratar o campo da home (ele marca os nós com __reactProps…). No dev do Vite os módulos chegam
+ * um a um e isso demora; um screenshot no meio esconde o cursor com style inline e gera aviso de atributos divergentes. */
+const esperarHidratacao = (p = page) =>
+  p.waitForFunction(() => { const t = document.querySelector('textarea'); return !t || Object.keys(t).some((k) => k.startsWith('__react')) })
 
 // PNGs de teste: screenshots pequenos do site
 // (espera a hidratação: capturar a página no meio dela gera aviso de atributos divergentes)
 await page.goto(`${BASE}/`, { waitUntil: 'networkidle' })
+await esperarHidratacao()
 await page.waitForTimeout(500)
 for (let i = 1; i <= 3; i++) { await page.setViewportSize({ width: 800 + i * 100, height: 600 }); await page.screenshot({ path: `${SHOTS}/upload-${i}.png` }) }
 await page.setViewportSize({ width: 1440, height: 900 })
@@ -61,11 +67,13 @@ await passo('Marketing renderiza com CTA e planos', async () => {
   await page.getByRole('heading', { level: 1 }).waitFor()
   await page.locator('section#precos').waitFor()
   if (!(await page.locator('a[href^="/signup"]').count()) && !(await page.locator('a[href^="/criar"]').count())) throw new Error('sem CTA para cadastro/criação')
+  await esperarHidratacao()
   await page.screenshot({ path: `${SHOTS}/01-marketing.png`, fullPage: true })
 })
 
 await passo('AC-01 Cadastro → verificação → painel', async () => {
-  await page.goto(`${BASE}/signup`)
+  // networkidle: no dev do Vite os módulos chegam um a um e a hidratação atrasa; clicar antes envia o form nativo
+  await page.goto(`${BASE}/signup`, { waitUntil: 'networkidle' })
   await page.getByLabel('Nome').fill('Teste E2E')
   await page.getByLabel('E-mail').fill('teste@exemplo.com')
   await page.getByLabel('Senha').fill('senhaforte123')
