@@ -16,6 +16,7 @@ import { PainelEsquerdo } from './PainelEsquerdo'
 import { Canvas } from './Canvas'
 import { Inspetor } from './inspetor/Inspetor'
 import { MenuContexto } from './MenuContexto'
+import { BotaoIA } from './ia/PainelIA'
 import { Viewer } from '@/components/viewer/Viewer'
 import { consumirTela, marcarOrigem, pedirTelaCheia, urlApresentar } from '@/components/viewer/retorno'
 import { Compartilhar } from '@/components/compartilhar/Compartilhar'
@@ -296,6 +297,7 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
           ))}
         </div>
         <span className="flex-1" />
+        <BotaoIA editor={editor} nomeProjeto={projeto.nome} />
         <span title="Você está editando (colaboração em tempo real chega na Fase 2)" className="hidden h-7 w-7 items-center justify-center rounded-full bg-salvia text-[11px] font-semibold text-musgo lg:flex">MD</span>
         <Botao tamanho="sm" variante="fantasma" icone={<Eye className="h-4 w-4" />} onClick={abrirPreview}>Pré-visualizar</Botao>
         <div className="relative hidden md:block">
@@ -369,7 +371,7 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
           </div>
           <Botao variante={naoPublicado ? 'primario' : 'secundario'} carregando={publicando} onClick={publicarAgora}>Publicar</Botao>
         </div>
-        <Compartilhar projetoId={projetoId} />
+        <Compartilhar projetoId={projetoId} publicarFora />
       </Modal>
 
       <Modal aberto={atalhos} aoFechar={() => setAtalhos(false)} titulo="Atalhos de teclado" largura="lg">

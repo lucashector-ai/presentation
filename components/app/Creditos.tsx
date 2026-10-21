@@ -1,5 +1,5 @@
 'use client'
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Check, Sparkles } from 'lucide-react'
 import { comprarPacote, trocarPlano, uso } from '@/lib/demo/store'
@@ -25,10 +25,45 @@ export function CreditosProvider({ children }: { children: React.ReactNode }) {
   return (
     <Ctx.Provider value={valor}>
       {children}
+      <AvisoSaldoBaixo abrirCompra={abrirCompra} />
       <ModalComprarCreditos aberto={!!compra} motivo={compra?.motivo} aoFechar={() => setCompra(null)} />
       <ModalTrocarPlano alvo={plano} aoFechar={() => setPlano(null)} />
     </Ctx.Provider>
   )
+}
+
+const CHAVE_AVISO = 'mostra.avisoSaldo'
+let avisouNestaAba = false
+function jaAvisou(): boolean {
+  if (avisouNestaAba) return true
+  try { return sessionStorage.getItem(CHAVE_AVISO) === '1' } catch { return false }
+}
+function marcarAviso() {
+  avisouNestaAba = true
+  try { sessionStorage.setItem(CHAVE_AVISO, '1') } catch { /* sem armazenamento: vale a memória da aba */ }
+}
+
+/**
+ * Aviso proativo, uma vez por sessão: quando um gasto deixa o saldo em ≈ 1 apresentação (ou menos),
+ * um toast com "Comprar" — antes de a pessoa dar de cara com o botão bloqueado.
+ */
+function AvisoSaldoBaixo({ abrirCompra }: { abrirCompra: (motivo?: string) => void }) {
+  const saldo = useDemo((e) => e.creditos.saldo)
+  const anterior = useRef<number | null>(null)
+  const { mostrar } = useToast()
+  useEffect(() => {
+    const antes = anterior.current
+    anterior.current = saldo
+    if (antes === null || saldo >= antes || apresentacoesCom(saldo) > 1 || jaAvisou()) return
+    marcarAviso()
+    const n = apresentacoesCom(saldo)
+    mostrar(
+      n === 1 ? `Seu saldo dá ≈ 1 apresentação de ${TELAS_REFERENCIA} telas (${fmt(saldo)} créditos).` : `Seu saldo não dá para uma apresentação de ${TELAS_REFERENCIA} telas (${fmt(saldo)} créditos).`,
+      'info',
+      { rotulo: 'Comprar', aoClicar: () => abrirCompra() }
+    )
+  }, [saldo, mostrar, abrirCompra])
+  return null
 }
 
 export function useCreditos() {

@@ -13,7 +13,7 @@ O Mostra **gera e envia apresentações**. A pessoa traz artes (Figma, Illustrat
 3. **Do zero ao link em minutos.** Cada fluxo é medido em cliques até "o cliente abriu" (seção 4). Atalhos pulam etapas quando a intenção já é clara (prompt digitado no painel, `?comeco=template`, `?passo=arquivos`).
 4. **Profissional e calmo.** Tokens de `app/globals.css`/`tailwind.config.js`, Geist, acento `#5965F2`, formas geométricas com moderação (landing e Criar com IA; o app é sóbrio). Português do Brasil, frases curtas, sem jargão ("Enviados", não "share links").
 5. **Sempre um próximo passo.** Estado vazio ensina e oferece a ação; erro diz o que fazer (limite de plano → "Ver planos"; sem créditos → abre a compra); ações destrutivas pedem confirmação e, quando possível, oferecem "Desfazer".
-6. **Honestidade.** O que ainda não existe aparece como "em breve" (ações de IA dentro do editor) ou sai da página (PDF/PPTX, HTML offline). Demonstração sempre avisa "sem cobrança".
+6. **Honestidade.** O que ainda não existe aparece como "em breve" (gerar imagem para uma tela) ou sai da página (PDF/PPTX, HTML offline). Demonstração sempre avisa "sem cobrança".
 
 ## 2. Arquitetura de informação
 
@@ -54,9 +54,9 @@ Fonte única: `lib/planos.ts`. Landing (`components/marketing/dados.ts`), painel
 | Ação | Créditos | Observação |
 | --- | --- | --- |
 | **Gerar uma apresentação** (roteiro + telas) | 10 + 5 por tela → **10 telas = 60** | `custoApresentacao(n)` = `custoDe({ roteiro: 1, tela: n })`, cobrado **uma vez**, quando a IA escreve o roteiro. Ajustar o roteiro, trocar tema, redesenhar: grátis. "Gerar outro roteiro" mostra o custo no botão. |
-| Refazer uma tela | 5 | em breve no editor |
-| Reescrever (ou traduzir) o texto de uma tela | 2 | em breve no editor |
-| Gerar imagem para uma tela | 20 | em breve no editor |
+| Refazer uma tela | 5 | no editor: ✦ IA → Refazer tela (novo texto no mesmo layout, com instrução opcional) |
+| Reescrever (ou traduzir) o texto de uma tela | 2 | no editor: ✦ IA, menu de contexto ou seção IA do inspetor de texto |
+| Gerar imagem para uma tela | 20 | aparece desligado, "em breve" (não há modelo de imagem) |
 
 | Plano | Créditos | ≈ apresentações de 10 telas | Telas por apresentação com IA |
 | --- | --- | --- | --- |
@@ -74,6 +74,8 @@ Decisões:
 - **D4 — Preços e pacotes mantidos.** A conta já fechava em apresentações (Plus: R$24 ≈ 16 apresentações ≈ R$1,50 cada). Nenhuma mudança de preço era necessária para a mensagem ficar clara.
 - **D5 — Limite de telas por plano aplicado na UI** (`podeGerarTelas`): o Free só vê 6/8/10 telas no Criar com IA e no painel, com "Ver planos".
 - **D6 — Demonstração debita créditos fictícios** mesmo com o gerador local, para o ciclo saldo → geração → compra ser visível. No backend real, a rota só debita quando o Claude escreve e estorna se falhar (ADR 0008).
+- **D8 — IA no editor muda texto, não layout** ([ADR 0009](../adr/0009-ia-no-editor.md)). Reescrever e Refazer devolvem conteúdo para as caixas que já existem (estilos, animações e interações ficam); prévia antes/depois e aplicar em um passo de desfazer. Sem IA conectada, regras locais rotuladas "exemplo local".
+- **D9 — Aviso de saldo uma vez por sessão.** Quando um gasto deixa o saldo em ≈ 1 apresentação, um toast com "Comprar" — antes de a pessoa dar de cara com um botão bloqueado.
 - **D7 — Compra e troca de plano funcionam na demonstração** (`comprarPacote`, `trocarPlano` em `lib/demo/store.ts`). Upgrade credita os créditos do mês na hora; downgrade não apaga nada (projetos acima do limite continuam abertos, só bloqueia criar novos) e o modal avisa isso antes.
 
 ## 4. Fluxos principais (cliques contados a partir do estado inicial; digitação não conta)
@@ -120,14 +122,14 @@ Saldo sempre visível (rodapé da barra lateral, cartão do painel, cabeçalho d
 | Criar com IA | `/app/criar` · `CriarComIA.tsx` | ✅ dentro do app; custo em apresentações; limite por plano; compra quando falta saldo |
 | Novo projeto | `/app/novo` · `NovoProjeto.tsx` | ✅ atalhos por query; importar acessível no celular |
 | Detalhes do projeto | `/app/projects/:id` · `DetalheProjeto.tsx` | ✅ publicar aqui mesmo; estado "não encontrado" com saída |
-| Compartilhar | `/app/projects/:id/share` | ✅ publicar aqui mesmo (`BarraPublicacao`); ⚠ componente compartilhado repete avisos (backlog) |
+| Compartilhar | `/app/projects/:id/share` | ✅ publicar aqui mesmo (`BarraPublicacao`); sem avisos repetidos; link novo leva a Enviados |
 | Enviados | `/app/compartilhados` · `Paginas.tsx` | ✅ métricas, links, ajustes pendentes, prontos para enviar, inativos sob demanda |
 | Biblioteca | `/app/biblioteca` | ✅ envio direto e por arrastar |
 | Lixeira | `/app/lixeira` | ✅ esvaziar; aviso de que links revogados não voltam |
 | Plano e conta | `/app/settings` | ✅ créditos (saldo, ≈, extrato, quanto custa), plano (uso, troca), perfil salva, conta nova na demonstração |
-| Editor | `/app/projects/:id/edit` | ⚠ ver backlog (agentes copia-figma/animações) |
+| Editor | `/app/projects/:id/edit` | ✅ IA na tela (✦ IA: reescrever, refazer; imagem em breve) · ⚠ demais itens no backlog (agentes copia-figma/animações) |
 | Apresentar / apresentador | `/apresentar` `/apresentador` | ⚠ ver backlog (viewer) |
-| Página do cliente | `/p/:token` | ⚠ selo "Feito com Mostra" aparece em qualquer plano (backlog P1) |
+| Página do cliente | `/p/:token` | ✅ selo "Feito com Mostra" só nos planos com marca da plataforma (Free) |
 
 ## 6. Padrões de interface (app)
 

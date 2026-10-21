@@ -4,6 +4,8 @@ import type { Editor } from '@/lib/editor/useEditor'
 import type { Avisar } from '@/lib/editor/importar'
 import { importarConteudo } from '@/lib/editor/importar'
 import { serializarCamadas } from '@/lib/importar/clipboard'
+import { CUSTO_CREDITOS } from '@/lib/planos'
+import { abrirIA } from './ia/PainelIA'
 
 interface Item { rotulo: string; atalho?: string; acao: () => void; desativado?: boolean; perigo?: boolean }
 
@@ -13,6 +15,8 @@ export function MenuContexto({ editor, x, y, aoFechar, avisar }: { editor: Edito
   const ids = sel.map((l) => l.id)
   const tem = ids.length > 0
   const agrupado = tem && sel.every((l) => l.groupId && l.groupId === sel[0]!.groupId)
+  const temTexto = !!editor.cena?.layers.some((l) => l.type === 'text' && l.text.trim())
+  const textoSelecionado = sel.some((l) => l.type === 'text')
 
   useEffect(() => {
     const fora = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) aoFechar() }
@@ -51,6 +55,10 @@ export function MenuContexto({ editor, x, y, aoFechar, avisar }: { editor: Edito
       { rotulo: 'Duplicar', atalho: '⌘D', desativado: !tem, acao: () => acoes.duplicarCamadas(ids) },
     ],
     [
+      { rotulo: textoSelecionado ? '✦ Reescrever texto com IA' : '✦ Reescrever textos da tela', atalho: `${CUSTO_CREDITOS.reescrever} cr`, desativado: !temTexto, acao: () => abrirIA('texto') },
+      { rotulo: '✦ Refazer tela com IA', atalho: `${CUSTO_CREDITOS.refazerTela} cr`, acao: () => abrirIA('tela') },
+    ],
+    [
       { rotulo: 'Copiar estilo', atalho: '⌥⌘C', desativado: ids.length !== 1, acao: () => sel[0] && acoes.copiarEstilo(sel[0]) },
       { rotulo: 'Colar estilo', atalho: '⌥⌘V', desativado: !tem || !acoes.temEstiloCopiado(), acao: () => acoes.colarEstilo(ids) },
     ],
@@ -71,7 +79,7 @@ export function MenuContexto({ editor, x, y, aoFechar, avisar }: { editor: Edito
   ]
   const larg = 232
   const left = Math.min(x, window.innerWidth - larg - 8)
-  const top = Math.min(y, window.innerHeight - 420)
+  const top = Math.max(8, Math.min(y, window.innerHeight - 490))
   return (
     <div ref={ref} role="menu" aria-label="Ações" className="fixed z-50 rounded-lg border border-borda bg-superficie p-1 text-[13px] shadow-painel" style={{ left, top, width: larg }}>
       {grupos.map((g, i) => (

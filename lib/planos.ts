@@ -89,9 +89,9 @@ export const CUSTO_CREDITOS = {
   roteiro: 10,
   /** Cada tela desenhada a partir do roteiro. */
   tela: 5,
-  /** Refazer uma tela de uma apresentação existente (novo layout e texto). */
+  /** Refazer uma tela de uma apresentação existente (novo texto no mesmo layout; rota /api/ai/tela). */
   refazerTela: 5,
-  /** Reescrever ou traduzir o texto de uma tela. */
+  /** Reescrever ou traduzir o texto de uma tela (rota /api/ai/texto). */
   reescrever: 2,
   /** Gerar uma imagem para uma tela. */
   imagem: 20,
@@ -112,8 +112,8 @@ export type PacoteAvulso = (typeof PACOTES_AVULSOS)[number]
 /** Ações de IA como a pessoa as entende, todas no contexto de uma apresentação (fonte única para landing, painel e configurações). */
 export const ACOES_IA: { id: 'apresentacao' | Exclude<RecursoIa, 'roteiro' | 'tela'>; rotulo: string; detalhe: string; creditos: number; disponivel: boolean }[] = [
   { id: 'apresentacao', rotulo: 'Gerar uma apresentação', detalhe: `roteiro + telas · ${CUSTO_CREDITOS.roteiro} créditos + ${CUSTO_CREDITOS.tela} por tela`, creditos: CUSTO_CREDITOS.roteiro + TELAS_REFERENCIA * CUSTO_CREDITOS.tela, disponivel: true },
-  { id: 'refazerTela', rotulo: 'Refazer uma tela', detalhe: 'novo layout e texto para uma tela', creditos: CUSTO_CREDITOS.refazerTela, disponivel: false },
-  { id: 'reescrever', rotulo: 'Reescrever o texto de uma tela', detalhe: 'ou traduzir', creditos: CUSTO_CREDITOS.reescrever, disponivel: false },
+  { id: 'refazerTela', rotulo: 'Refazer uma tela', detalhe: 'novo texto para a tela, no mesmo layout', creditos: CUSTO_CREDITOS.refazerTela, disponivel: true },
+  { id: 'reescrever', rotulo: 'Reescrever o texto de uma tela', detalhe: 'mais curto, formal, simples… ou traduzir', creditos: CUSTO_CREDITOS.reescrever, disponivel: true },
   { id: 'imagem', rotulo: 'Gerar imagem para uma tela', detalhe: 'foto, textura ou ilustração', creditos: CUSTO_CREDITOS.imagem, disponivel: false },
 ]
 

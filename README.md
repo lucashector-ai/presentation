@@ -32,7 +32,7 @@ npm run dev                        # http://localhost:3000
 
 Contas de demonstração: qualquer e-mail/senha entram. Link público de exemplo: `/p/demo_cafe_aurora_proposta_01_token_fixo_xx`.
 
-Para o "Criar com IA" escrever roteiros com o Claude, defina `ANTHROPIC_API_KEY` em `.env.local` (só no servidor). Sem chave, a rota `/api/ai/roteiro` usa um gerador local determinístico e não cobra créditos (no modo demonstração o saldo fictício do navegador é debitado, para o ciclo de créditos ficar visível).
+Para o "Criar com IA" e as ações de IA do editor (reescrever o texto de uma tela, refazer uma tela) usarem o Claude, defina `ANTHROPIC_API_KEY` em `.env.local` (só no servidor). Sem chave, as rotas `/api/ai/roteiro`, `/api/ai/texto` e `/api/ai/tela` usam geradores locais determinísticos (rotulados "exemplo local" no editor) e não cobram créditos (no modo demonstração o saldo fictício do navegador é debitado, para o ciclo de créditos ficar visível).
 
 ### Planos e créditos
 

@@ -18,7 +18,7 @@ export default function Pagina({ params }: { params: { id: string } }) {
         <p className="mt-3 text-[14px] text-texto2">Links privados, não listados e não indexados. Só quem tem o link acessa a revisão publicada; as visualizações aparecem em <Link href="/app/compartilhados" className="text-acento hover:underline">Enviados</Link>.</p>
       </div>
       <BarraPublicacao projetoId={params.id} className="mb-6" />
-      <Compartilhar projetoId={params.id} />
+      <Compartilhar projetoId={params.id} publicarFora />
     </div>
   )
 }

@@ -418,7 +418,8 @@ export function revogarLink(idLink: string) {
 export type ResolucaoLink =
   | { state: 'unavailable' }
   | { state: 'locked'; projectName: string; linkId: string }
-  | { state: 'ready'; projectName: string; documento: DocumentoProjeto; assets: Record<string, AssetDemo> }
+  /** `marca`: mostra o selo "Feito com Mostra" (planos com `marcaDaPlataforma`, ex.: Free). */
+  | { state: 'ready'; projectName: string; documento: DocumentoProjeto; assets: Record<string, AssetDemo>; marca: boolean }
 
 /** GET /api/share/:token — nunca revela se o link existe, expirou ou foi revogado. */
 export async function resolverToken(token: string, desbloqueados: ReadonlySet<string> = new Set()): Promise<ResolucaoLink> {
@@ -432,7 +433,7 @@ export async function resolverToken(token: string, desbloqueados: ReadonlySet<st
   if (!snap) return { state: 'unavailable' }
   if (link.senhaHash && !desbloqueados.has(link.id)) return { state: 'locked', projectName: p.nome, linkId: link.id }
   atualizar((s) => ({ ...s, links: s.links.map((l) => (l.id === link.id ? { ...l, visualizacoes: l.visualizacoes + 1 } : l)) }))
-  return { state: 'ready', projectName: p.nome, documento: snap.documento, assets: mapaAssets() }
+  return { state: 'ready', projectName: p.nome, documento: snap.documento, assets: mapaAssets(), marca: PLANOS[e.workspace.planoId].capacidades.marcaDaPlataforma }
 }
 
 /** POST /api/share/:token/unlock — limite de tentativas por link. */

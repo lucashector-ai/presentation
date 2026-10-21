@@ -8,6 +8,8 @@ import type { Asset, CriarProjetoReq, CriarShareLinkReq, DetalheProjetoRes, Enve
 import type { DocumentoProjeto } from '@/lib/scene/schema'
 import { supabaseNavegador } from '@/lib/supabase/navegador'
 import type { PedidoRoteiro, RespostaRoteiro } from '@/lib/ia/pedido'
+import type { PedidoTextoSchema, RespostaTexto } from '@/lib/ia/texto'
+import type { PedidoTelaSchema, RespostaTela } from '@/lib/ia/tela'
 
 export class ErroApiCliente extends Error {
   constructor(public code: string, message: string, public details?: unknown, public status?: number) {
@@ -32,6 +34,10 @@ export const api = {
   ia: {
     /** No modo demo a rota não exige sessão. */
     roteiro: (b: Partial<PedidoRoteiro>, sinal?: AbortSignal) => chamar<RespostaRoteiro>('/api/ai/roteiro', { method: 'POST', body: JSON.stringify(b), signal: sinal }, process.env.NEXT_PUBLIC_DEMO !== '1'),
+    /** Reescrever o texto de uma tela (editor). */
+    texto: (b: z.input<typeof PedidoTextoSchema>, sinal?: AbortSignal) => chamar<RespostaTexto>('/api/ai/texto', { method: 'POST', body: JSON.stringify(b), signal: sinal }, process.env.NEXT_PUBLIC_DEMO !== '1'),
+    /** Refazer uma tela (editor). */
+    tela: (b: z.input<typeof PedidoTelaSchema>, sinal?: AbortSignal) => chamar<RespostaTela>('/api/ai/tela', { method: 'POST', body: JSON.stringify(b), signal: sinal }, process.env.NEXT_PUBLIC_DEMO !== '1'),
   },
   projetos: {
     listar: (q: { q?: string; status?: string; cursor?: string } = {}) => chamar<{ items: ProjetoResumo[]; nextCursor: string | null; total: number }>(`/api/projects?${new URLSearchParams(q as Record<string, string>)}`),

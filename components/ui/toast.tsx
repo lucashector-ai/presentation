@@ -15,7 +15,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     (texto: string, tipo: Tipo = 'info', acao?: Toast['acao']) => {
       const id = ++seq.current
       setLista((l) => [...l.slice(-3), { id, tipo, texto, acao }])
-      setTimeout(() => fechar(id), tipo === 'erro' ? 8000 : 4000)
+      setTimeout(() => fechar(id), tipo === 'erro' || acao ? 8000 : 4000) // com ação, dá tempo de clicar
     },
     [fechar]
   )
