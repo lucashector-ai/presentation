@@ -1,4 +1,5 @@
 'use client'
+import { Component, type ReactNode } from 'react'
 import type { Editor, AbaDireita } from '@/lib/editor/useEditor'
 import type { AssetDemo } from '@/lib/demo/tipos'
 import { cx } from '@/components/ui'
@@ -6,6 +7,7 @@ import { AbaDesign } from './AbaDesign'
 import { AbaAnimacao } from './AbaAnimacao'
 import { AbaInteracoes } from './AbaInteracoes'
 import { InspetorTela } from './InspetorTela'
+import { ProvedorInspetor } from './contexto'
 
 export function Inspetor({ editor, assets }: { editor: Editor; assets: AssetDemo[] }) {
   const { estado, acoes, camadasSelecionadas, cena } = editor
@@ -14,26 +16,40 @@ export function Inspetor({ editor, assets }: { editor: Editor; assets: AssetDemo
   const abas: { id: AbaDireita; rotulo: string }[] = [{ id: 'design', rotulo: 'Design' }, { id: 'animacao', rotulo: 'Animação' }, { id: 'interacoes', rotulo: 'Interações' }]
   const nada = camadasSelecionadas.length === 0
   return (
-    <aside aria-label="Propriedades" className="flex h-full flex-col border-l border-borda bg-superficie">
-      <div role="tablist" aria-label="Painel de propriedades" className="flex h-[52px] shrink-0 items-end gap-5 border-b border-borda px-4">
-        {abas.map((a) => (
-          <button key={a.id} role="tab" aria-selected={estado.abaDireita === a.id} onClick={() => acoes.ui({ abaDireita: a.id })} className={cx('flex h-full items-center gap-1.5 border-b-2 text-[13px] transition-colors', estado.abaDireita === a.id ? 'border-texto font-medium text-texto' : 'border-transparent text-texto3 hover:text-texto2')}>
-            {a.rotulo}
-            {a.id === 'interacoes' && totalInter > 0 && <span className="text-[11px] text-acento">{totalInter}</span>}
-          </button>
-        ))}
-      </div>
-      <div className="rolagem-fina min-h-0 flex-1 overflow-y-auto">
-        {estado.abaDireita === 'interacoes' ? (
-          <AbaInteracoes editor={editor} assets={mapa} />
-        ) : nada ? (
-          <InspetorTela editor={editor} assets={assets} />
-        ) : estado.abaDireita === 'animacao' ? (
-          <AbaAnimacao editor={editor} />
-        ) : (
-          <AbaDesign editor={editor} assets={assets} />
-        )}
-      </div>
-    </aside>
+    <ProvedorInspetor editor={editor} assets={assets}>
+      <aside aria-label="Propriedades" className="flex h-full flex-col border-l border-borda bg-superficie">
+        <div role="tablist" aria-label="Painel de propriedades" className="flex shrink-0 gap-0.5 border-b border-borda p-2">
+          {abas.map((a) => (
+            <button key={a.id} role="tab" aria-selected={estado.abaDireita === a.id} onClick={() => acoes.ui({ abaDireita: a.id })} className={cx('flex flex-1 items-center justify-center gap-1.5 rounded-md px-1.5 py-1.5 text-[13px] transition-colors', estado.abaDireita === a.id ? 'bg-canvas font-medium text-texto' : 'text-texto2 hover:text-texto')}>
+              {a.rotulo}
+              {a.id === 'interacoes' && totalInter > 0 && <span className="text-[11px] text-acento">{totalInter}</span>}
+            </button>
+          ))}
+        </div>
+        <div className="rolagem-fina min-h-0 flex-1 overflow-y-auto">
+          {estado.abaDireita === 'interacoes' ? (
+            <AbaInteracoes editor={editor} assets={mapa} />
+          ) : estado.abaDireita === 'animacao' ? (
+            <LimiteErro chave={camadasSelecionadas.map((c) => c.id).join(',')} alternativo={<p className="px-4 py-4 text-[12px] text-texto2">Selecione um elemento na tela para animar a entrada dele.</p>}>
+              <AbaAnimacao editor={editor} />
+            </LimiteErro>
+          ) : nada ? (
+            <InspetorTela editor={editor} assets={assets} />
+          ) : (
+            <AbaDesign editor={editor} assets={assets} />
+          )}
+        </div>
+      </aside>
+    </ProvedorInspetor>
   )
+}
+
+/** Isola falhas de uma aba (ex.: Animação sem seleção) sem derrubar o editor; reinicia quando a seleção muda. */
+class LimiteErro extends Component<{ chave: string; alternativo: ReactNode; children: ReactNode }, { erro: boolean; chave: string }> {
+  state = { erro: false, chave: this.props.chave }
+  static getDerivedStateFromError() { return { erro: true } }
+  static getDerivedStateFromProps(p: { chave: string }, s: { erro: boolean; chave: string }) {
+    return p.chave !== s.chave ? { erro: false, chave: p.chave } : null
+  }
+  render() { return this.state.erro ? this.props.alternativo : this.props.children }
 }
