@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
-import { DESCONTO_ANUAL, PACOTES_CREDITOS, PLANOS_MARKETING, ROTAS, formatarNumero, formatarReais } from './dados'
+import { CUSTO_APRESENTACAO, DESCONTO_ANUAL, PACOTES_CREDITOS, PLANOS_MARKETING, ROTAS, TELAS_EXEMPLO, formatarNumero, formatarReais } from './dados'
 import { TituloSecao } from './ui'
 
 /** Título + alternador Anual/Mensal + os quatro planos. */
@@ -55,6 +55,7 @@ export function PlanosPrecos() {
                 <span className="flex flex-col gap-0.5">
                   <span className="text-[18px] font-semibold tracking-[-0.02em]">{formatarNumero(p.creditos)} créditos</span>
                   <span className="text-[12px] opacity-75">{p.creditosLegenda}</span>
+                  <span className="text-[12px] font-semibold opacity-90">≈ {p.apresentacoes} apresentações de {TELAS_EXEMPLO} telas</span>
                 </span>
               </div>
               <p className="m-0 text-[13px] font-semibold opacity-75">{p.inclui}</p>
@@ -84,13 +85,13 @@ export function PlanosPrecos() {
 /** Cartão violeta dos pacotes avulsos: escolher um pacote atualiza o botão de compra. */
 export function CreditosAvulsos() {
   const [sel, setSel] = useState(1)
-  const pacote = PACOTES_CREDITOS[sel] ?? PACOTES_CREDITOS[1]
+  const pacote = PACOTES_CREDITOS[sel] ?? PACOTES_CREDITOS[1]!
   return (
     <div className="relative flex flex-col gap-[18px] overflow-hidden rounded-2xl border-2 border-grafite bg-violeta p-6 text-white sm:p-7">
       <div aria-hidden className="absolute -right-[34px] -top-[34px] h-[84px] w-[84px] rounded-full border-2 border-grafite bg-lima sm:-right-[30px] sm:-top-[30px] sm:h-[120px] sm:w-[120px]" />
       <h3 className="relative m-0 text-[22px] font-semibold tracking-[-0.03em]">Créditos avulsos</h3>
       <p className="relative m-0 max-w-[360px] text-[15px] leading-[1.55] text-[#E6E8FD]">
-        Acabou antes do fim do mês? Compre um pacote extra, em qualquer plano. Créditos avulsos não expiram.
+        Acabou antes do fim do mês? Compre um pacote extra, em qualquer plano. Créditos avulsos não expiram. Contas feitas com apresentações de {TELAS_EXEMPLO} telas.
       </p>
       <div role="group" aria-label="Pacotes de créditos" className="relative grid grid-cols-3 gap-2.5">
         {PACOTES_CREDITOS.map((k, i) => (
@@ -103,16 +104,50 @@ export function CreditosAvulsos() {
           >
             <span className="text-[18px] font-semibold tracking-[-0.03em] sm:text-[20px]">{formatarNumero(k.creditos)}</span>
             <span className="text-[12px] text-[#525252]">créditos</span>
+            <span className="text-[12px] leading-tight text-[#525252]">≈ {k.apresentacoes} apresentações</span>
             <span className="mt-1.5 text-[15px] font-semibold">{formatarReais(k.preco)}</span>
           </button>
         ))}
       </div>
+      <p className="relative m-0 rounded-xl border-2 border-grafite bg-white px-4 py-3 text-[14px] leading-[1.5] text-grafite">
+        O pacote de {formatarNumero(pacote.creditos)} créditos rende <strong className="font-semibold">≈ {pacote.apresentacoes} apresentações de {TELAS_EXEMPLO} telas</strong> geradas com IA, somadas ao saldo do seu plano.
+      </p>
       <Link
         href={ROTAS.cadastro}
         className="relative mt-auto self-start rounded-full border-2 border-grafite bg-grafite px-[22px] py-3.5 text-[15px] font-semibold text-[#FAFAF9] transition-transform hover:-translate-x-0.5 hover:-translate-y-0.5 hover:text-[#FAFAF9] motion-reduce:transition-none motion-reduce:hover:translate-x-0 motion-reduce:hover:translate-y-0"
       >
         Comprar {formatarNumero(pacote.creditos)} créditos · {formatarReais(pacote.preco)}
       </Link>
+    </div>
+  )
+}
+
+const OPCOES_TELAS = [6, 8, 10, 12] as const
+
+/** "Gerar uma apresentação": escolha o número de telas e veja quanto custa (roteiro + telas). */
+export function CalculadoraApresentacao() {
+  const [telas, setTelas] = useState<number>(TELAS_EXEMPLO)
+  const total = CUSTO_APRESENTACAO.calcular(telas)
+  return (
+    <div className="rounded-xl border-2 border-grafite bg-[#F4F5FE] p-4 sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="m-0 flex items-center gap-2.5 text-[17px] font-semibold tracking-[-0.02em]"><span aria-hidden className="h-2.5 w-2.5 rounded-full bg-violeta" />Gerar uma apresentação</p>
+          <p className="m-0 mt-1 text-[13px] text-[#525252]">roteiro + telas desenhadas, prontas para editar</p>
+        </div>
+        <p className="m-0 text-right" aria-live="polite">
+          <span className="block text-[34px] font-semibold leading-none tracking-[-0.04em]">{total}</span>
+          <span className="font-mono text-[12px] text-[#525252]">créditos</span>
+        </p>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <div role="radiogroup" aria-label="Telas da apresentação" className="flex gap-1 rounded-full border-[1.5px] border-grafite bg-white p-[3px] text-[13px]">
+          {OPCOES_TELAS.map((n) => (
+            <button key={n} type="button" role="radio" aria-checked={telas === n} onClick={() => setTelas(n)} className={`rounded-full px-3 py-1.5 font-semibold transition-colors ${telas === n ? 'bg-grafite text-[#FAFAF9]' : 'text-grafite hover:bg-[#F3F2F0]'}`}>{n} telas</button>
+          ))}
+        </div>
+        <span className="font-mono text-[12px] text-[#525252]">{CUSTO_APRESENTACAO.roteiro} pelo roteiro + {telas} × {CUSTO_APRESENTACAO.porTela} por tela</span>
+      </div>
     </div>
   )
 }

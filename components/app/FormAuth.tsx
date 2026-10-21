@@ -3,6 +3,8 @@ import { useId, useState, type FormEvent, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { entrar } from '@/lib/sessao'
+import { definirUsuario } from '@/lib/demo/store'
+import { PLANOS, textoApresentacoes } from '@/lib/planos'
 import { Botao, Campo, Entrada } from '@/components/ui'
 import { Marca } from '@/components/ui/Logo'
 
@@ -10,7 +12,7 @@ const EMAIL_DEMO = 'demo@mostra.app'
 
 const COPIA = {
   login: { titulo: 'Bem-vindo de volta.', subtitulo: 'Entre para continuar seus projetos.', cta: 'Entrar', troca: 'Ainda não tem conta?', trocaLink: 'Criar conta', trocaHref: '/signup' },
-  signup: { titulo: 'Crie sua conta.', subtitulo: 'Três projetos grátis, para sempre. Sem cartão de crédito.', cta: 'Criar conta', troca: 'Já tem conta?', trocaLink: 'Entrar', trocaHref: '/login' },
+  signup: { titulo: 'Crie sua conta.', subtitulo: `Três projetos e ${PLANOS.free.creditos.quantidade} créditos de IA grátis (${textoApresentacoes(PLANOS.free.creditos.quantidade)} de 10 telas). Sem cartão.`, cta: 'Criar conta', troca: 'Já tem conta?', trocaLink: 'Entrar', trocaHref: '/login' },
   recuperar: { titulo: 'Recuperar senha.', subtitulo: 'Informe seu e-mail e enviaremos um link para redefinir.', cta: 'Enviar link', troca: 'Lembrou a senha?', trocaLink: 'Voltar ao login', trocaHref: '/login' },
 } as const
 
@@ -62,7 +64,7 @@ export function FormAuth({ modo }: { modo: 'login' | 'signup' }) {
         <p className="m-0 rounded-lg bg-acentoSuave px-3.5 py-3 text-[13px] leading-normal text-[#525252]">
           Modo demonstração: nenhum e-mail é enviado. Clique abaixo para continuar como se tivesse confirmado.
         </p>
-        <Botao className="h-[46px] w-full" onClick={() => { entrar(email); router.push(destino) }}>Continuar para o painel</Botao>
+        <Botao className="h-[46px] w-full" onClick={() => { entrar(email); if (!recuperar) definirUsuario({ nome, email }); router.push(destino) }}>Continuar para o painel</Botao>
       </div>
     )
   }
@@ -116,7 +118,7 @@ export function FormAuth({ modo }: { modo: 'login' | 'signup' }) {
 
       <div className="flex flex-wrap gap-1.5 text-[14px] text-texto2">
         {c.troca}
-        <Link href={c.trocaHref} className="font-medium text-texto underline underline-offset-[3px] transition-colors hover:text-acento">{c.trocaLink}</Link>
+        <Link href={proximo && destino !== '/app' ? `${c.trocaHref}?${new URLSearchParams({ proximo: destino })}` : c.trocaHref} className="font-medium text-texto underline underline-offset-[3px] transition-colors hover:text-acento">{c.trocaLink}</Link>
       </div>
       <p className="m-0 -mt-3 text-[12px] text-texto3">Modo demonstração: qualquer e-mail e senha entram, com dados fictícios locais.</p>
     </div>

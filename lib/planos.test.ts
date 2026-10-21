@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CUSTO_CREDITOS, PLANOS, custoDe, formatarBytes, podeCriarProjeto, podeEnviarArquivo, podeGastarCreditos, podeUsarSenhaNoLink, precoComCiclo, somenteLeitura } from './planos'
+import { ACOES_IA, CUSTO_CREDITOS, PACOTES_AVULSOS, PLANOS, apresentacoesCom, custoApresentacao, custoDe, formatarBytes, podeCriarProjeto, podeEnviarArquivo, podeGastarCreditos, podeGerarTelas, podeUsarSenhaNoLink, precoComCiclo, somenteLeitura, textoApresentacoes } from './planos'
 
 describe('planos', () => {
   const uso = { projetosAtivos: 0, armazenamentoBytes: 0, bandaMesBytes: 0 }
@@ -31,6 +31,33 @@ describe('planos', () => {
     expect(custo).toBe(CUSTO_CREDITOS.roteiro + 8 * CUSTO_CREDITOS.tela)
     expect(podeGastarCreditos(49, custo).ok).toBe(false)
     expect(podeGastarCreditos(50, custo).ok).toBe(true)
+  })
+  it('créditos falam em apresentações: 10 telas = 60 créditos', () => {
+    expect(custoApresentacao(10)).toBe(60)
+    expect(custoApresentacao(6)).toBe(40)
+    expect(custoApresentacao(10)).toBe(custoDe({ roteiro: 1, tela: 10 }))
+    expect(ACOES_IA[0]).toMatchObject({ id: 'apresentacao', creditos: 60 })
+  })
+  it('planos e pacotes traduzidos em apresentações de 10 telas', () => {
+    expect(apresentacoesCom(PLANOS.free.creditos.quantidade)).toBe(6)
+    expect(apresentacoesCom(PLANOS.plus.creditos.quantidade)).toBe(16)
+    expect(apresentacoesCom(PLANOS.pro.creditos.quantidade)).toBe(66)
+    expect(apresentacoesCom(PLANOS.studio.creditos.quantidade)).toBe(333)
+    expect(PACOTES_AVULSOS.map((p) => apresentacoesCom(p.creditos))).toEqual([8, 33, 166])
+    expect(apresentacoesCom(59)).toBe(0)
+    expect(textoApresentacoes(1000)).toBe('≈ 16 apresentações')
+    expect(textoApresentacoes(60)).toBe('≈ 1 apresentação')
+    expect(textoApresentacoes(10)).toBe('menos de 1 apresentação')
+  })
+  it('vídeo não faz parte da tabela de créditos', () => {
+    expect(Object.keys(CUSTO_CREDITOS)).not.toContain('video')
+  })
+  it('limite de telas por apresentação gerada depende do plano', () => {
+    expect(podeGerarTelas('free', 10).ok).toBe(true)
+    const d = podeGerarTelas('free', 12)
+    expect(d.ok).toBe(false)
+    if (!d.ok) expect(d.upgradePara).toBe('plus')
+    expect(podeGerarTelas('plus', 12).ok).toBe(true)
   })
   it('anual sai cerca de 20% mais barato que o mensal', () => {
     expect(precoComCiclo(PLANOS.pro, 'anual')).toBe(59)

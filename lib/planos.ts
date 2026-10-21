@@ -76,15 +76,30 @@ export const PLANOS: Record<PlanoId, Plano> = {
   },
 }
 
-/** Custo em créditos de cada recurso de IA. */
+/**
+ * Custo em créditos de cada ação de IA. O Mostra gera APRESENTAÇÕES: a ação principal é
+ * "Gerar uma apresentação" = roteiro (estrutura e textos) + cada tela desenhada.
+ * Ex.: 10 telas = 10 + 10 × 5 = 60 créditos (ver `custoApresentacao`).
+ * As demais ações acontecem dentro de uma apresentação que já existe.
+ * Vídeo foi retirado da tabela: não serve ao ciclo apresentação → link → cliente e distorcia
+ * a conta "créditos ≈ apresentações" (ver docs/ux/DIRECAO.md, decisão D2).
+ */
 export const CUSTO_CREDITOS = {
+  /** Roteiro da apresentação (estrutura, títulos, textos, notas). Cobrado uma vez por geração. */
   roteiro: 10,
+  /** Cada tela desenhada a partir do roteiro. */
   tela: 5,
+  /** Refazer uma tela de uma apresentação existente (novo layout e texto). */
+  refazerTela: 5,
+  /** Reescrever ou traduzir o texto de uma tela. */
   reescrever: 2,
+  /** Gerar uma imagem para uma tela. */
   imagem: 20,
-  video: 100,
 } as const
 export type RecursoIa = keyof typeof CUSTO_CREDITOS
+
+/** Tamanho de referência usado para traduzir créditos em apresentações ("≈ 16 apresentações de 10 telas"). */
+export const TELAS_REFERENCIA = 10
 
 /** Pacotes avulsos (não expiram). */
 export const PACOTES_AVULSOS = [
@@ -92,6 +107,15 @@ export const PACOTES_AVULSOS = [
   { creditos: 2000, precoBRL: 59, destaque: true },
   { creditos: 10000, precoBRL: 229 },
 ] as const
+export type PacoteAvulso = (typeof PACOTES_AVULSOS)[number]
+
+/** Ações de IA como a pessoa as entende, todas no contexto de uma apresentação (fonte única para landing, painel e configurações). */
+export const ACOES_IA: { id: 'apresentacao' | Exclude<RecursoIa, 'roteiro' | 'tela'>; rotulo: string; detalhe: string; creditos: number; disponivel: boolean }[] = [
+  { id: 'apresentacao', rotulo: 'Gerar uma apresentação', detalhe: `roteiro + telas · ${CUSTO_CREDITOS.roteiro} créditos + ${CUSTO_CREDITOS.tela} por tela`, creditos: CUSTO_CREDITOS.roteiro + TELAS_REFERENCIA * CUSTO_CREDITOS.tela, disponivel: true },
+  { id: 'refazerTela', rotulo: 'Refazer uma tela', detalhe: 'novo layout e texto para uma tela', creditos: CUSTO_CREDITOS.refazerTela, disponivel: false },
+  { id: 'reescrever', rotulo: 'Reescrever o texto de uma tela', detalhe: 'ou traduzir', creditos: CUSTO_CREDITOS.reescrever, disponivel: false },
+  { id: 'imagem', rotulo: 'Gerar imagem para uma tela', detalhe: 'foto, textura ou ilustração', creditos: CUSTO_CREDITOS.imagem, disponivel: false },
+]
 
 export function precoComCiclo(plano: Plano, ciclo: 'mensal' | 'anual'): number {
   return ciclo === 'anual' ? plano.precoAnualBRL : plano.precoMensalBRL
@@ -152,9 +176,34 @@ export function custoDe(itens: Partial<Record<RecursoIa, number>>): number {
   return (Object.entries(itens) as [RecursoIa, number][]).reduce((s, [k, n]) => s + CUSTO_CREDITOS[k] * n, 0)
 }
 
+/** Custo de "Gerar uma apresentação" com N telas (roteiro + telas). É o que a rota /api/ai/roteiro debita. */
+export function custoApresentacao(telas: number): number {
+  return custoDe({ roteiro: 1, tela: Math.max(0, Math.round(telas)) })
+}
+
+/** Quantas apresentações de N telas cabem num saldo (arredonda para baixo). */
+export function apresentacoesCom(creditos: number, telas: number = TELAS_REFERENCIA): number {
+  const custo = custoApresentacao(telas)
+  return custo > 0 ? Math.max(0, Math.floor(creditos / custo)) : 0
+}
+
+/** "≈ 16 apresentações" / "≈ 1 apresentação" / "menos de 1 apresentação". */
+export function textoApresentacoes(creditos: number, telas: number = TELAS_REFERENCIA): string {
+  const n = apresentacoesCom(creditos, telas)
+  if (n === 0) return 'menos de 1 apresentação'
+  return `≈ ${n.toLocaleString('pt-BR')} ${n === 1 ? 'apresentação' : 'apresentações'}`
+}
+
 export function podeGastarCreditos(saldo: number, custo: number): Decisao {
   if (custo <= saldo) return { ok: true }
-  return { ok: false, motivo: `Esta geração custa ${custo} créditos e você tem ${saldo}. Compre um pacote avulso ou faça upgrade.` }
+  return { ok: false, motivo: `Esta apresentação custa ${custo} créditos e você tem ${saldo}. Compre um pacote avulso ou faça upgrade.` }
+}
+
+/** Limite de telas por apresentação gerada com IA no plano. */
+export function podeGerarTelas(planoId: PlanoId, telas: number): Decisao {
+  const plano = PLANOS[planoId]
+  if (telas <= plano.limites.telasPorPrompt) return { ok: true }
+  return { ok: false, motivo: `O plano ${plano.nome} gera apresentações de até ${plano.limites.telasPorPrompt} telas com IA.`, upgradePara: proximoPlano(planoId) }
 }
 
 export function formatarBytes(b: number): string {

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { criarLink, criarProjeto, desbloquear, ErroDemo, estado, publicar, reiniciarDemo, resolverToken, revogarLink, salvarDocumento } from './store'
+import { comprarPacote, criarLink, criarProjeto, definirUsuario, desbloquear, ErroDemo, estado, gastarCreditos, publicar, reiniciarDemo, resolverToken, revogarLink, salvarDocumento, trocarPlano } from './store'
 import { TOKEN_DEMO } from './dados'
 
 describe('store de demonstração (contratos do backend)', () => {
@@ -67,5 +67,37 @@ describe('store de demonstração (contratos do backend)', () => {
     const e = estado()
     e.workspace.planoId = 'free'
     expect(() => criarProjeto({ nome: 'Terceiro', modo: 'slides' })).toThrowError(/plano Free/)
+  })
+
+  it('créditos: gastar debita, sem saldo recusa; pacote avulso credita e entra no extrato', () => {
+    const antes = estado().creditos.saldo
+    gastarCreditos(60, 'Apresentação com IA · 10 telas')
+    expect(estado().creditos.saldo).toBe(antes - 60)
+    expect(() => gastarCreditos(10_000_000, 'grande demais')).toThrowError(ErroDemo)
+    comprarPacote(2000)
+    expect(estado().creditos.saldo).toBe(antes - 60 + 2000)
+    expect(estado().creditos.movimentos[0]).toMatchObject({ quantidade: 2000 })
+    expect(() => comprarPacote(123)).toThrowError(ErroDemo)
+  })
+
+  it('trocar de plano: upgrade credita os créditos do mês; downgrade não apaga nada', () => {
+    reiniciarDemo({ vazio: true })
+    expect(estado().workspace.planoId).toBe('free')
+    expect(estado().creditos.saldo).toBe(400)
+    trocarPlano('plus')
+    expect(estado().workspace.planoId).toBe('plus')
+    expect(estado().creditos.saldo).toBe(1400)
+    trocarPlano('free')
+    expect(estado().workspace.planoId).toBe('free')
+    expect(estado().creditos.saldo).toBe(1400)
+  })
+
+  it('espaço vazio simula conta nova; cadastro define o nome', () => {
+    reiniciarDemo({ vazio: true })
+    expect(estado().projetos).toHaveLength(0)
+    definirUsuario({ nome: 'Ana Lima', email: 'ana@estudio.com' })
+    expect(estado().usuario).toMatchObject({ nome: 'Ana Lima', email: 'ana@estudio.com' })
+    reiniciarDemo()
+    expect(estado().projetos.find((p) => p.id === 'pr-atlas')).toBeTruthy()
   })
 })
