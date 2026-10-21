@@ -1,7 +1,7 @@
 'use client'
 import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Plus, Upload, X } from 'lucide-react'
 import { criarProjeto, enviarArquivo, ErroDemo } from '@/lib/demo/store'
 import { TEMPLATES, montarDocumento } from '@/lib/ia/roteiro'
@@ -45,12 +45,14 @@ function Ilustracao({ modo }: { modo: ModoProjeto }) {
 export function NovoProjeto() {
   const router = useRouter()
   const { mostrar } = useToast()
-  const [passo, setPasso] = useState<1 | 2>(1)
+  const params = useSearchParams()
+  // atalhos do painel: /app/novo?comeco=template e /app/novo?passo=arquivos
+  const [passo, setPasso] = useState<1 | 2>(() => (params.get('passo') === 'arquivos' ? 2 : 1))
   const [nome, setNome] = useState('')
   const [cliente, setCliente] = useState('')
   const [descricao, setDescricao] = useState('')
   const [modo, setModo] = useState<ModoProjeto>('slides')
-  const [comeco, setComeco] = useState<'branco' | 'template'>('branco')
+  const [comeco, setComeco] = useState<'branco' | 'template'>(() => (params.get('comeco') === 'template' ? 'template' : 'branco'))
   const [template, setTemplate] = useState(TEMPLATES[0]!.id)
   const [arquivos, setArquivos] = useState<File[]>([])
   const [criando, setCriando] = useState(false)
@@ -84,6 +86,7 @@ export function NovoProjeto() {
       router.push(`/app/projects/${p.id}/edit`)
     } catch (e) {
       setErro(e instanceof ErroDemo ? e.message : 'Não foi possível criar o projeto.')
+      if (e instanceof ErroDemo && e.code === 'limite_do_plano') mostrar(e.message, 'erro', { rotulo: 'Ver planos', aoClicar: () => router.push('/app/settings#plano') })
       setCriando(false)
     }
   }
@@ -91,7 +94,7 @@ export function NovoProjeto() {
   return (
     <div className="flex min-h-dvh flex-col bg-fundo">
       <header className="flex h-[60px] items-center justify-between border-b border-borda px-6">
-        <nav aria-label="Trilha" className="flex items-center gap-3 text-[14px]"><Link href="/app" className="text-texto2 hover:text-texto">Meus projetos</Link><span className="text-[#D4D4D4]">/</span><span className="font-medium">Novo projeto</span></nav>
+        <nav aria-label="Trilha" className="flex items-center gap-3 text-[14px]"><Link href="/app" className="text-texto2 hover:text-texto">Início</Link><span className="text-[#D4D4D4]">/</span><span className="font-medium">Novo projeto</span></nav>
         <Link href="/app" aria-label="Fechar" className="rounded-md p-1.5 text-texto2 hover:bg-hover"><X className="h-4 w-4" /></Link>
       </header>
 
@@ -175,11 +178,11 @@ export function NovoProjeto() {
       </main>
 
       <footer className="sticky bottom-0 border-t border-borda bg-fundo/95 backdrop-blur">
-        <div className="mx-auto flex h-[76px] max-w-[1136px] items-center justify-between gap-4 px-6">
-          <span className="truncate text-[13px] text-texto2">{erro ? <span className="text-perigo" role="alert">{erro}</span> : resumo}{arquivos.length ? ` · ${arquivos.length} arquivo(s)` : ''}</span>
-          <div className="flex items-center gap-3">
-            {passo === 1 ? <Link href="/app" className="px-4 py-2.5 text-[14px] font-medium">Cancelar</Link> : <button type="button" onClick={() => setPasso(1)} className="px-4 py-2.5 text-[14px] font-medium">Voltar</button>}
-            {passo === 1 && <button type="button" onClick={() => setPasso(2)} className="hidden h-11 rounded-[9px] border-[1.5px] border-bordaForte px-5 text-[14px] font-medium hover:border-[#D4D4D4] sm:block">Importar arquivos</button>}
+        <div className="mx-auto flex h-[76px] max-w-[1136px] items-center justify-between gap-4 px-4 sm:px-6">
+          <span className={cx('min-w-0 truncate text-[13px] text-texto2', !erro && 'hidden sm:block')}>{erro ? <span className="text-perigo" role="alert">{erro}</span> : resumo}{arquivos.length ? ` · ${arquivos.length} arquivo(s)` : ''}</span>
+          <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+            {passo === 1 ? <Link href="/app" className="hidden px-4 py-2.5 text-[14px] font-medium sm:block">Cancelar</Link> : <button type="button" onClick={() => setPasso(1)} className="px-4 py-2.5 text-[14px] font-medium">Voltar</button>}
+            {passo === 1 && <button type="button" onClick={() => setPasso(2)} className="h-11 rounded-[9px] border-[1.5px] border-bordaForte px-3 text-[14px] font-medium hover:border-[#D4D4D4] sm:px-5"><span className="sm:hidden">Arquivos</span><span className="hidden sm:inline">Importar arquivos</span></button>}
             <button type="button" disabled={criando} onClick={criar} className="h-11 rounded-[9px] bg-grafite px-5 text-[14px] font-medium text-fundo hover:bg-[#2a2a2a] disabled:opacity-60">{criando ? 'Criando…' : 'Criar projeto'}</button>
           </div>
         </div>

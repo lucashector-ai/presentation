@@ -13,9 +13,9 @@ SaaS privado para designers, diretores de arte e estúdios: cole artes do Figma 
 | Colar/importar de Figma, Illustrator, navegador: SVG (sanitizado), imagens, texto, links (YouTube/Vimeo/Figma/Spline viram embed) | ✅ ver ADR 0006 |
 | 3D (GLB/glTF do Blender via `<model-viewer>`), Lottie, embeds com allowlist | ✅ ver ADR 0007 |
 | Visualizador Slides, Story e Explorar (mapa navegável), transição morph, avanço automático, modo apresentador com notas sincronizado | ✅ |
-| Criar com IA (`/criar`): prompt ou texto → roteiro editável → telas desenhadas; créditos por workspace | ✅ ver ADR 0008 — usa o Claude com `ANTHROPIC_API_KEY`, senão gerador local |
+| Criar com IA (`/app/criar`; `/criar` redireciona mantendo o prompt): prompt ou texto → roteiro editável → telas desenhadas; créditos por workspace | ✅ ver ADR 0008 — usa o Claude com `ANTHROPIC_API_KEY`, senão gerador local |
 | Publicação (snapshot imutável) e links (token hash, senha, validade, revogação, limite de tentativas) | ✅ no modo demonstração |
-| Painel, detalhes, compartilhamento, conta/planos, marketing, login/cadastro | ✅ |
+| Painel como centro do app (criar, continuar, enviados e visualizações, créditos e compra, primeiros passos, busca ⌘K), detalhes, compartilhamento, conta/planos, marketing, login/cadastro | ✅ ver `docs/ux/DIRECAO.md` |
 | Banco (migrations + RLS + bucket privado) e rotas `/api` sobre Supabase | ✅ escritas e compiladas, **ainda não exercitadas contra um projeto Supabase real** |
 | UI ligada ao backend real (hoje usa `lib/demo/store.ts` no navegador) | ⏳ Sprint 1: trocar o módulo de dados por `lib/api/cliente.ts` |
 | Worker de thumbnails/transcodificação, billing (Stripe), e-mail transacional | ⏳ não iniciados |
@@ -32,7 +32,27 @@ npm run dev                        # http://localhost:3000
 
 Contas de demonstração: qualquer e-mail/senha entram. Link público de exemplo: `/p/demo_cafe_aurora_proposta_01_token_fixo_xx`.
 
-Para o "Criar com IA" escrever roteiros com o Claude, defina `ANTHROPIC_API_KEY` em `.env.local` (só no servidor). Sem chave, a rota `/api/ai/roteiro` usa um gerador local determinístico e não cobra créditos.
+Para o "Criar com IA" escrever roteiros com o Claude, defina `ANTHROPIC_API_KEY` em `.env.local` (só no servidor). Sem chave, a rota `/api/ai/roteiro` usa um gerador local determinístico e não cobra créditos (no modo demonstração o saldo fictício do navegador é debitado, para o ciclo de créditos ficar visível).
+
+### Planos e créditos
+
+Fonte única: `lib/planos.ts` (servidor, painel e landing leem os mesmos números). O Mostra gera **apresentações**, então os créditos são explicados em apresentações:
+
+| Ação | Créditos |
+| --- | --- |
+| Gerar uma apresentação (roteiro + telas) | 10 + 5 por tela — **10 telas = 60** (cobrado uma vez; ajustar o roteiro, trocar o tema e redesenhar é grátis) |
+| Refazer uma tela | 5 |
+| Reescrever ou traduzir o texto de uma tela | 2 |
+| Gerar imagem para uma tela | 20 |
+
+| Plano | Preço (anual / mensal) | Créditos | ≈ apresentações de 10 telas |
+| --- | --- | --- | --- |
+| Free | R$0 | 400 no cadastro | 6 |
+| Plus | R$24 / R$29 | 1.000 por mês | 16 |
+| Pro | R$59 / R$74 | 4.000 por mês | 66 |
+| Studio | R$119 / R$149 por membro | 20.000 por mês, compartilhados | 333 |
+
+Pacotes avulsos (não expiram): 500 por R$19 (≈ 8), 2.000 por R$59 (≈ 33), 10.000 por R$229 (≈ 166). Editar, apresentar, compartilhar e acompanhar o cliente nunca consomem créditos. Decisões e justificativas (inclusive a saída do "vídeo curto") em `docs/ux/DIRECAO.md`.
 
 ## Como testar
 

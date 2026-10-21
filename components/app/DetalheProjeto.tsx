@@ -8,9 +8,10 @@ import { useDemo } from '@/lib/demo/useDemo'
 import { estadoDoLink } from '@/lib/share/token'
 import { assetsDaCamada } from '@/lib/scene/schema'
 import { CapaProjeto } from './CapaProjeto'
+import { BarraPublicacao } from './BarraPublicacao'
 import { MiniaturaCena } from '@/components/editor/MiniaturaCena'
 import { formatarRelativo, statusExibido } from './Dashboard'
-import { ModalConfirmar } from '@/components/ui'
+import { EstadoVazio, ModalConfirmar } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 import { abrirApresentacao } from '@/components/viewer/retorno'
 
@@ -22,7 +23,7 @@ export function DetalheProjeto({ id }: { id: string }) {
   const { mostrar } = useToast()
   const [excluir, setExcluir] = useState(false)
 
-  if (!projeto) return <p className="text-sm text-texto2">Projeto não encontrado. <Link href="/app" className="underline">Voltar</Link></p>
+  if (!projeto) return <EstadoVazio titulo="Projeto não encontrado" descricao="Ele pode ter sido movido para a lixeira ou excluído." acao={<div className="flex gap-2"><Link href="/app" className="rounded-[9px] bg-grafite px-4 py-2.5 text-[14px] font-medium text-fundo">Voltar ao início</Link><Link href="/app/lixeira" className="rounded-[9px] border-[1.5px] border-bordaForte px-4 py-2.5 text-[14px] font-medium">Abrir a lixeira</Link></div>} />
   const ativos = links.filter((l) => estadoDoLink({ expiresAt: l.expiraEm, revokedAt: l.revogadoEm }) === 'ativo')
   const st = statusExibido(projeto, new Set(ativos.length ? [projeto.id] : []))
   const midias = new Set(projeto.documento.scenes.flatMap((s) => [...s.layers.flatMap(assetsDaCamada), ...(s.backgroundAssetId ? [s.backgroundAssetId] : [])]))
@@ -32,7 +33,7 @@ export function DetalheProjeto({ id }: { id: string }) {
   return (
     <div className="grid gap-10 xl:grid-cols-[minmax(0,1fr)_320px]">
       <div className="min-w-0">
-        <nav aria-label="Trilha" className="mb-4 flex items-center gap-2 text-[13px] text-texto2"><Link href="/app" className="hover:text-texto">Projetos</Link><span className="text-[#D4D4D4]">/</span><span className="truncate text-texto">{projeto.nome}</span></nav>
+        <nav aria-label="Trilha" className="mb-4 flex items-center gap-2 text-[13px] text-texto2"><Link href="/app" className="hover:text-texto">Início</Link><span className="text-[#D4D4D4]">/</span><span className="truncate text-texto">{projeto.nome}</span></nav>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <div className="rotulo-mono">{projeto.categoria ?? projeto.modo}{projeto.cliente ? ` · ${projeto.cliente}` : ''}</div>
@@ -46,7 +47,8 @@ export function DetalheProjeto({ id }: { id: string }) {
             <button onClick={() => router.push(`/app/projects/${id}/share`)} className="flex h-10 items-center gap-2 rounded-[9px] bg-acento px-4 text-[14px] font-medium text-white hover:bg-[#4A55E0]"><Share2 className="h-4 w-4" /> Compartilhar</button>
           </div>
         </div>
-        <div className="mt-8 overflow-hidden rounded-xl border border-black/5">{projeto.documento.scenes[0] && <CapaProjeto cena={projeto.documento.scenes[0]} assets={assets} proporcao={16 / 9} />}</div>
+        <BarraPublicacao projetoId={id} className="mt-6" />
+        <div className="mt-6 overflow-hidden rounded-xl border border-black/5">{projeto.documento.scenes[0] && <CapaProjeto cena={projeto.documento.scenes[0]} assets={assets} proporcao={16 / 9} />}</div>
         <h2 className="mt-10 text-[15px] font-medium">Telas · {projeto.documento.scenes.length}</h2>
         <ul className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {projeto.documento.scenes.map((s, i) => (

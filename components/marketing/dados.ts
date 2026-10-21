@@ -2,6 +2,7 @@
  * Conteúdo da landing (Claude Design, "Landing v2"). Dados puros — sem JSX — para poder ser
  * reutilizado em outras telas (página de preços, painel de créditos, central de ajuda...).
  */
+import { ACOES_IA, CUSTO_CREDITOS, DESCONTO_ANUAL as DESCONTO, PACOTES_AVULSOS, PLANOS, TELAS_REFERENCIA, apresentacoesCom, custoApresentacao } from '@/lib/planos'
 
 export const ROTAS = {
   entrar: '/login',
@@ -59,7 +60,7 @@ export const IA_EXEMPLOS: { rotulo: string; cor: string; forma: TipoForma; promp
 ]
 
 export const IA_ETAPAS = [
-  { titulo: '1 · Prompt', texto: 'Descreva, cole um briefing ou importe um PDF.' },
+  { titulo: '1 · Prompt', texto: 'Descreva, cole um briefing ou importe um texto.' },
   { titulo: '2 · Roteiro', texto: 'Edite, reordene e ajuste cada tela.' },
   { titulo: '3 · Telas', texto: 'Tema, formas e layout aplicados na hora.' },
 ] as const
@@ -109,7 +110,7 @@ export const RECURSOS: { icone: IconeRecurso; titulo: string; texto: string }[] 
   { icone: 'quadrado', titulo: 'Animações e transições', texto: 'Fade, slide, scale e morph entre telas, com duração e easing ajustáveis e prévia instantânea.' },
   { icone: 'triangulo', titulo: 'Vídeo e mídia em alta', texto: 'MP4, GIF e Lottie rodando no projeto, imagens sem compressão destrutiva e carregamento progressivo.' },
   { icone: 'semicirculo', titulo: 'Links privados', texto: 'Senha, expiração, domínio próprio e permissão de comentários — você controla quem vê e por quanto tempo.' },
-  { icone: 'pontos', titulo: 'Métricas de visualização', texto: 'Saiba quem abriu, quanto tempo ficou em cada tela e onde clicou. Ideal para acompanhar propostas.' },
+  { icone: 'pontos', titulo: 'Acompanhe o cliente', texto: 'Veja quantas vezes cada link foi aberto, publique ajustes no mesmo link e revogue quando quiser — tudo em Enviados. Tempo por tela chega em breve.' },
   { icone: 'avatares', titulo: 'Colaboração em tempo real', texto: 'Edite com o estúdio ao mesmo tempo, deixe comentários no canvas e mantenha uma biblioteca compartilhada.' },
   { icone: 'cubo', titulo: '3D e arquivos de design', texto: 'Cole direto do Figma e do Illustrator, solte SVG, fotos, vídeos e modelos 3D do Blender (GLB).' },
 ]
@@ -120,13 +121,15 @@ export const COMPARACAO = [
   { rotulo: 'Vídeo dentro do projeto', pdf: 'Não', mostra: 'Sim' },
   { rotulo: 'Interações clicáveis', pdf: 'Limitado', mostra: 'Sem código' },
   { rotulo: 'Atualizar depois de enviar', pdf: 'Reenviar arquivo', mostra: 'Mesmo link' },
-  { rotulo: 'Saber se o cliente abriu', pdf: 'Não', mostra: 'Métricas por tela' },
+  { rotulo: 'Saber se o cliente abriu', pdf: 'Não', mostra: 'Visualizações por link' },
   { rotulo: 'Tamanho do envio', pdf: 'Anexos pesados', mostra: 'Um link' },
 ] as const
 
 // ---------- Preços ----------
+// Preços, créditos e pacotes vêm de lib/planos.ts (fonte única: backend, painel e landing usam os mesmos números).
+
 /** Desconto do plano anual sobre o mensal. */
-export const DESCONTO_ANUAL = 0.2
+export const DESCONTO_ANUAL = DESCONTO
 
 export interface PlanoMarketing {
   id: 'free' | 'plus' | 'pro' | 'studio'
@@ -139,6 +142,8 @@ export interface PlanoMarketing {
   descricao: string
   creditos: number
   creditosLegenda: string
+  /** Créditos traduzidos em apresentações de 10 telas. */
+  apresentacoes: number
   inclui: string
   itens: string[]
   cta: string
@@ -146,63 +151,71 @@ export interface PlanoMarketing {
   cores: { fundo: string; tinta: string; moeda: string; ctaFundo: string; ctaTinta: string }
 }
 
+const plano = (id: PlanoMarketing['id']) => {
+  const p = PLANOS[id]
+  return { id, nome: p.nome, precoAnual: p.precoAnualBRL, precoMensal: p.precoMensalBRL, creditos: p.creditos.quantidade, apresentacoes: apresentacoesCom(p.creditos.quantidade) }
+}
+
 export const PLANOS_MARKETING: PlanoMarketing[] = [
   {
-    id: 'free', nome: 'Free', precoAnual: 0, precoMensal: 0, periodo: 'para sempre',
+    ...plano('free'), periodo: 'para sempre',
     descricao: 'Para experimentar e apresentar os primeiros projetos.',
-    creditos: 400, creditosLegenda: 'no cadastro · uma vez',
-    inclui: 'Free inclui:', itens: ['3 projetos', 'Até 10 telas por prompt', 'Slides, Story e Explorar', 'Importar PDF e PPTX', 'Exportar PDF e PNG'],
+    creditosLegenda: 'no cadastro · uma vez',
+    inclui: 'Free inclui:', itens: ['3 projetos', `Apresentações de até ${PLANOS.free.limites.telasPorPrompt} telas com IA`, 'Slides, Story e Explorar', 'Cole do Figma e do Illustrator', 'Links privados revogáveis'],
     cta: 'Começar grátis',
     cores: { fundo: '#FAFAF9', tinta: '#171717', moeda: '#F2C14E', ctaFundo: '#FFFFFF', ctaTinta: '#171717' },
   },
   {
-    id: 'plus', nome: 'Plus', precoAnual: 24, precoMensal: 29, periodo: '/ mês',
+    ...plano('plus'), periodo: '/ mês',
     descricao: 'Para quem apresenta de vez em quando e quer tirar a marca.',
-    creditos: 1000, creditosLegenda: 'por mês',
-    inclui: 'Tudo do Free, e:', itens: ['Projetos ilimitados', 'Até 50 telas por prompt', 'Sem marca d’água Mostra', 'Imagens com IA avançadas'],
+    creditosLegenda: 'por mês',
+    inclui: 'Tudo do Free, e:', itens: ['Projetos ilimitados', `Apresentações de até ${PLANOS.plus.limites.telasPorPrompt} telas com IA`, 'Sem marca d’água Mostra', 'Imagens com IA avançadas'],
     cta: 'Assinar Plus',
     cores: { fundo: '#EEE7DB', tinta: '#2B1D16', moeda: '#E4572E', ctaFundo: '#FFFFFF', ctaTinta: '#171717' },
   },
   {
-    id: 'pro', nome: 'Pro', precoAnual: 59, precoMensal: 74, periodo: '/ mês', destaque: true,
+    ...plano('pro'), periodo: '/ mês', destaque: true,
     descricao: 'Para freelancers e diretores de arte que apresentam toda semana.',
-    creditos: 4000, creditosLegenda: 'por mês',
-    inclui: 'Tudo do Plus, e:', itens: ['Até 100 telas por prompt', 'Modelos de imagem premium', 'Links com senha e métricas', 'Marca própria e 10 domínios', 'Acesso à API'],
+    creditosLegenda: 'por mês',
+    inclui: 'Tudo do Plus, e:', itens: [`Apresentações de até ${PLANOS.pro.limites.telasPorPrompt} telas com IA`, 'Links com senha e métricas', 'Modelos de imagem premium', 'Marca própria e 10 domínios', 'Acesso à API'],
     cta: 'Assinar Pro',
     cores: { fundo: '#171717', tinta: '#FAFAF9', moeda: '#D7F25C', ctaFundo: '#D7F25C', ctaTinta: '#171717' },
   },
   {
-    id: 'studio', nome: 'Studio', precoAnual: 119, precoMensal: 149, periodo: '/ membro / mês',
+    ...plano('studio'), periodo: '/ membro / mês',
     descricao: 'Para estúdios e agências que trabalham em equipe.',
-    creditos: 20000, creditosLegenda: 'por mês · compartilhados',
-    inclui: 'Tudo do Pro, e:', itens: ['Modelos de IA mais avançados (texto, imagem, vídeo)', 'Edição em tempo real e biblioteca', 'Até 100 domínios próprios', 'Acesso antecipado a novidades'],
+    creditosLegenda: 'por mês · compartilhados',
+    inclui: 'Tudo do Pro, e:', itens: ['Créditos compartilhados pela equipe', 'Modelos de IA mais avançados para texto e imagem', 'Edição em tempo real e biblioteca', 'Até 100 domínios próprios'],
     cta: 'Falar com vendas',
     cores: { fundo: '#F2C14E', tinta: '#2A2118', moeda: '#FAFAF9', ctaFundo: '#171717', ctaTinta: '#FAFAF9' },
   },
 ]
 
-/** Custo em créditos de cada recurso de IA. Editar, apresentar e compartilhar não consomem créditos. */
-export const CUSTOS_CREDITOS: { id: string; rotulo: string; creditos: number; cor: string; forma: TipoForma }[] = [
-  { id: 'roteiro', rotulo: 'Gerar roteiro com IA', creditos: 10, cor: '#5965F2', forma: 'circulo' },
-  { id: 'tela', rotulo: 'Gerar uma tela', creditos: 5, cor: '#E4572E', forma: 'quadradoSuave' },
-  { id: 'texto', rotulo: 'Reescrever ou traduzir texto', creditos: 2, cor: '#D7F25C', forma: 'quadrado' },
-  { id: 'imagem', rotulo: 'Gerar imagem com IA', creditos: 20, cor: '#F2C14E', forma: 'semicirculo' },
-  { id: 'video', rotulo: 'Gerar vídeo curto', creditos: 100, cor: '#3A2E5C', forma: 'circulo' },
-]
+/** Tamanho de referência das contas "≈ N apresentações". */
+export const TELAS_EXEMPLO = TELAS_REFERENCIA
+
+/** Quanto custa gerar uma apresentação: roteiro + cada tela. */
+export const CUSTO_APRESENTACAO = { roteiro: CUSTO_CREDITOS.roteiro, porTela: CUSTO_CREDITOS.tela, calcular: custoApresentacao }
+
+/** Ações secundárias, todas dentro de uma apresentação que já existe. Editar, apresentar e compartilhar não consomem créditos. */
+export const CUSTOS_CREDITOS: { id: string; rotulo: string; detalhe: string; creditos: number; cor: string; forma: TipoForma }[] = ACOES_IA.filter((a) => a.id !== 'apresentacao').map((a, i) => ({
+  id: a.id,
+  rotulo: a.rotulo,
+  detalhe: a.detalhe,
+  creditos: a.creditos,
+  cor: ['#E4572E', '#D7F25C', '#F2C14E'][i] ?? '#5965F2',
+  forma: (['quadradoSuave', 'quadrado', 'semicirculo'] as const)[i] ?? 'circulo',
+}))
 
 /** Pacotes avulsos: não expiram, valem em qualquer plano. */
-export const PACOTES_CREDITOS = [
-  { creditos: 500, preco: 19 },
-  { creditos: 2000, preco: 59 },
-  { creditos: 10000, preco: 229 },
-] as const
+export const PACOTES_CREDITOS = PACOTES_AVULSOS.map((p) => ({ creditos: p.creditos, preco: p.precoBRL, apresentacoes: apresentacoesCom(p.creditos) }))
 
 // ---------- FAQ ----------
 export const FAQ = [
   { pergunta: 'Preciso saber programar?', resposta: 'Não. Tudo é visual: arraste elementos, escolha gatilhos e ações em listas e veja a prévia na hora.' },
   { pergunta: 'O cliente precisa criar conta para ver?', resposta: 'Não. Ele abre o link no navegador, no computador ou no celular. Se você ativar senha, só quem tiver a senha entra.' },
-  { pergunta: 'Posso importar meus arquivos do Figma ou PDF?', resposta: 'Sim. Importe imagens, PDFs e frames exportados; cada página vira uma tela editável.' },
-  { pergunta: 'Dá para apresentar offline?', resposta: 'Sim, nos planos pagos você baixa uma versão HTML que roda sem internet.' },
+  { pergunta: 'Como funcionam os créditos?', resposta: `Créditos pagam a IA que escreve suas apresentações: cada apresentação gerada custa ${CUSTO_CREDITOS.roteiro} créditos pelo roteiro + ${CUSTO_CREDITOS.tela} por tela (10 telas = ${custoApresentacao(10)}). O Free vem com ${PLANOS.free.creditos.quantidade} créditos (≈ ${apresentacoesCom(PLANOS.free.creditos.quantidade)} apresentações) e o Plus renova ${PLANOS.plus.creditos.quantidade.toLocaleString('pt-BR')} por mês (≈ ${apresentacoesCom(PLANOS.plus.creditos.quantidade)}). Editar, apresentar e compartilhar não gastam nada.` },
+  { pergunta: 'Posso importar meus arquivos do Figma ou do Illustrator?', resposta: 'Sim. Copie no Figma ou no Illustrator e cole no editor (⌘V): vetores viram camadas editáveis. Também dá para soltar PNG, JPG, SVG, vídeo, GIF, Lottie e modelos 3D do Blender (GLB); cada imagem pode virar uma tela.' },
   { pergunta: 'Posso cancelar quando quiser?', resposta: 'Sim. Seus projetos continuam acessíveis e voltam para o limite do plano Free.' },
 ] as const
 

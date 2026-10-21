@@ -8,9 +8,9 @@ import { FORMATOS, SCHEMA_VERSION, novaCena, type DocumentoProjeto, type ModoPro
 import { podeGastarCreditos } from '@/lib/planos'
 import { validarDocumento } from '@/lib/scene/validate'
 import { estadoDoLink, gerarToken, hashSenha, hashToken, verificarSenha, avaliarTentativa, registrarFalha, type RegistroTentativas } from '@/lib/share/token'
-import { PLANOS, podeCriarProjeto, podeEnviarArquivo, podeUsarSenhaNoLink } from '@/lib/planos'
+import { PACOTES_AVULSOS, PLANOS, podeCriarProjeto, podeEnviarArquivo, podeUsarSenhaNoLink, type PlanoId } from '@/lib/planos'
 import { classificar, precisaTexto } from '@/lib/importar/arquivos'
-import { estadoInicial } from './dados'
+import { estadoInicial, estadoVazio } from './dados'
 import type { AssetDemo, EstadoDemo, LinkCompartilhado, Projeto } from './tipos'
 
 const CHAVE = 'mostra.demo.v2'
@@ -67,8 +67,18 @@ export function assinar(f: () => void): () => void {
 export function estado(): EstadoDemo {
   return carregar()
 }
-export function reiniciarDemo() {
-  gravar(estadoInicial())
+/** Restaura os dados de exemplo; `vazio` simula uma conta recém-criada (plano Free, nada criado). */
+export function reiniciarDemo(opcoes: { vazio?: boolean } = {}) {
+  const atual = cache?.usuario
+  gravar(opcoes.vazio ? estadoVazio(atual && atual.id === 'us-demo' && atual.nome !== 'Marina Duarte' ? atual : undefined) : estadoInicial())
+}
+
+/** Atualiza nome/e-mail de quem está usando a demonstração (cadastro). */
+export function definirUsuario(dados: { nome?: string; email?: string }) {
+  const nome = dados.nome?.trim()
+  const email = dados.email?.trim()
+  if (!nome && !email) return
+  atualizar((e) => ({ ...e, usuario: { ...e.usuario, ...(nome ? { nome: nome.slice(0, 80) } : {}), ...(email ? { email: email.slice(0, 120) } : {}) } }))
 }
 
 function auditar(e: EstadoDemo, tipo: string, projectId: string | null, meta: Record<string, string | number | boolean> = {}): EstadoDemo {
@@ -172,6 +182,33 @@ export function gastarCreditos(custo: number, motivo: string) {
 
 export function adicionarCreditos(quantidade: number, motivo: string) {
   atualizar((e) => ({ ...e, creditos: { saldo: e.creditos.saldo + quantidade, movimentos: [{ id: id('mv'), quantidade, motivo, criadoEm: agoraIso() }, ...e.creditos.movimentos].slice(0, 200) } }))
+}
+
+/** Compra de pacote avulso (demonstração: sem cobrança). No backend real: checkout → webhook → credit_transactions. */
+export function comprarPacote(creditos: number) {
+  const pacote = PACOTES_AVULSOS.find((p) => p.creditos === creditos)
+  if (!pacote) throw new ErroDemo('entrada_invalida', 'Pacote inexistente')
+  adicionarCreditos(pacote.creditos, `Pacote avulso de ${pacote.creditos.toLocaleString('pt-BR')} créditos`)
+  return pacote
+}
+
+/**
+ * Troca de plano (demonstração: sem cobrança). Upgrade credita os créditos mensais do novo plano na hora;
+ * downgrade só muda os limites — nada é apagado, o que passar do limite fica só para leitura/sem criar novos.
+ */
+export function trocarPlano(planoId: PlanoId) {
+  const e = carregar()
+  const atual = PLANOS[e.workspace.planoId]
+  const novo = PLANOS[planoId]
+  if (!novo) throw new ErroDemo('entrada_invalida', 'Plano inexistente')
+  if (atual.id === novo.id) return
+  const ordem: PlanoId[] = ['free', 'plus', 'pro', 'studio']
+  const upgrade = ordem.indexOf(novo.id) > ordem.indexOf(atual.id)
+  let prox: EstadoDemo = { ...e, workspace: { ...e.workspace, planoId: novo.id, estadoAssinatura: 'ativa' } }
+  if (upgrade && novo.creditos.recorrencia === 'mensal') {
+    prox = { ...prox, creditos: { saldo: prox.creditos.saldo + novo.creditos.quantidade, movimentos: [{ id: id('mv'), quantidade: novo.creditos.quantidade, motivo: `Créditos mensais do plano ${novo.nome}`, criadoEm: agoraIso() }, ...prox.creditos.movimentos].slice(0, 200) } }
+  }
+  gravar(auditar(prox, 'workspace.plan_changed', null, { de: atual.id, para: novo.id }))
 }
 
 export function duplicarProjeto(idProjeto: string): Projeto {

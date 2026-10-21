@@ -200,3 +200,19 @@ export function estadoInicial(): EstadoDemo {
     creditos: { saldo: 18_420, movimentos: [{ id: 'mv-1', quantidade: 20_000, motivo: 'Créditos mensais do plano Studio', criadoEm: '2026-10-01T00:00:00.000Z' }, { id: 'mv-2', quantidade: -1_580, motivo: 'Gerações de IA em outubro', criadoEm: AGORA }] },
   }
 }
+
+/** Espaço novo, como o de quem acabou de criar a conta: plano Free, 400 créditos de boas-vindas, nada criado. */
+export function estadoVazio(usuario?: { nome: string; email: string }): EstadoDemo {
+  const agora = new Date().toISOString()
+  return {
+    versao: 2,
+    usuario: { id: 'us-demo', nome: usuario?.nome || 'Você', email: usuario?.email || 'voce@estudio.com' },
+    workspace: { id: WS, nome: 'Meu espaço', planoId: 'free', estadoAssinatura: 'ativa', membros: 1 },
+    projetos: [],
+    assets: [],
+    links: [],
+    snapshots: [],
+    auditoria: [],
+    creditos: { saldo: 400, movimentos: [{ id: 'mv-boas-vindas', quantidade: 400, motivo: 'Créditos de boas-vindas do plano Free', criadoEm: agora }] },
+  }
+}
