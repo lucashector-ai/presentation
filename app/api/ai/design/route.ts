@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { autenticar, hashIp, lerJson, limitar, responder, rota } from '@/lib/api/servidor'
+import { autenticar, ErroHttp, hashIp, lerJson, limitar, responder, rota } from '@/lib/api/servidor'
+import { planoEUso } from '@/lib/api/planoServidor'
 import { cobrarIaComUso, type CobrancaIa } from '@/lib/api/creditosServidor'
 import { desenharTelasClaude, iaConfigurada } from '@/lib/ia/claude'
 import { PedidoDesignSchema, type RespostaDesign } from '@/lib/ia/design'
@@ -7,7 +8,7 @@ import { resolverTema } from '@/lib/ia/designSystem'
 import { desenharLocal } from '@/lib/ia/desenhoLocal'
 import { custoDesenhoUsd } from '@/lib/ia/economia'
 import { MODELO_POR_ETAPA } from '@/lib/ia/modelos'
-import { custoDesenho, DIVISAO_TELA } from '@/lib/planos'
+import { custoDesenho, DIVISAO_TELA, podeGerarTelas } from '@/lib/planos'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 180
@@ -36,6 +37,10 @@ export const POST = rota(async (req, _ctx, requestId) => {
   let cobranca: CobrancaIa | null = null
   if (!DEMO) {
     const ctx = await autenticar(req, requestId)
+    // telas acrescentadas no roteiro também respeitam o limite de telas por apresentação do plano
+    const { plano } = await planoEUso(ctx)
+    const limite = podeGerarTelas(plano.planoId, pedido.roteiro.telas.length)
+    if (!limite.ok) throw new ErroHttp('limite_do_plano', limite.motivo, { upgradePara: limite.upgradePara })
     if (iaConfigurada()) {
       cobranca = await cobrarIaComUso(ctx, custo, { debito: `Design com IA · ${n} ${n === 1 ? 'tela' : 'telas'}`, estorno: 'Estorno: design com IA não gerado', semSaldo: 'Créditos insuficientes para desenhar estas telas.' }, { acao: 'design', modelo: MODELO_POR_ETAPA.design.id, custoUsd: custoDesenhoUsd(n, pedido.roteiro.telas.length).usd })
     }

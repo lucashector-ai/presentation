@@ -11,7 +11,8 @@ import type { Editor } from '@/lib/editor/useEditor'
 import type { CamadaTexto, Cena } from '@/lib/scene/schema'
 import { medirTexto } from '@/lib/editor/medirTexto'
 import { dados, ehErroDados, mensagemDeErro, useDados } from '@/lib/dados'
-import { CUSTO_CREDITOS, textoApresentacoes } from '@/lib/planos'
+import { CUSTO_CREDITOS } from '@/lib/planos'
+import { textoTelas } from '@/lib/telasIa'
 import { ACOES_TEXTO, IDIOMAS, NOMES_IDIOMA, ROTULOS_ACAO, type AcaoTexto, type Idioma } from '@/lib/ia/texto'
 import { aplicarTela, mapearTela, quantidadeDeItens, textosDaTela, textosParaReescrever, type ConteudoTela, type MapaTela } from '@/lib/ia/tela'
 import type { TipoTela } from '@/lib/ia/roteiro'
@@ -221,7 +222,7 @@ export function PainelIA({ editor, nomeProjeto, aba, aoMudarAba, aoFechar }: { e
         <span className="font-medium">IA nesta tela</span>
         <span className="mono text-[11px] text-texto3">Tela {numeroTela}</span>
         <span className="flex-1" />
-        <button type="button" onClick={() => abrirCompra()} title={`${textoApresentacoes(saldo)} de 10 telas · comprar créditos`} className="mono rounded-full border border-borda px-2 py-0.5 text-[11px] text-texto2 hover:border-bordaForte hover:text-texto">{fmt(saldo)} {saldo === 1 ? 'crédito' : 'créditos'}</button>
+        <button type="button" onClick={() => abrirCompra()} title={`${textoTelas(saldo)} · comprar créditos`} className="mono rounded-full border border-borda px-2 py-0.5 text-[11px] text-texto2 hover:border-bordaForte hover:text-texto">{fmt(saldo)} {saldo === 1 ? 'crédito' : 'créditos'}</button>
         <button type="button" aria-label="Fechar IA" onClick={aoFechar} className="rounded p-1 text-texto2 hover:bg-hover hover:text-texto"><X className="h-3.5 w-3.5" /></button>
       </div>
 

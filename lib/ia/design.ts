@@ -6,7 +6,7 @@
  * Puro: sem rede, sem DOM. Compartilhado entre servidor e cliente.
  */
 import { z } from 'zod'
-import { ALINHAMENTOS, COMPONENTES, DECORACOES, FUNDOS, RE_HEX, TEMAS_ESCOLHA, TIPOS_TELA, VARIANTES_IDS, compativeis, resolverTema, tipoDaVariante, type TipoTela } from './designSystem'
+import { ALINHAMENTOS, COMPONENTES, DECORACOES, FUNDOS, RE_HEX, TEMAS_ESCOLHA, TIPOS_TELA, VARIANTES_IDS, compativeis, regrasDe, resolverTema, tipoDaVariante, type TipoTela } from './designSystem'
 import { desenharTelaLocal } from './desenhoLocal'
 import { dividirEnfase, numeroDe, type Estilo, type TelaDesenhada } from './montagem'
 import { RoteiroSchema, ESTILOS, type Roteiro, type TelaRoteiro } from './roteiro'
@@ -16,7 +16,11 @@ export const MAX_TELAS_POR_PEDIDO_DESIGN = 6
 
 export const MarcaSchema = z.object({
   nome: z.string().trim().max(60).default(''),
-  cores: z.array(z.string().trim().regex(RE_HEX, 'Cor deve ser #RRGGBB')).max(3).default([]),
+  cores: z.array(z.string().trim().regex(RE_HEX, 'Cor deve ser #RRGGBB')).max(4).default([]),
+  /** false = as cores do estilo, mesmo com cores de marca. */
+  aplicarCores: z.boolean().default(true),
+  /** Par de fontes fixado pela marca. */
+  fontes: z.object({ titulo: z.string().trim().max(80), texto: z.string().trim().max(80) }).nullable().optional(),
 })
 
 export const PedidoDesignSchema = z.object({
@@ -29,7 +33,7 @@ export const PedidoDesignSchema = z.object({
   tipo: z.enum(TIPOS_PEDIDO).default('auto'),
   publico: z.string().trim().max(200).default(''),
   tom: z.enum(TONS).default('profissional'),
-  marca: MarcaSchema.default({ nome: '', cores: [] }),
+  marca: MarcaSchema.default({ nome: '', cores: [], aplicarCores: true }),
 }).refine((p) => p.indices.every((i) => i < p.roteiro.telas.length), { message: 'Tela fora do roteiro.', path: ['indices'] })
 export type PedidoDesign = z.infer<typeof PedidoDesignSchema>
 
@@ -186,6 +190,7 @@ export function mensagemDeck(p: PedidoDesign): string {
     `Tom: ${DESCRICAO_TOM[p.tom]}.`,
     `Formato: ${story ? 'story vertical 9:16 (lido no celular: frases ainda mais curtas)' : p.formato === 'explorar' ? 'apresentação navegável 16:9 (cada tela se sustenta sozinha)' : 'slides 16:9'}.`,
     `Estilo visual: ${p.estilo}. Tema: ${tema.nome} (${tema.descricao}; superfície base ${tema.base}; motivo ${tema.motivo}; títulos em ${tema.fontes.titulo}).`,
+    `Composição do estilo: ${regrasDe(tema).composicao}.${regrasDe(tema).semAcento ? ' Este estilo não usa fundo "acento".' : ''}${regrasDe(tema).caixaAlta ? ' Títulos em caixa alta: prefira títulos curtos.' : ''}`,
     p.marca.nome ? `Marca: ${seguro(p.marca.nome)}.` : null,
   ].filter(Boolean).join('\n')
   const roteiro = p.roteiro.telas.map((t, i) => {

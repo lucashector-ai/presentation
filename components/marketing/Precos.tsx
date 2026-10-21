@@ -1,4 +1,4 @@
-import { CUSTOS_CREDITOS, PLANOS_MARKETING, TELAS_EXEMPLO, formatarNumero } from './dados'
+import { CUSTOS_CREDITOS, PLANOS_MARKETING, formatarNumero } from './dados'
 import { CONTEUDO, Forma, Rotulo } from './ui'
 import { CalculadoraApresentacao, CreditosAvulsos, PlanosPrecos } from './PrecosInterativos'
 
@@ -37,7 +37,7 @@ export function Precos() {
           </div>
           {plus && (
             <p className="m-0 text-[14px] leading-[1.5] text-[#525252]">
-              Na prática: os {formatarNumero(plus.creditos)} créditos mensais do Plus rendem <strong className="font-semibold text-grafite">≈ {plus.apresentacoes} apresentações de {TELAS_EXEMPLO} telas</strong> por mês.
+              Na prática: os {formatarNumero(plus.creditos)} créditos mensais do Plus rendem <strong className="font-semibold text-grafite">≈ {formatarNumero(plus.telas)} telas com IA</strong> por mês ({plus.exemplo}).
             </p>
           )}
         </div>

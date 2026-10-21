@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { carregarAuth, entrar, MODO_DEMO } from '@/lib/sessao'
 import { dados } from '@/lib/dados'
-import { PLANOS, textoApresentacoes } from '@/lib/planos'
+import { PLANOS } from '@/lib/planos'
+import { textoTelas } from '@/lib/telasIa'
 import { Botao, Campo, Entrada, cx } from '@/components/ui'
 import { Marca } from '@/components/ui/Logo'
 
@@ -12,7 +13,7 @@ const EMAIL_DEMO = 'demo@mostra.app'
 
 const COPIA = {
   login: { titulo: 'Bem-vindo de volta.', subtitulo: 'Entre para continuar seus projetos.', cta: 'Entrar', troca: 'Ainda não tem conta?', trocaLink: 'Criar conta', trocaHref: '/signup' },
-  signup: { titulo: 'Crie sua conta.', subtitulo: `Três projetos e ${PLANOS.free.creditos.quantidade} créditos de IA grátis (${textoApresentacoes(PLANOS.free.creditos.quantidade)} de 10 telas). Sem cartão.`, cta: 'Criar conta', troca: 'Já tem conta?', trocaLink: 'Entrar', trocaHref: '/login' },
+  signup: { titulo: 'Crie sua conta.', subtitulo: `Três projetos e ${PLANOS.free.creditos.quantidade} créditos de IA grátis (${textoTelas(PLANOS.free.creditos.quantidade)}). Sem cartão.`, cta: 'Criar conta', troca: 'Já tem conta?', trocaLink: 'Entrar', trocaHref: '/login' },
   recuperar: { titulo: 'Recuperar senha.', subtitulo: 'Informe seu e-mail e enviaremos um link para redefinir.', cta: 'Enviar link', troca: 'Lembrou a senha?', trocaLink: 'Voltar ao login', trocaHref: '/login' },
 } as const
 

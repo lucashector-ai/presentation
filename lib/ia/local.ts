@@ -132,6 +132,36 @@ function variar(telas: Tela[]): Tela[] {
   return t
 }
 
+/**
+ * O que a pessoa deu antes de gerar entra no roteiro local também: números-chave viram uma tela de métricas,
+ * fotos próprias uma galeria (ou imagem) e "o que não pode faltar" uma lista. Cada um ocupa o lugar de uma tela-guia
+ * do arco (o total de telas não muda).
+ */
+export function encaixarMaterial(meio: Tela[], p: Pick<PedidoRoteiro, 'material'>): Tela[] {
+  const m = p.material
+  const saida = [...meio]
+  const usados = new Set<number>()
+  const trocaveis = ['conceito', 'cartoes', 'citacao', 'lista', 'secao', 'imagem', 'galeria', 'processo']
+  const encaixar = (nova: Tela, jaTem: (t: Tela) => boolean) => {
+    if (saida.some(jaTem) || saida.length < 2) return
+    for (let i = saida.length - 1; i >= 1; i--) {
+      if (usados.has(i) || !trocaveis.includes(saida[i]!.tipo)) continue
+      saida[i] = nova
+      usados.add(i)
+      return
+    }
+  }
+  const numeros = m.numeros.map((n) => n.trim()).filter((n) => /\d/.test(n)).map((n) => (n.includes('|') ? n : n.replace(/^\s*([^\s]+)\s+/, '$1|'))).filter((n) => n.split('|')[1]?.trim())
+  if (numeros.length) encaixar(tela('numeros', 'Os números que importam', '', numeros.slice(0, 4), 'Comente cada número e o que ele prova.', 'Em números'), (t) => t.tipo === 'numeros' || t.tipo === 'grafico')
+  if (m.fotos.length) {
+    const fotos = m.fotos.map((f, i) => (f.trim() || `Foto ${i + 1}`).slice(0, 60))
+    encaixar(fotos.length === 1 ? tela('imagem', fotos[0]!, 'Uma imagem que mostra o resultado.', [], '', 'Na prática') : tela('galeria', 'Veja de perto', '', fotos.slice(0, 6).map((f) => `${f}|`), 'Passe pelas imagens e destaque uma.', 'Galeria'), (t) => t.tipo === 'galeria')
+  }
+  const itens = m.obrigatorio.split(/\n|;|•/).map((x) => x.replace(RE_TOPICO, '').trim()).filter(Boolean)
+  if (itens.length) encaixar(tela('lista', 'O que não pode faltar', '', itens.slice(0, 5).map((x) => palavras(x, 16)), 'Passe por cada ponto.', 'Essencial'), () => false)
+  return saida
+}
+
 export function gerarRoteiroLocal(p: PedidoRoteiro): Roteiro {
   const base = p.prompt || p.conteudo.split('\n').find((l) => l.trim()) || ''
   const titulo = tituloDoPrompt(base.replace(RE_TITULO, ''))
@@ -147,6 +177,7 @@ export function gerarRoteiroLocal(p: PedidoRoteiro): Roteiro {
   } else {
     meio = escolherMomentos(def.arco, meioN).map(deMomento)
   }
+  meio = encaixarMaterial(meio, p)
   // linha de apoio da capa: o resto da primeira frase depois da vírgula, ou a segunda frase
   const [primeiraFrase = '', ...outras] = p.prompt.split(/[.\n!?]/).map((f) => f.trim()).filter(Boolean)
   const restoDaFrase = primeiraFrase.includes(',') ? primeiraFrase.slice(primeiraFrase.indexOf(',') + 1).trim() : ''

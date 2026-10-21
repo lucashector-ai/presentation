@@ -8,7 +8,7 @@ import { FORMATOS, SCHEMA_VERSION, type DocumentoProjeto, type ModoProjeto } fro
 import { parseDocumento } from '@/lib/scene/migrar'
 import { TEMAS, TIPOS_TELA, resolverTema, type Marca, type TemaEscolhido, type TemaId, type TemaVisual, type TipoTela } from './designSystem'
 import { desenharLocal } from './desenhoLocal'
-import { montarTela, type Estilo, type TelaDesenhada } from './montagem'
+import { montarTela, type Estilo, type FotoMontagem, type LogoMontagem, type TelaDesenhada } from './montagem'
 
 export { TEMAS, TIPOS_TELA, type TemaId, type TipoTela }
 export type { Estilo }
@@ -48,8 +48,12 @@ export interface OpcoesDocumento {
   densidade?: Densidade
   /** Desenho de cada tela (da IA). Ausente = desenho local determinístico. */
   desenho?: (TelaDesenhada | null | undefined)[]
-  /** Nome e cores da marca (tema "marca" e rodapé). */
+  /** Nome, cores e fontes da marca (aplicadas sobre o estilo) e o nome no rodapé. */
   marca?: Marca
+  /** Logo da marca: capa, encerramento e (opcional) rodapé. */
+  logo?: LogoMontagem | null
+  /** Fotos da pessoa: ocupam os espaços de imagem, na ordem das telas. */
+  fotos?: FotoMontagem[]
 }
 
 const corta = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s)
@@ -106,12 +110,16 @@ export function montarDocumento(roteiro: Roteiro, opcoes: OpcoesDocumento): Docu
   const explorar = opcoes.modo === 'explorar' && roteiro.telas.length > 1
   let secoes = 0
   const colunas = Math.ceil(Math.sqrt(roteiro.telas.length))
+  // fotos da pessoa: cada espaço de imagem pega a próxima (sem repetir); acabou, fica o espaço listrado
+  const fotos = [...(opcoes.fotos ?? [])]
+  const foto = () => fotos.shift() ?? null
   const montadas = roteiro.telas.map((t, i) => {
     if (t.tipo === 'secao') secoes++
     const d = prepararDesenho({ ...(opcoes.desenho?.[i] ?? locais[i]!), notas: opcoes.desenho?.[i]?.notas || t.notas }, imagens, densidade)
     const m = montarTela(explorar && i === 0 ? { ...d, variante: d.variante === 'capa.dividida' || d.variante === 'capa.centrada' ? 'capa.classica' : d.variante } : d, {
       tema, estilo: opcoes.estilo, story, numero: i + 1, total: roteiro.telas.length, tituloProjeto: roteiro.titulo, marca: opcoes.marca?.nome.trim() ?? '',
       motivos: imagens === 'formas', placeholders: imagens === 'placeholders', indiceSecao: secoes, reservarDireita: explorar && i === 0, uid,
+      logo: opcoes.logo ?? null, foto,
     })
     return { t, d, m }
   })

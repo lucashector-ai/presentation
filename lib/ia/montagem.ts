@@ -7,7 +7,7 @@
  * Os ids das camadas carregam o papel ("titulo-", "texto-", "item-", "valor-"…), usado pelas ações de IA
  * do editor (lib/ia/tela.ts). Puro: sem rede, sem DOM.
  */
-import { COMPONENTES, alfa, contraste, legivel, misturar, superficie, type Alinhamento, type Decoracao, type Fundo, type Superficie, type TemaVisual, type TipoTela } from './designSystem'
+import { COMPONENTES, alfa, contraste, legivel, luminanciaRelativa, misturar, regrasDe, superficie, type Alinhamento, type Decoracao, type Fundo, type Superficie, type TemaVisual, type TipoTela } from './designSystem'
 
 export type Estilo = 'editorial' | 'ousado' | 'minimal'
 
@@ -51,7 +51,23 @@ export interface ContextoMontagem {
   /** Capa do modo Explorar: o lado direito fica para o menu. */
   reservarDireita: boolean
   uid: (papel: string) => string
+  /** Logo da marca (capa, encerramento e, se pedido, o rodapé). Aplicado aqui, sem IA. */
+  logo?: LogoMontagem | null
+  /** Próxima foto da pessoa para um espaço de imagem (null = acabou; fica o espaço listrado). */
+  foto?: () => FotoMontagem | null
 }
+
+export interface LogoMontagem {
+  assetId: string
+  /** Tamanho do arquivo (só a proporção importa). */
+  largura: number
+  altura: number
+  /** Cor média dos pixels do logo: decide se ele vira silhueta branca/preta sobre o fundo. */
+  cor: string
+  /** Também discreto no rodapé das telas de conteúdo. */
+  rodape: boolean
+}
+export interface FotoMontagem { assetId: string; legenda: string }
 
 type Camada = Record<string, unknown> & { id: string; x: number; y: number; width: number; height: number }
 
@@ -67,6 +83,7 @@ export interface TelaMontada {
 const LARGURA_MEDIA: Record<string, number> = {
   Geist: 0.56, 'Geist Mono': 0.61, Inter: 0.58, 'Space Grotesk': 0.58, 'IBM Plex Sans': 0.57, Fraunces: 0.57,
   'Instrument Serif': 0.46, 'DM Serif Display': 0.54, 'Playfair Display': 0.55, 'Archivo Black': 0.74, Georgia: 0.58, 'system-ui': 0.58,
+  'Cormorant Garamond': 0.48, Syne: 0.64, Fredoka: 0.57, 'Source Serif 4': 0.55, Unbounded: 0.76, 'Bebas Neue': 0.4, Manrope: 0.59,
 }
 
 /** Largura relativa de cada caractere (maiúsculas, números e letras largas ocupam mais que a média). */
@@ -139,14 +156,18 @@ const iniciais = (nome: string) => nome.split(/[\s,]+/).filter((p) => /^\p{L}/u.
 
 export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
   const t = c.tema
-  const fundo: Fundo = d.variante === 'imagem.cheia' ? 'escuro' : d.fundo
+  const R = regrasDe(t)
+  // estilos sem telas de acento (luxo, acadêmico, vidro…) trocam o acento cheio pela superfície oposta
+  const fundoPedido: Fundo = R.semAcento && d.fundo === 'acento' ? (t.base === 'claro' ? 'escuro' : 'claro') : d.fundo
+  const fundo: Fundo = d.variante === 'imagem.cheia' ? 'escuro' : fundoPedido
   const s = superficie(t, fundo)
   const st = c.story
   const W = st ? 1080 : 1920
   const H = st ? 1920 : 1080
-  const M = st ? 88 : 128
-  const MT = st ? 150 : 100
-  const MB = st ? 130 : 92
+  // margens do estilo: o luxo respira mais, o brutalista e o suíço encostam mais nas bordas
+  const M = Math.round((st ? 88 : 128) * R.margem)
+  const MT = Math.round((st ? 150 : 100) * (1 + (R.margem - 1) * 0.6))
+  const MB = Math.round((st ? 130 : 92) * (1 + (R.margem - 1) * 0.6))
   const GUT = st ? 28 : 36
   const COLS = st ? 6 : 12
   const cw = (W - M * 2 - (COLS - 1) * GUT) / COLS
@@ -161,12 +182,14 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
   const forte = s.destaque
   const sobreDestaque = legivel(forte, [s.fundo, s.tinta, '#FFFFFF', '#141414'], 4.5)
 
-  // ---------- animações ----------
+  // ---------- animações (o ritmo do estilo alonga ou encurta as entradas) ----------
+  const ritmo = R.ritmo === 'calmo' ? 1.35 : R.ritmo === 'energico' ? 0.8 : 1
+  const dur = (ms: number) => Math.round(ms * ritmo)
   const animTitulo = (delay = 0) =>
-    c.estilo === 'ousado' ? { type: 'slideUp', duration: 700, delay, easing: 'spring' } : c.estilo === 'minimal' ? { type: 'fadeIn', duration: 500, delay, easing: 'easeOut' } : { type: 'fadeIn', duration: 800, delay, easing: 'easeOut' }
-  const animTexto = (delay = 200) => ({ type: 'fadeIn', duration: 600, delay, easing: 'easeOut' })
-  const animItem = (k: number) => ({ type: c.estilo === 'minimal' ? 'fadeIn' : 'slideUp', duration: 550, delay: Math.min(4000, 250 + k * 110), easing: 'easeOut' })
-  const animForma = (delay = 100) => ({ type: c.estilo === 'ousado' ? 'pop' : 'scaleIn', duration: 800, delay, easing: 'spring' })
+    c.estilo === 'ousado' || R.ritmo === 'energico' ? { type: 'slideUp', duration: dur(700), delay, easing: 'spring' } : c.estilo === 'minimal' ? { type: 'fadeIn', duration: dur(500), delay, easing: 'easeOut' } : { type: 'fadeIn', duration: dur(800), delay, easing: 'easeOut' }
+  const animTexto = (delay = 200) => ({ type: 'fadeIn', duration: dur(600), delay, easing: 'easeOut' })
+  const animItem = (k: number) => ({ type: c.estilo === 'minimal' || R.ritmo === 'calmo' ? 'fadeIn' : 'slideUp', duration: dur(550), delay: Math.min(4000, 250 + k * Math.round(110 * ritmo)), easing: 'easeOut' })
+  const animForma = (delay = 100) => ({ type: c.estilo === 'ousado' || R.ritmo === 'energico' ? 'pop' : 'scaleIn', duration: dur(800), delay, easing: 'spring' })
 
   // ---------- primitivas ----------
   interface OpTexto {
@@ -188,9 +211,21 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
     hMin?: number
     /** Altura máxima do texto: escolhe o maior tamanho que caiba nela. */
     hMax?: number
+    /** Os tamanhos já vêm na escala do estilo (não escalar de novo). */
+    escalado?: boolean
   }
   const familia = (f: OpTexto['fonte']) => (f === 'titulo' ? F.titulo : f === 'mono' ? 'Geist Mono' : F.texto)
-  const texto = (papel: string, txt: string, o: OpTexto) => {
+  /** Escala dos títulos do estilo (startup bold maior, acadêmico menor). */
+  const escalar = (tam: number[]) => (R.escalaTitulo === 1 ? tam : tam.map((n) => Math.max(12, Math.round(n * R.escalaTitulo))))
+  const PAPEIS_ESCALADOS = new Set(['titulo', 'enfase', 'valor'])
+  /** Mede o título como ele vai ser montado (escala e caixa alta do estilo). */
+  const caberTitulo = (txt: string, larg: number, tam: number[], max: number, op: { tracking?: number; peso?: number; alturaMax?: number } = {}) =>
+    caber(txt, F.titulo, larg, escalar(tam), max, { tracking: op.tracking ?? F.tracking, peso: op.peso ?? F.pesoTitulo, alturaMax: op.alturaMax, maiusculas: R.caixaAlta })
+  const texto = (papel: string, txt: string, o0: OpTexto) => {
+    const titulo = o0.fonte === 'titulo'
+    const o: OpTexto = titulo
+      ? { ...o0, tamanhos: !o0.escalado && PAPEIS_ESCALADOS.has(papel) ? escalar(o0.tamanhos) : o0.tamanhos, upper: o0.upper ?? (R.caixaAlta && !o0.italic) }
+      : o0
     const fonte = familia(o.fonte)
     const tracking = o.tracking ?? (o.fonte === 'titulo' ? F.tracking : o.fonte === 'mono' ? -0.12 : 0)
     const lh = o.lh ?? (o.fonte === 'titulo' ? (/Serif|Fraunces|Playfair/.test(fonte) ? 1.06 : 1.02) : o.fonte === 'mono' ? 1.3 : 1.42)
@@ -217,26 +252,52 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
   const linha = (x: number, y: number, w: number, h = 2, cor = s.linha, extra: Record<string, unknown> = {}) => forma('fio', 'rect', x, y, w, h, { fill: cor, ...extra })
 
   const rotuloCor = s.tipo === 'acento' ? s.tinta : contraste(forte, s.fundo) >= 3 ? forte : s.suave
-  const kicker = (txt: string, x: number, y: number, w: number, align: 'left' | 'center' | 'right' = 'left') =>
-    txt.trim() ? texto('rotulo', txt.trim(), { x, y, w, fonte: 'mono', tamanhos: [st ? 24 : 20], max: 1, upper: true, tracking: -0.14, cor: rotuloCor, align, anim: animTexto(0) }) : null
+  /** Rótulo acima do título, no jeito do estilo: mono, pílula de cor, fio + mono ou itálico na fonte do título. */
+  const kicker = (txt0: string, x: number, y: number, w: number, align: 'left' | 'center' | 'right' = 'left') => {
+    const txt = txt0.trim()
+    if (!txt) return null
+    const tam = st ? 24 : 20
+    if (R.rotulo === 'pilula') {
+      const fundoP = s.tipo === 'acento' ? s.tinta : forte
+      const pad = st ? 12 : 10
+      const larg = Math.min(w, Math.round(txt.length * tam * 0.66 + tam * 0.6 + pad * 2.4))
+      const xp = align === 'center' ? x + (w - larg) / 2 : align === 'right' ? x + w - larg : x
+      return texto('rotulo', txt, { x: xp, y, w: larg, fonte: 'mono', tamanhos: [tam], max: 1, upper: true, tracking: -0.12, align: 'center', cor: legivel(fundoP, [s.fundo, '#FFFFFF', '#141414'], 4.5), anim: animTexto(0), hMin: Math.round(tam * 1.3 + pad * 2 + 2), extra: { background: fundoP, padding: pad, radius: 999 } })
+    }
+    if (R.rotulo === 'italico') return texto('rotulo', txt, { x, y, w, fonte: 'titulo', tamanhos: [st ? 38 : 32], max: 1, italic: true, upper: false, peso: 400, tracking: 0, cor: rotuloCor, align, anim: animTexto(0) })
+    if (R.rotulo === 'fio') {
+      const lw = st ? 64 : 56
+      linha(align === 'center' ? x + (w - lw) / 2 : align === 'right' ? x + w - lw : x, y, lw, 3, s.tipo === 'acento' ? s.tinta : forte, { enterAnimation: { type: 'reveal', duration: dur(600), delay: 0, easing: 'easeOut' } })
+      return texto('rotulo', txt, { x, y: y + 18, w, fonte: 'mono', tamanhos: [tam], max: 1, upper: true, tracking: -0.14, cor: rotuloCor, align, anim: animTexto(0) })
+    }
+    return texto('rotulo', txt, { x, y, w, fonte: 'mono', tamanhos: [tam], max: 1, upper: true, tracking: -0.14, cor: rotuloCor, align, anim: animTexto(0) })
+  }
 
   /** Título com o trecho final em destaque (duas camadas empilhadas) ou numa só. */
-  const tituloEnfase = (txt: string, o: Omit<OpTexto, 'tamanhos'> & { tamanhos: number[] }) => {
+  const tituloEnfase = (txt: string, o0: Omit<OpTexto, 'tamanhos'> & { tamanhos: number[] }) => {
+    const o = { ...o0, tamanhos: escalar(o0.tamanhos), escalado: true }
     const partesEnfase = c.estilo !== 'minimal' ? dividirEnfase(txt, d.enfase) : null
     if (!partesEnfase) return texto('titulo', txt, { fonte: 'titulo', anim: animTitulo(), ...o })
     const fonte = familia('titulo')
     const max = o.max ?? 3
-    const linhasEm = (n: number) => caber(partesEnfase[0], fonte, o.w, [n], max, { tracking: F.tracking, peso: F.pesoTitulo }).linhas + caber(partesEnfase[1], fonte, o.w, [n], max, { tracking: F.tracking, peso: F.pesoTitulo }).linhas
+    const linhasEm = (n: number) => caber(partesEnfase[0], fonte, o.w, [n], max, { tracking: F.tracking, peso: F.pesoTitulo, maiusculas: R.caixaAlta }).linhas + caber(partesEnfase[1], fonte, o.w, [n], max, { tracking: F.tracking, peso: F.pesoTitulo, maiusculas: R.caixaAlta }).linhas
     const tam = o.tamanhos.find((n) => linhasEm(n) <= max && (!o.hMax || n * 1.04 * linhasEm(n) <= o.hMax)) ?? o.tamanhos[o.tamanhos.length - 1]!
     // a primeira parte assenta no pé da caixa: a sobra da estimativa de linhas fica acima, não entre as duas partes
     const a = texto('titulo', partesEnfase[0], { fonte: 'titulo', anim: animTitulo(), ...o, tamanhos: [tam], max: 9, extra: { ...o.extra, valign: 'bottom' } })
     const corB = s.tipo === 'acento' ? s.tinta : contraste(forte, s.fundo) >= 2.4 ? forte : s.tinta
-    const b = texto('enfase', partesEnfase[1], { fonte: 'titulo', anim: animTitulo(150), ...o, y: a.fim - Math.round(tam * 0.1), tamanhos: [tam], max: 9, cor: corB, italic: F.italicoCitacao && s.tipo !== 'acento' ? true : o.italic })
+    const b = texto('enfase', partesEnfase[1], { fonte: 'titulo', anim: animTitulo(150), ...o, y: a.fim - Math.round(tam * 0.1), tamanhos: [tam], max: 9, cor: corB, italic: F.italicoCitacao && s.tipo !== 'acento' && !R.caixaAlta ? true : o.italic })
     return { ...a, h: b.fim - a.l.y, fim: b.fim }
   }
 
   /** Espaço para imagem: retângulo listrado com a descrição sugerida. */
   const espacoImagem = (x: number, y: number, w: number, h: number, descricao: string, raio = 0) => {
+    // fotos da pessoa (enviadas antes de gerar) ocupam os espaços de imagem na ordem das telas, sem custo de IA
+    const foto = c.foto?.()
+    if (foto) {
+      const l: Camada = { id: c.uid('foto'), type: 'image', assetId: foto.assetId, fit: 'cover', radius: raio, x: Math.round(x), y: Math.round(y), width: Math.max(1, Math.round(w)), height: Math.max(1, Math.round(h)), ariaLabel: (foto.legenda || descricao || 'Foto').slice(0, 200), enterAnimation: { type: 'fadeIn', duration: dur(700), delay: 100, easing: 'easeOut' } }
+      L.push(l)
+      return
+    }
     const base = s.tipo === 'escuro' ? misturar(s.fundo, s.tinta, 0.1) : misturar(s.fundo, s.tinta, 0.13)
     forma('imagem', 'rect', x, y, w, h, { fill: base, pattern: 'stripes', radius: raio, ariaLabel: `Espaço para imagem${descricao ? `: ${descricao}` : ''}`, enterAnimation: { type: 'fadeIn', duration: 700, delay: 100, easing: 'easeOut' } })
     const leg = `▢  ${descricao.trim() || 'arraste sua imagem aqui'}`
@@ -246,6 +307,9 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
   // ---------- motivo do tema ----------
   const formaMotivo = t.raio === 0 ? 'rect' : t.raio >= 40 || t.id === 'argila' || t.id === 'ipe' ? 'ellipse' : 'semicircle'
   const corMotivo = s.tipo === 'acento' ? legivel(s.fundo, [t.acento2, s.tinta], 1.6) : s.tipo === 'escuro' ? legivel(s.fundo, [t.acento, t.acento2], 2) : legivel(s.fundo, [t.acento, t.acento2], 1.8)
+  /** Segunda e terceira cores dos motivos com várias formas (bolhas, confete, sol). */
+  const cor2 = legivel(s.fundo, [corMotivo === t.acento2 ? t.acento : t.acento2, s.tinta], 1.4)
+  const cor3 = legivel(s.fundo, [misturar(t.acento, '#FFD23F', 0.6), misturar(t.acento2, '#FFD23F', 0.5), s.tinta], 1.3)
   /** Motivo grande numa área livre (capa, seção, ideia central). `nome: 'motivo'` casa as telas na transição morph. */
   const motivo = (x: number, y: number, w: number, h: number, intensidade: 'pequeno' | 'grande' = 'grande') => {
     if (!decorar) return
@@ -283,20 +347,164 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
       case 'brilho':
         forma('motivo', 'ellipse', x, y, w, h, { name: 'motivo', fill: corMotivo, opacity: s.tipo === 'escuro' ? 0.5 : 0.3, effects: { blur: 100, backdropBlur: 0, blend: 'normal' }, enterAnimation: { type: 'fadeIn', duration: 1200, delay: 0, easing: 'easeOut' } })
         break
+      case 'vidro': {
+        // duas luzes coloridas desfocadas, sobrepostas (o "vidro" dos cartões aparece sobre elas)
+        forma('motivo', 'ellipse', x, y, w * 0.78, h * 0.78, { name: 'motivo', fill: corMotivo, opacity: s.tipo === 'escuro' ? 0.6 : 0.4, effects: { blur: 100, backdropBlur: 0, blend: 'normal' }, enterAnimation: { type: 'fadeIn', duration: dur(1200), delay: 0, easing: 'easeOut' } })
+        forma('forma', 'ellipse', x + w * 0.32, y + h * 0.3, w * 0.68, h * 0.68, { fill: cor2, opacity: s.tipo === 'escuro' ? 0.55 : 0.35, effects: { blur: 100, backdropBlur: 0, blend: 'normal' }, enterAnimation: { type: 'fadeIn', duration: dur(1400), delay: 200, easing: 'easeOut' } })
+        break
+      }
+      case 'manchas': {
+        // formas orgânicas: elipses giradas e sobrepostas, sem contorno
+        const a = lado
+        forma('motivo', 'ellipse', x + (w - a) / 2, y + (h - a * 0.82) / 2, a, a * 0.82, { name: 'motivo', fill: corMotivo, rotation: -18, enterAnimation: animForma() })
+        forma('forma', 'ellipse', x + (w - a) / 2 + a * 0.46, y + (h - a * 0.82) / 2 + a * 0.44, a * 0.56, a * 0.44, { fill: cor2, rotation: 24, enterAnimation: animForma(240) })
+        if (intensidade === 'grande') forma('forma', 'ellipse', x + (w - a) / 2 - a * 0.06, y + (h - a * 0.82) / 2 - a * 0.04, a * 0.3, a * 0.24, { fill: misturar(corMotivo, s.fundo, 0.45), rotation: 30, enterAnimation: animForma(380) })
+        break
+      }
+      case 'bolhas': {
+        const a = lado
+        forma('motivo', 'ellipse', x + (w - a) / 2 + a * 0.1, y + (h - a) / 2 + a * 0.08, a * 0.66, a * 0.66, { name: 'motivo', fill: corMotivo, enterAnimation: animForma() })
+        forma('forma', 'ellipse', x + (w - a) / 2 + a * 0.6, y + (h - a) / 2 + a * 0.52, a * 0.38, a * 0.38, { fill: cor2, enterAnimation: animForma(200) })
+        forma('forma', 'ellipse', x + (w - a) / 2, y + (h - a) / 2 + a * 0.7, a * 0.18, a * 0.18, { fill: cor3, enterAnimation: animForma(320) })
+        forma('forma', 'star', x + (w - a) / 2 + a * 0.66, y + (h - a) / 2, a * 0.26, a * 0.26, { fill: cor3, count: 5, ratio: 0.48, rotation: 12, enterAnimation: animForma(420) })
+        break
+      }
+      case 'confete': {
+        // Memphis: triângulo, anel, pontos, zigue-zague e um bloco, espalhados na área
+        const a = lado
+        const x0 = x + (w - a) / 2
+        const y0 = y + (h - a) / 2
+        forma('motivo', 'ellipse', x0 + a * 0.12, y0 + a * 0.1, a * 0.46, a * 0.46, { name: 'motivo', fill: alfa(corMotivo, 0), stroke: corMotivo, strokeWidth: Math.max(8, a * 0.045), enterAnimation: animForma() })
+        forma('forma', 'triangle', x0 + a * 0.56, y0 + a * 0.04, a * 0.3, a * 0.27, { fill: cor2, rotation: 14, enterAnimation: animForma(160) })
+        forma('forma', 'rect', x0 + a * 0.5, y0 + a * 0.5, a * 0.42, a * 0.3, { fill: cor3, pattern: 'dots', rotation: -6, enterAnimation: animForma(260) })
+        const zw = a * 0.56
+        const zh = a * 0.14
+        const nos = Array.from({ length: 7 }, (_, k) => ({ x: (k * zw) / 6, y: k % 2 ? zh : 0, tipo: 'canto' as const }))
+        forma('forma', 'path', x0 + a * 0.02, y0 + a * 0.76, zw, zh, { fill: alfa(s.tinta, 0), stroke: s.tipo === 'escuro' ? s.tinta : misturar(s.tinta, corMotivo, 0.2), strokeWidth: Math.max(6, a * 0.03), vetor: { w: zw, h: zh, caminhos: [{ nos, fechado: false, semPreenchimento: true }], fillRule: 'nonzero' }, enterAnimation: animForma(360) })
+        forma('forma', 'ellipse', x0 + a * 0.84, y0 + a * 0.84, a * 0.1, a * 0.1, { fill: corMotivo, enterAnimation: animForma(440) })
+        break
+      }
+      case 'sol': {
+        // retrô: sol de faixas concêntricas assentado na base da área
+        const a = Math.min(w, h * 2)
+        const base = y + (h + a / 2) / 2
+        const cores = [corMotivo, cor3, cor2]
+        ;[1, 0.74, 0.48].forEach((k, i) => forma(i === 0 ? 'motivo' : 'forma', 'semicircle', x + (w - a * k) / 2, base - (a * k) / 2, a * k, (a * k) / 2, { ...(i === 0 ? { name: 'motivo' } : {}), fill: cores[i]!, enterAnimation: { type: 'slideUp', duration: dur(800), delay: 100 + i * 140, easing: 'spring' } }))
+        if (intensidade === 'grande') linha(x + (w - a) / 2, base + a * 0.04, a, Math.max(6, a * 0.02), cor2, { enterAnimation: { type: 'reveal', duration: dur(700), delay: 500, easing: 'easeOut' } })
+        break
+      }
+      case 'moldura':
+        // luxo: moldura fina em volta da tela (a mesma em todas as telas: morph sem movimento) e um losango
+        moldura()
+        if (intensidade === 'grande') forma('forma', 'rect', x + w / 2 - 14, y + h / 2 - 14, 28, 28, { fill: alfa(corMotivo, 0), stroke: corMotivo, strokeWidth: 2, rotation: 45, enterAnimation: animForma(300) })
+        break
+      case 'blocos': {
+        // blocos chapados: um cheio e um contorno deslocado (startup, brutalista)
+        const a = lado
+        const x0 = x + (w - a) / 2
+        const y0 = y + (h - a) / 2
+        forma('motivo', 'rect', x0 + a * 0.08, y0 + a * 0.08, a * 0.84, a * 0.7, { name: 'motivo', fill: corMotivo, radius: Math.min(t.raio, 28), enterAnimation: animForma() })
+        forma('forma', 'rect', x0, y0 + a * 0.3, a * 0.84, a * 0.7, { fill: alfa(s.fundo, 0), stroke: s.tipo === 'acento' ? s.tinta : misturar(s.tinta, s.fundo, 0.1), strokeWidth: Math.max(3, R.borda), radius: Math.min(t.raio, 28), enterAnimation: animForma(200) })
+        if (intensidade === 'grande') forma('forma', 'ellipse', x0 + a * 0.72, y0, a * 0.24, a * 0.24, { fill: cor2, enterAnimation: animForma(320) })
+        break
+      }
     }
+  }
+  /** Moldura fina em volta da tela (luxo). */
+  function moldura() {
+    const ins = st ? 36 : 40
+    forma('motivo', 'rect', ins, ins, W - ins * 2, H - ins * 2, { name: 'motivo', fill: alfa(s.fundo, 0), stroke: alfa(corMotivo, 0.75), strokeWidth: 2, enterAnimation: { type: 'fadeIn', duration: dur(1200), delay: 0, easing: 'easeOut' } })
   }
   /** Marca discreta do motivo no canto das telas de conteúdo. */
   const motivoCanto = () => {
     if (!decorar) return
     const tam = st ? 84 : 72
-    if (t.motivo === 'linhas') return void forma('motivo', 'rect', W - M - tam, MT + 6, tam, 6, { name: 'motivo', fill: corMotivo, enterAnimation: animForma() })
-    if (t.motivo === 'brilho') return void forma('motivo', 'ellipse', W - (st ? 420 : 560), -(st ? 260 : 300), st ? 640 : 820, st ? 640 : 820, { name: 'motivo', fill: corMotivo, opacity: s.tipo === 'escuro' ? 0.32 : 0.16, effects: { blur: 100, backdropBlur: 0, blend: 'normal' }, enterAnimation: { type: 'fadeIn', duration: 1200, delay: 0, easing: 'easeOut' } })
-    if (t.motivo === 'grade') {
-      for (let i = 0; i < 3; i++) for (let j = 0; j < 4; j++) forma('ponto', 'ellipse', W - M - 6 - j * 22, MT + 2 + i * 22, 6, 6, { fill: corMotivo, opacity: 0.6, enterAnimation: { type: 'fadeIn', duration: 400, delay: 80 + (i + j) * 40, easing: 'easeOut' } })
-      return void forma('motivo', 'rect', W - M - 6 - 3 * 22 - 34, MT + 2, 20, 20, { name: 'motivo', fill: corMotivo, radius: Math.min(t.raio, 6), enterAnimation: animForma() })
+    const xc0 = W - M - tam
+    const yc0 = MT - 8
+    switch (t.motivo) {
+      case 'linhas': return void forma('motivo', 'rect', W - M - tam, MT + 6, tam, 6, { name: 'motivo', fill: corMotivo, enterAnimation: animForma() })
+      case 'brilho': return void forma('motivo', 'ellipse', W - (st ? 420 : 560), -(st ? 260 : 300), st ? 640 : 820, st ? 640 : 820, { name: 'motivo', fill: corMotivo, opacity: s.tipo === 'escuro' ? 0.32 : 0.16, effects: { blur: 100, backdropBlur: 0, blend: 'normal' }, enterAnimation: { type: 'fadeIn', duration: 1200, delay: 0, easing: 'easeOut' } })
+      case 'vidro':
+        // a malha de luzes já está no fundo; no canto, só um ponto de luz
+        if (R.fundo === 'malha') return void forma('motivo', 'ellipse', xc0 + tam * 0.4, yc0 + 4, tam * 0.5, tam * 0.5, { name: 'motivo', fill: corMotivo, enterAnimation: animForma() })
+        return void forma('motivo', 'ellipse', W - (st ? 420 : 560), -(st ? 260 : 300), st ? 640 : 820, st ? 640 : 820, { name: 'motivo', fill: corMotivo, opacity: s.tipo === 'escuro' ? 0.4 : 0.22, effects: { blur: 100, backdropBlur: 0, blend: 'normal' }, enterAnimation: { type: 'fadeIn', duration: 1200, delay: 0, easing: 'easeOut' } })
+      case 'grade': {
+        for (let i = 0; i < 3; i++) for (let j = 0; j < 4; j++) forma('ponto', 'ellipse', W - M - 6 - j * 22, MT + 2 + i * 22, 6, 6, { fill: corMotivo, opacity: 0.6, enterAnimation: { type: 'fadeIn', duration: 400, delay: 80 + (i + j) * 40, easing: 'easeOut' } })
+        return void forma('motivo', 'rect', W - M - 6 - 3 * 22 - 34, MT + 2, 20, 20, { name: 'motivo', fill: corMotivo, radius: Math.min(t.raio, 6), enterAnimation: animForma() })
+      }
+      case 'manchas':
+        forma('motivo', 'ellipse', xc0, yc0, tam, tam * 0.8, { name: 'motivo', fill: corMotivo, rotation: -18, enterAnimation: animForma() })
+        return void forma('forma', 'ellipse', xc0 + tam * 0.5, yc0 + tam * 0.45, tam * 0.5, tam * 0.4, { fill: cor2, rotation: 24, enterAnimation: animForma(200) })
+      case 'bolhas':
+        forma('motivo', 'ellipse', xc0 + tam * 0.3, yc0, tam * 0.7, tam * 0.7, { name: 'motivo', fill: corMotivo, enterAnimation: animForma() })
+        forma('forma', 'ellipse', xc0, yc0 + tam * 0.45, tam * 0.36, tam * 0.36, { fill: cor2, enterAnimation: animForma(160) })
+        return void forma('forma', 'star', xc0 - tam * 0.42, yc0 - 4, tam * 0.34, tam * 0.34, { fill: cor3, count: 5, ratio: 0.48, enterAnimation: animForma(260) })
+      case 'confete':
+        forma('motivo', 'triangle', xc0 + tam * 0.4, yc0, tam * 0.6, tam * 0.54, { name: 'motivo', fill: cor2, rotation: 14, enterAnimation: animForma() })
+        forma('forma', 'ellipse', xc0 - tam * 0.12, yc0 + tam * 0.2, tam * 0.46, tam * 0.46, { fill: alfa(corMotivo, 0), stroke: corMotivo, strokeWidth: 7, enterAnimation: animForma(140) })
+        return void forma('forma', 'ellipse', xc0 + tam * 0.2, yc0 + tam * 0.72, tam * 0.16, tam * 0.16, { fill: cor3, enterAnimation: animForma(240) })
+      case 'sol':
+        ;[1, 0.66, 0.34].forEach((k, i) => forma(i === 0 ? 'motivo' : 'forma', 'semicircle', xc0 + (tam * (1 - k)) / 2, yc0 + tam * 0.5 - (tam * k) / 2 + tam * 0.1, tam * k, (tam * k) / 2, { ...(i === 0 ? { name: 'motivo' } : {}), fill: [corMotivo, cor3, cor2][i]!, enterAnimation: animForma(i * 120) }))
+        return
+      case 'moldura': return void moldura()
+      case 'blocos':
+        forma('motivo', 'rect', xc0 + tam * 0.25, yc0, tam * 0.75, tam * 0.5, { name: 'motivo', fill: corMotivo, radius: Math.min(t.raio, 10), enterAnimation: animForma() })
+        return void forma('forma', 'rect', xc0, yc0 + tam * 0.2, tam * 0.75, tam * 0.5, { fill: alfa(s.fundo, 0), stroke: s.tipo === 'acento' ? s.tinta : misturar(s.tinta, s.fundo, 0.1), strokeWidth: Math.max(2, R.borda * 0.75), radius: Math.min(t.raio, 10), enterAnimation: animForma(140) })
+      case 'nenhum': return
+      default: {
+        const alt = formaMotivo === 'semicircle' ? tam / 2 : tam
+        forma('motivo', formaMotivo, W - M - tam, MT - 8, tam, alt, { name: 'motivo', fill: corMotivo, enterAnimation: animForma() })
+      }
     }
-    const alt = formaMotivo === 'semicircle' ? tam / 2 : tam
-    forma('motivo', formaMotivo, W - M - tam, MT - 8, tam, alt, { name: 'motivo', fill: corMotivo, enterAnimation: animForma() })
+  }
+  /** Luzes desfocadas atrás de tudo (estilos com fundo "malha", como o vidro). */
+  const malha = () => {
+    if (R.fundo !== 'malha' || !c.motivos) return
+    const k = st ? 0.9 : 1
+    forma('luz', 'ellipse', -W * 0.12, H * (st ? 0.05 : 0.18), W * 0.62 * k, W * 0.62 * k, { fill: corMotivo, opacity: s.tipo === 'escuro' ? 0.38 : 0.22, effects: { blur: 100, backdropBlur: 0, blend: 'normal' }, enterAnimation: { type: 'fadeIn', duration: dur(1400), delay: 0, easing: 'easeOut' } })
+    forma('luz', 'ellipse', W * 0.55, -H * 0.12, W * 0.55 * k, W * 0.55 * k, { fill: cor2, opacity: s.tipo === 'escuro' ? 0.34 : 0.2, effects: { blur: 100, backdropBlur: 0, blend: 'normal' }, enterAnimation: { type: 'fadeIn', duration: dur(1600), delay: 100, easing: 'easeOut' } })
+  }
+  malha()
+
+  // ---------- cartões e logo, no jeito do estilo ----------
+  /** Preenchimento, contorno e efeitos de um cartão/caixa: cheio, contorno, vidro ou sombra dura deslocada. */
+  const cartao = (dest: boolean, base: string = s.cartao): Record<string, unknown> => {
+    const tintaBorda = s.tipo === 'acento' ? s.tinta : misturar(s.tinta, s.fundo, 0.08)
+    switch (R.cartao) {
+      case 'contorno':
+        return dest ? { fill: forte } : { fill: alfa(s.fundo, 0), stroke: s.tipo === 'escuro' ? misturar(s.linha, s.tinta, 0.4) : misturar(s.linha, s.tinta, 0.5), strokeWidth: R.borda }
+      case 'sombra': {
+        const corSombra = t.motivo === 'confete' ? legivel(s.fundo, [t.acento2, s.tinta], 1.6) : tintaBorda
+        return { fill: dest ? forte : s.tipo === 'escuro' ? misturar(s.fundo, s.tinta, 0.08) : misturar(s.fundo, '#FFFFFF', 0.7), stroke: tintaBorda, strokeWidth: R.borda, effects: { shadows: [{ x: R.borda * 3, y: R.borda * 3, blur: 0, spread: 0, color: corSombra }], blur: 0, backdropBlur: 0, blend: 'normal' } }
+      }
+      case 'vidro':
+        return { fill: dest ? alfa(forte, 0.88) : alfa(s.tinta, s.tipo === 'escuro' ? 0.07 : 0.05), stroke: alfa(s.tinta, dest ? 0.4 : 0.2), strokeWidth: R.borda, effects: { blur: 0, backdropBlur: 24, blend: 'normal' } }
+      default:
+        return { fill: dest ? forte : base }
+    }
+  }
+  /**
+   * Logo da marca numa caixa (contém o arquivo, sem distorcer). Se a cor média do logo some no fundo, ele vira
+   * silhueta: branca no fundo escuro, preta no claro. Nada disso usa IA.
+   */
+  const logo = (x: number, y: number, maxW: number, maxH: number, align: 'left' | 'center' | 'right' = 'left', papel = 'logo') => {
+    const lg = c.logo
+    if (!lg || lg.largura <= 0 || lg.altura <= 0) return null
+    const prop = lg.largura / lg.altura
+    let h = maxH
+    let w = h * prop
+    if (w > maxW) { w = maxW; h = w / prop }
+    const xl = align === 'center' ? x + (maxW - w) / 2 : align === 'right' ? x + maxW - w : x
+    const apaga = contraste(lg.cor, s.fundo) < 2
+    const escuroAtras = luminanciaRelativa(s.fundo) < 0.3
+    const l: Camada = {
+      id: c.uid(papel), type: 'image', assetId: lg.assetId, fit: 'contain', name: papel === 'logo' ? 'logo' : 'logo-rodape',
+      x: Math.round(xl), y: Math.round(y + (maxH - h) / 2), width: Math.max(1, Math.round(w)), height: Math.max(1, Math.round(h)), ariaLabel: c.marca ? `Logo ${c.marca}` : 'Logo',
+      ...(apaga ? { adjust: { brightness: 0, contrast: 1, saturate: 1, grayscale: 0, ...(escuroAtras ? { invert: 1 } : {}) } } : {}),
+      enterAnimation: animTexto(0),
+    }
+    L.push(l)
+    return l
   }
 
   // ---------- cabeçalho e rodapé das telas de conteúdo ----------
@@ -322,7 +530,11 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
     const tam = st ? 22 : 16
     const esquerda = (c.marca || c.tituloProjeto).slice(0, 48)
     const y = H - MB + (st ? 40 : 34)
-    if (esquerda) texto('rodape', esquerda, { x: M, y, w: W / 2, fonte: 'mono', tamanhos: [tam], max: 1, cor: s.suave, opacity: 0.8, anim: null, extra: { name: 'rodape' } })
+    if (R.rodape === 'nenhum') return
+    if (R.rodape === 'fio') linha(M, y - (st ? 22 : 18), W - M * 2, 1.5, s.linha, { name: 'fio-rodape' })
+    // logo discreto no rodapé (quando pedido) no lugar do nome
+    const logoRodape = c.logo?.rodape ? logo(M, y - 6, st ? 220 : 180, st ? 40 : 30, 'left', 'logo-rodape') : null
+    if (!logoRodape && esquerda) texto('rodape', esquerda, { x: M, y, w: W / 2, fonte: 'mono', tamanhos: [tam], max: 1, cor: s.suave, opacity: 0.8, anim: null, extra: { name: 'rodape' } })
     texto('pagina', `${String(c.numero).padStart(2, '0')} / ${String(c.total).padStart(2, '0')}`, { x: W - M - 200, y, w: 200, fonte: 'mono', tamanhos: [tam], max: 1, cor: s.suave, opacity: 0.8, align: 'right', anim: null, extra: { name: 'pagina' } })
   }
 
@@ -364,10 +576,9 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
       const larg = st ? W - M * 2 : tipografica || c.reservarDireita ? (c.reservarDireita ? W * 0.5 : W - M * 2) : W * 0.55
       const tam = tipografica ? (st ? [170, 150, 130, 110, 96] : [250, 220, 190, 160, 136, 116]) : st ? [168, 148, 128, 112, 96] : [176, 152, 132, 116, 100, 88]
       const yTexto = st ? H * 0.8 : H * 0.76
-      const fonte = familia('titulo')
       // orçamento de altura: o título não pode invadir a linha de apoio
       const hMax = (d.texto ? yTexto - 44 : H * 0.86) - (MT + (tipografica && !st ? 110 : 90))
-      const prev = caber(d.titulo, fonte, larg, tam, 3, { tracking: F.tracking, peso: F.pesoTitulo, alturaMax: hMax })
+      const prev = caberTitulo(d.titulo, larg, tam, 3, { tracking: F.tracking, peso: F.pesoTitulo, alturaMax: hMax })
       const altura = Math.min(hMax, prev.tamanho * 1.04 * (prev.linhas + (dividirEnfase(d.titulo, d.enfase) ? 1 : 0)))
       const yTitulo = tipografica && !st ? MT + 110 : Math.max(MT + 90, (d.texto ? yTexto - 44 : H * 0.84) - altura)
       const tt = tituloEnfase(d.titulo, { x: M, y: yTitulo, w: larg, tamanhos: tam, max: 3, hMax, extra: c.numero === 1 ? { name: 'titulo' } : {} })
@@ -377,9 +588,8 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
     case 'capa.centrada': {
       const larg = st ? W - M * 2 : W * 0.8
       const x = (W - larg) / 2
-      const fonte = familia('titulo')
       const tam = st ? [130, 112, 96, 84] : [168, 144, 124, 108, 92]
-      const prev = caber(d.titulo, fonte, larg, tam, 3, { tracking: F.tracking })
+      const prev = caberTitulo(d.titulo, larg, tam, 3, { tracking: F.tracking })
       const hTitulo = prev.tamanho * 1.04 * (prev.linhas + (dividirEnfase(d.titulo, d.enfase) ? 1 : 0))
       const bloco = 40 + 40 + hTitulo + (d.texto ? 120 : 0)
       let y = (H - bloco) / 2
@@ -476,9 +686,8 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
       const larg = st ? W - M * 2 : wc(10)
       const x = centro ? (W - larg) / 2 : M
       const al = centro ? 'center' : 'left'
-      const fonte = familia('titulo')
       const tam = st ? [120, 104, 90, 78] : minimal ? [120, 104, 88, 76] : [150, 128, 110, 96]
-      const prev = caber(d.titulo, fonte, larg, tam, 3, { tracking: F.tracking })
+      const prev = caberTitulo(d.titulo, larg, tam, 3, { tracking: F.tracking })
       let y = (H - prev.tamanho * 1.04 * prev.linhas) / 2 - 40
       const k = kicker(d.rotulo || `Parte ${String(Math.max(1, c.indiceSecao)).padStart(2, '0')}`, x, y - 64, larg, al)
       if (k) y = Math.max(y, k.fim + 24)
@@ -496,9 +705,8 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
       const larg = st ? W - M * 2 : enf ? W * 0.8 : W * 0.76
       const x = enf ? (W - larg) / 2 : M
       const al = enf ? 'center' : 'left'
-      const fonte = familia('titulo')
       const tam = st ? [124, 108, 94, 82, 72] : [112, 100, 88, 76, 66, 58]
-      const prev = caber(d.titulo, fonte, larg, tam, 4, { tracking: F.tracking })
+      const prev = caberTitulo(d.titulo, larg, tam, 4, { tracking: F.tracking })
       const hT = prev.tamanho * 1.04 * (prev.linhas + (dividirEnfase(d.titulo, d.enfase) ? 1 : 0))
       let y = enf ? (H - hT - (d.texto ? 130 : 0)) / 2 : st ? H * 0.3 : Math.min(H * 0.3, (H - hT) / 2 - 60)
       if (!enf) motivo(st ? W * 0.62 : W * 0.8, st ? H * 0.05 : MT - 10, st ? W * 0.28 : W * 0.12, st ? W * 0.28 : W * 0.12, 'pequeno')
@@ -514,8 +722,7 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
       let y = MT
       const k = kicker(d.rotulo, M, y, esquerdaW)
       if (k) y = k.fim + 22
-      const fonte = familia('titulo')
-      const prev = caber(d.titulo, fonte, esquerdaW, [100, 88, 76, 66, 58], 5, { tracking: F.tracking })
+      const prev = caberTitulo(d.titulo, esquerdaW, [100, 88, 76, 66, 58], 5, { tracking: F.tracking })
       const hT = prev.tamanho * 1.04 * prev.linhas
       const yT = Math.max(y, (H - hT) / 2 - 20)
       const tt = tituloEnfase(d.titulo, { x: M, y: yT, w: esquerdaW, tamanhos: [100, 88, 76, 66, 58], max: 5 })
@@ -590,7 +797,7 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
         const corT = dest && !abertos ? sobreDestaque : s.tinta
         const corS = dest && !abertos ? alfa(sobreDestaque, 0.82) : s.suave
         if (abertos) forma('fio', 'rect', p.x, p.y, st ? 120 : Math.min(p.w, 140), 5, { fill: forte, enterAnimation: animItem(k) })
-        else forma('cartao', 'rect', p.x, p.y, p.w, p.h, { fill: dest ? forte : s.cartao, radius: raioCartao, enterAnimation: animItem(k) })
+        else forma('cartao', 'rect', p.x, p.y, p.w, p.h, { ...cartao(dest), radius: raioCartao, enterAnimation: animItem(k) })
         const yi = p.y + (abertos ? 36 : pad)
         texto('indice', String(k + 1).padStart(2, '0'), { x: p.x + pad, y: yi, w: 80, fonte: 'mono', tamanhos: [st ? 24 : 20], max: 1, cor: dest && !abertos ? corT : forte, anim: animItem(k) })
         const tamTit = st ? [52, 46, 42] : itens.length > 3 ? [42, 38, 34] : [52, 46, 40, 36]
@@ -669,7 +876,7 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
         const p = cel[k]!
         const dest = ehDestaque(k)
         const pad = cartoes ? 44 : 0
-        if (cartoes) forma('cartao', 'rect', p.x, p.y, p.w, p.h, { fill: dest ? forte : s.cartao, radius: raioCartao, enterAnimation: animItem(k) })
+        if (cartoes) forma('cartao', 'rect', p.x, p.y, p.w, p.h, { ...cartao(dest), radius: raioCartao, enterAnimation: animItem(k) })
         else if (k > 0 && !st) linha(p.x - 32, p.y + 10, 2, p.h - 20, s.linha)
         const corV = cartoes ? (dest ? sobreDestaque : s.tinta) : dest ? forte : s.tinta
         const v = texto('valor', valor, { x: p.x + pad, y: p.y + (cartoes ? pad : 0), w: p.w - pad * 2, fonte: 'titulo', tamanhos: st ? [200, 170, 140, 120] : n <= 2 ? [220, 190, 160, 136, 116] : n === 3 ? [176, 152, 132, 112, 96, 84] : [136, 116, 100, 86, 74], max: 1, cor: corV, lh: 1, anim: { type: 'slideUp', duration: 700, delay: 150 + k * 140, easing: 'spring' } })
@@ -742,7 +949,7 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
         const y = st ? yC + k * (hCaixa + (antes ? seta : 40)) : yC
         const dest = antes ? k === 1 : destaqueA ? k === 0 : k === 1
         const fill = dest ? forte : antes ? s.fundo : s.cartao
-        forma('caixa', 'rect', x, y, w, hCaixa, { fill, radius: raioCartao, ...(antes && !dest ? { stroke: s.linha, strokeWidth: 2 } : {}), enterAnimation: animItem(k) })
+        forma('caixa', 'rect', x, y, w, hCaixa, { ...(antes && !dest ? { fill, stroke: s.linha, strokeWidth: 2 } : cartao(dest, fill)), radius: raioCartao, enterAnimation: animItem(k) })
         const corT = dest ? sobreDestaque : antes ? s.suave : s.tinta
         const pad = st ? 48 : 52
         const h1 = texto('cab', col.cab, { x: x + pad, y: y + pad, w: w - pad * 2, fonte: 'titulo', tamanhos: st ? [52, 46, 40] : [52, 46, 40], max: 2, cor: corT, anim: animItem(k) })
@@ -793,9 +1000,8 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
     case 'citacao.grande': {
       const larg = st ? W - M * 2 : W * 0.78
       texto('aspas', '“', { x: M - 12, y: st ? H * 0.12 : MT - 20, w: 360, fonte: 'titulo', tamanhos: [st ? 300 : 340], max: 1, lh: 1, cor: forte, peso: 400, anim: animForma(0) })
-      const fonte = familia('titulo')
       const tam = st ? [84, 74, 64, 56, 50] : [96, 84, 74, 64, 56, 50]
-      const prev = caber(d.titulo, fonte, larg, tam, 6, { tracking: F.tracking * 0.6 })
+      const prev = caberTitulo(d.titulo, larg, tam, 6, { tracking: F.tracking * 0.6 })
       const yQ = st ? H * 0.32 : Math.max(MT + 200, (H - prev.tamanho * 1.08 * prev.linhas) / 2)
       const q = texto('titulo', d.titulo, { x: M, y: yQ, w: larg, fonte: 'titulo', tamanhos: tam, max: 6, italic: F.italicoCitacao, tracking: F.tracking * 0.6, lh: 1.08, anim: animTitulo() })
       if (d.texto) {
@@ -809,7 +1015,7 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
       const cx = st ? M : M + wc(1) + GUT
       const cwid = st ? W - M * 2 : wc(10)
       const ch = fimConteudo - y0
-      forma('cartao', 'rect', cx, y0, cwid, ch, { fill: s.cartao, radius: raioCartao, enterAnimation: animForma(0) })
+      forma('cartao', 'rect', cx, y0, cwid, ch, { ...cartao(false), radius: raioCartao, enterAnimation: animForma(0) })
       const pad = st ? 64 : 88
       texto('aspas', '“', { x: cx + pad - 8, y: y0 + pad - 40, w: 200, fonte: 'titulo', tamanhos: [180], max: 1, lh: 1, cor: forte, peso: 400, anim: null })
       const q = texto('titulo', d.titulo, { x: cx + pad, y: y0 + pad + 110, w: cwid - pad * 2, fonte: 'titulo', tamanhos: st ? [64, 56, 50, 44] : [64, 56, 50, 44, 40], max: st ? 8 : 4, italic: F.italicoCitacao, tracking: F.tracking * 0.5, lh: 1.12, anim: animTitulo() })
@@ -831,8 +1037,7 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
       let y = st ? imgH + 80 : MT
       const k = kicker(d.rotulo, M, y, larg)
       if (k) y = k.fim + 22
-      const fonte = familia('titulo')
-      const prev = caber(d.titulo, fonte, larg, [96, 84, 72, 64, 56], 4, { tracking: F.tracking })
+      const prev = caberTitulo(d.titulo, larg, [96, 84, 72, 64, 56], 4, { tracking: F.tracking })
       if (!st) y = Math.max(y, (H - prev.tamanho * 1.04 * prev.linhas - (d.texto ? 200 : 0)) / 2)
       const tt = tituloEnfase(d.titulo, { x: M, y, w: larg, tamanhos: st ? [88, 76, 66, 58] : [96, 84, 72, 64, 56], max: 4 })
       if (d.texto) texto('texto', d.texto, { x: M, y: tt.fim + 32, w: larg, tamanhos: st ? [36, 32] : [30, 27], max: 6, cor: s.suave })
@@ -842,9 +1047,8 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
       espacoImagem(0, 0, W, H, d.imagem)
       forma('veu', 'rect', 0, H * 0.4, W, H * 0.6, { fill: s.fundo, gradient: { type: 'linear', angle: 180, stops: [{ color: alfa(s.fundo, 0), pos: 0 }, { color: alfa(s.fundo, 0.92), pos: 100 }] } })
       const larg = st ? W - M * 2 : W * 0.7
-      const fonte = familia('titulo')
-      const prev = caber(d.titulo, fonte, larg, [120, 104, 90, 78], 3, { tracking: F.tracking })
-      const hT = prev.tamanho * 1.04 * prev.linhas
+      const prev = caberTitulo(d.titulo, larg, [120, 104, 90, 78], 3, { tracking: F.tracking })
+      const hT = prev.tamanho * 1.06 * (prev.linhas + (dividirEnfase(d.titulo, d.enfase) && c.estilo !== 'minimal' ? 1 : 0))
       const yT = H - MB - hT - (d.texto ? (st ? 180 : 130) : 0)
       kicker(d.rotulo, M, yT - 60, larg)
       const tt = tituloEnfase(d.titulo, { x: M, y: yT, w: larg, tamanhos: [120, 104, 90, 78], max: 3 })
@@ -934,7 +1138,7 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
         const dest = k === destaque && planos.length > 1
         const corT = dest ? sobreDestaque : s.tinta
         const pad = st ? 44 : 44
-        forma('cartao', 'rect', c0.x, c0.y, c0.w, c0.h, { fill: dest ? forte : s.cartao, radius: raioCartao, enterAnimation: animItem(k) })
+        forma('cartao', 'rect', c0.x, c0.y, c0.w, c0.h, { ...cartao(dest), radius: raioCartao, enterAnimation: animItem(k) })
         if (dest) texto('selo', 'Recomendado', { x: c0.x + c0.w - pad - 200, y: c0.y + pad - 4, w: 200, fonte: 'mono', tamanhos: [st ? 20 : 17], max: 1, upper: true, align: 'right', cor: corT, anim: null })
         const n1 = texto('item', p.nome, { x: c0.x + pad, y: c0.y + pad, w: c0.w - pad * 2 - (dest ? 200 : 0), fonte: 'titulo', tamanhos: st ? [44, 40] : [38, 34, 30], max: 1, cor: corT, anim: animItem(k) })
         const pr = texto('preco', p.preco || '—', { x: c0.x + pad, y: n1.fim + (st ? 12 : 20), w: c0.w - pad * 2, fonte: 'titulo', tamanhos: st ? [72, 64, 56] : planos.length > 3 ? [56, 48, 42] : [68, 60, 52, 46], max: 1, cor: corT, lh: 1.05, anim: animItem(k) })
@@ -979,9 +1183,8 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
       const x = faixa ? (W - larg) / 2 : M
       const al = faixa ? 'center' : 'left'
       const [botao = '', ...contatos] = itens
-      const fonte = familia('titulo')
       const tam = st ? [110, 96, 84, 72] : [128, 110, 96, 84, 72]
-      const prev = caber(d.titulo, fonte, larg, tam, 3, { tracking: F.tracking })
+      const prev = caberTitulo(d.titulo, larg, tam, 3, { tracking: F.tracking })
       const hT = prev.tamanho * 1.04 * (prev.linhas + (dividirEnfase(d.titulo, d.enfase) ? 1 : 0))
       let y = (H - hT - (d.texto ? 120 : 0) - (botao ? 160 : 0)) / 2
       if (!faixa) motivo(st ? W * 0.6 : W * 0.72, st ? H * 0.06 : H * 0.56, st ? W * 0.32 : W * 0.2, st ? W * 0.32 : W * 0.2, 'pequeno')
@@ -1023,11 +1226,10 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
         break
       }
       const larg = W - M * 2
-      const fonte = familia('titulo')
       const tam = st ? [150, 128, 110, 96, 84] : [200, 170, 144, 124, 104, 92]
       // cabe o título, o motivo acima e o texto/contatos abaixo
       const hMax = H - MT * 2 - (decorar ? 160 : 40) - (d.texto ? 110 : 0) - itens.length * 52
-      const prev = caber(d.titulo, fonte, larg, tam, 3, { tracking: F.tracking, peso: F.pesoTitulo, alturaMax: hMax })
+      const prev = caberTitulo(d.titulo, larg, tam, 3, { tracking: F.tracking, peso: F.pesoTitulo, alturaMax: hMax })
       const hT = Math.min(hMax, prev.tamanho * 1.04 * (prev.linhas + (dividirEnfase(d.titulo, d.enfase) ? 1 : 0)))
       const yT = Math.max(MT + (decorar ? 140 : 0), (H - hT) / 2 - (d.texto || itens.length ? 60 : 0))
       if (decorar) {
@@ -1049,8 +1251,18 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem): TelaMontada {
   }
 
   if (temRodape) {
+    // grade suíça e acadêmico: fio cheio acima do cabeçalho
+    if (R.fioCabecalho) linha(M, MT - (st ? 40 : 34), W - M * 2, 3, s.tinta, { name: 'fio-topo', enterAnimation: { type: 'reveal', duration: dur(800), delay: 0, easing: 'easeOut' } })
     motivoCanto()
     rodape()
+  }
+  // logo da marca na capa e no encerramento (canto superior; centrado na capa centrada)
+  if (c.logo && (d.tipo === 'capa' || d.tipo === 'encerramento')) {
+    const hl = st ? 76 : d.variante === 'capa.tipografica' ? 44 : 64
+    const wl = st ? 280 : 300
+    if (d.tipo === 'encerramento') logo(M, MT - 10, wl * 0.8, hl * 0.85)
+    else if (d.variante === 'capa.centrada') logo((W - wl) / 2, MT - 10, wl, hl, 'center')
+    else logo(W - M - wl, MT - 10, wl, hl, 'right')
   }
   // garante que nada saia muito da tela (o schema aceita, mas a prévia corta)
   for (const l of L) {

@@ -14,10 +14,10 @@ import type { RespostaPdf } from '@/lib/ia/pdf'
 import type { PedidoTextoSchema, RespostaTexto } from '@/lib/ia/texto'
 import type { PedidoTelaSchema, RespostaTela } from '@/lib/ia/tela'
 import type { z } from 'zod'
-import type { Convite, ConviteInfoRes, EquipeRes, Membro, WorkspaceItem } from '@/lib/api/contratos'
+import type { Convite, ConviteInfoRes, EquipeRes, KitMarca, Membro, NovoKitMarca, WorkspaceItem } from '@/lib/api/contratos'
 
 export type { AssetDemo as Midia, AssetDemo, LinkCompartilhado, MovimentoCredito, Projeto, Usuario, Workspace }
-export type { Convite, ConviteInfoRes as InfoConvite, EquipeRes as Equipe, Membro, WorkspaceItem as EspacoDeTrabalho }
+export type { Convite, ConviteInfoRes as InfoConvite, EquipeRes as Equipe, KitMarca, Membro, NovoKitMarca, WorkspaceItem as EspacoDeTrabalho }
 
 /** Partes do estado que o modo real busca no servidor (no demo estão sempre prontas). */
 export type Recurso = 'conta' | 'projetos' | 'lixeira' | 'assets' | 'links'
@@ -132,6 +132,16 @@ export interface FonteDados {
   convites: {
     obter(token: string): Promise<ConviteInfoRes>
     aceitar(token: string): Promise<{ workspaceId: string; papel: 'owner' | 'editor' | 'viewer'; projetoId: string | null }>
+  }
+  /**
+   * Kits de marca do espaço (nome, cores, fontes, logo) para reusar no Criar com IA. Real: tabela brand_kits pelas
+   * rotas /api/marcas; demo: no store local.
+   */
+  marcas: {
+    listar(): Promise<KitMarca[]>
+    /** Com `id`, atualiza; sem, cria. */
+    salvar(kit: NovoKitMarca & { id?: string }): Promise<KitMarca>
+    excluir(id: string): Promise<void>
   }
   /** Espaços de trabalho de que a pessoa participa (o próprio e os aceitos por convite) e qual está ativo. */
   espacos: {

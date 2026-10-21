@@ -7,10 +7,29 @@ import { MarcaSchema } from './design'
 import { TEMA_IDS, type TemaId } from './designSystem'
 import { ESTILOS, RoteiroSchema, TIPOS_TELA, type Roteiro } from './roteiro'
 import { TIPOS, TIPOS_PEDIDO, TONS, tipoDoPedido, type TipoApresentacao, type Tom } from './tiposApresentacao'
+import { ATALHOS_TELAS, MAX_TELAS_IA } from '@/lib/telasIa'
 
 export const ORIGENS = ['zero', 'texto', 'arquivo'] as const
 export const FORMATOS_IA = ['slides', 'story', 'explorar'] as const
-export const QUANTIDADES_TELAS = [6, 8, 10, 12, 15, 20] as const
+/** Atalhos de tamanho (o campo livre aceita qualquer número de 6 até o limite do plano). */
+export const QUANTIDADES_TELAS = ATALHOS_TELAS
+export const IDIOMAS = ['pt-BR', 'en', 'es'] as const
+export type Idioma = (typeof IDIOMAS)[number]
+export const NOMES_IDIOMA: Record<Idioma, string> = { 'pt-BR': 'Português', en: 'Inglês', es: 'Espanhol' }
+
+/**
+ * O que a pessoa já tem e entra no roteiro de uma vez (sem gerar de novo depois): números-chave (valor|legenda),
+ * o que não pode faltar, o que evitar e a legenda de cada foto própria (as fotos entram nos espaços de imagem na
+ * montagem, sem IA).
+ */
+export const MaterialSchema = z.object({
+  numeros: z.array(z.string().trim().max(120)).max(12).default([]),
+  obrigatorio: z.string().trim().max(1500).default(''),
+  evitar: z.string().trim().max(800).default(''),
+  fotos: z.array(z.string().trim().max(120)).max(20).default([]),
+})
+export type MaterialPedido = z.infer<typeof MaterialSchema>
+const MATERIAL_VAZIO: MaterialPedido = { numeros: [], obrigatorio: '', evitar: '', fotos: [] }
 
 export const PedidoRoteiroSchema = z.object({
   origem: z.enum(ORIGENS).default('zero'),
@@ -19,16 +38,29 @@ export const PedidoRoteiroSchema = z.object({
   /** Texto colado ou extraído de arquivo (roteiro, briefing, artigo). */
   conteudo: z.string().trim().max(60000).default(''),
   formato: z.enum(FORMATOS_IA).default('slides'),
-  telas: z.number().int().min(3).max(20).default(8),
+  telas: z.number().int().min(3).max(MAX_TELAS_IA).default(8),
   estilo: z.enum(ESTILOS).default('editorial'),
+  /** Estilo visual já escolhido pela pessoa (ausente = a IA sugere um). */
+  tema: z.enum(TEMA_IDS).optional(),
   publico: z.string().trim().max(200).default(''),
   /** Tipo de apresentação ("auto" = descobrir pelo pedido). */
   tipo: z.enum(TIPOS_PEDIDO).default('auto'),
   /** Tom de voz; ausente = o padrão do tipo. */
   tom: z.enum(TONS).optional(),
-  marca: MarcaSchema.default({ nome: '', cores: [] }),
+  idioma: z.enum(IDIOMAS).default('pt-BR'),
+  marca: MarcaSchema.default({ nome: '', cores: [], aplicarCores: true }),
+  material: MaterialSchema.default(MATERIAL_VAZIO),
 }).refine((p) => p.prompt.length >= 3 || p.conteudo.length >= 20, { message: 'Descreva a apresentação ou cole um texto.', path: ['prompt'] })
 export type PedidoRoteiro = z.infer<typeof PedidoRoteiroSchema>
+
+/**
+ * Caracteres de material que entram no preço do roteiro (texto colado/importado + números, o que não pode faltar
+ * e o que evitar). Mesma conta no navegador e na rota: o custo mostrado antes é o cobrado.
+ */
+export function caracteresMaterial(p: { conteudo?: string; material?: Partial<MaterialPedido> }): number {
+  const m = p.material ?? {}
+  return (p.conteudo?.trim().length ?? 0) + (m.numeros ?? []).join('\n').length + (m.obrigatorio?.trim().length ?? 0) + (m.evitar?.trim().length ?? 0)
+}
 
 /** Tipo efetivo do pedido ("auto" → reconhecido pelo texto). */
 export const tipoEfetivo = (p: Pick<PedidoRoteiro, 'tipo' | 'prompt' | 'conteudo'>): TipoApresentacao => (p.tipo === 'auto' ? tipoDoPedido(`${p.prompt} ${p.conteudo.slice(0, 2000)}`) : p.tipo)

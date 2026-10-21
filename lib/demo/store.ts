@@ -12,6 +12,7 @@ import { PACOTES_AVULSOS, PLANOS, podeCriarProjeto, podeEnviarArquivo, podeUsarS
 import { classificar, precisaTexto } from '@/lib/importar/arquivos'
 import { estadoInicial, estadoVazio } from './dados'
 import type { AssetDemo, EstadoDemo, LinkCompartilhado, Projeto } from './tipos'
+import { KitMarcaReq, MAX_KITS_MARCA, type KitMarca, type NovoKitMarca } from '@/lib/api/contratos'
 
 const CHAVE = 'mostra.demo.v2'
 const ouvintes = new Set<() => void>()
@@ -488,4 +489,37 @@ function dimensoesVideo(url: string): Promise<{ width: number | null; height: nu
     v.onerror = () => resolve({ width: null, height: null })
     v.src = url
   })
+}
+
+// ---------- kits de marca (Criar com IA) ----------
+
+export function listarMarcas(): KitMarca[] {
+  return [...(carregar().marcas ?? [])].sort((a, b) => b.atualizadoEm.localeCompare(a.atualizadoEm))
+}
+
+/** Cria (sem `id`) ou atualiza um kit; valida como a rota real (KitMarcaReq) e confere que o logo é deste espaço. */
+export function salvarMarca(entrada: NovoKitMarca & { id?: string }): KitMarca {
+  const r = KitMarcaReq.safeParse(entrada)
+  if (!r.success) throw new ErroDemo('entrada_invalida', r.error.issues[0]?.message ?? 'Kit de marca inválido')
+  const e = carregar()
+  const logo = r.data.logo
+  if (logo && !e.assets.some((a) => a.id === logo.assetId)) throw new ErroDemo('entrada_invalida', 'O logo precisa ser uma mídia deste espaço.')
+  const lista = e.marcas ?? []
+  const agora = agoraIso()
+  if (entrada.id) {
+    const atual = lista.find((k) => k.id === entrada.id)
+    if (!atual) throw new ErroDemo('nao_encontrado', 'Kit de marca não encontrado')
+    const novo: KitMarca = { ...atual, ...r.data, atualizadoEm: agora }
+    atualizar((x) => ({ ...x, marcas: (x.marcas ?? []).map((k) => (k.id === novo.id ? novo : k)) }))
+    return novo
+  }
+  if (lista.length >= MAX_KITS_MARCA) throw new ErroDemo('limite_do_plano', `Cada espaço guarda até ${MAX_KITS_MARCA} kits de marca. Apague um que não usa mais.`)
+  const novo: KitMarca = { ...r.data, id: id('km'), criadoEm: agora, atualizadoEm: agora }
+  atualizar((x) => ({ ...x, marcas: [novo, ...(x.marcas ?? [])] }))
+  return novo
+}
+
+export function excluirMarca(idKit: string) {
+  if (!(carregar().marcas ?? []).some((k) => k.id === idKit)) throw new ErroDemo('nao_encontrado', 'Kit de marca não encontrado')
+  atualizar((x) => ({ ...x, marcas: (x.marcas ?? []).filter((k) => k.id !== idKit) }))
 }
