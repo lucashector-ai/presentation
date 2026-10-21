@@ -399,7 +399,8 @@ function Texto({ c, origem, modo, duracao, easing, animTexto }: { c: CamadaTexto
         // largura automática (hug) não quebra linha; senão quebra na largura da caixa
         whiteSpace: c.sizingW === 'hug' ? 'pre' : 'pre-wrap',
         wordBreak: 'break-word',
-        userSelect: modo === 'editor' ? 'none' : undefined,
+        // texto invisível sobre a imagem de uma página de PDF importada: selecionável ao apresentar
+        userSelect: modo === 'editor' ? 'none' : /^#[0-9a-f]{6}00$/i.test(c.color) && !c.background ? 'text' : undefined,
         textShadow: textShadowCss(projetadas(c.effects)),
         filter: desfoqueDe(c.effects) ? `blur(${desfoqueDe(c.effects)}px)` : undefined,
         ...estiloTracoTexto(c),

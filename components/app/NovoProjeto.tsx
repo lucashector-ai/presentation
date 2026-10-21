@@ -3,11 +3,14 @@ import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Plus, Upload, X } from 'lucide-react'
-import { dados, ehErroDados, mensagemDeErro, type AssetDemo } from '@/lib/dados'
+import { dados, ehErroDados, mensagemDeErro, useDados, type AssetDemo } from '@/lib/dados'
 import { TEMPLATES, montarDocumento } from '@/lib/ia/roteiro'
 import { EXTENSOES_ACEITAS } from '@/lib/importar/arquivos'
 import { sanitizarSvgNavegador } from '@/lib/editor/importar'
-import { FORMATOS, novaCena, parseCamada, SCHEMA_VERSION, type ModoProjeto } from '@/lib/scene/schema'
+import { documentoDePaginas } from '@/lib/pdf/paginas'
+import { PLANOS } from '@/lib/planos'
+import { FORMATOS, novaCena, parseCamada, SCHEMA_VERSION, type Cena, type ModoProjeto } from '@/lib/scene/schema'
+import { importarPaginasPdf } from './importarPdf'
 import { enquadrarNaCena } from '@/lib/scene/transform'
 import { CapaProjeto } from './CapaProjeto'
 import { cx } from '@/components/ui'
@@ -18,6 +21,8 @@ const FORMATOS_UI: { id: ModoProjeto; nome: string; descricao: string }[] = [
   { id: 'story', nome: 'Story', descricao: 'Narrativa vertical contínua, guiada pelo scroll.' },
   { id: 'explorar', nome: 'Explorar', descricao: 'Espaço interativo com navegação livre e hotspots.' },
 ]
+
+const ehPdf = (f: File) => /\.pdf$/i.test(f.name) || f.type === 'application/pdf'
 
 function Ilustracao({ modo }: { modo: ModoProjeto }) {
   if (modo === 'slides') return (
@@ -56,7 +61,11 @@ export function NovoProjeto() {
   const [arquivos, setArquivos] = useState<File[]>([])
   const [criando, setCriando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  const [textoSelecionavel, setTextoSelecionavel] = useState(true)
+  const [progresso, setProgresso] = useState<string | null>(null)
+  const planoId = useDados((e) => e.workspace.planoId)
   const entrada = useRef<HTMLInputElement>(null)
+  const temPdf = arquivos.some(ehPdf)
   const templatesDoModo = TEMPLATES.filter((t) => t.modo === modo || modo === 'slides')
   const tpl = TEMPLATES.find((t) => t.id === template)
   const previas = useMemo(() => Object.fromEntries(TEMPLATES.map((t) => [t.id, montarDocumento(t.roteiro, { modo: t.modo, tema: t.tema, estilo: t.estilo })])), [])
@@ -68,9 +77,29 @@ export function NovoProjeto() {
     setErro(null)
     try {
       let documento = comeco === 'template' && tpl ? montarDocumento(tpl.roteiro, { modo, tema: tpl.tema, estilo: tpl.estilo }) : undefined
-      if (arquivos.length) {
+      // PDFs: cada página vira uma tela (imagem em alta resolução + texto selecionável opcional)
+      const paginasPdf: Cena[] = []
+      for (const f of arquivos.filter(ehPdf)) {
+        try {
+          const r = await importarPaginasPdf(f, { planoId, textoSelecionavel, aoProgredir: ({ pagina, total }) => setProgresso(`${f.name}: página ${pagina} de ${total}`) })
+          paginasPdf.push(...documentoDePaginas(r.paginas, modo, { textoSelecionavel }).scenes.map((c) => ({ ...c, id: `pdf${paginasPdf.length}-${c.id}`.slice(0, 64) })))
+          if (r.deFora > 0) mostrar(`${f.name}: o plano ${PLANOS[planoId].nome} importa até ${PLANOS[planoId].limites.paginasPdfImportar} páginas; ${r.deFora} ficaram de fora.`, 'erro', { rotulo: 'Ver planos', aoClicar: () => router.push('/app/settings#plano') })
+        } catch (e) {
+          mostrar(e instanceof Error && e.name === 'ErroLeitura' ? `${f.name}: ${e.message}` : mensagemDeErro(e, `Não foi possível importar ${f.name}`), 'erro')
+        }
+      }
+      setProgresso(null)
+      // só PDFs e nenhum deu certo: não cria um projeto vazio no lugar do que a pessoa pediu
+      if (arquivos.length && arquivos.every(ehPdf) && !paginasPdf.length) {
+        setErro('Não foi possível importar o PDF. Tente outro arquivo.')
+        setCriando(false)
+        return
+      }
+      if (paginasPdf.length) documento = { schemaVersion: SCHEMA_VERSION, mode: modo, scenes: [...(documento?.scenes ?? []), ...paginasPdf] }
+      const midias = arquivos.filter((f) => !ehPdf(f))
+      if (midias.length) {
         const prontos: AssetDemo[] = []
-        for (const f of arquivos) {
+        for (const f of midias) {
           try { prontos.push(await dados.enviarArquivo(f, () => undefined, { sanitizarSvg: sanitizarSvgNavegador })) } catch (e) { mostrar(mensagemDeErro(e, `Não foi possível importar ${f.name}`), 'erro') }
         }
         const size = modo === 'story' ? FORMATOS.story : FORMATOS.slides169
@@ -81,9 +110,11 @@ export function NovoProjeto() {
         })
         if (telas.length) documento = { schemaVersion: SCHEMA_VERSION, mode: modo, scenes: documento ? [...documento.scenes, ...telas] : telas }
       }
-      const p = await dados.criarProjeto({ nome, modo, cliente, descricao, documento })
+      const nomePdf = !nome.trim() && arquivos.length === 1 && ehPdf(arquivos[0]!) ? arquivos[0]!.name.replace(/\.pdf$/i, '').slice(0, 80) : ''
+      const p = await dados.criarProjeto({ nome: nomePdf || nome, modo, cliente, descricao, documento })
       router.push(`/app/projects/${p.id}/edit`)
     } catch (e) {
+      setProgresso(null)
       setErro(mensagemDeErro(e, 'Não foi possível criar o projeto.'))
       if (ehErroDados(e, 'limite_do_plano')) mostrar(e.message, 'erro', { rotulo: 'Ver planos', aoClicar: () => router.push('/app/settings#plano') })
       setCriando(false)
@@ -152,15 +183,24 @@ export function NovoProjeto() {
             <section>
               <div className="rotulo-mono">Passo 2 de 2</div>
               <h1 className="titulo-display mt-2 text-[40px]">Traga seu material.</h1>
-              <p className="mt-4 text-[14px] leading-relaxed text-texto2">Cada imagem vira uma tela. SVGs do Figma e do Illustrator viram vetores editáveis, GLB do Blender vira 3D, JSON do After Effects vira Lottie. Você também pode pular e colar tudo depois, direto no editor.</p>
+              <p className="mt-4 text-[14px] leading-relaxed text-texto2">Cada imagem vira uma tela, e cada página de um PDF também: apresente um PDF pronto com as transições e animações do Mostra. SVGs do Figma e do Illustrator viram vetores editáveis, GLB do Blender vira 3D, JSON do After Effects vira Lottie. Você também pode pular e colar tudo depois, direto no editor.</p>
             </section>
             <section>
-              <input ref={entrada} type="file" multiple accept={EXTENSOES_ACEITAS} className="hidden" onChange={(e) => { const novos = Array.from(e.target.files ?? []); setArquivos((a) => [...a, ...novos]); e.target.value = '' }} />
+              <input ref={entrada} type="file" multiple accept={`${EXTENSOES_ACEITAS},.pdf,application/pdf`} aria-label="Arquivos do projeto" className="hidden" onChange={(e) => { const novos = Array.from(e.target.files ?? []); setArquivos((a) => [...a, ...novos]); e.target.value = '' }} />
               <button type="button" onClick={() => entrada.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const soltos = Array.from(e.dataTransfer.files); setArquivos((a) => [...a, ...soltos]) }} className="flex w-full flex-col items-center gap-2 rounded-xl border-[1.5px] border-dashed border-[#D4D4D4] bg-superficie px-6 py-14 text-center hover:border-acento">
                 <Upload className="h-5 w-5 text-texto2" />
                 <span className="text-[15px] font-medium">Arraste arquivos aqui ou clique para escolher</span>
-                <span className="text-[13px] text-texto3">PNG, JPG, WebP, GIF, SVG, MP4, WebM, GLB/GLTF, Lottie (JSON)</span>
+                <span className="text-[13px] text-texto3">PDF, PNG, JPG, WebP, GIF, SVG, MP4, WebM, GLB/GLTF, Lottie (JSON)</span>
               </button>
+              {temPdf && (
+                <label className="mt-4 flex items-start gap-3 rounded-xl border border-borda bg-superficie px-4 py-3 text-[13px]">
+                  <input type="checkbox" checked={textoSelecionavel} onChange={(e) => setTextoSelecionavel(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#5965F2]" />
+                  <span>
+                    <span className="block font-medium">Texto selecionável nas páginas do PDF</span>
+                    <span className="mt-0.5 block text-texto3">O texto de cada página fica por cima da imagem, invisível: dá para selecionar, copiar e buscar ao apresentar, e editar no editor. Cada página vira uma tela em alta resolução; até {PLANOS[planoId].limites.paginasPdfImportar} páginas no plano {PLANOS[planoId].nome}.</span>
+                  </span>
+                </label>
+              )}
               {arquivos.length > 0 && (
                 <ul className="mt-4 divide-y divide-borda rounded-xl border border-borda bg-superficie">
                   {arquivos.map((f, i) => (
@@ -178,7 +218,7 @@ export function NovoProjeto() {
 
       <footer className="sticky bottom-0 border-t border-borda bg-fundo/95 backdrop-blur">
         <div className="mx-auto flex h-[76px] max-w-[1136px] items-center justify-between gap-4 px-4 sm:px-6">
-          <span className={cx('min-w-0 truncate text-[13px] text-texto2', !erro && 'hidden sm:block')}>{erro ? <span className="text-perigo" role="alert">{erro}</span> : resumo}{arquivos.length ? ` · ${arquivos.length} arquivo(s)` : ''}</span>
+          <span className={cx('min-w-0 truncate text-[13px] text-texto2', !erro && !progresso && 'hidden sm:block')} aria-live="polite">{erro ? <span className="text-perigo" role="alert">{erro}</span> : progresso ? `Importando ${progresso}…` : resumo}{arquivos.length && !progresso ? ` · ${arquivos.length} arquivo(s)` : ''}</span>
           <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
             {passo === 1 ? <Link href="/app" className="hidden px-4 py-2.5 text-[14px] font-medium sm:block">Cancelar</Link> : <button type="button" onClick={() => setPasso(1)} className="px-4 py-2.5 text-[14px] font-medium">Voltar</button>}
             {passo === 1 && <button type="button" onClick={() => setPasso(2)} className="h-11 rounded-[9px] border-[1.5px] border-bordaForte px-3 text-[14px] font-medium hover:border-[#D4D4D4] sm:px-5"><span className="sm:hidden">Arquivos</span><span className="hidden sm:inline">Importar arquivos</span></button>}

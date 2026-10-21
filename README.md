@@ -13,7 +13,8 @@ SaaS privado para designers, diretores de arte e estúdios: cole artes do Figma 
 | Colar/importar de Figma, Illustrator, navegador: SVG (sanitizado), imagens, texto, links (YouTube/Vimeo/Figma/Spline viram embed) | ✅ ver ADR 0006 |
 | 3D (GLB/glTF do Blender via `<model-viewer>`), Lottie, embeds com allowlist | ✅ ver ADR 0007 |
 | Visualizador Slides, Story e Explorar (mapa navegável), transição morph, avanço automático, modo apresentador com notas sincronizado | ✅ |
-| Criar com IA (`/app/criar`; `/criar` redireciona mantendo o prompt): prompt ou texto → roteiro editável → telas desenhadas; créditos por workspace | ✅ ver ADR 0008 — usa o Claude com `ANTHROPIC_API_KEY`, senão gerador local |
+| Criar com IA (`/app/criar`; `/criar` redireciona mantendo o prompt): prompt, texto ou arquivo → roteiro editável → telas desenhadas; créditos por workspace | ✅ ver ADR 0008 — usa o Claude com `ANTHROPIC_API_KEY`, senão gerador local |
+| PDF e .docx como material da IA: texto extraído no navegador (pdf.js sob demanda, estrutura em Markdown leve: títulos, listas, tabelas, ordem de leitura); páginas escaneadas lidas pelo Claude (documento PDF, cobrado por página, `/api/ai/pdf`); importar PDF como apresentação (uma tela por página, texto selecionável) em Novo projeto | ✅ `lib/pdf/`, `lib/importar/docx.ts`, custos em `docs/economia-ia.md`; E2E em `e2e/pdf.mjs` |
 | Publicação (snapshot imutável) e links (token hash, senha, validade, revogação, limite de tentativas) | ✅ no modo demonstração |
 | Painel como centro do app (criar, continuar, enviados e visualizações, créditos e compra, primeiros passos, busca ⌘K), detalhes, compartilhamento, conta/planos, marketing, login/cadastro | ✅ ver `docs/ux/DIRECAO.md` |
 | Banco (Neon Postgres, `db/migrations`), login (Neon Auth: e-mail/senha + Google), mídias (Cloudflare R2) e rotas `/api` | ✅ exercitados de ponta a ponta contra o Neon (cadastro, login, projeto, cenas, upload, publicação, link de convidado, créditos, isolamento entre usuários) — ver ADR 0010 |
@@ -75,7 +76,10 @@ npm run build                                        # build de produção (dist
 npm run dev & npm run test:e2e                       # fluxo ponta a ponta (Playwright, exige navegador instalado: npx playwright install chromium)
 NEXT_PUBLIC_DEMO=1 npm run build && npm run preview  # o Worker de produção no workerd, em http://localhost:8787
 E2E_BASE_URL=http://localhost:8787 npm run test:e2e  # o mesmo fluxo contra o preview
+E2E_BASE_URL=http://localhost:8787 node e2e/pdf.mjs  # PDF/.docx no "Criar com IA" e PDF importado como apresentação
 ```
+
+O pdf.js só existe no navegador: `lib/pdf/navegador.ts` é carregado sob demanda e, no RSC/SSR, vira um stub (plugin em `vite.config.ts`), então o Worker não leva o pdf.js. O worker do pdf.js sai como asset do build; o wasm (JPEG 2000/JBIG2) e as fontes padrão que ele busca por URL saem em `/_next/static/pdfjs/<versão>/`.
 
 `npm run verificar` encadeia lint, typecheck, testes e build (é o que a CI executa em `.github/workflows/ci.yml`).
 

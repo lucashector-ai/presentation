@@ -6,7 +6,7 @@
  * o teste `lib/ia/economia.test.ts` falha se algum preço em créditos deixar de cobrir o custo.
  */
 
-export type EtapaIA = 'roteiro' | 'design' | 'tela' | 'texto'
+export type EtapaIA = 'roteiro' | 'design' | 'tela' | 'texto' | 'pdf'
 export type Esforco = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
 export interface ModeloIA {
@@ -30,13 +30,15 @@ export const MODELOS = {
 
 /**
  * Roteamento: o roteiro (estrutura e texto) vai no Sonnet; o desenho de cada tela (composição, hierarquia,
- * ajuste de texto ao layout) no Opus; refazer uma tela no Sonnet; ações curtas de texto no Haiku.
+ * ajuste de texto ao layout) no Opus; refazer uma tela no Sonnet; ações curtas de texto no Haiku. A leitura
+ * de PDF escaneado (transcrição do material que vai para o roteiro) fica no mesmo modelo do roteiro.
  */
 export const MODELO_POR_ETAPA: Record<EtapaIA, ModeloIA> = {
   roteiro: MODELOS.sonnet,
   design: MODELOS.opus,
   tela: MODELOS.sonnet,
   texto: MODELOS.haiku,
+  pdf: MODELOS.sonnet,
 }
 
 /**
@@ -48,6 +50,8 @@ export const CONFIG_ETAPA: Record<EtapaIA, { esforco: Esforco; maxTokens: number
   design: { esforco: 'medium', maxTokens: 8000 },
   tela: { esforco: 'medium', maxTokens: 4000 },
   texto: { esforco: 'low', maxTokens: 8000 },
+  // transcrição: pouco raciocínio, saída longa (até ≈ 1.500 tokens por página × 40 páginas), em streaming
+  pdf: { esforco: 'low', maxTokens: 64000 },
 }
 
 export interface UsoTokens { entrada: number; saida: number; cacheLeitura?: number; cacheEscrita?: number }

@@ -9,7 +9,8 @@ import { CONFIG_ETAPA, MODELO_POR_ETAPA, custoUsd, type UsoTokens } from './mode
 import { INSTRUCOES_SISTEMA } from './prompt'
 import { INSTRUCOES_TELA } from './tela'
 import { INSTRUCOES_TEXTO } from './texto'
-import { CUSTO_CREDITOS, DESCONTO_ANUAL, DIVISAO_TELA, MATERIAL_CREDITOS, PACOTES_AVULSOS, PLANOS, custoApresentacao, custoDesenho, custoRoteiro, type PlanoId } from '@/lib/planos'
+import { INSTRUCOES_PDF } from './pdf'
+import { CUSTO_CREDITOS, DESCONTO_ANUAL, DIVISAO_TELA, LEITURA_PDF_CREDITOS, MATERIAL_CREDITOS, PACOTES_AVULSOS, PLANOS, custoApresentacao, custoDesenho, custoLeituraPdf, custoRoteiro, type PlanoId } from '@/lib/planos'
 
 // ---------------------------------------------------------------- premissas
 
@@ -50,6 +51,14 @@ export const ESTIMATIVA = {
   },
   tela: { sistema: tokens(INSTRUCOES_TELA), entrada: 700, saida: 900 },
   texto: { sistema: tokens(INSTRUCOES_TEXTO), entrada: 600, saida: 600 },
+  /**
+   * Leitura de PDF escaneado: o Claude converte cada página em imagem e extrai o texto que houver. Imagem: até
+   * 4.784 tokens visuais por página (teto do nível de alta resolução, modelos 4.7+; página A4 a 2.000 px já bate
+   * no teto); texto: a página que mandamos não tem camada de texto, mas contamos 1.600 (o mínimo da faixa de
+   * 1.500–3.000 da documentação) como folga para o que a API extrair. Saída: a transcrição (≈ 400–900 tokens
+   * numa página cheia de texto) + o pensamento em esforço baixo + o JSON por página.
+   */
+  pdf: { sistema: tokens(INSTRUCOES_PDF), pedido: 120, imagemPorPagina: 4784, textoPorPagina: 1600, saidaBase: 200, saidaPorPagina: 1100 },
 } as const
 
 // ---------------------------------------------------------------- custo por ação (USD)
@@ -97,7 +106,14 @@ export function custoReescreverUsd(): CustoEtapa {
   return { etapa: 'texto', modelo: MODELO_POR_ETAPA.texto.id, uso, usd: custoUsd(MODELO_POR_ETAPA.texto, uso) }
 }
 
-export const custoApresentacaoUsd = (telas: number, caracteresMaterial = 0) => custoRoteiroUsd(telas, caracteresMaterial).usd + custoDesenhoUsd(telas).usd
+/** Leitura de N páginas escaneadas pelo Claude (documento PDF na mensagem; sem cache: cada PDF é lido uma vez). */
+export function custoLeituraPdfUsd(paginas: number): CustoEtapa {
+  const e = ESTIMATIVA.pdf
+  const uso = { entrada: e.sistema + e.pedido + (e.imagemPorPagina + e.textoPorPagina) * paginas, saida: e.saidaBase + e.saidaPorPagina * paginas, cacheLeitura: 0, cacheEscrita: 0 }
+  return { etapa: 'pdf', modelo: MODELO_POR_ETAPA.pdf.id, uso, usd: custoUsd(MODELO_POR_ETAPA.pdf, uso) }
+}
+
+export const custoApresentacaoUsd =(telas: number, caracteresMaterial = 0) => custoRoteiroUsd(telas, caracteresMaterial).usd + custoDesenhoUsd(telas).usd
 
 /** Créditos mínimos para cobrir um custo em USD com a folga. */
 export const creditosNecessarios = (usd: number) => Math.ceil((usd * (1 + FOLGA)) / USD_POR_CREDITO)
@@ -153,8 +169,9 @@ export function tabelaAcoes(telasLista = [6, 8, 10, 12, 20]) {
     redesenhar1Frio: { acao: 'Redesenhar 1 tela com a plataforma ociosa (cache todo frio)', usd: custoDesenhoUsd(1, 10).usd, creditos: DIVISAO_TELA.desenho, necessarios: creditosNecessarios(custoDesenhoUsd(1, 10).usd) },
     refazer: { acao: 'Refazer uma tela', usd: custoRefazerTelaUsd().usd, creditos: CUSTO_CREDITOS.refazerTela, necessarios: creditosNecessarios(custoRefazerTelaUsd().usd) },
     reescrever: { acao: 'Reescrever o texto de uma tela', usd: custoReescreverUsd().usd, creditos: CUSTO_CREDITOS.reescrever, necessarios: creditosNecessarios(custoReescreverUsd().usd) },
+    leituraPdf: [1, 5, 10, 20, 40].map((n) => ({ acao: `Ler ${n} ${n === 1 ? 'página escaneada' : 'páginas escaneadas'} de PDF`, usd: custoLeituraPdfUsd(n).usd, creditos: custoLeituraPdf(n), necessarios: creditosNecessarios(custoLeituraPdfUsd(n).usd) })),
     planos: (Object.keys(PLANOS) as PlanoId[]).flatMap((id) => (['mensal', 'anual'] as const).map((c) => margemDoPlano(id, c))),
     pacotes: PACOTES_AVULSOS.map((p) => margemDoPacote(p.creditos, p.precoBRL)),
-    premissas: { CAMBIO_BRL_POR_USD, USD_POR_CREDITO, FOLGA, DEDUCOES_RECEITA, TETO_IA_SOBRE_RECEITA, DESCONTO_ANUAL, MATERIAL_CREDITOS, CONFIG_ETAPA },
+    premissas: { CAMBIO_BRL_POR_USD, USD_POR_CREDITO, FOLGA, DEDUCOES_RECEITA, TETO_IA_SOBRE_RECEITA, DESCONTO_ANUAL, MATERIAL_CREDITOS, LEITURA_PDF_CREDITOS, CONFIG_ETAPA },
   }
 }

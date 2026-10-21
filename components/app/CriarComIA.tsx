@@ -17,7 +17,9 @@ import type { TelaDesenhada } from '@/lib/ia/montagem'
 import { FORMATOS_IA, ORIGENS, QUANTIDADES_TELAS, tipoEfetivo } from '@/lib/ia/pedido'
 import { ESTILOS, TIPOS_TELA, montarDocumento, type Densidade, type Estilo, type OpcaoImagens, type Roteiro, type TelaRoteiro, type TipoTela } from '@/lib/ia/roteiro'
 import { NOMES_TOM, TIPOS, TIPOS_APRESENTACAO, TONS, type TipoPedido, type Tom } from '@/lib/ia/tiposApresentacao'
-import { PLANOS, custoApresentacao, custoDesenho, custoRoteiro, podeGastarCreditos, podeGerarTelas, textoApresentacoes } from '@/lib/planos'
+import { MATERIAL_CREDITOS, PLANOS, custoApresentacao, custoDesenho, custoLeituraPdf, custoRoteiro, podeGastarCreditos, podeGerarTelas, textoApresentacoes } from '@/lib/planos'
+import { juntarPaginas, listaDePaginas, paginasParaIa, resumoMaterial, type MaterialLido } from '@/lib/pdf/material'
+import type { DocumentoPdf } from '@/lib/pdf/navegador'
 import { useCreditos } from './Creditos'
 import type { Cena, DocumentoProjeto } from '@/lib/scene/schema'
 
@@ -34,7 +36,7 @@ const NOMES_TIPO_CURTO: Record<TipoPedido, string> = {
 const PLACEHOLDER: Record<Origem, string> = {
   zero: 'Ex.: Proposta de identidade visual para uma marca de cerâmica artesanal, com conceito, paleta, tipografia e aplicações…',
   texto: 'Cole aqui seu briefing, roteiro, relatório ou anotações. A IA organiza em telas.',
-  arquivo: 'Arraste um arquivo de texto (.txt, .md, .html) — o conteúdo aparece aqui para você revisar.',
+  arquivo: 'Arraste um PDF, um .docx ou um arquivo de texto (.txt, .md, .html) — o texto lido aparece aqui para você revisar.',
 }
 const EXEMPLOS: { texto: string; tipo: TipoPedido; cor: string; raio: string }[] = [
   { texto: 'Pitch da Aurora, startup de energia solar por assinatura para pequenos comércios, buscando rodada seed.', tipo: 'pitch', cor: '#D7F25C', raio: '0' },
@@ -46,8 +48,10 @@ const EXEMPLOS: { texto: string; tipo: TipoPedido; cor: string; raio: string }[]
 ]
 const FORMAS = ['50%', '6px', '0', '999px 999px 0 0']
 const CORES_CARTAO = ['#E4572E', '#5965F2', '#F2C14E', '#1F3B4D', '#D7F25C', '#B4532A']
-const EXTENSOES_TEXTO = '.txt,.md,.markdown,.html,.htm,.csv'
+const EXTENSOES_TEXTO = '.pdf,.docx,.txt,.md,.markdown,.html,.htm,.csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 const MAX_TEXTO = 60000
+/** .docx maior que isto não é lido no navegador (o texto de um documento normal tem poucos MB). */
+const MAX_BYTES_DOCX = 40 * 1024 * 1024
 // créditos fictícios (demo): o débito é calculado aqui; no backend real vem da resposta da rota
 const DEMO = dados.capacidades.creditosFicticios
 
@@ -158,6 +162,13 @@ export function CriarComIA() {
   const [projetoId, setProjetoId] = useState<string | null>(null)
   const [salvandoProjeto, setSalvandoProjeto] = useState(false)
   const [arrastando, setArrastando] = useState(false)
+  /** O que foi lido do arquivo (resumo mostrado antes de gerar). */
+  const [material, setMaterial] = useState<MaterialLido | null>(null)
+  const [lendo, setLendo] = useState<{ fase: string; progresso: number } | null>(null)
+  /** PDF aberto (para a IA ler as páginas escaneadas depois) e o texto de cada página. */
+  const pdfAberto = useRef<DocumentoPdf | null>(null)
+  const textoPaginas = useRef<string[]>([])
+  const abortarLeitura = useRef<AbortController | null>(null)
   const abortar = useRef<AbortController | null>(null)
   const entradaArquivo = useRef<HTMLInputElement>(null)
   const criadoPara = useRef<DocumentoProjeto | null>(null)
@@ -168,15 +179,15 @@ export function CriarComIA() {
   useEffect(() => { carregarFontes(TEMAS.map((t) => t.fontes.titulo)) }, [])
 
   const textoBase = origem === 'zero' ? prompt : conteudo
-  const podeGerar = textoBase.trim().length >= (origem === 'zero' ? 3 : 20) && !gerando
-  const material = origem === 'zero' ? 0 : conteudo.length
+  const podeGerar = textoBase.trim().length >= (origem === 'zero' ? 3 : 20) && !gerando && !lendo
+  const caracteresMaterial = origem === 'zero' ? 0 : conteudo.length
   const marca = useMemo(() => ({ nome: marcaNome.trim().slice(0, 60), cores: cores.filter((c) => RE_HEX.test(c)) }), [marcaNome, cores])
   // "Gerar uma apresentação" = roteiro (agora) + design de cada tela (no passo 3)
-  const custoTotal = custoApresentacao(telas, material)
-  const custoDoRoteiro = custoRoteiro(telas, material)
+  const custoTotal = custoApresentacao(telas, caracteresMaterial)
+  const custoDoRoteiro = custoRoteiro(telas, caracteresMaterial)
   const semSaldo = !podeGastarCreditos(saldo, custoTotal).ok
   const tipoDetectado = tipoEfetivo({ tipo, prompt, conteudo: origem === 'zero' ? '' : conteudo })
-  useEffect(() => () => abortar.current?.abort(), [])
+  useEffect(() => () => { abortar.current?.abort(); abortarLeitura.current?.abort(); void pdfAberto.current?.fechar() }, [])
 
   const gerarRoteiro = async (outro = false) => {
     if (!podeGerar && !outro) return
@@ -225,20 +236,102 @@ export function CriarComIA() {
     }
   }
 
+  /** Põe o texto lido no material (e avisa se passou do teto). */
+  const usarTexto = (texto: string, m: MaterialLido) => {
+    const cortado = texto.length > MAX_TEXTO
+    setConteudo(texto.slice(0, MAX_TEXTO))
+    setMaterial({ ...m, caracteres: Math.min(texto.length, MAX_TEXTO), cortado })
+  }
+
   const importar = async (f: File | undefined) => {
     if (!f) return
-    if (/\.(pdf|docx?|pptx?|key|fig)$/i.test(f.name)) {
-      mostrar('Por enquanto o Mostra lê arquivos de texto (.txt, .md, .html). Abra o PDF/DOCX e cole o texto em "Colar texto".', 'erro')
+    if (/\.(docm|doc|pptx?|key|fig|pages|odt|rtf)$/i.test(f.name)) {
+      mostrar('Este formato ainda não é lido. Salve como PDF ou .docx (ou cole o texto em "Colar texto").', 'erro')
       return
     }
+    abortarLeitura.current?.abort()
+    const ctrl = new AbortController()
+    abortarLeitura.current = ctrl
+    await pdfAberto.current?.fechar().catch(() => {})
+    pdfAberto.current = null
+    textoPaginas.current = []
+    setMaterial(null)
+    setArquivo(f.name)
+    const base = { arquivo: f.name, paginas: 0, titulos: 0, itensLista: 0, tabelas: 0, semTexto: [], lidasPelaIa: [], emBranco: [], cortado: false }
     try {
-      const texto = await lerArquivoTexto(f)
-      if (!texto) return mostrar('O arquivo está vazio.', 'erro')
-      setConteudo(texto.slice(0, MAX_TEXTO))
-      setArquivo(f.name)
-      if (texto.length > MAX_TEXTO) mostrar('O texto é longo; usamos os primeiros 60 mil caracteres.')
-    } catch {
-      mostrar(`Não foi possível ler ${f.name}.`, 'erro')
+      if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') {
+        setLendo({ fase: 'Abrindo o PDF…', progresso: 0 })
+        const pdf = await import('@/lib/pdf/navegador')
+        const d = await pdf.abrirPdf(f)
+        if (ctrl.signal.aborted) return void d.fechar()
+        pdfAberto.current = d
+        const r = await pdf.lerTextoPdf(d, { sinal: ctrl.signal, aoProgredir: (n, total) => setLendo({ fase: `Lendo a página ${n} de ${total}…`, progresso: n / total }) })
+        textoPaginas.current = r.porPagina
+        usarTexto(r.texto, { ...base, tipo: 'pdf', paginas: r.paginas, caracteres: r.caracteres, titulos: r.titulos, itensLista: r.itensLista, tabelas: r.tabelas, semTexto: r.paginasSemTexto })
+        if (!r.texto.trim()) mostrar('Este PDF não tem texto para ler no navegador (parece escaneado). A IA pode ler as páginas.')
+      } else if (/\.docx$/i.test(f.name)) {
+        if (f.size > MAX_BYTES_DOCX) throw Object.assign(new Error('O .docx é grande demais para ler no navegador.'), { name: 'ErroLeitura' })
+        setLendo({ fase: 'Lendo o .docx…', progresso: 0.5 })
+        const { textoDoDocx } = await import('@/lib/importar/docx')
+        const r = textoDoDocx(new Uint8Array(await f.arrayBuffer()))
+        if (!r.texto) return mostrar('O documento está vazio.', 'erro')
+        usarTexto(r.texto, { ...base, tipo: 'docx', caracteres: r.caracteres, titulos: r.titulos, itensLista: r.itensLista, tabelas: r.tabelas })
+      } else {
+        const texto = await lerArquivoTexto(f)
+        if (!texto) return mostrar('O arquivo está vazio.', 'erro')
+        usarTexto(texto, { ...base, tipo: 'texto', caracteres: texto.length })
+      }
+    } catch (e) {
+      if (ctrl.signal.aborted) return
+      setArquivo(null)
+      // ErroPdf/ErroDocx (name 'ErroLeitura') já trazem a mensagem para o usuário
+      mostrar(e instanceof Error && e.name === 'ErroLeitura' ? e.message : `Não foi possível ler ${f.name}.`, 'erro')
+    } finally {
+      if (abortarLeitura.current === ctrl) setLendo(null)
+    }
+  }
+
+  // páginas sem texto (escaneadas) que a IA pode ler agora, dentro do limite do plano
+  const limiteIaPdf = PLANOS[planoId].limites.paginasPdfIa
+  const paraIa = material ? paginasParaIa(material.semTexto, limiteIaPdf) : []
+  const custoDaLeitura = custoLeituraPdf(paraIa.length)
+
+  /** A IA lê as páginas escaneadas: monta um PDF só com elas (imagem), envia e junta o texto na ordem das páginas. */
+  const lerComIa = async () => {
+    const d = pdfAberto.current
+    if (!d || !material || !paraIa.length) return
+    const decisao = podeGastarCreditos(dados.estado().creditos.saldo, custoDaLeitura)
+    if (!decisao.ok) return abrirCompra(`A leitura custa ${custoDaLeitura} créditos e você tem ${dados.estado().creditos.saldo}. Escolha um pacote para continuar.`)
+    const ctrl = new AbortController()
+    abortarLeitura.current?.abort()
+    abortarLeitura.current = ctrl
+    try {
+      setLendo({ fase: 'Preparando as páginas para a IA…', progresso: 0 })
+      const pdf = await import('@/lib/pdf/navegador')
+      const montado = await pdf.montarPdfParaIa(d, paraIa, (n, total) => setLendo({ fase: `Preparando a página ${n} de ${total}…`, progresso: (n / total) * 0.3 }))
+      if (ctrl.signal.aborted) return
+      const emBranco = [...material.emBranco, ...montado.emBranco]
+      if (!montado.paginas.length) {
+        setMaterial({ ...material, semTexto: material.semTexto.filter((n) => !paraIa.includes(n)), emBranco })
+        return mostrar('As páginas sem texto estão em branco; nada para ler.')
+      }
+      setLendo({ fase: `A IA está lendo ${montado.paginas.length} ${montado.paginas.length === 1 ? 'página' : 'páginas'}…`, progresso: 0.35 })
+      const r = await dados.ia.pdf(montado.bytes, montado.paginas, ctrl.signal)
+      const cobrado = DEMO ? custoLeituraPdf(montado.paginas.length) : r.creditos
+      dados.registrarUsoIa({ custo: cobrado, motivo: `Leitura de PDF com IA · ${montado.paginas.length} ${montado.paginas.length === 1 ? 'página' : 'páginas'}`, gerador: 'claude', houveResultado: cobrado > 0 })
+      const paginas = [...textoPaginas.current]
+      for (const p of r.paginas) paginas[p.pagina - 1] = p.texto
+      textoPaginas.current = paginas
+      const { texto } = juntarPaginas(paginas, Number.MAX_SAFE_INTEGER)
+      const lidas = [...material.lidasPelaIa, ...r.paginas.map((p) => p.pagina)].sort((a, b) => a - b)
+      usarTexto(texto, { ...material, semTexto: material.semTexto.filter((n) => !paraIa.includes(n)), lidasPelaIa: lidas, emBranco })
+      mostrar(`A IA leu ${r.paginas.length} ${r.paginas.length === 1 ? 'página' : 'páginas'} · ${r.caracteres.toLocaleString('pt-BR')} caracteres · ${cobrado} créditos.`)
+    } catch (e) {
+      if (ctrl.signal.aborted) return
+      if ((e as { code?: string } | null)?.code === 'limite_do_plano') return abrirCompra(mensagemDeErro(e))
+      mostrar(mensagemDeErro(e, 'A IA não conseguiu ler as páginas. Nenhum crédito foi cobrado.'), 'erro')
+    } finally {
+      if (abortarLeitura.current === ctrl) setLendo(null)
     }
   }
 
@@ -397,10 +490,41 @@ export function CriarComIA() {
               onDrop={(e) => { if (origem === 'zero') return; e.preventDefault(); setArrastando(false); setOrigem('arquivo'); void importar(e.dataTransfer.files[0]) }}
             >
               {origem === 'arquivo' && (
-                <div className="flex items-center gap-3 border-b border-borda px-6 py-3 text-[14px]">
-                  {arquivo ? <><FileText className="h-4 w-4 text-acento" /><span className="truncate font-medium">{arquivo}</span><span className="text-texto3">· {conteudo.length.toLocaleString('pt-BR')} caracteres</span></> : <span className="text-texto3">Nenhum arquivo ainda.</span>}
-                  <button type="button" onClick={() => entradaArquivo.current?.click()} className="ml-auto flex items-center gap-2 rounded-full border-[1.5px] border-bordaForte px-3 py-1.5 text-[13px] font-medium hover:border-grafite"><Upload className="h-3.5 w-3.5" />Escolher arquivo</button>
-                  <input ref={entradaArquivo} type="file" accept={EXTENSOES_TEXTO} className="hidden" onChange={(e) => { void importar(e.target.files?.[0]); e.target.value = '' }} />
+                <div className="border-b border-borda px-6 py-3 text-[14px]">
+                  <div className="flex items-center gap-3">
+                    {arquivo ? <><FileText className="h-4 w-4 shrink-0 text-acento" /><span className="truncate font-medium">{arquivo}</span></> : <span className="text-texto3">Nenhum arquivo ainda · PDF, .docx, .txt, .md ou .html</span>}
+                    <button type="button" onClick={() => entradaArquivo.current?.click()} disabled={!!lendo} className="ml-auto flex shrink-0 items-center gap-2 rounded-full border-[1.5px] border-bordaForte px-3 py-1.5 text-[13px] font-medium hover:border-grafite disabled:opacity-50"><Upload className="h-3.5 w-3.5" />{arquivo ? 'Trocar arquivo' : 'Escolher arquivo'}</button>
+                    <input ref={entradaArquivo} type="file" accept={EXTENSOES_TEXTO} aria-label="Arquivo de material" className="hidden" onChange={(e) => { void importar(e.target.files?.[0]); e.target.value = '' }} />
+                  </div>
+                  {lendo && (
+                    <div className="mt-2.5 flex items-center gap-3 text-[13px] text-texto3" role="status" aria-live="polite">
+                      <span aria-hidden className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-[#E7E5E4] border-t-violeta" />
+                      <span className="shrink-0">{lendo.fase}</span>
+                      <span className="h-1 flex-1 overflow-hidden rounded-sm bg-[#EDECEA]"><span className="block h-1 bg-violeta transition-[width]" style={{ width: `${Math.round(lendo.progresso * 100)}%` }} /></span>
+                    </div>
+                  )}
+                  {material && !lendo && (
+                    <div className="mt-2.5 flex flex-col gap-2 text-[13px]" data-testid="resumo-material">
+                      <div className="text-texto2" aria-live="polite">
+                        <span className="font-medium text-texto">Lido:</span> {resumoMaterial(material)}
+                        {material.lidasPelaIa.length > 0 && <> · {material.lidasPelaIa.length === 1 ? 'página' : 'páginas'} {listaDePaginas(material.lidasPelaIa)} {material.lidasPelaIa.length === 1 ? 'lida' : 'lidas'} pela IA</>}
+                        {material.cortado && <> · usamos os primeiros {MAX_TEXTO.toLocaleString('pt-BR')} caracteres</>}
+                      </div>
+                      {conteudo.length > 0 && (
+                        <div className="text-texto3">No roteiro, este material soma <span className="mono text-texto">{custoRoteiro(telas, conteudo.length) - custoRoteiro(telas)}</span> {custoRoteiro(telas, conteudo.length) - custoRoteiro(telas) === 1 ? 'crédito' : 'créditos'} (1 a cada {MATERIAL_CREDITOS.caracteres.toLocaleString('pt-BR')} caracteres), já incluídos no total abaixo. Revise o texto antes de gerar.</div>
+                      )}
+                      {material.semTexto.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[10px] bg-[#FFF7E8] px-3 py-2.5 text-[#6B4E16]">
+                          <span className="min-w-0 flex-1">
+                            {material.semTexto.length === material.paginas ? 'Nenhuma página tem texto para ler no navegador' : `${material.semTexto.length} ${material.semTexto.length === 1 ? 'página não tem' : 'páginas não têm'} texto (${material.semTexto.length === 1 ? 'página' : 'páginas'} ${listaDePaginas(material.semTexto)})`}: parece escaneado ou só imagem. A IA pode ler a imagem {material.semTexto.length === 1 ? 'dela' : 'delas'}{paraIa.length < material.semTexto.length ? ` (até ${limiteIaPdf} por vez no plano ${PLANOS[planoId].nome})` : ''}. O PDF não fica guardado.
+                          </span>
+                          <button type="button" onClick={() => void lerComIa()} className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border-[1.5px] border-grafite bg-white px-3 text-[13px] font-medium text-texto hover:bg-[#F5F5F4]">
+                            <Sparkles className="h-3.5 w-3.5 text-acento" />Ler {paraIa.length} {paraIa.length === 1 ? 'página' : 'páginas'} com a IA · <span className="mono">{custoDaLeitura}</span> créditos
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
               <label htmlFor="criar-prompt" className="sr-only">{origem === 'zero' ? 'Descreva a apresentação' : 'Texto de base'}</label>

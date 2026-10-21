@@ -5,7 +5,8 @@ import 'server-only'
  * - design (Opus, streaming, uma chamada por tela): componente, variante, fundo, ênfase e texto ajustado ao
  *   layout. O system (catálogo do design system) e o primeiro bloco da mensagem (roteiro do deck) vão em cache:
  *   a primeira tela escreve o cache e as demais começam depois que ela começa a responder, para lê-lo;
- * - refazer uma tela (Sonnet) e reescrever texto (Haiku) no editor.
+ * - refazer uma tela (Sonnet) e reescrever texto (Haiku) no editor;
+ * - ler PDF escaneado (Sonnet, streaming): o PDF vai como documento e volta o texto de cada página.
  * Saída estruturada validada pelo Zod e normalizada aos limites do design system antes de voltar ao cliente.
  * Cada chamada devolve o custo estimado (tokens × preço do modelo que de fato respondeu) para o registro de margem.
  */
@@ -15,6 +16,7 @@ import { DesenhoModeloSchema, INSTRUCOES_DESIGN, mensagemDeck, mensagemTelaDesig
 import { CONFIG_ETAPA, MODELO_POR_ETAPA, custoDaResposta, type ModeloIA, type UsoTokens } from './modelos'
 import type { TelaDesenhada } from './montagem'
 import { normalizarRoteiro, RoteiroModeloSchema, type PedidoRoteiro } from './pedido'
+import { INSTRUCOES_PDF, mensagemPdf, normalizarPaginasLidas, PaginasLidasSchema, type PaginaLida } from './pdf'
 import { INSTRUCOES_SISTEMA, mensagemUsuario } from './prompt'
 import type { Roteiro } from './roteiro'
 import { INSTRUCOES_TEXTO, mensagemTexto, normalizarTextos, TextosModeloSchema, type PedidoTexto, type TextoReescrito } from './texto'
@@ -152,6 +154,31 @@ export async function refazerTelaClaude(p: PedidoTela, sinal?: AbortSignal): Pro
   if (resposta.stop_reason === 'refusal') throw Object.assign(new RecusaModelo('O modelo não aceitou este pedido.'), { custo })
   if (!resposta.parsed_output) throw Object.assign(new Error(`Tela sem saída estruturada (stop_reason: ${resposta.stop_reason})`), { custo })
   return { tela: normalizarTela(resposta.parsed_output, p), modelo: resposta.model, custo }
+}
+
+/**
+ * Leitura de PDF escaneado: o PDF (montado no navegador só com as páginas sem texto) vai como documento na
+ * mensagem, antes do pedido; a resposta é o texto de cada página (saída estruturada, streaming porque um PDF de
+ * 40 páginas passa de dezenas de milhares de tokens). Nada é guardado: o base64 só existe nesta chamada.
+ */
+export async function lerPdfClaude(pdfBase64: string, paginasOriginais: number[], sinal?: AbortSignal): Promise<{ paginas: PaginaLida[]; modelo: string; custo: CustoIa }> {
+  const m = MODELO_POR_ETAPA.pdf
+  const stream = obterCliente().beta.messages.stream(
+    {
+      model: m.id,
+      max_tokens: CONFIG_ETAPA.pdf.maxTokens,
+      ...reserva(m),
+      system: INSTRUCOES_PDF,
+      messages: [{ role: 'user', content: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 } }, { type: 'text', text: mensagemPdf(paginasOriginais) }] }],
+      output_config: { format: betaZodOutputFormat(PaginasLidasSchema), effort: CONFIG_ETAPA.pdf.esforco },
+    },
+    { signal: sinal }
+  )
+  const resposta = await stream.finalMessage()
+  const custo = custoDe(resposta, m)
+  if (resposta.stop_reason === 'refusal') throw Object.assign(new RecusaModelo('O modelo não aceitou ler este PDF.'), { custo })
+  if (!resposta.parsed_output) throw Object.assign(new Error(`Leitura de PDF sem saída estruturada (stop_reason: ${resposta.stop_reason})`), { custo })
+  return { paginas: normalizarPaginasLidas(resposta.parsed_output, paginasOriginais), modelo: resposta.model, custo }
 }
 
 /** Custo anexado a um erro pelas funções acima (chamada que gastou tokens e falhou). */

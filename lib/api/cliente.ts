@@ -8,6 +8,7 @@ import type { z } from 'zod'
 import type { Asset, ContaRes, CriarProjetoReq, CriarShareLinkReq, DetalheProjetoRes, Envelope, ProjetoResumo, ResolverShareRes, SalvarCenasRes, ShareLink } from './contratos'
 import type { DocumentoProjeto } from '@/lib/scene/schema'
 import type { PedidoRoteiro, RespostaRoteiro } from '@/lib/ia/pedido'
+import type { RespostaPdf } from '@/lib/ia/pdf'
 import type { PedidoTextoSchema, RespostaTexto } from '@/lib/ia/texto'
 import type { PedidoTelaSchema, RespostaTela } from '@/lib/ia/tela'
 
@@ -46,6 +47,9 @@ export const api = {
     texto: (b: z.input<typeof PedidoTextoSchema>, sinal?: AbortSignal) => chamar<RespostaTexto>('/api/ai/texto', { method: 'POST', body: JSON.stringify(b), signal: sinal }),
     /** Refazer uma tela (editor). */
     tela: (b: z.input<typeof PedidoTelaSchema>, sinal?: AbortSignal) => chamar<RespostaTela>('/api/ai/tela', { method: 'POST', body: JSON.stringify(b), signal: sinal }),
+    /** IA lê páginas escaneadas: corpo = PDF montado no navegador só com elas; `paginas` = números no original. */
+    pdf: (pdf: Uint8Array, paginas: number[], sinal?: AbortSignal) =>
+      chamar<RespostaPdf>(`/api/ai/pdf?paginas=${paginas.join(',')}`, { method: 'POST', body: new Blob([new Uint8Array(pdf)], { type: 'application/pdf' }), headers: { 'content-type': 'application/pdf' }, signal: sinal }),
   },
   projetos: {
     listar: (q: { q?: string; status?: 'all' | 'draft' | 'published' | 'archived' | 'trash'; cursor?: string; limit?: string } = {}) => chamar<{ items: ProjetoResumo[]; nextCursor: string | null; total: number }>(`/api/projects?${new URLSearchParams(q as Record<string, string>)}`),
