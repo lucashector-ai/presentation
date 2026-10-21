@@ -1,5 +1,5 @@
 'use client'
-import { cloneElement, forwardRef, isValidElement, useEffect, useId, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { cloneElement, forwardRef, isValidElement, useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 import { Loader2, X } from 'lucide-react'
 import { Marca, Simbolo } from './Logo'
 
@@ -221,9 +221,19 @@ export function Carregando({ texto = 'Carregando…' }: { texto?: string }) {
   )
 }
 
+/** Só mostra o conteúdo depois de `ms` (carregamentos rápidos não piscam um spinner na tela). */
+export function Atrasado({ ms = 350, children }: { ms?: number; children: ReactNode }) {
+  const [visivel, setVisivel] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setVisivel(true), ms)
+    return () => clearTimeout(t)
+  }, [ms])
+  return visivel ? <>{children}</> : null
+}
+
 /** Bloco de carregamento de uma seção/página (mesma moldura do EstadoVazio, sem borda). */
 export function CarregandoBloco({ texto = 'Carregando…', className }: { texto?: string; className?: string }) {
-  return <div className={cx('flex items-center justify-center px-6 py-16', className)} aria-busy="true"><Carregando texto={texto} /></div>
+  return <div className={cx('flex min-h-[120px] items-center justify-center px-6 py-16', className)} aria-busy="true"><Atrasado><Carregando texto={texto} /></Atrasado></div>
 }
 
 /** Falha ao carregar: explica e oferece tentar de novo. */

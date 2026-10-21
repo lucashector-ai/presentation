@@ -7,7 +7,7 @@ import { alternarTema, MODO_DEMO, sessaoAtiva, verificarSessao } from '@/lib/ses
 import { dados, mensagemDeErro, useCarregar, useDados } from '@/lib/dados'
 import { PLANOS, formatarBytes, percentualUso, textoApresentacoes } from '@/lib/planos'
 import { estadoDoLink } from '@/lib/share/token'
-import { Marca, cx } from '@/components/ui'
+import { Atrasado, Carregando, Marca, cx } from '@/components/ui'
 import { CreditosProvider, useCreditos } from './Creditos'
 import { BuscaRapida } from './BuscaRapida'
 
@@ -52,7 +52,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </div>
     )
   }
-  if (!pronto) return <div className={cx('min-h-dvh', /\/apresentar$|\/apresentador$/.test(caminho) ? 'bg-[#111]' : 'bg-fundo')} aria-busy="true" />
+  if (!pronto) {
+    const escuro = /\/apresentar$|\/apresentador$/.test(caminho)
+    return <div className={cx('flex min-h-dvh items-center justify-center', escuro ? 'bg-[#111] text-white/60' : 'bg-fundo')} aria-busy="true">{!MODO_DEMO && <Atrasado ms={600}><Carregando texto="Abrindo sua conta…" /></Atrasado>}</div>
+  }
   return <CreditosProvider>{SEM_CHROME.test(caminho) ? children : <Moldura caminho={caminho}>{children}</Moldura>}</CreditosProvider>
 }
 

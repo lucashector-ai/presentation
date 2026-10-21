@@ -25,7 +25,7 @@ import { atalhoPreencher } from '@/lib/editor/preencher'
 import { Viewer } from '@/components/viewer/Viewer'
 import { consumirTela, marcarOrigem, pedirTelaCheia, urlApresentar } from '@/components/viewer/retorno'
 import { Compartilhar } from '@/components/compartilhar/Compartilhar'
-import { Botao, BotaoIcone, Carregando, Modal, Simbolo, cx } from '@/components/ui'
+import { Atrasado, Botao, BotaoIcone, Carregando, Modal, Simbolo, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 
 const ATALHOS: [string, string][] = [
@@ -61,7 +61,7 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
     return () => { vivo = false }
   }, [projetoId, tentativa])
 
-  if (abertura.id !== projetoId || abertura.estado === 'abrindo') return <div className="flex h-dvh items-center justify-center bg-fundo" aria-busy="true"><Carregando texto="Abrindo o editor…" /></div>
+  if (abertura.id !== projetoId || abertura.estado === 'abrindo') return <div className="flex h-dvh items-center justify-center bg-fundo" aria-busy="true"><Atrasado><Carregando texto="Abrindo o editor…" /></Atrasado></div>
   if (abertura.estado === 'ausente') return <div className="flex h-dvh items-center justify-center p-6 text-center text-sm text-texto2">Projeto não encontrado. <Link className="ml-1 underline" href="/app">Voltar ao painel</Link></div>
   if (abertura.estado === 'erro') {
     return (
