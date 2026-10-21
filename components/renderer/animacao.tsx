@@ -265,7 +265,9 @@ function TextoDividido({ texto, animacao, gradiente, cor }: { texto: string; ani
     let espera = 0
     let quadro = 0
     const sorteio = (ch: string) => {
-      const base = /\d/.test(ch) ? '0123456789' : ch === ch.toLowerCase() && ch !== ch.toUpperCase() ? 'abcdefghijklmnopqrstuvwxyz' : 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#%&*+=?'
+      // sorteia entre caracteres de largura parecida (sem m/w/j/q…): o sorteado fica por cima da letra real
+      // e não invade as vizinhas
+      const base = /\d/.test(ch) ? '0123456789' : ch === ch.toLowerCase() && ch !== ch.toUpperCase() ? 'aceonsuvxz' : 'ABCDEHKNPRSUVXYZ#*+='
       return base[Math.floor(Math.random() * base.length)]!
     }
     const quadroScr = () => {
