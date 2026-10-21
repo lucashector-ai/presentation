@@ -60,6 +60,10 @@ export const ProjetoResumoSchema = z.object({
   activeLinks: z.number().int(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  /** Primeira tela (capa do card no painel), só na listagem. */
+  coverScene: CenaSchema.nullable().optional(),
+  /** Preenchido só na listagem da lixeira (?status=trash). */
+  deletedAt: z.string().nullable().optional(),
 })
 export type ProjetoResumo = z.infer<typeof ProjetoResumoSchema>
 
@@ -106,7 +110,8 @@ export type CriarProjetoReq = z.infer<typeof CriarProjetoReq>
 
 export const ListarProjetosQuery = z.object({
   q: z.string().trim().max(120).optional(),
-  status: StatusProjetoSchema.or(z.literal('all')).default('all'),
+  /** all = ativos (sem arquivados); trash = lixeira (excluídos, ainda restauráveis). */
+  status: StatusProjetoSchema.or(z.literal('all')).or(z.literal('trash')).default('all'),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(24),
 })
@@ -154,7 +159,8 @@ export const MIMES_ACEITOS = [...MIME_IMAGEM, ...MIME_GIF, ...MIME_VIDEO, ...MIM
  * O servidor confere o MIME real (bytes mágicos / sanitização) antes de gravar no armazenamento privado.
  */
 export const EnviarMidiaReq = z.object({
-  projectId: z.string(),
+  /** Opcional: a mídia é do workspace; com projeto, o servidor confere que ele é do workspace (biblioteca envia sem). */
+  projectId: z.string().optional(),
   name: z.string().trim().min(1).max(255),
   mime: z.enum(MIMES_ACEITOS),
   bytes: z.number().int().positive(),
@@ -163,6 +169,16 @@ export const EnviarMidiaReq = z.object({
   duration: z.coerce.number().positive().optional(),
 }).refine((r) => !ehMimeTexto(r.mime) || r.bytes <= MAX_BYTES_TEXTO, { message: 'Arquivos SVG, glTF e Lottie podem ter até 10 MB.', path: ['bytes'] })
 export const EnviarMidiaRes = AssetSchema
+
+// ---------- conta (GET /api/conta) ----------
+
+export const ContaRes = z.object({
+  usuario: z.object({ id: z.string(), nome: z.string(), email: z.string() }),
+  workspace: z.object({ id: z.string(), nome: z.string(), planoId: z.enum(['free', 'plus', 'pro', 'studio']), estadoAssinatura: z.enum(['trial', 'ativa', 'inadimplente', 'cancelada']), membros: z.number().int() }),
+  creditos: z.object({ saldo: z.number().int(), movimentos: z.array(z.object({ id: z.string(), quantidade: z.number().int(), motivo: z.string(), criadoEm: z.string() })) }),
+  uso: z.object({ projetosAtivos: z.number().int(), armazenamentoBytes: z.number(), bandaMesBytes: z.number() }),
+})
+export type ContaRes = z.infer<typeof ContaRes>
 
 // ---------- compartilhamento ----------
 

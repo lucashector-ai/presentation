@@ -12,8 +12,7 @@ import { interpretar, type ConteudoColado } from '@/lib/importar/clipboard'
 import { dimensoesSvg, normalizarSvg, sanitizarSvg } from '@/lib/importar/svg'
 import { MAX_SVG_INLINE } from '@/lib/scene/schema'
 import { enquadrarNaCena } from '@/lib/scene/transform'
-import { enviarArquivo, type ProgressoUpload } from '@/lib/demo/store'
-import type { AssetDemo } from '@/lib/demo/tipos'
+import { dados, type AssetDemo, type ProgressoUpload } from '@/lib/dados'
 import { colarDoFigma } from './colarFigma'
 
 export type Avisar = (texto: string, tipo?: 'info' | 'sucesso' | 'erro') => void
@@ -50,7 +49,7 @@ export function inserirSvg(editor: Editor, markupBruto: string, opcoes: OpcoesIm
   if (markup.length > MAX_SVG_INLINE) {
     // vetores muito grandes viram arquivo (asset) em vez de markup inline
     const arquivo = new File([markup], `${nome}.svg`, { type: 'image/svg+xml' })
-    return enviarArquivo(arquivo, (p) => opcoes.aoProgredir?.(arquivo.name, p), { sanitizarSvg: (t) => t }).then((a) => editor.acoes.criarCamada({ type: 'svg', assetId: a.id, name: nome }, rect))
+    return dados.enviarArquivo(arquivo, (p) => opcoes.aoProgredir?.(arquivo.name, p), { sanitizarSvg: (t) => t, projetoId: editor.projetoId }).then((a) => editor.acoes.criarCamada({ type: 'svg', assetId: a.id, name: nome }, rect))
   }
   return editor.acoes.criarCamada({ type: 'svg', markup, name: nome }, rect)
 }
@@ -60,7 +59,7 @@ export async function importarArquivos(editor: Editor, arquivos: File[], opcoes:
   let deslocamento = 0
   for (const f of arquivos) {
     try {
-      const a = await enviarArquivo(f, (p) => opcoes.aoProgredir?.(f.name, p), { sanitizarSvg: sanitizarSvgNavegador })
+      const a = await dados.enviarArquivo(f, (p) => opcoes.aoProgredir?.(f.name, p), { sanitizarSvg: sanitizarSvgNavegador, projetoId: editor.projetoId })
       prontos.push(a)
       if (a.erro) opcoes.avisar(a.erro, 'info')
       const ponto = opcoes.ponto ? { x: opcoes.ponto.x + deslocamento, y: opcoes.ponto.y + deslocamento } : undefined

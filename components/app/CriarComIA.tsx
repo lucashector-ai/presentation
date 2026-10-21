@@ -8,9 +8,7 @@ import { cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 import { SceneRenderer } from '@/components/renderer/SceneRenderer'
 import { useFontesDoDocumento } from '@/components/renderer/fontes'
-import { api, ErroApiCliente } from '@/lib/api/cliente'
-import { atualizarProjeto, criarProjeto, ErroDemo, gastarCreditos, obterProjeto, salvarDocumento, saldoCreditos } from '@/lib/demo/store'
-import { useDemo } from '@/lib/demo/useDemo'
+import { dados, mensagemDeErro, useDados } from '@/lib/dados'
 import { PALETA } from '@/lib/design-tokens'
 import { FORMATOS_IA, ORIGENS, QUANTIDADES_TELAS } from '@/lib/ia/pedido'
 import { ESTILOS, TEMAS, TIPOS_TELA, montarDocumento, type Densidade, type Estilo, type OpcaoImagens, type Roteiro, type TemaId, type TelaRoteiro, type TipoTela } from '@/lib/ia/roteiro'
@@ -41,7 +39,6 @@ const FORMAS = ['50%', '6px', '0', '999px 999px 0 0']
 const CORES_CARTAO = ['#E4572E', '#5965F2', '#F2C14E', '#1F3B4D', '#D7F25C', '#B4532A']
 const EXTENSOES_TEXTO = '.txt,.md,.markdown,.html,.htm,.csv'
 const MAX_TEXTO = 60000
-const DEMO = process.env.NEXT_PUBLIC_DEMO === '1'
 
 const cor = (id: string) => PALETA.find((p) => p.id === id) ?? PALETA[0]!
 const tinta = (hex: string) => (['#D7F25C', '#F2C14E', '#F1D3B3', '#EEE7DB', '#F2E9D8'].includes(hex) ? '#171717' : '#fff')
@@ -108,7 +105,7 @@ export function CriarComIA() {
   const [conteudo, setConteudo] = useState('')
   const [arquivo, setArquivo] = useState<string | null>(null)
   const [formato, setFormato] = useState<Formato>(() => (FORMATOS_IA as readonly string[]).includes(params.get('formato') ?? '') ? (params.get('formato') as Formato) : 'slides')
-  const planoId = useDemo((e) => e.workspace.planoId)
+  const planoId = useDados((e) => e.workspace.planoId)
   const [telas, setTelas] = useState<number>(() => {
     const n = Number(params.get('telas'))
     return (QUANTIDADES_TELAS as readonly number[]).includes(n) ? n : 8
@@ -126,7 +123,8 @@ export function CriarComIA() {
   const abortar = useRef<AbortController | null>(null)
   const entradaArquivo = useRef<HTMLInputElement>(null)
   const criadoPara = useRef<DocumentoProjeto | null>(null)
-  const saldo = useDemo((e) => e.creditos.saldo)
+  const saldo = useDados((e) => e.creditos.saldo)
+  const [salvandoProjeto, setSalvandoProjeto] = useState(false)
   const { abrirCompra } = useCreditos()
   const opcoesTelas = QUANTIDADES_TELAS.filter((n) => podeGerarTelas(planoId, n).ok)
   useEffect(() => { if (!podeGerarTelas(planoId, telas).ok) setTelas(opcoesTelas[opcoesTelas.length - 1] ?? 6) }, [planoId, telas, opcoesTelas])
@@ -140,14 +138,14 @@ export function CriarComIA() {
 
   const gerarRoteiro = async (outro = false) => {
     if (!podeGerar && !outro) return
-    const decisao = podeGastarCreditos(saldoCreditos(), custo)
+    const decisao = podeGastarCreditos(dados.estado().creditos.saldo, custo)
     if (!decisao.ok) return abrirCompra(`${decisao.motivo.replace(' Compre um pacote avulso ou faça upgrade.', '')} Escolha um pacote para continuar.`)
     abortar.current?.abort()
     const ctrl = new AbortController()
     abortar.current = ctrl
     setGerando(true)
     try {
-      const r = await api.ia.roteiro(
+      const r = await dados.ia.roteiro(
         {
           origem,
           prompt: origem === 'zero' ? (outro ? `${prompt}\n\nProponha uma estrutura diferente da óbvia.` : prompt) : '',
@@ -158,19 +156,21 @@ export function CriarComIA() {
         },
         ctrl.signal
       )
-      // no modo demonstração os créditos são fictícios e o débito acontece aqui, para o saldo refletir o uso;
-      // no backend real a rota debita (só quando o Claude escreve) e estorna se falhar
-      if (r.gerador === 'claude' || DEMO) gastarCreditos(custo, `Apresentação com IA · ${telas} telas`)
+      // demo: créditos fictícios debitados aqui, para o saldo refletir o uso; real: a rota já debitou (só quando o
+      // Claude escreve, com estorno se falhar) e o saldo é relido do servidor
+      dados.registrarUsoIa({ custo, motivo: `Apresentação com IA · ${telas} telas`, gerador: r.gerador, houveResultado: true })
       setNota(r.gerador === 'claude'
         ? `Escrito pela IA · ${custo} créditos usados. Ajustar o roteiro, o tema e redesenhar não custa mais nada.`
-        : DEMO
+        : dados.capacidades.creditosFicticios
           ? `Roteiro-guia gerado localmente (a IA não está conectada neste ambiente) · ${custo} créditos de demonstração debitados. Ajustar e redesenhar é grátis.`
           : 'Roteiro-guia gerado localmente (a IA não está conectada neste ambiente). Nenhum crédito foi cobrado.')
       setRoteiro(r.roteiro)
       setPasso(2)
     } catch (e) {
       if (ctrl.signal.aborted) return
-      mostrar(e instanceof ErroApiCliente || e instanceof ErroDemo ? e.message : 'Não foi possível gerar o roteiro. Tente novamente.', 'erro')
+      // saldo insuficiente (o servidor confere de novo): abre a compra com o motivo
+      if ((e as { code?: string } | null)?.code === 'limite_do_plano') return abrirCompra(mensagemDeErro(e))
+      mostrar(mensagemDeErro(e, 'Não foi possível gerar o roteiro. Tente novamente.'), 'erro')
     } finally {
       if (abortar.current === ctrl) setGerando(false)
     }
@@ -224,21 +224,23 @@ export function CriarComIA() {
   // cria o projeto assim que o documento existe e revela as telas uma a uma
   useEffect(() => {
     if (passo !== 3 || !documento || !roteiro) return
-    if (criadoPara.current !== documento) try {
+    if (criadoPara.current !== documento) {
       criadoPara.current = documento
       const nome = roteiro.titulo.trim().slice(0, 80) || 'Nova apresentação'
       // voltar ao roteiro e gerar de novo atualiza o mesmo projeto em vez de criar outro
-      const existente = projetoId ? obterProjeto(projetoId) : undefined
-      if (existente && existente.modo === modo) {
-        salvarDocumento(existente.id, documento, existente.revisaoAtual)
-        atualizarProjeto(existente.id, { nome })
-      } else {
-        setProjetoId(criarProjeto({ nome, modo, descricao: prompt.slice(0, 280), documento }).id)
-      }
-    } catch (e) {
-      mostrar(e instanceof ErroDemo ? e.message : 'Não foi possível criar o projeto.', 'erro')
-      setPasso(2)
-      return
+      const existente = projetoId ? dados.estado().projetos.find((p) => p.id === projetoId && !p.excluidoEm) : undefined
+      setSalvandoProjeto(true)
+      const gravar = existente && existente.modo === modo
+        ? dados.salvarDocumento(existente.id, documento, existente.revisaoAtual).then(() => dados.atualizarProjeto(existente.id, { nome }))
+        : dados.criarProjeto({ nome, modo, descricao: prompt.slice(0, 280), documento }).then((p) => setProjetoId(p.id))
+      gravar
+        .catch((e) => {
+          if (criadoPara.current !== documento) return
+          criadoPara.current = null
+          mostrar(mensagemDeErro(e, 'Não foi possível criar o projeto.'), 'erro')
+          setPasso(2)
+        })
+        .finally(() => setSalvandoProjeto(false))
     }
     const total = documento.scenes.length
     let n = 0
@@ -446,12 +448,12 @@ export function CriarComIA() {
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <div className="rotulo-mono flex items-center gap-2" aria-live="polite">
-                  {!pronto && <span aria-hidden className="h-3 w-3 animate-spin rounded-full border-2 border-[#E7E5E4] border-t-violeta" />}
-                  {pronto ? `Pronto · ${total} telas` : `Desenhando tela ${Math.min(desenhadas + 1, total)} de ${total}`}
+                  {(!pronto || salvandoProjeto) && <span aria-hidden className="h-3 w-3 animate-spin rounded-full border-2 border-[#E7E5E4] border-t-violeta" />}
+                  {pronto ? (salvandoProjeto ? 'Salvando o projeto…' : `Pronto · ${total} telas`) : `Desenhando tela ${Math.min(desenhadas + 1, total)} de ${total}`}
                 </div>
                 <h2 className="mt-2 text-[clamp(28px,4vw,40px)] font-semibold tracking-[-0.045em]">{roteiro?.titulo}</h2>
               </div>
-              <div className={cx('flex flex-wrap gap-2.5 transition-opacity', !pronto && 'pointer-events-none opacity-35')}>
+              <div className={cx('flex flex-wrap gap-2.5 transition-opacity', (!pronto || salvandoProjeto) && 'pointer-events-none opacity-35')}>
                 <button type="button" onClick={() => setPasso(2)} className="flex h-11 items-center rounded-full px-4 text-[14px] text-texto3 hover:text-texto">← Ajustar roteiro</button>
                 {projetoId && <button type="button" onClick={() => abrirApresentacao(router, projetoId)} className="flex h-11 items-center rounded-full border-[1.5px] border-[#E2E1DE] bg-white px-[18px] text-[14px] font-medium hover:border-grafite">Apresentar</button>}
                 {projetoId && <Link href={`/app/projects/${projetoId}/share`} className="flex h-11 items-center rounded-full border-[1.5px] border-[#E2E1DE] bg-white px-[18px] text-[14px] font-medium hover:border-grafite">Publicar e enviar</Link>}

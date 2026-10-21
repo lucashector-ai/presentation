@@ -220,3 +220,19 @@ export function Carregando({ texto = 'Carregando…' }: { texto?: string }) {
     </div>
   )
 }
+
+/** Bloco de carregamento de uma seção/página (mesma moldura do EstadoVazio, sem borda). */
+export function CarregandoBloco({ texto = 'Carregando…', className }: { texto?: string; className?: string }) {
+  return <div className={cx('flex items-center justify-center px-6 py-16', className)} aria-busy="true"><Carregando texto={texto} /></div>
+}
+
+/** Falha ao carregar: explica e oferece tentar de novo. */
+export function EstadoErro({ titulo = 'Não foi possível carregar', mensagem, aoTentar }: { titulo?: string; mensagem?: string | null; aoTentar?: () => void }) {
+  return (
+    <div role="alert" className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-perigo/40 px-6 py-14 text-center">
+      <h3 className="text-base font-semibold">{titulo}</h3>
+      {mensagem && <p className="mt-1 max-w-sm text-sm text-texto2">{mensagem}</p>}
+      {aoTentar && <div className="mt-5"><Botao variante="secundario" onClick={aoTentar}>Tentar de novo</Botao></div>}
+    </div>
+  )
+}

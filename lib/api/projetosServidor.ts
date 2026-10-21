@@ -17,9 +17,10 @@ export interface LinhaProjeto {
   published_revision: number | null
   created_at: Date | string
   updated_at: Date | string
+  deleted_at?: Date | string | null
 }
 
-export function resumo(p: LinhaProjeto, extras: { sceneCount: number; activeLinks: number; coverUrl: string | null }): ProjetoResumo {
+export function resumo(p: LinhaProjeto, extras: { sceneCount: number; activeLinks: number; coverUrl: string | null; coverScene?: Cena | null }): ProjetoResumo {
   return {
     id: p.id,
     workspaceId: p.workspace_id,
@@ -34,6 +35,8 @@ export function resumo(p: LinhaProjeto, extras: { sceneCount: number; activeLink
     activeLinks: extras.activeLinks,
     createdAt: iso(p.created_at) ?? '',
     updatedAt: iso(p.updated_at) ?? '',
+    ...(extras.coverScene !== undefined ? { coverScene: extras.coverScene } : {}),
+    ...(p.deleted_at ? { deletedAt: iso(p.deleted_at) } : {}),
   }
 }
 

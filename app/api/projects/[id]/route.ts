@@ -51,9 +51,20 @@ export const PATCH = rota<P>(async (req, { params }, requestId) => {
   return responder(resumo(data as LinhaProjeto, { sceneCount: 0, activeLinks: 0, coverUrl: null }), requestId)
 })
 
-/** DELETE /api/projects/:id — soft delete + revoga links. Exclusão definitiva fica para a rotina de retenção. */
+/**
+ * DELETE /api/projects/:id — soft delete (vai para a lixeira) + revoga links.
+ * DELETE /api/projects/:id?definitivo=1 — só para projeto já na lixeira: apaga de vez (cenas, snapshots e links em
+ * cascata; as mídias continuam na biblioteca).
+ */
 export const DELETE = rota<P>(async (req, { params }, requestId) => {
   const ctx = await autenticar(req, requestId)
+  if (new URL(req.url).searchParams.get('definitivo') === '1') {
+    if (!ehUuid(params.id)) throw new ErroHttp('nao_encontrado', 'Projeto não encontrado')
+    const apagados = await sql()`delete from public.projects where id = ${params.id} and workspace_id = ${ctx.workspaceId} and deleted_at is not null returning id`
+    if (!apagados.length) throw new ErroHttp('nao_encontrado', 'Projeto não encontrado na lixeira')
+    await auditar(ctx, 'project.deleted', null, { definitivo: true, projeto: params.id })
+    return responder({ deleted: true }, requestId)
+  }
   const p = await projetoDoWorkspace(ctx, params.id)
   const db = sql()
   await db.transaction([

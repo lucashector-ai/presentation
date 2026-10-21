@@ -2,10 +2,9 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sparkles } from 'lucide-react'
-import { definirUsuario, reiniciarDemo, uso } from '@/lib/demo/store'
-import { useDemo } from '@/lib/demo/useDemo'
+import { dados, mensagemDeErro, useCarregar, useDados } from '@/lib/dados'
 import { ACOES_IA, CUSTO_CREDITOS, PLANOS, TELAS_REFERENCIA, apresentacoesCom, custoApresentacao, formatarBytes, formatarLimite, percentualUso, precoComCiclo, textoApresentacoes } from '@/lib/planos'
-import { alternarTema, sair } from '@/lib/sessao'
+import { alternarTema } from '@/lib/sessao'
 import { Botao, Campo, Entrada, ModalConfirmar, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 import { useCreditos } from './Creditos'
@@ -22,10 +21,14 @@ function Bloco({ id, titulo, children, acao }: { id?: string; titulo: string; ch
 }
 
 export function Configuracoes() {
-  const usuario = useDemo((e) => e.usuario)
-  const workspace = useDemo((e) => e.workspace)
-  const creditos = useDemo((e) => e.creditos)
-  const u = useDemo((e) => uso(e))
+  // conta (saldo, extrato, uso) sempre fresca nesta tela
+  useCarregar(['conta'])
+  useEffect(() => { void dados.carregar(['conta'], { forcar: true }) }, [])
+  const usuario = useDados((e) => e.usuario)
+  const workspace = useDados((e) => e.workspace)
+  const creditos = useDados((e) => e.creditos)
+  const u = useDados((e) => e.uso)
+  const [salvando, setSalvando] = useState(false)
   const plano = PLANOS[workspace.planoId]
   const [ciclo, setCiclo] = useState<'anual' | 'mensal'>('anual')
   const [excluir, setExcluir] = useState(false)
@@ -122,10 +125,20 @@ export function Configuracoes() {
       <Bloco titulo="Perfil">
         <div className="grid gap-4 sm:grid-cols-2">
           <Campo rotulo="Nome"><Entrada value={nome} onChange={(e) => setNome(e.target.value)} /></Campo>
-          <Campo rotulo="E-mail" dica="Alterar o e-mail exige nova verificação."><Entrada value={email} onChange={(e) => setEmail(e.target.value)} type="email" /></Campo>
-          <Campo rotulo="Nova senha" dica="Mínimo de 8 caracteres."><Entrada type="password" autoComplete="new-password" /></Campo>
+          <Campo rotulo="E-mail" dica={dados.capacidades.editarEmail ? 'Alterar o e-mail exige nova verificação.' : 'Para trocar o e-mail da conta, fale com a gente.'}><Entrada value={email} onChange={(e) => setEmail(e.target.value)} type="email" disabled={!dados.capacidades.editarEmail} /></Campo>
+          {dados.capacidades.editarEmail && <Campo rotulo="Nova senha" dica="Mínimo de 8 caracteres."><Entrada type="password" autoComplete="new-password" /></Campo>}
         </div>
-        <Botao className="mt-5" onClick={() => { definirUsuario({ nome, email }); mostrar('Perfil salvo.', 'sucesso') }}>Salvar</Botao>
+        <Botao className="mt-5" carregando={salvando} onClick={async () => {
+          setSalvando(true)
+          try {
+            await dados.atualizarPerfil({ nome, ...(dados.capacidades.editarEmail ? { email } : {}) })
+            mostrar('Perfil salvo.', 'sucesso')
+          } catch (e) {
+            mostrar(mensagemDeErro(e, 'Não foi possível salvar o perfil.'), 'erro')
+          } finally {
+            setSalvando(false)
+          }
+        }}>Salvar</Botao>
       </Bloco>
 
       <Bloco titulo="Aparência"><Botao variante="secundario" onClick={() => alternarTema()}>Alternar tema claro/escuro</Botao></Bloco>
@@ -138,15 +151,18 @@ export function Configuracoes() {
         </div>
       </Bloco>
 
-      <Bloco titulo="Demonstração">
+      {dados.capacidades.dadosDeExemplo && <Bloco titulo="Demonstração">
         <p className="mb-4 text-[13px] text-texto2">Este ambiente guarda dados fictícios no seu navegador. Para ver o app como uma pessoa que acabou de criar a conta, comece com um espaço vazio no plano Free.</p>
         <div className="flex flex-wrap gap-2">
-          <Botao variante="secundario" onClick={() => { reiniciarDemo(); mostrar('Dados de exemplo restaurados.', 'sucesso') }}>Restaurar dados de exemplo</Botao>
-          <Botao variante="secundario" onClick={() => { reiniciarDemo({ vazio: true }); mostrar('Espaço vazio criado: plano Free com 400 créditos.', 'sucesso'); router.push('/app') }}>Começar como conta nova</Botao>
+          <Botao variante="secundario" onClick={() => { dados.reiniciarExemplo(); mostrar('Dados de exemplo restaurados.', 'sucesso') }}>Restaurar dados de exemplo</Botao>
+          <Botao variante="secundario" onClick={() => { dados.reiniciarExemplo({ vazio: true }); mostrar('Espaço vazio criado: plano Free com 400 créditos.', 'sucesso'); router.push('/app') }}>Começar como conta nova</Botao>
         </div>
-      </Bloco>
+      </Bloco>}
 
-      <ModalConfirmar aberto={excluir} aoFechar={() => setExcluir(false)} titulo="Excluir conta?" descricao="Esta ação não pode ser desfeita." rotuloConfirmar="Excluir conta" perigoso aoConfirmar={async () => { reiniciarDemo(); await sair(); router.push('/') }} />
+      <ModalConfirmar aberto={excluir} aoFechar={() => setExcluir(false)} titulo="Excluir conta?" descricao={dados.capacidades.dadosDeExemplo ? 'Esta ação não pode ser desfeita.' : 'Por segurança, a exclusão da conta é feita pela equipe da Mostra: confirme e enviaremos as instruções para o seu e-mail.'} rotuloConfirmar="Excluir conta" perigoso aoConfirmar={async () => {
+        if (!dados.capacidades.dadosDeExemplo) { setExcluir(false); mostrar('Pedido registrado. Você receberá as instruções por e-mail.', 'info'); return }
+        dados.reiniciarExemplo(); await dados.sair(); router.push('/')
+      }} />
     </div>
   )
 }

@@ -3,15 +3,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Archive, ArrowRight, Check, Copy, Eye, FolderOpen, LayoutTemplate, MoreHorizontal, Pencil, Play, Plus, Search, Send, Share2, Trash2, Upload } from 'lucide-react'
-import { atualizarProjeto, duplicarProjeto, ErroDemo, excluirProjeto } from '@/lib/demo/store'
-import { useDemo } from '@/lib/demo/useDemo'
-import type { Projeto } from '@/lib/demo/tipos'
+import { dados, ehErroDados, mensagemDeErro, telasDo, useCarregar, useDados, type AssetDemo, type Projeto } from '@/lib/dados'
 import { estadoDoLink } from '@/lib/share/token'
 import { custoApresentacao, podeGerarTelas, textoApresentacoes } from '@/lib/planos'
 import { QUANTIDADES_TELAS } from '@/lib/ia/pedido'
 import { CapaProjeto } from './CapaProjeto'
 import { CartaoCreditos } from './Creditos'
-import { EstadoVazio, ModalConfirmar, cx } from '@/components/ui'
+import { CarregandoBloco, EstadoErro, EstadoVazio, ModalConfirmar, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 import { abrirApresentacao } from '@/components/viewer/retorno'
 
@@ -55,10 +53,11 @@ export function Dashboard() {
   const [busca, setBusca] = useState('')
   const [menu, setMenu] = useState<string | null>(null)
   const [confirmar, setConfirmar] = useState<{ tipo: 'arquivar' | 'excluir'; projeto: Projeto } | null>(null)
-  const projetosTodos = useDemo((e) => e.projetos)
-  const links = useDemo((e) => e.links)
-  const usuario = useDemo((e) => e.usuario)
-  const assets = useDemo((e) => Object.fromEntries(e.assets.map((a) => [a.id, a])))
+  const { carregando, erro, tentarDeNovo } = useCarregar(['projetos', 'links', 'assets'])
+  const projetosTodos = useDados((e) => e.projetos)
+  const links = useDados((e) => e.links)
+  const usuario = useDados((e) => e.usuario)
+  const assets = useDados((e) => Object.fromEntries(e.assets.map((a) => [a.id, a])))
   const linksAtivos = useMemo(() => new Set(links.filter((l) => estadoDoLink({ expiresAt: l.expiraEm, revokedAt: l.revogadoEm }) === 'ativo').map((l) => l.projectId)), [links])
 
   useEffect(() => { if (params.get('novo') === '1') router.replace('/app/novo') }, [params, router])
@@ -92,17 +91,17 @@ export function Dashboard() {
     return lista
   }, [vivos, filtro, busca, linksAtivos, ordem])
 
-  const agir = (fn: () => void, msg?: string, desfazer?: () => void) => {
+  const agir = async (fn: () => Promise<unknown>, msg?: string, desfazer?: () => void) => {
+    setMenu(null)
     try {
-      fn()
+      await fn()
       if (msg) mostrar(msg, 'sucesso', desfazer ? { rotulo: 'Desfazer', aoClicar: desfazer } : undefined)
     } catch (e) {
-      mostrar(e instanceof ErroDemo ? e.message : 'Algo deu errado.', 'erro', e instanceof ErroDemo && e.code === 'limite_do_plano' ? { rotulo: 'Ver planos', aoClicar: () => router.push('/app/settings#plano') } : undefined)
+      mostrar(mensagemDeErro(e), 'erro', ehErroDados(e, 'limite_do_plano') ? { rotulo: 'Ver planos', aoClicar: () => router.push('/app/settings#plano') } : undefined)
     }
-    setMenu(null)
   }
 
-  const novo = vivos.length === 0
+  const novo = !carregando && !erro && vivos.length === 0
   // o Shell só renderiza o painel no navegador (depois de checar a sessão), então data e hora locais são seguras aqui
   const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
   const filtros: { id: Filtro; rotulo: string }[] = [{ id: 'todos', rotulo: 'Todos' }, { id: 'rascunhos', rotulo: 'Rascunhos' }, { id: 'publicados', rotulo: 'Publicados' }, { id: 'enviados', rotulo: 'Enviados' }, { id: 'arquivados', rotulo: 'Arquivados' }]
@@ -163,7 +162,11 @@ export function Dashboard() {
           </div>
         </div>
 
-        {projetos.length === 0 ? (
+        {erro && !vivos.length ? (
+          <div className="mt-8"><EstadoErro titulo="Não foi possível carregar seus projetos" mensagem={erro} aoTentar={tentarDeNovo} /></div>
+        ) : carregando && !vivos.length ? (
+          <CarregandoBloco texto="Carregando projetos…" className="mt-8" />
+        ) : projetos.length === 0 ? (
           <div className="mt-8">
             <EstadoVazio
               icone={<FolderOpen className="h-5 w-5" />}
@@ -177,7 +180,7 @@ export function Dashboard() {
             {projetos.map((p) => {
               const capa = p.documento.scenes[0]
               const st = statusExibido(p, linksAtivos)
-              const telas = p.documento.scenes.length
+              const telas = telasDo(p)
               return (
                 <li key={p.id} className="group relative">
                   <Link href={`/app/projects/${p.id}`} className="block">
@@ -204,9 +207,9 @@ export function Dashboard() {
                         <Item icone={<Pencil />} onClick={() => router.push(`/app/projects/${p.id}/edit`)}>Editar</Item>
                         <Item icone={<Play />} onClick={() => abrirApresentacao(router, p.id)}>Apresentar</Item>
                         <Item icone={<Share2 />} onClick={() => router.push(`/app/projects/${p.id}/share`)}>Compartilhar</Item>
-                        <Item icone={<Copy />} onClick={() => agir(() => duplicarProjeto(p.id), 'Projeto duplicado.')}>Duplicar</Item>
+                        <Item icone={<Copy />} onClick={() => void agir(() => dados.duplicarProjeto(p.id), 'Projeto duplicado.')}>Duplicar</Item>
                         {p.status === 'archived'
-                          ? <Item icone={<Archive />} onClick={() => agir(() => atualizarProjeto(p.id, { status: p.revisaoPublicada ? 'published' : 'draft' }), 'Projeto restaurado.')}>Restaurar</Item>
+                          ? <Item icone={<Archive />} onClick={() => void agir(() => dados.atualizarProjeto(p.id, { status: p.revisaoPublicada ? 'published' : 'draft' }), 'Projeto restaurado.')}>Restaurar</Item>
                           : <Item icone={<Archive />} onClick={() => { setConfirmar({ tipo: 'arquivar', projeto: p }); setMenu(null) }}>Arquivar</Item>}
                         <Item icone={<Trash2 />} perigo onClick={() => { setConfirmar({ tipo: 'excluir', projeto: p }); setMenu(null) }}>Mover para a lixeira</Item>
                       </div>
@@ -230,8 +233,8 @@ export function Dashboard() {
           if (!confirmar) return
           const { tipo, projeto } = confirmar
           setConfirmar(null)
-          if (tipo === 'excluir') agir(() => excluirProjeto(projeto.id), 'Projeto movido para a lixeira.')
-          else agir(() => atualizarProjeto(projeto.id, { status: 'archived' }), 'Projeto arquivado.', () => atualizarProjeto(projeto.id, { status: projeto.status }))
+          if (tipo === 'excluir') void agir(() => dados.excluirProjeto(projeto.id), 'Projeto movido para a lixeira.')
+          else void agir(() => dados.atualizarProjeto(projeto.id, { status: 'archived' }), 'Projeto arquivado.', () => void agir(() => dados.atualizarProjeto(projeto.id, { status: projeto.status })))
         }}
       />
     </div>
@@ -255,8 +258,8 @@ function Atalho({ href, icone, titulo, texto }: { href: string; icone: React.Rea
 /** Caixa de prompt do painel: escreve a ideia aqui e continua em /app/criar com tudo preenchido. */
 function CriarComIARapido() {
   const router = useRouter()
-  const saldo = useDemo((e) => e.creditos.saldo)
-  const planoId = useDemo((e) => e.workspace.planoId)
+  const saldo = useDados((e) => e.creditos.saldo)
+  const planoId = useDados((e) => e.workspace.planoId)
   const [prompt, setPrompt] = useState('')
   const [telas, setTelas] = useState<number>(10)
   const ref = useRef<HTMLTextAreaElement>(null)
@@ -281,7 +284,7 @@ function CriarComIARapido() {
   )
 }
 
-function Continuar({ projeto, assets }: { projeto?: Projeto; assets: Record<string, import('@/lib/demo/tipos').AssetDemo> }) {
+function Continuar({ projeto, assets }: { projeto?: Projeto; assets: Record<string, AssetDemo> }) {
   const router = useRouter()
   if (!projeto) return null
   const capa = projeto.documento.scenes[0]
@@ -292,7 +295,7 @@ function Continuar({ projeto, assets }: { projeto?: Projeto; assets: Record<stri
         <div className="w-[104px] shrink-0 overflow-hidden rounded-md border border-black/5">{capa && <CapaProjeto cena={capa} assets={assets} proporcao={16 / 10} />}</div>
         <div className="min-w-0">
           <div className="truncate text-[15px] font-medium">{projeto.nome}</div>
-          <div className="mt-0.5 text-[12px] text-texto3">{formatarRelativo(projeto.atualizadoEm)} · {projeto.documento.scenes.length} telas</div>
+          <div className="mt-0.5 text-[12px] text-texto3">{formatarRelativo(projeto.atualizadoEm)} · {telasDo(projeto)} telas</div>
         </div>
       </Link>
       <div className="mt-auto flex gap-2 pt-4">
@@ -305,7 +308,7 @@ function Continuar({ projeto, assets }: { projeto?: Projeto; assets: Record<stri
 
 /** O que foi enviado e como o cliente interagiu (links ativos, visualizações, revisões pendentes). */
 function ResumoEnviados() {
-  const dados = useDemo((e) => {
+  const resumo = useDados((e) => {
     const ativos = e.links.filter((l) => estadoDoLink({ expiresAt: l.expiraEm, revokedAt: l.revogadoEm }) === 'ativo')
     const porProjeto = new Map<string, { views: number; ultimo: string }>()
     for (const l of ativos) {
@@ -321,16 +324,16 @@ function ResumoEnviados() {
         <h2 id="titulo-enviados" className="rotulo-mono">Enviados</h2>
         <Link href="/app/compartilhados" className="text-[12px] text-texto2 hover:text-texto">Ver todos</Link>
       </div>
-      {dados.itens.length === 0 ? (
+      {resumo.itens.length === 0 ? (
         <p className="mt-3 text-[13px] text-texto2">Nada enviado ainda. Publique um projeto e gere um link em Compartilhar para acompanhar as visualizações aqui.</p>
       ) : (
         <>
           <div className="mt-3 flex gap-6">
-            <div><div className="text-[28px] font-medium leading-none tracking-[-0.04em]">{dados.itens.length}</div><div className="mt-1 text-[12px] text-texto2">{dados.itens.length === 1 ? 'apresentação com link' : 'apresentações com link'}</div></div>
-            <div><div className="text-[28px] font-medium leading-none tracking-[-0.04em]">{dados.views}</div><div className="mt-1 text-[12px] text-texto2">visualizações</div></div>
+            <div><div className="text-[28px] font-medium leading-none tracking-[-0.04em]">{resumo.itens.length}</div><div className="mt-1 text-[12px] text-texto2">{resumo.itens.length === 1 ? 'apresentação com link' : 'apresentações com link'}</div></div>
+            <div><div className="text-[28px] font-medium leading-none tracking-[-0.04em]">{resumo.views}</div><div className="mt-1 text-[12px] text-texto2">visualizações</div></div>
           </div>
           <ul className="mt-3 divide-y divide-borda text-[13px]">
-            {dados.itens.slice(0, 3).map(({ p, views }) => (
+            {resumo.itens.slice(0, 3).map(({ p, views }) => (
               <li key={p.id}>
                 <Link href={`/app/projects/${p.id}/share`} className="flex items-center gap-2 py-1.5 hover:text-acento">
                   <span className="min-w-0 flex-1 truncate">{p.nome}</span>
@@ -348,7 +351,7 @@ function ResumoEnviados() {
 
 /** Checklist de primeira vez: da conta criada até o cliente abrir a apresentação. Some quando tudo foi feito. */
 function PrimeirosPassos({ compacto }: { compacto?: boolean }) {
-  const passos = useDemo((e) => {
+  const passos = useDados((e) => {
     const vivos = e.projetos.filter((p) => !p.excluidoEm)
     const primeiro = vivos[0]
     const publicado = vivos.find((p) => p.revisaoPublicada != null)

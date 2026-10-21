@@ -10,9 +10,7 @@ import { ArrowRight, ChevronLeft, ImageIcon, Languages, Loader2, Sparkles, Trian
 import type { Editor } from '@/lib/editor/useEditor'
 import type { CamadaTexto, Cena } from '@/lib/scene/schema'
 import { medirTexto } from '@/lib/editor/medirTexto'
-import { api, ErroApiCliente } from '@/lib/api/cliente'
-import { ErroDemo, gastarCreditos, saldoCreditos } from '@/lib/demo/store'
-import { useDemo } from '@/lib/demo/useDemo'
+import { dados, ehErroDados, mensagemDeErro, useDados } from '@/lib/dados'
 import { CUSTO_CREDITOS, textoApresentacoes } from '@/lib/planos'
 import { ACOES_TEXTO, IDIOMAS, NOMES_IDIOMA, ROTULOS_ACAO, type AcaoTexto, type Idioma } from '@/lib/ia/texto'
 import { aplicarTela, mapearTela, quantidadeDeItens, textosDaTela, textosParaReescrever, type ConteudoTela, type MapaTela } from '@/lib/ia/tela'
@@ -21,7 +19,8 @@ import { useCreditos } from '@/components/app/Creditos'
 import { Botao, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 
-const DEMO = process.env.NEXT_PUBLIC_DEMO === '1'
+/** Demo: o saldo fictício é debitado mesmo com o gerador local, para o ciclo de créditos ficar visível. */
+const DEMO = dados.capacidades.creditosFicticios
 const fmt = (n: number) => n.toLocaleString('pt-BR')
 
 export type AbaIA = 'texto' | 'tela' | 'imagem'
@@ -74,7 +73,7 @@ export function BotaoIA({ editor, nomeProjeto }: { editor: Editor; nomeProjeto: 
 export function PainelIA({ editor, nomeProjeto, aba, aoMudarAba, aoFechar }: { editor: Editor; nomeProjeto: string; aba: AbaIA; aoMudarAba: (a: AbaIA) => void; aoFechar: () => void }) {
   const { cena, acoes, estado, camadasSelecionadas, indiceCena } = editor
   const ref = useRef<HTMLDivElement>(null)
-  const saldo = useDemo((e) => e.creditos.saldo)
+  const saldo = useDados((e) => e.creditos.saldo)
   const { abrirCompra } = useCreditos()
   const { mostrar } = useToast()
   const [carregando, setCarregando] = useState<string | null>(null)
@@ -110,7 +109,7 @@ export function PainelIA({ editor, nomeProjeto, aba, aoMudarAba, aoFechar }: { e
 
   /** Confere o saldo antes de chamar a IA; sem saldo, abre a compra com o motivo. */
   const temSaldo = useCallback((custo: number, acao: string) => {
-    const s = saldoCreditos()
+    const s = dados.estado().creditos.saldo
     if (s >= custo) return true
     abrirCompra(`${acao} custa ${custo} créditos e você tem ${fmt(s)}. Escolha um pacote para continuar.`)
     return false
@@ -121,8 +120,8 @@ export function PainelIA({ editor, nomeProjeto, aba, aoMudarAba, aoFechar }: { e
 
   const erro = (e: unknown, ctrl: AbortController) => {
     if (ctrl.signal.aborted) return
-    if (e instanceof ErroApiCliente && e.code === 'limite_do_plano') return abrirCompra(e.message)
-    mostrar(e instanceof ErroApiCliente || e instanceof ErroDemo ? e.message : 'A IA não respondeu. Tente de novo.', 'erro')
+    if (ehErroDados(e, 'limite_do_plano')) return abrirCompra(e.message)
+    mostrar(mensagemDeErro(e, 'A IA não respondeu. Tente de novo.'), 'erro')
   }
 
   const reescrever = async (acao: AcaoTexto, idioma?: Idioma) => {
@@ -136,11 +135,11 @@ export function PainelIA({ editor, nomeProjeto, aba, aoMudarAba, aoFechar }: { e
     setCarregando(chave)
     const c = cena
     try {
-      const r = await api.ia.texto({ acao, idioma, textos: alvoTexto.slice(0, 40).map((t) => ({ ...t, texto: t.texto.slice(0, 5000) })), contexto: { apresentacao: nomeProjeto.slice(0, 200), tela: c.title.slice(0, 200) } }, ctrl.signal)
+      const r = await dados.ia.texto({ acao, idioma, textos: alvoTexto.slice(0, 40).map((t) => ({ ...t, texto: t.texto.slice(0, 5000) })), contexto: { apresentacao: nomeProjeto.slice(0, 200), tela: c.title.slice(0, 200) } }, ctrl.signal)
       const papeis = new Map(alvoTexto.map((t) => [t.id, ({ titulo: 'Título', texto: 'Texto', item: 'Item', rotulo: 'Rótulo' } as const)[t.papel]]))
       const mudancas = mudancasDe(c, new Map(r.textos.map((t) => [t.id, t.texto])), papeis)
       // no modo demonstração o débito acontece aqui (créditos fictícios); no backend real a rota debita quando o Claude escreve
-      if (r.gerador === 'claude' || (DEMO && mudancas.length)) gastarCreditos(custo, `Reescrever texto com IA · tela ${numeroTela}`)
+      dados.registrarUsoIa({ custo, motivo: `Reescrever texto com IA · tela ${numeroTela}`, gerador: r.gerador, houveResultado: mudancas.length > 0 })
       if (!mudancas.length) {
         mostrar(r.gerador === 'local' ? 'O exemplo local não achou o que mudar neste texto. Tente outra ação.' : 'O texto já estava bom: nada mudou.', 'info')
         return
@@ -164,7 +163,7 @@ export function PainelIA({ editor, nomeProjeto, aba, aoMudarAba, aoFechar }: { e
     const c = cena
     const { mapa, atual } = mapeada
     try {
-      const r = await api.ia.tela({
+      const r = await dados.ia.tela({
         tipo: mapa.tipo,
         atual: { titulo: atual.titulo.slice(0, 600), texto: atual.texto.slice(0, 2000), itens: atual.itens.slice(0, 12).map((i) => i.slice(0, 600)), notas: atual.notas.slice(0, 4000) },
         quantidadeItens: Math.min(12, quantidadeDeItens(mapa, atual)),
@@ -180,7 +179,7 @@ export function PainelIA({ editor, nomeProjeto, aba, aoMudarAba, aoFechar }: { e
       mapa.colunas?.forEach((id, k) => papeis.set(id, k ? 'Coluna direita' : 'Coluna esquerda'))
       const mudancas = mudancasDe(c, textosDaTela(c, mapa, r.tela), papeis)
       const notas = r.tela.notas && r.tela.notas !== c.notes ? { antes: c.notes, depois: r.tela.notas } : null
-      if (r.gerador === 'claude' || (DEMO && (mudancas.length || notas))) gastarCreditos(custo, `Refazer tela com IA · tela ${numeroTela}`)
+      dados.registrarUsoIa({ custo, motivo: `Refazer tela com IA · tela ${numeroTela}`, gerador: r.gerador, houveResultado: mudancas.length > 0 || !!notas })
       if (!mudancas.length && !notas) {
         mostrar(r.gerador === 'local' ? 'O exemplo local não achou o que mudar nesta tela. Escreva uma instrução ou conecte a IA.' : 'Nada mudou nesta tela. Tente outra instrução.', 'info')
         return

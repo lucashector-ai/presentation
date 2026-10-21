@@ -3,6 +3,8 @@
  * Estado do editor: documento + seleção + histórico (desfazer/refazer) + autosave com revisão + ferramentas.
  * Regras: autosave com debounce de 800 ms e ao sair; cada gravação leva baseRevision; 409 preserva mudanças
  * locais e mostra conflito; desfazer/refazer por comandos na sessão (gestos contínuos viram uma entrada).
+ * A gravação vai pela camada de dados (lib/dados: store demo ou PUT /api/projects/:id/scenes), assíncrona e em fila:
+ * uma de cada vez, sempre com a revisão devolvida pela anterior.
  */
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import { FORMATOS, novaCena, parseCamada, type AutoLayout, type Camada, type CamadaFrame, type Cena, type DocumentoProjeto, type Interacao } from '@/lib/scene/schema'
@@ -12,8 +14,7 @@ import { alinhar as alinharRects, envolvente, enquadrarNaCena, type Alinhamento 
 import { comDescendentes, ehFrame, filhosDe, mapaDe, paiDe, raizesDaSelecao } from '@/lib/scene/arvore'
 import { LAYOUT_PADRAO, inferirLayout, inserirNoFrame as inserirNoFrameFn, moverNaLista as moverNaListaFn, resolverCamadas, type OpcoesResolver } from './autolayout'
 import { distribuir as distribuirRects } from './guias'
-import { ErroDemo, salvarDocumento, obterProjeto, mapaAssets } from '@/lib/demo/store'
-import type { AssetDemo } from '@/lib/demo/tipos'
+import { dados, ehErroDados, useDados, type AssetDemo } from '@/lib/dados'
 
 export type EstadoSalvamento = 'salvo' | 'alterado' | 'salvando' | 'offline' | 'falha' | 'conflito'
 import type { Ferramenta } from './atalhos'
@@ -133,12 +134,11 @@ export function expandirGrupos(cena: Cena | undefined, ids: string[]): string[] 
   return [...new Set([...ids, ...cena.layers.filter((l) => l.groupId && grupos.has(l.groupId)).map((l) => l.id)])]
 }
 
-export function useEditor(projetoId: string) {
-  const inicial = useMemo(() => {
-    const p = obterProjeto(projetoId)
-    if (!p) return null
-    return { documento: p.documento, revisao: p.revisaoAtual, cenaId: p.documento.scenes[0]?.id ?? '' }
-  }, [projetoId])
+/** Documento e revisão com que o editor abre (EditorShell busca com `dados.abrirProjeto`). */
+export interface AberturaEditor { documento: DocumentoProjeto; revisao: number }
+
+export function useEditor(projetoId: string, abertura: AberturaEditor | null) {
+  const inicial = useMemo(() => (abertura ? { documento: abertura.documento, revisao: abertura.revisao, cenaId: abertura.documento.scenes[0]?.id ?? '' } : null), [abertura])
 
   const [e, dispatch] = useReducer(reducer, inicial, (i: typeof inicial): EstadoEditor => ({
     documento: i?.documento ?? { schemaVersion: 2, mode: 'slides', scenes: [] },
@@ -169,48 +169,76 @@ export function useEditor(projetoId: string) {
   const timer = useRef<number | undefined>(undefined)
   const estadoRef = useRef(e)
   estadoRef.current = e
+  /** Revisão do servidor para a PRÓXIMA gravação (atualizada na hora, sem esperar o render). */
+  const revisaoRef = useRef(inicial?.revisao ?? 0)
+  const emConflito = useRef(false)
+  /** Fila: gravações nunca correm em paralelo (duas com a mesma base dariam 409 uma na outra). */
+  const fila = useRef<Promise<unknown>>(Promise.resolve())
   const areaTransferencia = useRef<Camada[]>([])
   const estiloCopiado = useRef<Partial<Camada> | null>(null)
 
   // ---------- autosave ----------
-  const salvarAgora = useCallback(() => {
+  /** true = tudo gravado; false = ficou pendente (sem conexão, falha ou conflito). */
+  const salvarUmaVez = useCallback(async (): Promise<boolean> => {
     const atual = estadoRef.current
-    if (atual.salvamento === 'conflito') return
-    if (atual.documento === ultimoSalvo.current) {
-      if (atual.salvamento !== 'salvo') dispatch({ tipo: 'salvamento', valor: 'salvo' })
-      return
+    if (emConflito.current) return false
+    const documento = atual.documento
+    if (documento === ultimoSalvo.current) {
+      if (atual.salvamento !== 'salvo' && atual.salvamento !== 'conflito') dispatch({ tipo: 'salvamento', valor: 'salvo' })
+      return true
     }
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       dispatch({ tipo: 'salvamento', valor: 'offline' })
-      return
+      return false
     }
     dispatch({ tipo: 'salvamento', valor: 'salvando' })
     try {
-      const r = salvarDocumento(projetoId, atual.documento, atual.revisao)
-      ultimoSalvo.current = atual.documento
-      dispatch({ tipo: 'salvamento', valor: 'salvo', revisao: r.revision, salvoEm: r.savedAt })
+      const r = await dados.salvarDocumento(projetoId, documento, revisaoRef.current)
+      ultimoSalvo.current = documento
+      revisaoRef.current = r.revision
+      // editou enquanto gravava: continua "alterado" e o autosave grava de novo
+      const mudouDepois = estadoRef.current.documento !== documento
+      dispatch({ tipo: 'salvamento', valor: mudouDepois ? 'alterado' : 'salvo', revisao: r.revision, salvoEm: r.savedAt })
+      if (mudouDepois) window.setTimeout(() => { void salvarRef.current() }, 0)
+      return true
     } catch (err) {
-      if (err instanceof ErroDemo && err.code === 'conflito_revisao') dispatch({ tipo: 'salvamento', valor: 'conflito', conflito: err.details as { currentRevision: number } })
+      if (ehErroDados(err, 'conflito_revisao')) {
+        emConflito.current = true
+        dispatch({ tipo: 'salvamento', valor: 'conflito', conflito: { currentRevision: Number((err.details as { currentRevision?: number } | undefined)?.currentRevision ?? revisaoRef.current) } })
+      } else if (ehErroDados(err, 'sem_conexao') || (typeof navigator !== 'undefined' && !navigator.onLine)) dispatch({ tipo: 'salvamento', valor: 'offline' })
       else dispatch({ tipo: 'salvamento', valor: 'falha' })
+      return false
     }
   }, [projetoId])
+  /** Grava agora (entra na fila); resolve quando esta gravação terminar (true = tudo gravado). */
+  const salvarAgora = useCallback((): Promise<boolean> => {
+    window.clearTimeout(timer.current)
+    const proxima = fila.current.then(salvarUmaVez, salvarUmaVez)
+    fila.current = proxima.then(() => undefined)
+    return proxima
+  }, [salvarUmaVez])
+  const salvarRef = useRef(salvarAgora)
+  salvarRef.current = salvarAgora
 
   useEffect(() => {
     if (e.salvamento !== 'alterado') return
     window.clearTimeout(timer.current)
-    timer.current = window.setTimeout(salvarAgora, 800)
+    timer.current = window.setTimeout(() => { void salvarAgora() }, 800)
     return () => window.clearTimeout(timer.current)
   }, [e.documento, e.salvamento, salvarAgora])
 
   useEffect(() => {
-    const online = () => { if (estadoRef.current.salvamento === 'offline' || estadoRef.current.salvamento === 'falha') salvarAgora() }
+    const online = () => { if (estadoRef.current.salvamento === 'offline' || estadoRef.current.salvamento === 'falha') void salvarAgora() }
+    const offline = () => { if (estadoRef.current.salvamento === 'alterado' || estadoRef.current.salvamento === 'salvando') dispatch({ tipo: 'salvamento', valor: 'offline' }) }
     const antesDeSair = (ev: BeforeUnloadEvent) => {
-      salvarAgora()
+      // a gravação é assíncrona: se ainda há algo por gravar, o navegador pergunta antes de fechar
+      void salvarAgora()
       if (estadoRef.current.documento !== ultimoSalvo.current) { ev.preventDefault(); ev.returnValue = '' }
     }
     window.addEventListener('online', online)
+    window.addEventListener('offline', offline)
     window.addEventListener('beforeunload', antesDeSair)
-    return () => { window.removeEventListener('online', online); window.removeEventListener('beforeunload', antesDeSair); salvarAgora() }
+    return () => { window.removeEventListener('online', online); window.removeEventListener('offline', offline); window.removeEventListener('beforeunload', antesDeSair); void salvarAgora() }
   }, [salvarAgora])
 
   // ---------- helpers ----------
@@ -328,15 +356,26 @@ export function useEditor(projetoId: string) {
       setFerramenta: (ferramenta: Ferramenta) => ui({ ferramenta }),
       reproduzirPrevia: () => ui({ previa: estadoRef.current.previa + 1 }),
       salvarAgora,
+      /** Revisão que o servidor tem agora (a base da próxima gravação/publicação). */
+      revisaoAtual: () => revisaoRef.current,
 
       // ----- conflito -----
-      recarregarDoServidor: () => {
-        const p = obterProjeto(projetoId)
-        if (p) { ultimoSalvo.current = p.documento; dispatch({ tipo: 'substituir', documento: p.documento, revisao: p.revisaoAtual }) }
+      /** Descarta as mudanças desta sessão e abre a versão mais recente do servidor. */
+      recarregarDoServidor: async () => {
+        const p = await dados.abrirProjeto(projetoId, { forcar: true })
+        if (!p) return false
+        ultimoSalvo.current = p.documento
+        revisaoRef.current = p.revisaoAtual
+        emConflito.current = false
+        dispatch({ tipo: 'substituir', documento: p.documento, revisao: p.revisaoAtual })
+        return true
       },
+      /** Grava a versão desta sessão por cima da mais recente (passa a valer a revisão atual do servidor). */
       manterMinhaVersao: () => {
-        const p = obterProjeto(projetoId)
-        if (p) dispatch({ tipo: 'salvamento', valor: 'alterado', revisao: p.revisaoAtual, conflito: null })
+        const r = estadoRef.current.conflito?.currentRevision ?? revisaoRef.current
+        revisaoRef.current = r
+        emConflito.current = false
+        dispatch({ tipo: 'salvamento', valor: 'alterado', revisao: r, conflito: null })
       },
 
       // ----- telas -----
@@ -560,9 +599,12 @@ export function useEditor(projetoId: string) {
     }
   }, [aplicar, atualizarCenaAtual, projetoId, salvarAgora])
 
-  const validacao: ResultadoValidacao = useMemo(() => validarDocumento(e.documento, { assetsExistentes: new Set(Object.keys(mapaAssets())) }), [e.documento])
+  // mídias do workspace (no modo real chegam do servidor; antes disso não acusa mídia "inexistente")
+  const assetsLista = useDados((s) => s.assets)
+  const assetsProntos = useDados((s) => s.situacao.assets.estado === 'pronto')
+  const validacao: ResultadoValidacao = useMemo(() => validarDocumento(e.documento, assetsProntos ? { assetsExistentes: new Set(assetsLista.map((a) => a.id)) } : {}), [e.documento, assetsLista, assetsProntos])
 
-  return { estado: e, cena, indiceCena, camadasSelecionadas, acoes, validacao, existe: !!inicial }
+  return { estado: e, cena, indiceCena, camadasSelecionadas, acoes, validacao, existe: !!inicial, projetoId }
 }
 
 export type Editor = ReturnType<typeof useEditor>

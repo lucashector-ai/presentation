@@ -2,16 +2,14 @@
 import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { Box, Clock, Eye, Film, Image as ImageIcon, Lock, PenTool, RotateCcw, Send, Sparkles, Trash2, Upload } from 'lucide-react'
-import { enviarArquivo, ErroDemo, excluirAsset, excluirDefinitivo, projetosQueUsam, publicar, restaurarProjeto } from '@/lib/demo/store'
-import { useDemo } from '@/lib/demo/useDemo'
+import { dados, ehErroDados, mensagemDeErro, useCarregar, useDados, type AssetDemo, type LinkCompartilhado, type Projeto } from '@/lib/dados'
 import { estadoDoLink } from '@/lib/share/token'
 import { formatarBytes } from '@/lib/planos'
 import { EXTENSOES_ACEITAS } from '@/lib/importar/arquivos'
 import { sanitizarSvgNavegador } from '@/lib/editor/importar'
-import type { AssetDemo, LinkCompartilhado, Projeto } from '@/lib/demo/tipos'
 import { CapaProjeto } from './CapaProjeto'
 import { formatarRelativo } from './Dashboard'
-import { Botao, EstadoVazio, ModalConfirmar, cx } from '@/components/ui'
+import { Botao, CarregandoBloco, EstadoErro, EstadoVazio, ModalConfirmar, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 
 function Cabecalho({ rotulo, titulo, descricao, acao }: { rotulo: string; titulo: string; descricao: string; acao?: React.ReactNode }) {
@@ -28,10 +26,20 @@ function Cabecalho({ rotulo, titulo, descricao, acao }: { rotulo: string; titulo
 }
 
 export function Lixeira() {
-  const projetos = useDemo((e) => e.projetos.filter((p) => !!p.excluidoEm))
-  const assets = useDemo((e) => Object.fromEntries(e.assets.map((a) => [a.id, a])))
+  const { carregando, erro, tentarDeNovo } = useCarregar(['lixeira', 'assets'])
+  const projetos = useDados((e) => e.projetos.filter((p) => !!p.excluidoEm))
+  const assets = useDados((e) => Object.fromEntries(e.assets.map((a) => [a.id, a])))
   const [excluir, setExcluir] = useState<string | 'todos' | null>(null)
+  const [ocupado, setOcupado] = useState(false)
   const { mostrar } = useToast()
+  const restaurar = async (p: Projeto) => {
+    try {
+      await dados.restaurarProjeto(p.id)
+      mostrar('Projeto restaurado. Links revogados continuam revogados: gere um novo em Compartilhar.', 'sucesso')
+    } catch (e) {
+      mostrar(mensagemDeErro(e, 'Não foi possível restaurar.'), 'erro')
+    }
+  }
   return (
     <div>
       <Cabecalho
@@ -40,7 +48,7 @@ export function Lixeira() {
         descricao="Projetos excluídos ficam aqui por 30 dias. Restaure a qualquer momento; depois disso são apagados com suas mídias não usadas."
         acao={projetos.length > 1 ? <Botao variante="perigo" tamanho="sm" onClick={() => setExcluir('todos')}>Esvaziar lixeira</Botao> : undefined}
       />
-      {projetos.length === 0 ? <EstadoVazio icone={<Trash2 className="h-5 w-5" />} titulo="A lixeira está vazia" descricao="Projetos que você mover para a lixeira aparecem aqui e podem ser restaurados." acao={<Link href="/app" className="rounded-[9px] border-[1.5px] border-bordaForte px-4 py-2 text-[14px] font-medium">Voltar ao início</Link>} /> : (
+      {erro && !projetos.length ? <EstadoErro titulo="Não foi possível abrir a lixeira" mensagem={erro} aoTentar={tentarDeNovo} /> : carregando && !projetos.length ? <CarregandoBloco texto="Carregando a lixeira…" /> : projetos.length === 0 ? <EstadoVazio icone={<Trash2 className="h-5 w-5" />} titulo="A lixeira está vazia" descricao="Projetos que você mover para a lixeira aparecem aqui e podem ser restaurados." acao={<Link href="/app" className="rounded-[9px] border-[1.5px] border-bordaForte px-4 py-2 text-[14px] font-medium">Voltar ao início</Link>} /> : (
         <ul className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
           {projetos.map((p) => (
             <li key={p.id}>
@@ -48,7 +56,7 @@ export function Lixeira() {
               <div className="mt-3 flex items-center justify-between gap-2">
                 <div className="min-w-0"><div className="truncate text-[15px] font-medium">{p.nome}</div><div className="text-[12px] text-texto3">Excluído {formatarRelativo(p.excluidoEm!).replace('Editado ', '')}</div></div>
                 <div className="flex gap-1">
-                  <button onClick={() => { restaurarProjeto(p.id); mostrar('Projeto restaurado. Links revogados continuam revogados: gere um novo em Compartilhar.', 'sucesso') }} className="flex h-8 items-center gap-1.5 rounded-md border border-bordaForte px-2.5 text-[13px] hover:border-[#D4D4D4]"><RotateCcw className="h-3.5 w-3.5" /> Restaurar</button>
+                  <button onClick={() => void restaurar(p)} className="flex h-8 items-center gap-1.5 rounded-md border border-bordaForte px-2.5 text-[13px] hover:border-[#D4D4D4]"><RotateCcw className="h-3.5 w-3.5" /> Restaurar</button>
                   <button aria-label={`Excluir ${p.nome} definitivamente`} onClick={() => setExcluir(p.id)} className="flex h-8 w-8 items-center justify-center rounded-md text-perigo hover:bg-perigo/10"><Trash2 className="h-3.5 w-3.5" /></button>
                 </div>
               </div>
@@ -63,11 +71,20 @@ export function Lixeira() {
         descricao="Os projetos, seus links e snapshots serão apagados. Esta ação não pode ser desfeita."
         rotuloConfirmar="Excluir para sempre"
         perigoso
-        aoConfirmar={() => {
-          if (excluir === 'todos') projetos.forEach((p) => excluirDefinitivo(p.id))
-          else if (excluir) excluirDefinitivo(excluir)
-          setExcluir(null)
-          mostrar(excluir === 'todos' ? 'Lixeira esvaziada.' : 'Projeto excluído definitivamente.')
+        carregando={ocupado}
+        aoConfirmar={async () => {
+          const alvo = excluir
+          setOcupado(true)
+          try {
+            if (alvo === 'todos') for (const p of projetos) await dados.excluirDefinitivo(p.id)
+            else if (alvo) await dados.excluirDefinitivo(alvo)
+            mostrar(alvo === 'todos' ? 'Lixeira esvaziada.' : 'Projeto excluído definitivamente.')
+          } catch (e) {
+            mostrar(mensagemDeErro(e, 'Não foi possível excluir.'), 'erro')
+          } finally {
+            setOcupado(false)
+            setExcluir(null)
+          }
         }}
       />
     </div>
@@ -77,9 +94,14 @@ export function Lixeira() {
 type Filtro = 'tudo' | 'image' | 'svg' | 'model3d' | 'video' | 'lottie'
 
 export function Biblioteca() {
-  const assets = useDemo((e) => e.assets)
+  const { carregando, erro, tentarDeNovo } = useCarregar(['assets', 'projetos'])
+  const assets = useDados((e) => e.assets)
+  const projetos = useDados((e) => e.projetos)
+  // contagem de usos só quando dá para saber no cliente (modo real lista só a capa dos projetos)
+  const usoDe = (id: string) => (projetos.length || !carregando ? dados.projetosQueUsam(id)?.length ?? null : null)
   const [filtro, setFiltro] = useState<Filtro>('tudo')
-  const [excluindo, setExcluindo] = useState<AssetDemo | null>(null)
+  const [excluindo, setExcluindo] = useState<{ asset: AssetDemo; usos: string[] | null } | null>(null)
+  const [apagando, setApagando] = useState(false)
   const [enviando, setEnviando] = useState<string | null>(null)
   const entrada = useRef<HTMLInputElement>(null)
   const { mostrar } = useToast()
@@ -91,7 +113,7 @@ export function Biblioteca() {
     let ok = 0
     for (const f of arquivos) {
       setEnviando(f.name)
-      try { await enviarArquivo(f, () => undefined, { sanitizarSvg: sanitizarSvgNavegador }); ok++ } catch (e) { mostrar(e instanceof ErroDemo ? `${f.name}: ${e.message}` : `Não foi possível enviar ${f.name}.`, 'erro') }
+      try { await dados.enviarArquivo(f, () => undefined, { sanitizarSvg: sanitizarSvgNavegador }); ok++ } catch (e) { mostrar(`${f.name}: ${mensagemDeErro(e, 'não foi possível enviar.')}`, 'erro') }
     }
     setEnviando(null)
     if (ok) mostrar(`${ok} ${ok === 1 ? 'arquivo enviado' : 'arquivos enviados'} para a biblioteca.`, 'sucesso')
@@ -113,24 +135,44 @@ export function Biblioteca() {
           <button key={id} onClick={() => setFiltro(id)} aria-pressed={filtro === id} className={cx('rounded-full px-3 py-1.5', filtro === id ? 'bg-grafite text-fundo' : 'text-texto2 hover:text-texto')}>{r}</button>
         ))}
       </div>
+      {erro && !assets.length ? <EstadoErro titulo="Não foi possível carregar a biblioteca" mensagem={erro} aoTentar={tentarDeNovo} /> : carregando && !assets.length ? <CarregandoBloco texto="Carregando arquivos…" /> : (
       <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {lista.map((a) => {
           const I = Icone(a.tipo)
-          const uso = projetosQueUsam(a.id).length
+          const uso = usoDe(a.id)
           return (
             <li key={a.id} className="group relative">
               <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg border border-borda bg-superficie2">
                 {a.thumbUrl ? <img src={a.thumbUrl} alt="" className={a.tipo === 'svg' ? 'h-full w-full object-contain p-4' : 'h-full w-full object-cover'} /> : <I className="h-8 w-8 text-texto3" strokeWidth={1.2} />}
               </div>
               <div className="mt-2 truncate text-[13px]">{a.nome}</div>
-              <div className="text-[11px] text-texto3">{formatarBytes(a.bytes)} · {uso ? `em ${uso} ${uso === 1 ? 'projeto' : 'projetos'}` : 'sem uso'}</div>
-              <button aria-label={`Excluir ${a.nome}`} onClick={() => setExcluindo(a)} className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-md bg-superficie/95 text-texto2 shadow-sm hover:text-perigo sm:hidden sm:group-hover:flex"><Trash2 className="h-3.5 w-3.5" /></button>
+              <div className="text-[11px] text-texto3">{formatarBytes(a.bytes)}{uso == null ? '' : ` · ${uso ? `em ${uso} ${uso === 1 ? 'projeto' : 'projetos'}` : 'sem uso'}`}</div>
+              <button aria-label={`Excluir ${a.nome}`} onClick={() => setExcluindo({ asset: a, usos: dados.projetosQueUsam(a.id)?.map((p) => p.nome) ?? null })} className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-md bg-superficie/95 text-texto2 shadow-sm hover:text-perigo sm:hidden sm:group-hover:flex"><Trash2 className="h-3.5 w-3.5" /></button>
             </li>
           )
         })}
       </ul>
-      {!lista.length && <EstadoVazio icone={<Upload className="h-5 w-5" />} titulo={assets.length ? 'Nenhum arquivo neste filtro' : 'A biblioteca está vazia'} descricao="Envie arquivos aqui, solte-os nesta página ou cole direto no canvas do editor (⌘V do Figma e do Illustrator)." acao={<Botao variante="secundario" onClick={() => entrada.current?.click()}>Enviar arquivos</Botao>} />}
-      <ModalConfirmar aberto={!!excluindo} aoFechar={() => setExcluindo(null)} titulo="Excluir arquivo?" descricao={excluindo && projetosQueUsam(excluindo.id).length ? `Usado em ${projetosQueUsam(excluindo.id).map((p) => p.nome).join(', ')}. As telas mostrarão “mídia indisponível”.` : 'Nenhum projeto usa este arquivo.'} rotuloConfirmar="Excluir" perigoso aoConfirmar={() => { if (excluindo) excluirAsset(excluindo.id, true); setExcluindo(null); mostrar('Arquivo excluído.') }} />
+      )}
+      {!lista.length && !(carregando || erro) && <EstadoVazio icone={<Upload className="h-5 w-5" />} titulo={assets.length ? 'Nenhum arquivo neste filtro' : 'A biblioteca está vazia'} descricao="Envie arquivos aqui, solte-os nesta página ou cole direto no canvas do editor (⌘V do Figma e do Illustrator)." acao={<Botao variante="secundario" onClick={() => entrada.current?.click()}>Enviar arquivos</Botao>} />}
+      <ModalConfirmar aberto={!!excluindo} aoFechar={() => setExcluindo(null)} titulo="Excluir arquivo?" carregando={apagando}
+        descricao={!excluindo ? undefined : excluindo.usos == null ? 'Se algum projeto usar este arquivo, avisamos antes de excluir.' : excluindo.usos.length ? `Usado em ${excluindo.usos.join(', ')}. As telas mostrarão “mídia indisponível”.` : 'Nenhum projeto usa este arquivo.'}
+        rotuloConfirmar={excluindo?.usos?.length ? 'Excluir mesmo assim' : 'Excluir'} perigoso
+        aoConfirmar={async () => {
+          if (!excluindo) return
+          setApagando(true)
+          try {
+            // sem a lista de usos (modo real), o servidor recusa mídia em uso e devolve os projetos: pergunta de novo
+            await dados.excluirAsset(excluindo.asset.id, excluindo.usos != null)
+            setExcluindo(null)
+            mostrar('Arquivo excluído.')
+          } catch (e) {
+            const usos = ehErroDados(e, 'entrada_invalida') ? (e.details as { projetos?: string[] } | undefined)?.projetos : undefined
+            if (usos?.length) setExcluindo({ asset: excluindo.asset, usos })
+            else { setExcluindo(null); mostrar(mensagemDeErro(e, 'Não foi possível excluir.'), 'erro') }
+          } finally {
+            setApagando(false)
+          }
+        }} />
     </div>
   )
 }
@@ -142,9 +184,10 @@ const ativo = (l: LinkCompartilhado) => estadoDoLink({ expiresAt: l.expiraEm, re
  * quantas vezes foram abertas, quais têm ajustes ainda não publicados e quais estão prontas para enviar.
  */
 export function Compartilhados() {
-  const projetos = useDemo((e) => e.projetos.filter((p) => !p.excluidoEm))
-  const links = useDemo((e) => e.links)
-  const assets = useDemo((e) => Object.fromEntries(e.assets.map((a) => [a.id, a])))
+  const { carregando, erro, tentarDeNovo } = useCarregar(['projetos', 'links', 'assets'])
+  const projetos = useDados((e) => e.projetos.filter((p) => !p.excluidoEm))
+  const links = useDados((e) => e.links)
+  const assets = useDados((e) => Object.fromEntries(e.assets.map((a) => [a.id, a])))
   const [mostrarInativos, setMostrarInativos] = useState(false)
   const { mostrar } = useToast()
 
@@ -161,12 +204,12 @@ export function Compartilhados() {
   const totalViews = ativos.reduce((s, l) => s + l.visualizacoes, 0)
   const pendentes = projetos.filter((p) => comLink.has(p.id) && p.revisaoPublicada != null && p.revisaoAtual > p.revisaoPublicada).length
 
-  const publicarAgora = (p: Projeto) => {
+  const publicarAgora = async (p: Projeto) => {
     try {
-      const r = publicar(p.id, p.revisaoAtual)
+      const r = await dados.publicar(p.id, p.revisaoAtual)
       mostrar(`Revisão ${r.publishedRevision} publicada. Quem tem o link já vê a versão nova.`, 'sucesso')
     } catch (e) {
-      mostrar(e instanceof ErroDemo ? e.message : 'Não foi possível publicar.', 'erro')
+      mostrar(mensagemDeErro(e, 'Não foi possível publicar.'), 'erro')
     }
   }
 
@@ -193,7 +236,11 @@ export function Compartilhados() {
         <h2 className="text-[15px] font-medium">Links</h2>
         <label className="flex items-center gap-2 text-[13px] text-texto2"><input type="checkbox" checked={mostrarInativos} onChange={(e) => setMostrarInativos(e.target.checked)} className="accent-grafite" />Mostrar revogados e expirados</label>
       </div>
-      {linhas.length === 0 ? (
+      {erro && !linhas.length ? (
+        <EstadoErro titulo="Não foi possível carregar os envios" mensagem={erro} aoTentar={tentarDeNovo} />
+      ) : carregando && !linhas.length ? (
+        <CarregandoBloco texto="Carregando links…" />
+      ) : linhas.length === 0 ? (
         <EstadoVazio icone={<Send className="h-5 w-5" />} titulo="Nada enviado ainda" descricao="Publique um projeto e gere um link em Compartilhar. As visualizações do cliente aparecem aqui." acao={prontos[0] ? <Link href={`/app/projects/${prontos[0].id}/share`} className="rounded-[9px] bg-grafite px-4 py-2.5 text-[14px] font-medium text-fundo">Enviar “{prontos[0].nome}”</Link> : <Link href="/app" className="rounded-[9px] border-[1.5px] border-bordaForte px-4 py-2 text-[14px] font-medium">Ver projetos</Link>} />
       ) : (
         <ul className="divide-y divide-borda rounded-xl border border-borda bg-superficie">
@@ -218,7 +265,7 @@ export function Compartilhados() {
                   </div>
                 </Link>
                 <div className="flex shrink-0 gap-2">
-                  {pendente && at.length > 0 && <Botao tamanho="sm" onClick={() => publicarAgora(p)}>Publicar ajustes</Botao>}
+                  {pendente && at.length > 0 && <Botao tamanho="sm" onClick={() => void publicarAgora(p)}>Publicar ajustes</Botao>}
                   <Link href={`/app/projects/${p.id}/share`} className="inline-flex h-8 items-center rounded-md border-[1.5px] border-bordaForte px-3 text-[13px] font-medium hover:border-[#D4D4D4]">Gerenciar links</Link>
                 </div>
               </li>

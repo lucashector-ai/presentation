@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { CornerDownLeft, FilePlus2, Folder, Library, Search, Send, Settings2, Sparkles, Trash2, Wallet } from 'lucide-react'
-import { useDemo } from '@/lib/demo/useDemo'
+import { useDados } from '@/lib/dados'
 import { cx } from '@/components/ui'
 import { useCreditos } from './Creditos'
 
@@ -14,7 +14,7 @@ const normalizar = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toL
 export function BuscaRapida({ aberta, aoFechar }: { aberta: boolean; aoFechar: () => void }) {
   const router = useRouter()
   const { abrirCompra } = useCreditos()
-  const projetos = useDemo((e) => e.projetos.filter((p) => !p.excluidoEm).sort((a, b) => b.atualizadoEm.localeCompare(a.atualizadoEm)))
+  const projetos = useDados((e) => e.projetos.filter((p) => !p.excluidoEm).sort((a, b) => b.atualizadoEm.localeCompare(a.atualizadoEm)))
   const [q, setQ] = useState('')
   const [ativo, setAtivo] = useState(0)
   const entrada = useRef<HTMLInputElement>(null)

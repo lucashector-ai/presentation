@@ -29,7 +29,7 @@ export const POST = rota(async (req, _ctx, requestId) => {
   const r = EnviarMidiaReq.safeParse({ ...Object.fromEntries(url.searchParams.entries()), mime, bytes: Number(declarado) })
   if (!r.success) throw new ErroHttp('entrada_invalida', 'Arquivo inválido', r.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })))
   const entrada = r.data
-  await projetoDoWorkspace(ctx, entrada.projectId)
+  if (entrada.projectId) await projetoDoWorkspace(ctx, entrada.projectId)
   const { plano, uso } = await planoEUso(ctx)
   const d = podeEnviarArquivo(plano, uso, entrada.bytes)
   if (!d.ok) throw new ErroHttp(d.motivo.includes('Arquivo acima') ? 'arquivo_grande' : 'limite_do_plano', d.motivo, { upgradePara: d.upgradePara })
