@@ -1,31 +1,28 @@
 import 'server-only'
 /**
- * Postgres no Neon. Driver `@neondatabase/serverless` (recomendado pelo Neon para serverless/edge — rotas da
- * Vercel hoje, Cloudflare Workers no plano): HTTP para consultas avulsas e `Pool` (WebSocket) quando precisar
- * de transação interativa. A conexão vem de `DATABASE_URL` (pooled), injetada pelo `neon env pull` / `neon deploy`
- * e validada pelo `parseEnv` contra a política em `neon.ts`. Migrations usam `DATABASE_URL_UNPOOLED` (direta).
+ * Conexão com o Neon Postgres. `sql()` usa o driver HTTP (uma consulta por requisição, ideal para
+ * serverless e Workers); `novoPool()` usa WebSocket, para transações interativas.
+ * A URL vem de `neon deploy` / `neon env pull` (.env.local). Não importamos `neon.ts` aqui: ele é
+ * configuração do CLI e levaria o carregador de config para o bundle do servidor.
  */
 import { neon, Pool, type NeonQueryFunction } from '@neondatabase/serverless'
-import { parseEnv } from '@neon/env'
-import config from '@/neon'
 
 let sqlCache: NeonQueryFunction<false, false> | null = null
 
-/** Há banco configurado neste ambiente? (sem lançar erro) */
 export const bancoConfigurado = () => !!process.env.DATABASE_URL
 
 function urlDoBanco(): string {
-  // lança PlatformError(EnvNotInjected) dizendo qual variável falta
-  return parseEnv(config, ['DATABASE_URL']).postgres.databaseUrl
+  const url = process.env.DATABASE_URL
+  if (!url) throw new Error('DATABASE_URL não definida (rode `neon env pull`).')
+  return url
 }
 
-/** Consultas avulsas por HTTP: sql`select * from projects where id = ${id}` */
 export function sql(): NeonQueryFunction<false, false> {
-  sqlCache ??= neon(urlDoBanco())
+  // no-store: o Next 14 guarda em cache até fetch POST, e o driver HTTP consulta via fetch
+  sqlCache ??= neon(urlDoBanco(), { fetchOptions: { cache: 'no-store' } })
   return sqlCache
 }
 
-/** Pool por WebSocket para transações interativas (BEGIN … COMMIT). Feche com `await pool.end()` ao terminar. */
 export function novoPool(): Pool {
   return new Pool({ connectionString: urlDoBanco() })
 }
