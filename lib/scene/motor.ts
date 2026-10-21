@@ -3,7 +3,7 @@
  * Recebe (documento, estado, interação) e devolve novo estado + efeitos colaterais
  * que a UI executa (abrir link, tocar vídeo). Nunca executa código do autor.
  */
-import type { Animacao, Camada, DocumentoProjeto, Interacao, Transicao } from './schema'
+import { ANIMACOES_DE_SAIDA, type Animacao, type Camada, type DocumentoProjeto, type Interacao, type Transicao } from './schema'
 
 export interface AnimacaoPendente {
   animacao: Animacao
@@ -154,7 +154,7 @@ export function executarTodas(doc: DocumentoProjeto, e: EstadoRuntime, camada: C
 export function adaptarAnimacao(a: Animacao, reduzirMovimento: boolean): Animacao {
   if (!reduzirMovimento) return a
   if (a.type === 'none') return a
-  const saida = a.type === 'fadeOut' || a.type === 'scaleOut' || a.type === 'slideOutUp' || a.type === 'slideOutDown' || a.type === 'blurOut'
+  const saida = (ANIMACOES_DE_SAIDA as readonly string[]).includes(a.type)
   return { type: saida ? 'fadeOut' : 'fadeIn', duration: 150, delay: 0, easing: 'linear' }
 }
 

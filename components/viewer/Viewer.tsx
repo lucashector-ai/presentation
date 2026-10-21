@@ -14,7 +14,7 @@ import { adaptarTransicao, aoEntrarNaCena, aoSairHover, cenaAtual, estadoInicial
 import { tempoSaida } from '@/lib/scene/animacoes'
 import { SceneRenderer, type AssetsResolvidos } from '@/components/renderer/SceneRenderer'
 import { usePreferencias, useTamanho } from '@/components/renderer/useTamanho'
-import { useFontesDoDocumento } from '@/components/renderer/fontes'
+import { aguardarFontes, fontesDoDocumento, useFontesDoDocumento } from '@/components/renderer/fontes'
 import { useCanal } from './canal'
 import { StoryView } from './StoryView'
 import { ExplorarView } from './ExplorarView'
@@ -42,6 +42,8 @@ export interface ViewerProps {
 }
 
 const LIMIAR_SWIPE = 50
+/** Duração do fade da tela "Preparando apresentação". */
+const SUMIR_CARREGAMENTO_MS = 300
 const CHAVE_ENCAIXE = 'mostra.viewer.encaixe'
 
 export function Viewer(props: ViewerProps) {
@@ -54,6 +56,8 @@ export function Viewer(props: ViewerProps) {
   const [anterior, setAnterior] = useState<{ cena: Cena; chave: number } | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
   const [pronto, setPronto] = useState(false)
+  // a 1ª tela só começa a animar quando a tela de carregamento termina de sumir (senão as entradas tocam escondidas)
+  const [iniciado, setIniciado] = useState(false)
   const [visaoGeral, setVisaoGeral] = useState(false)
   const [modoEncaixe, setModoEncaixe] = useState<ModoEncaixe>('ajustar')
   const controles = useControles({ fixar: visaoGeral, zonaTopo: !!marca })
@@ -172,9 +176,16 @@ export function Viewer(props: ViewerProps) {
     let ativo = true
     const primeira = documento.scenes[indiceInicial] ?? documento.scenes[0]
     const t = window.setTimeout(() => ativo && setPronto(true), 4000)
-    if (primeira) void precarregar(primeira, assets).finally(() => { if (ativo) { setPronto(true); window.clearTimeout(t) } })
+    // imagens da 1ª tela + fontes do documento (evita a troca de fonte no meio da entrada)
+    if (primeira) void Promise.all([precarregar(primeira, assets), aguardarFontes(fontesDoDocumento(documento))]).finally(() => { if (ativo) { setPronto(true); window.clearTimeout(t) } })
     return () => { ativo = false; window.clearTimeout(t) }
   }, [documento, assets, indiceInicial])
+
+  useEffect(() => {
+    if (!pronto || iniciado) return
+    const t = window.setTimeout(() => setIniciado(true), reduzirMovimento ? 0 : SUMIR_CARREGAMENTO_MS)
+    return () => window.clearTimeout(t)
+  }, [pronto, iniciado, reduzirMovimento])
 
   const alternarFullscreen = useCallback(async () => {
     try {
@@ -298,15 +309,15 @@ export function Viewer(props: ViewerProps) {
         className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-[#111] text-white"
         role="status"
         aria-hidden={pronto || undefined}
-        style={{ opacity: pronto ? 0 : 1, visibility: pronto ? 'hidden' : 'visible', transition: 'opacity 300ms ease, visibility 0s linear 300ms', pointerEvents: pronto ? 'none' : undefined }}
+        style={{ opacity: pronto ? 0 : 1, visibility: pronto ? 'hidden' : 'visible', transition: `opacity ${SUMIR_CARREGAMENTO_MS}ms ease, visibility 0s linear ${SUMIR_CARREGAMENTO_MS}ms`, pointerEvents: pronto ? 'none' : undefined }}
       >
         <Marca className="animate-pulse text-[28px]" />
         <p className="text-sm text-white/60">Preparando apresentação…</p>
       </div>
 
-      {modo === 'story' && <StoryView documento={documento} tamanho={tamanho} runtime={runtime} aplicar={aplicar} {...comum} />}
+      {modo === 'story' && <StoryView documento={documento} tamanho={tamanho} runtime={runtime} aplicar={aplicar} iniciado={iniciado} {...comum} />}
 
-      {modo === 'explorar' && <ExplorarView documento={documento} tamanho={tamanho} runtime={runtime} visaoGeral={visaoGeral} preencher={modoEncaixe === 'preencher'} aoEscolher={(i) => { setVisaoGeral(false); irParaIndice(i) }} {...comum} />}
+      {modo === 'explorar' && <ExplorarView documento={documento} tamanho={tamanho} runtime={runtime} visaoGeral={visaoGeral} preencher={modoEncaixe === 'preencher'} iniciado={iniciado} aoEscolher={(i) => { setVisaoGeral(false); irParaIndice(i) }} {...comum} />}
 
       {modo === 'slides' && cena && encaixe && (
         <>
@@ -315,7 +326,8 @@ export function Viewer(props: ViewerProps) {
           {anterior && anterior.cena.id !== cena.id && (() => {
             const e = encaixar(anterior.cena.size, tamanho, modoEncaixe)
             return (
-              <div key={`sai-${anterior.chave}`} className="cena-saindo" style={{ position: 'absolute', left: e.offsetX, top: e.offsetY, zIndex: 0, ['--dur' as string]: `${duracao}ms`, animationDelay: saidaMs ? `${saidaMs}ms` : undefined }}>
+              // no morph o que não tem par sai rápido (45% da duração): o texto antigo não fica por baixo do novo
+              <div key={`sai-${anterior.chave}`} className="cena-saindo" style={{ position: 'absolute', left: e.offsetX, top: e.offsetY, zIndex: 0, ['--dur' as string]: `${ehMorph ? Math.round(duracao * 0.45) : duracao}ms`, animationDelay: saidaMs ? `${saidaMs}ms` : undefined }}>
                 {camadaDeCena(anterior.cena, e, !ehMorph)}
                 <SceneRenderer cena={anterior.cena} escala={e.scale} assets={assets} modo="viewer" sangria={sangriaDoEncaixe(e.offsetX, e.offsetY, e.scale)} reduzirMovimento={reduzirMovimento} saida={saidaMs > 0} ocultar={ehMorph ? idsCasados(anterior.cena, cena) : undefined} />
               </div>
@@ -323,7 +335,7 @@ export function Viewer(props: ViewerProps) {
           })()}
           <AposSaida key={`${cena.id}-${runtime.historico.length}`} ms={saidaMs}>
           <div
-            className={!ehMorph && transicao && transicao.type !== 'none' && runtime.historico.length ? `cena-transicao-${transicao.type}` : undefined}
+            className={[!ehMorph && transicao && transicao.type !== 'none' && runtime.historico.length ? `cena-transicao-${transicao.type}` : '', iniciado ? '' : 'animacoes-em-espera'].filter(Boolean).join(' ') || undefined}
             style={{ position: 'absolute', left: encaixe.offsetX, top: encaixe.offsetY, zIndex: 1, ['--dur' as string]: `${duracao}ms` }}
           >
             {camadaDeCena(cena, encaixe, !ehMorph)}

@@ -27,17 +27,35 @@ import {
   type TipoLoop,
 } from '@/lib/scene/animacoes'
 import { pedirPrevia } from '@/components/renderer/animacao'
-import { CampoNum, Interruptor, SeletorLista } from '@/components/editor/inspetor/controles'
+import { CampoNum, Deslizante, Interruptor, SeletorLista } from '@/components/editor/inspetor/controles'
 import { CurvaEasing } from '@/components/editor/inspetor/CurvaEasing'
 import { AbasInternas, BotaoPrevia, CartaoPreset, Chips, GradeCartoesPreset, MiniPrevia, Rotulo, areaAnimacao, useAnimacaoCopiada } from './ui'
+import { Galeria, PainelAjustes, sugestoesPara } from './Ajustes'
 
 type Aba = 'entrada' | 'enfase' | 'saida'
 const INTERVALOS = [60, 100, 150, 250] as const
 const INTENSIDADES = [
-  { id: 'sutil', rotulo: 'Sutil', v: 0.5 },
-  { id: 'normal', rotulo: 'Normal', v: 1 },
+  { id: 'sutil', rotulo: 'Fraca', v: 0.5 },
+  { id: 'normal', rotulo: 'Média', v: 1 },
   { id: 'forte', rotulo: 'Forte', v: 2 },
 ] as const
+/** Amplitude do loop em unidades reais (intensidade 1 = valor base do keyframe). */
+const AMPLITUDE: Partial<Record<TipoLoop, { base: number; unidade: string; rotulo: string }>> = {
+  float: { base: 14, unidade: 'px', rotulo: 'Altura' },
+  drift: { base: 12, unidade: 'px', rotulo: 'Amplitude' },
+  pulse: { base: 5, unidade: '%', rotulo: 'Quanto cresce' },
+  wiggle: { base: 3, unidade: '°', rotulo: 'Ângulo' },
+  shake: { base: 4, unidade: 'px', rotulo: 'Amplitude' },
+  glow: { base: 14, unidade: 'px', rotulo: 'Raio do brilho' },
+}
+const REPETICOES = [{ id: 'inf', rotulo: 'Sempre' }, { id: '1', rotulo: '1×' }, { id: '2', rotulo: '2×' }, { id: '3', rotulo: '3×' }, { id: '5', rotulo: '5×' }]
+
+/** Aplica um ajuste e remove campos (voltar ao padrão). */
+function comAjuste(a: Animacao, patch: Partial<Animacao>, remover: (keyof Animacao)[] = []): Animacao {
+  const r = { ...a, ...patch } as Record<string, unknown>
+  for (const k of remover) delete r[k]
+  return r as Animacao
+}
 const RITMOS = [
   { id: 'lenta', rotulo: 'Lenta', f: 1.5 },
   { id: 'normal', rotulo: 'Normal', f: 1 },
@@ -55,7 +73,7 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
   const { camadasSelecionadas: sel, acoes } = editor
   const [aba, setAba] = useState<Aba>('entrada')
   const [intervalo, setIntervalo] = useState<number>(100)
-  const [ordem, setOrdem] = useState<OrdemTela>('topo')
+  const [ordem, setOrdem] = useState<OrdemTela>('leitura')
   const [curvaAberta, setCurvaAberta] = useState(false)
   const chaveSel = sel.map((c) => c.id).join(',')
   useEffect(() => setCurvaAberta(false), [chaveSel])
@@ -104,6 +122,9 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
     tocar()
   }
   const escolherEntrada = (tipo: TipoAnimacao) => setEntrada(tipo === 'none' ? null : animacaoDoPreset(tipo, a))
+  const ajustarEntrada = (patch: Partial<Animacao>, remover?: (keyof Animacao)[]) =>
+    acoes.atualizarCamadas(ids, (c) => (c.enterAnimation ? ({ ...c, enterAnimation: comAjuste(c.enterAnimation, patch, remover) } as Camada) : c))
+  const camadasDaTela = editor.cena?.layers ?? []
 
   // ---------- loop / saída ----------
   const setLoop = (novo: Loop | null) => {
@@ -140,26 +161,15 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
         {aba === 'entrada' && (
           <div className="space-y-2 pt-3">
             <Rotulo acao={a.type !== 'none' ? <BotaoPrevia aoClicar={() => tocar()} /> : undefined}>Como a camada aparece</Rotulo>
-            <GradeCartoesPreset rotulo="Efeito de entrada">
-              <CartaoPreset rotulo="Nenhuma" selecionado={a.type === 'none'} aoClicar={() => escolherEntrada('none')}>{() => <MiniPrevia tocando={false} cor="#C9C6C0" />}</CartaoPreset>
-              {PRESETS_ENTRADA.filter((p) => !p.soTexto).map((p) => (
-                <CartaoPreset key={p.id} rotulo={p.rotulo} selecionado={a.type === p.id} aoClicar={() => escolherEntrada(p.id)}>
-                  {(t) => <MiniPrevia tipo={p.id} tocando={t} />}
-                </CartaoPreset>
-              ))}
-            </GradeCartoesPreset>
-            {todasTexto && (
-              <>
-                <Rotulo>Para texto</Rotulo>
-                <GradeCartoesPreset rotulo="Efeito de entrada para texto">
-                  {PRESETS_ENTRADA.filter((p) => p.soTexto).map((p) => (
-                    <CartaoPreset key={p.id} duasLinhas rotulo={p.rotulo} selecionado={a.type === p.id} aoClicar={() => escolherEntrada(p.id)}>
-                      {(t) => <MiniPrevia tipo={p.id} texto tocando={t} />}
-                    </CartaoPreset>
-                  ))}
-                </GradeCartoesPreset>
-              </>
-            )}
+            <Galeria
+              presets={PRESETS_ENTRADA}
+              atual={a.type !== 'none' ? a : undefined}
+              textoPermitido={todasTexto}
+              sugestoes={multi ? [] : sugestoesPara(l)}
+              aoEscolher={(p) => setEntrada(animacaoDoPreset(p.id, a, p))}
+              rotulo="Efeito de entrada"
+              extra={<CartaoPreset rotulo="Nenhuma" selecionado={a.type === 'none'} aoClicar={() => escolherEntrada('none')}>{() => <MiniPrevia tocando={false} cor="#C9C6C0" />}</CartaoPreset>}
+            />
             {!todasTexto && ehAnimacaoDeTexto(a.type) && <p className="text-[12px] text-texto2">{nomeAnimacao(a.type)} só funciona em texto; nas outras camadas vira fade.</p>}
 
             {a.type !== 'none' && (
@@ -188,6 +198,7 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
                     aoFim={() => { acoes.registrarHistorico(antesCurva.current); tocar() }}
                   />
                 )}
+                <PainelAjustes anim={a} camada={l} camadasDaTela={camadasDaTela} aoMudar={ajustarEntrada} aoPrevia={() => tocar()} />
               </div>
             )}
           </div>
@@ -199,7 +210,7 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
             <GradeCartoesPreset rotulo="Ênfase em loop">
               <CartaoPreset rotulo="Nenhuma" selecionado={!loop} aoClicar={() => setLoop(null)}>{() => <MiniPrevia tocando={false} cor="#C9C6C0" />}</CartaoPreset>
               {PRESETS_LOOP.map((p) => (
-                <CartaoPreset key={p.id} duasLinhas rotulo={p.rotulo} selecionado={loop?.type === p.id} aoClicar={() => setLoop({ type: p.id as TipoLoop, duration: p.duracao, intensity: loop?.intensity ?? 1 })}>
+                <CartaoPreset key={p.id} duasLinhas rotulo={p.rotulo} selecionado={loop?.type === p.id} aoClicar={() => setLoop({ type: p.id as TipoLoop, duration: p.duracao, intensity: loop?.intensity ?? 1, ...(loop?.repeat ? { repeat: loop.repeat } : {}) })}>
                   {(t) => <MiniPrevia loop={p.id} tocando={t} />}
                 </CartaoPreset>
               ))}
@@ -207,8 +218,15 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
             <p className="text-[12px] leading-snug text-texto3">Começa quando a entrada termina e repete enquanto a tela estiver aberta.</p>
             {loop && (
               <>
-                <Rotulo>Intensidade</Rotulo>
-                <Chips rotulo="Intensidade" cheio valor={INTENSIDADES.find((i) => i.v === loop.intensity)?.id ?? null} opcoes={[...INTENSIDADES]} aoMudar={(id) => setLoop({ ...loop, intensity: INTENSIDADES.find((i) => i.id === id)!.v })} />
+                {AMPLITUDE[loop.type] ? (
+                  <>
+                    <Rotulo>{AMPLITUDE[loop.type]!.rotulo}</Rotulo>
+                    <Chips rotulo="Intensidade" cheio valor={INTENSIDADES.find((i) => i.v === loop.intensity)?.id ?? null} opcoes={[...INTENSIDADES]} aoMudar={(id) => setLoop({ ...loop, intensity: INTENSIDADES.find((i) => i.id === id)!.v })} />
+                    <Deslizante rotulo={`${AMPLITUDE[loop.type]!.rotulo} do loop`} valor={Math.round(AMPLITUDE[loop.type]!.base * loop.intensity * 10) / 10} min={Math.round(AMPLITUDE[loop.type]!.base * 0.25 * 10) / 10} max={AMPLITUDE[loop.type]!.base * 3} passo={AMPLITUDE[loop.type]!.base >= 10 ? 1 : 0.5} aoMudar={(v) => acoes.atualizarCamadas(ids, (c) => (c.loopAnimation ? ({ ...c, loopAnimation: { ...c.loopAnimation, intensity: Math.max(0.25, Math.min(3, v / AMPLITUDE[loop.type]!.base)) } } as Camada) : c))} formatar={(v) => `${v}${AMPLITUDE[loop.type]!.unidade}`} />
+                  </>
+                ) : null}
+                <Rotulo>Repetir</Rotulo>
+                <Chips rotulo="Repetições do loop" cheio valor={loop.repeat ? (REPETICOES.some((r) => r.id === String(loop.repeat)) ? String(loop.repeat) : null) : 'inf'} opcoes={REPETICOES} aoMudar={(id) => { const { repeat: _r, ...sem } = loop; setLoop(id === 'inf' ? sem : { ...sem, repeat: Number(id) }) }} />
                 <Rotulo>Ritmo</Rotulo>
                 <Chips
                   rotulo="Ritmo do loop"
@@ -225,20 +243,25 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
         {aba === 'saida' && (
           <div className="space-y-2 pt-3">
             <Rotulo acao={saida ? <BotaoPrevia aoClicar={() => tocar({ saida: true })} /> : undefined}>Ao sair da tela</Rotulo>
-            <GradeCartoesPreset rotulo="Animação de saída">
-              <CartaoPreset rotulo="Nenhuma" selecionado={!saida} aoClicar={() => setSaida(null)}>{() => <MiniPrevia tocando={false} cor="#C9C6C0" />}</CartaoPreset>
-              {PRESETS_SAIDA.map((p) => (
-                <CartaoPreset key={p.id} rotulo={p.rotulo} selecionado={saida?.type === p.id} aoClicar={() => setSaida({ ...animacaoDoPreset(p.id), delay: saida?.delay ?? 0 })}>
-                  {(t) => <MiniPrevia tipo={p.id} saida tocando={t} />}
-                </CartaoPreset>
-              ))}
-            </GradeCartoesPreset>
+            <Galeria
+              presets={PRESETS_SAIDA}
+              atual={saida}
+              textoPermitido={false}
+              saida
+              aoEscolher={(p) => setSaida({ ...animacaoDoPreset(p.id, undefined, p), delay: saida?.delay ?? 0 })}
+              rotulo="Animação de saída"
+              extra={<CartaoPreset rotulo="Nenhuma" selecionado={!saida} aoClicar={() => setSaida(null)}>{() => <MiniPrevia tocando={false} cor="#C9C6C0" />}</CartaoPreset>}
+            />
             <p className="text-[12px] leading-snug text-texto3">Toca antes da transição; a próxima tela entra quando as saídas terminam.</p>
             {saida && (
               <>
                 <Rotulo>Velocidade</Rotulo>
                 <Chips rotulo="Velocidade da saída" cheio valor={velocidadeDe(saida.type, saida.duration)} opcoes={VELOCIDADES} aoMudar={(v) => setSaida({ ...saida, duration: duracaoPorVelocidade(saida.type, v) })} />
-                <CampoNum prefixo="Atraso" rotulo="Atraso da saída" valor={saida.delay} min={0} max={2000} passo={50} sufixo="ms" aoMudar={(delay) => setSaida({ ...saida, delay })} />
+                <div className="grid grid-cols-2 gap-2">
+                  <CampoNum prefixo="Atraso" rotulo="Atraso da saída" valor={saida.delay} min={0} max={2000} passo={50} sufixo="ms" aoMudar={(delay) => setSaida({ ...saida, delay })} />
+                  <CampoNum prefixo="Duração" rotulo="Duração da saída" valor={saida.duration} min={100} max={3000} passo={50} sufixo="ms" aoMudar={(duration) => setSaida({ ...saida, duration })} />
+                </div>
+                <PainelAjustes anim={saida} camada={l} camadasDaTela={camadasDaTela} saida aoMudar={(patch, remover) => acoes.atualizarCamadas(ids, (c) => (c.exitAnimation ? ({ ...c, exitAnimation: comAjuste(c.exitAnimation, patch, remover) } as Camada) : c))} aoPrevia={() => tocar({ saida: true })} />
               </>
             )}
           </div>

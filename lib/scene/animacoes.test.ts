@@ -65,7 +65,9 @@ describe('catálogo', () => {
   })
   it('curvas nomeadas e personalizada', () => {
     expect(curvaDe({ easing: 'spring' })).toBe('elastica')
-    expect(curvaDe({ easing: 'easeInOut' })).toBe('personalizada')
+    expect(curvaDe({ easing: 'easeInOut' })).toBe('equilibrada')
+    expect(curvaDe({ easing: 'ease' })).toBe('personalizada')
+    expect(curvaDe({ easing: 'easeOut', bezier: [0.34, 1.35, 0.6, 1] })).toBe('quique')
     expect(curvaDe({ easing: 'easeOut', bezier: [0, 0, 1, 1] })).toBe('personalizada')
     expect(curvaCss({ easing: 'easeOut', bezier: [0.1, 1.2, 0.3, 1] })).toBe('cubic-bezier(0.1, 1.2, 0.3, 1)')
     expect(curvaCss({ easing: 'easeOut', bezier: EXPO })).toBe('cubic-bezier(0.16, 1, 0.3, 1)')
@@ -83,6 +85,12 @@ describe('texto dividido', () => {
     const { palavras, total } = dividirTexto('ab cd', 'letra')
     expect(total).toBe(4)
     expect(palavras[1]!.partes.map((p) => p.indice)).toEqual([2, 3])
+  })
+  it('letra por letra divide por grafema (acento combinado e emoji ficam inteiros)', () => {
+    const { palavras, total } = dividirTexto('São 👍🏽', 'letra')
+    expect(total).toBe(4)
+    expect(palavras[0]!.partes.map((p) => p.texto)).toEqual(['S', 'ã', 'o'])
+    expect(palavras[1]!.partes.map((p) => p.texto)).toEqual(['👍🏽'])
   })
   it('a última parte termina exatamente na duração total', () => {
     for (const tipo of ['words', 'letters', 'typewriter'] as const) {
@@ -113,12 +121,37 @@ describe('animar tela inteira', () => {
     const passo = ESTILOS_TELA.find((e) => e.id === 'editorial')!.intervalo
     expect(a('fundo')).toMatchObject({ type: 'fadeIn', delay: 0 })
     expect(a('titulo')).toMatchObject({ type: 'words', delay: 200 })
-    expect(a('sub')).toMatchObject({ type: 'slideUp', delay: 200 + passo })
+    // texto de apoio curto (uma linha) sobe de trás da própria borda (máscara); com várias linhas, linha por linha
+    expect(a('sub')).toMatchObject({ type: 'mask', delay: 200 + passo })
     expect(a('a')!.delay).toBe(200 + 2 * passo)
     expect(a('b')!.delay).toBe(a('a')!.delay)
     expect(a('a')!.type).toBe('reveal')
     expect(a('h')).toBeUndefined()
     expect(a('oculta')).toBeUndefined()
+  })
+
+  it('ordem de leitura (padrão): fundo na hora, título, texto e linhas, depois imagens; cartão entra com o seu texto', () => {
+    const c = novaCena({
+      id: 'l', size: { width: 1920, height: 1080 },
+      layers: [
+        parseCamada({ id: 'fundo', type: 'shape', x: 0, y: 0, width: 1920, height: 1080, z: 0 }),
+        texto('rotulo', 100, 60, 22, '01 — Rótulo'),
+        forma('deco', 1500, 40, { z: 1 }),
+        texto('titulo', 100, 300, 140, 'Título'),
+        parseCamada({ id: 'linha', type: 'shape', shape: 'line', x: 100, y: 520, width: 800, height: 2, z: 2 }),
+        parseCamada({ id: 'cartao', type: 'shape', x: 1000, y: 600, width: 700, height: 300, z: 3 }),
+        { ...texto('dentro', 1040, 640, 32, 'No cartão'), z: 4 } as Camada,
+        texto('apoio', 100, 560, 34, 'Texto de apoio'),
+      ],
+    })
+    const out = animarTelaInteira(c, 'suave')
+    const d = (id: string) => out.find((x) => x.id === id)!.enterAnimation!.delay
+    expect(d('fundo')).toBe(0)
+    const ordem = ['titulo', 'rotulo', 'linha', 'apoio', 'dentro', 'deco']
+    for (let i = 1; i < ordem.length; i++) expect(d(ordem[i]!)).toBeGreaterThan(d(ordem[i - 1]!))
+    expect(d('cartao')).toBe(d('dentro'))
+    // linhas finas ganham a receita própria (não a de forma)
+    expect(animarTelaInteira(c, 'dinamico').find((x) => x.id === 'linha')!.enterAnimation!.type).toBe('reveal')
   })
 
   it('ordem da esquerda para a direita e pela ordem das camadas', () => {

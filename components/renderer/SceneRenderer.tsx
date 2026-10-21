@@ -18,7 +18,8 @@ import { ancestrais, mapaDe } from '@/lib/scene/arvore'
 import { recolorirSvg, svgParaDataUrl } from '@/lib/importar/svg'
 import { pilhaFonte } from '@/lib/design-tokens'
 import { MASCARAS, filtroCss, gradienteCss, raioCss, sombraCss, transformCss } from './estilos'
-import { TextoSegmentado, planoAnimacao, usePreviaAnimacao, varsAnimacao, type PedidoPrevia } from './animacao'
+import { Desenho, TextoSegmentado, planoAnimacao, usePreviaAnimacao, varsAnimacao, type PedidoPrevia } from './animacao'
+import { atrasosEfetivos, esperaGatilho, interacoesDosGatilhos } from '@/lib/scene/animacoes'
 import { Forma } from './camadas/Forma'
 import { Modelo3d } from './camadas/Modelo3d'
 import { Lottie } from './camadas/Lottie'
@@ -62,6 +63,8 @@ export interface SceneRendererProps {
   saida?: boolean
   /** Apresentação: área extra em volta da cena; camadas que encostam na borda se estendem até ela. */
   sangria?: Sangria
+  /** Visualizador: false = camadas paradas no estado final, sem entradas nem loops (ex.: telas de contexto no Explorar). */
+  animar?: boolean
 }
 
 /** Props internas: prévia de animação pedida pelo inspetor (só no modo editor). */
@@ -91,6 +94,8 @@ function CenaRender(props: PropsInternas) {
   const passo = escala > 0 ? 1 / (escala * dpr) : undefined
   const camadas = useMemo(() => costurar(ordenarParaRender(sangrar(calcularLayout(cena.layers), cena.size, sangria)), passo), [cena.layers, cena.size, sangria, passo])
   const herdado = useMemo(() => herancaDeFrames(camadas), [camadas])
+  // "quando" das entradas: atrasos em cadeia (depois de outra camada) e cliques/hovers que tocam animações
+  const gatilhos = useMemo(() => ({ atrasos: atrasosEfetivos(camadas), inter: interacoesDosGatilhos(camadas) }), [camadas])
   const mapaMorph = useMemo(() => (morphDe ? new Map(morphDe.layers.map((l) => [chaveMorph(l), l])) : null), [morphDe])
   const fundoCss = cena.backgroundGradient ? gradienteCss(cena.backgroundGradient) : cena.background
   const [fundoAtual, setFundoAtual] = useState(morphDe ? (morphDe.backgroundGradient ? gradienteCss(morphDe.backgroundGradient) : morphDe.background) : fundoCss)
@@ -103,7 +108,7 @@ function CenaRender(props: PropsInternas) {
     <div className={[className, classeTransicao].filter(Boolean).join(' ') || undefined} style={{ width: cena.size.width * escala, height: cena.size.height * escala, position: 'relative', overflow: sangria ? 'visible' : 'hidden', background: morphDe ? fundoAtual : fundoCss, transition: morphDe ? `background ${props.morphDuracao ?? 600}ms ${props.morphEasing ?? 'ease'}` : undefined, ...(classeTransicao ? { ['--dur' as string]: `${props.morphDuracao ?? 500}ms` } : {}), ...style }}>
       <div style={{ width: cena.size.width, height: cena.size.height, transform: `scale(${escala})`, transformOrigin: '0 0', position: 'absolute', left: 0, top: 0 }}>
         {fundo && <img src={modo === 'miniatura' ? fundo.thumbUrl || fundo.url : fundo.url} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: cena.backgroundFit, pointerEvents: 'none' }} />}
-        {camadas.map((c) => (props.ocultar?.has(c.id) ? null : <LayerView key={c.id} camada={c} props={props} origemMorph={mapaMorph?.get(chaveMorph(c))} heranca={herdado.get(c.id)} />))}
+        {camadas.map((c) => (props.ocultar?.has(c.id) ? null : <LayerView key={c.id} camada={c} props={props} origemMorph={mapaMorph?.get(chaveMorph(c))} heranca={herdado.get(c.id)} gatilhos={gatilhos} />))}
         {children}
       </div>
     </div>
@@ -156,7 +161,7 @@ function useDensidade(): number {
   return dpr
 }
 
-function LayerView({ camada: c, props, origemMorph, heranca }: { camada: Camada; props: PropsInternas; origemMorph?: Camada; heranca?: Heranca }) {
+function LayerView({ camada: c, props, origemMorph, heranca, gatilhos }: { camada: Camada; props: PropsInternas; origemMorph?: Camada; heranca?: Heranca; gatilhos: { atrasos: Map<string, number>; inter: ReturnType<typeof interacoesDosGatilhos> } }) {
   const { modo, runtime, reduzirMovimento = false, semHover = false, mobile = false, aoInteragir, chaveEntrada, morphDe, morphDuracao = 600, morphEasing = 'ease' } = props
   const viewer = modo === 'viewer'
   const visivel = (runtime ? camadaVisivel(c, runtime) : !c.hidden) && !heranca?.oculta
@@ -170,21 +175,33 @@ function LayerView({ camada: c, props, origemMorph, heranca }: { camada: Camada;
   if (!visivel && modo !== 'editor') return null
   if (viewer && mobile && c.mobile?.hidden) return null
 
-  const cliques = viewer ? [...interacoesDe(c, 'click'), ...(semHover ? interacoesDe(c, 'hover') : [])] : []
-  const hovers = viewer && !semHover ? interacoesDe(c, 'hover') : []
+  const virtuais = gatilhos.inter.get(c.id)
+  const cliques = viewer ? [...interacoesDe(c, 'click'), ...(virtuais?.click ?? []), ...(semHover ? [...interacoesDe(c, 'hover'), ...(virtuais?.hover ?? [])] : [])] : []
+  const hovers = viewer && !semHover ? [...interacoesDe(c, 'hover'), ...(virtuais?.hover ?? [])] : []
   const clicavel = cliques.length > 0
   const animRuntime = runtime?.animacoes[c.id]
-  // no morph, camadas casadas não fazem animação de entrada; as novas entram com fade
-  const animEntrada = morphDe ? (origemMorph ? undefined : ({ type: 'fadeIn', duration: Math.round(morphDuracao * 0.8), delay: Math.round(morphDuracao * 0.2), easing: 'easeOut' } as Animacao)) : c.enterAnimation
+  // no morph, camadas casadas não fazem animação de entrada; as novas tocam a própria entrada depois que o
+  // morph engrena (30% da duração) — ou um fade, se não tiverem entrada
+  const atrasoMorph = Math.round(morphDuracao * 0.3)
+  const entradaBase = c.enterAnimation ? { ...c.enterAnimation, delay: gatilhos.atrasos.get(c.id) ?? c.enterAnimation.delay } : undefined
+  const animEntrada = morphDe
+    ? origemMorph
+      ? undefined
+      : entradaBase && entradaBase.type !== 'none'
+        ? { ...entradaBase, delay: entradaBase.delay + atrasoMorph }
+        : ({ type: 'fadeIn', duration: Math.round(morphDuracao * 0.8), delay: Math.round(morphDuracao * 0.2), easing: 'easeOut' } as Animacao)
+    : entradaBase
   // prévia no editor (inspetor): toca como no visualizador, só nas camadas pedidas
   const previa = props.previa
   const previaAqui = !!previa && !c.hidden && (!previa.ids || previa.ids.includes(c.id))
-  const tocar = viewer || previaAqui
+  const tocar = (viewer && props.animar !== false) || previaAqui
   const saindo = !animRuntime && (props.saida || (previaAqui && !!previa?.saida))
   const entrada = previaAqui && previa?.semAtraso && animEntrada ? { ...animEntrada, delay: 0 } : animEntrada
   const anim = animRuntime ? animRuntime.animacao : tocar ? (saindo ? c.exitAnimation : entrada) : undefined
   const chaveAnim = animRuntime ? `rt-${animRuntime.nonce}` : previaAqui ? `pv-${previa?.nonce}` : `in-${chaveEntrada ?? ''}`
-  const plano = planoAnimacao({ entrada: saindo ? undefined : anim, saida: saindo ? anim : undefined, loop: tocar && !animRuntime ? c.loopAnimation : undefined, reduzir: reduzirMovimento, ehTexto: c.type === 'text' })
+  // entrada por clique/hover: parada no 1º quadro até o público agir (a prévia do editor toca direto)
+  const aguardar = viewer && !animRuntime && !saindo && !previaAqui && esperaGatilho(c.enterAnimation)
+  const plano = planoAnimacao({ entrada: saindo ? undefined : anim, saida: saindo ? anim : undefined, loop: tocar && !animRuntime ? c.loopAnimation : undefined, reduzir: reduzirMovimento, ehTexto: c.type === 'text', desenhavel: c.type === 'shape' && c.shape !== 'rect' && c.shape !== 'ellipse', aguardar })
   const geoAtual = origemMorph && !morphFim ? geometria(origemMorph) : geometria(c)
   const e = c.effects
 
@@ -193,6 +210,7 @@ function LayerView({ camada: c, props, origemMorph, heranca }: { camada: Camada;
     ...geoAtual,
     opacity: (visivel ? (geoAtual.opacity as number) : 0.3) * (heranca?.opacidade ?? 1),
     clipPath: heranca?.clip,
+    ['--clip-final' as string]: heranca?.clip ?? 'none',
     zIndex: c.z,
     ...varsAnimacao(c),
     cursor: clicavel ? 'pointer' : undefined,
@@ -224,12 +242,12 @@ function LayerView({ camada: c, props, origemMorph, heranca }: { camada: Camada;
 
   return (
     <div key={chaveAnim} data-layer-id={c.id} className={classes || undefined} style={base} {...eventos}>
-      <Conteudo camada={c} props={props} origemMorph={morphFim ? undefined : origemMorph} morphDuracao={morphDuracao} morphEasing={morphEasing} animTexto={plano.texto} />
+      <Conteudo camada={c} props={props} origemMorph={morphFim ? undefined : origemMorph} morphDuracao={morphDuracao} morphEasing={morphEasing} animTexto={plano.texto} desenhar={plano.desenho} />
     </div>
   )
 }
 
-function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, animTexto }: { camada: Camada; props: SceneRendererProps; origemMorph?: Camada; morphDuracao: number; morphEasing: string; animTexto?: Animacao }) {
+function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, animTexto, desenhar }: { camada: Camada; props: SceneRendererProps; origemMorph?: Camada; morphDuracao: number; morphEasing: string; animTexto?: Animacao; desenhar?: boolean }) {
   const { assets, modo, mobile = false, registrarVideo, interativoNoEditor } = props
   const e = c.effects
   const interativo = modo === 'viewer' || !!interativoNoEditor
@@ -238,9 +256,9 @@ function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, an
       return <Texto c={c} origem={origemMorph?.type === 'text' ? origemMorph : undefined} modo={modo} duracao={morphDuracao} easing={morphEasing} animTexto={animTexto} />
     case 'shape':
       return (
-        <div style={{ width: '100%', height: '100%', filter: filtroCss(e, c.shape !== 'rect' && c.shape !== 'ellipse') }}>
+        <Desenho ativo={!!desenhar} style={{ width: '100%', height: '100%', filter: filtroCss(e, c.shape !== 'rect' && c.shape !== 'ellipse') }}>
           <Forma camada={origemMorph?.type === 'shape' ? { ...c, fill: origemMorph.fill } : c} />
-        </div>
+        </Desenho>
       )
     case 'frame':
       return (
@@ -363,7 +381,7 @@ function Texto({ c, origem, modo, duracao, easing, animTexto }: { c: CamadaTexto
       }}
     >
       {animTexto ? (
-        <TextoSegmentado texto={c.text} animacao={animTexto} estiloParte={gradiente ? { backgroundImage: gradiente, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' } : undefined} />
+        <TextoSegmentado texto={c.text} animacao={animTexto} gradiente={gradiente} cor={c.gradient?.stops[0]?.color ?? c.color} />
       ) : (
         <span style={gradiente ? { backgroundImage: gradiente, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' } : undefined}>{c.text}</span>
       )}

@@ -72,12 +72,21 @@ export const TIPOS_ANIMACAO = [
   'slideOutUp',
   'slideOutDown',
   'blurOut',
+  // --- catálogo ampliado (aditivo): ver lib/scene/parametros.ts e docs/animacoes.md ---
+  'slideBlur', 'zoomIn', 'expand', 'spinIn', 'bounce', 'flip', 'unfold', 'mask', 'iris', 'draw',
+  'lines', 'cascade', 'scramble', 'highlight', 'underline', 'counter',
+  'slideOutLeft', 'slideOutRight', 'zoomAway', 'spinOut', 'flipOut', 'maskOut', 'wipeOut', 'irisOut', 'collapse',
 ] as const
 
+/** Direção do movimento (para onde a camada vai): também diagonais. */
+export const DIRECOES = ['up', 'down', 'left', 'right', 'up-left', 'up-right', 'down-left', 'down-right'] as const
+/** Origem da transformação (escala/rotação), grade 3×3. */
+export const ORIGENS = ['top-left', 'top', 'top-right', 'left', 'center', 'right', 'bottom-left', 'bottom', 'bottom-right'] as const
+
 /** Entradas que dividem o texto em partes (só valem para camadas de texto; nas outras viram fade). */
-export const ANIMACOES_DE_TEXTO = ['typewriter', 'words', 'letters'] as const
+export const ANIMACOES_DE_TEXTO = ['typewriter', 'words', 'letters', 'lines', 'cascade', 'scramble', 'highlight', 'underline', 'counter'] as const
 /** Tipos que fazem sentido como saída. */
-export const ANIMACOES_DE_SAIDA = ['fadeOut', 'scaleOut', 'slideOutUp', 'slideOutDown', 'blurOut'] as const
+export const ANIMACOES_DE_SAIDA = ['fadeOut', 'scaleOut', 'slideOutUp', 'slideOutDown', 'blurOut', 'slideOutLeft', 'slideOutRight', 'zoomAway', 'spinOut', 'flipOut', 'maskOut', 'wipeOut', 'irisOut', 'collapse'] as const
 
 export const EASINGS = ['linear', 'ease', 'easeIn', 'easeOut', 'easeInOut', 'spring'] as const
 
@@ -91,17 +100,50 @@ export const AnimacaoSchema = z.object({
   easing: z.enum(EASINGS).default('easeOut'),
   /** Curva personalizada (cubic-bezier x1 y1 x2 y2). Quando presente, substitui `easing`. */
   bezier: z.tuple([z.number().min(0).max(1), z.number().min(-1).max(2), z.number().min(0).max(1), z.number().min(-1).max(2)]).optional(),
+  // --- ajustes finos (opcionais; ausentes = o visual padrão do preset, ver lib/scene/parametros.ts) ---
+  /** Distância percorrida, em px da cena. */
+  distance: z.number().min(0).max(800).optional(),
+  /** Para onde a camada se move (entrada) / vai (saída); nas revelações, o sentido da cortina. */
+  direction: z.enum(DIRECOES).optional(),
+  /** Escala inicial (entrada) ou final (saída). */
+  scale: z.number().min(0).max(3).optional(),
+  /** Rotação inicial/final, em graus. */
+  rotate: z.number().min(-720).max(720).optional(),
+  /** Desfoque inicial/final, em px. */
+  blur: z.number().min(0).max(80).optional(),
+  /** Opacidade inicial/final (0–1). */
+  opacity: z.number().min(0).max(1).optional(),
+  /** Ponto fixo da escala/rotação. */
+  origin: z.enum(ORIGENS).optional(),
+  /** Texto: dividir por linha, palavra ou letra. */
+  split: z.enum(['line', 'word', 'letter']).optional(),
+  /** Texto: ordem das partes. */
+  order: z.enum(['start', 'end', 'center', 'edges', 'random']).optional(),
+  /** Texto: intervalo entre partes, em ms (ausente = automático pela duração). */
+  stagger: z.number().int().min(0).max(1000).optional(),
+  /** Destaque/sublinhado: cor do marcador. */
+  color: CorSchema.optional(),
+  /** Destaque/sublinhado: palavras marcadas (índices, inclusive; ausente = todas). */
+  range: z.tuple([z.number().int().min(0).max(999), z.number().int().min(0).max(999)]).optional(),
+  /** Quando a entrada toca: ao entrar na tela (padrão), depois de outra camada, ao clicar ou ao passar o mouse. */
+  trigger: z.enum(['enter', 'after', 'click', 'hover']).optional(),
+  /** trigger "after": camada cuja entrada precisa terminar antes (o atraso conta a partir do fim dela). */
+  after: IdSchema.optional(),
+  /** trigger "click"/"hover": camada que dispara (ausente = a própria camada). */
+  on: IdSchema.optional(),
 })
 export type Animacao = z.infer<typeof AnimacaoSchema>
 
 /** Ênfase contínua enquanto a tela está visível (começa ao fim da entrada). */
-export const TIPOS_LOOP = ['float', 'pulse', 'wiggle', 'spin'] as const
+export const TIPOS_LOOP = ['float', 'pulse', 'wiggle', 'spin', 'drift', 'shake', 'glow'] as const
 export const LoopSchema = z.object({
   type: z.enum(TIPOS_LOOP),
   /** Duração de um ciclo, em ms. */
   duration: z.number().int().min(400).max(20_000).default(3000),
   /** Multiplicador da amplitude (0,5 = sutil, 1 = normal, 2 = forte). */
   intensity: z.number().min(0.25).max(3).default(1),
+  /** Quantas vezes repete (ausente = enquanto a tela estiver aberta). */
+  repeat: z.number().int().min(1).max(50).optional(),
 })
 export type Loop = z.infer<typeof LoopSchema>
 

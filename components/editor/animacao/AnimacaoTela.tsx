@@ -32,7 +32,7 @@ const CURVAS_TRANSICAO: { id: Transicao['easing']; rotulo: string }[] = [
 export function AnimacaoTela({ editor }: { editor: Editor }) {
   const { cena, acoes, estado } = editor
   const [estilo, setEstilo] = useState<EstiloTela>('suave')
-  const [ordem, setOrdem] = useState<OrdemTela>('topo')
+  const [ordem, setOrdem] = useState<OrdemTela>('leitura')
   const [avancado, setAvancado] = useState(false)
   const previa = usePreviaAnimacao(true)
   if (!cena) return null

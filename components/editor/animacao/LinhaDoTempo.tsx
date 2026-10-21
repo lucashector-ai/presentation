@@ -12,6 +12,7 @@ import { pedirPrevia, usePreviaAnimacao } from '@/components/renderer/animacao'
 import { cx } from '@/components/ui'
 
 type Modo = 'mover' | 'inicio' | 'fim'
+const GATILHOS = { after: 'depois de outra camada', click: 'toca ao clicar', hover: 'toca ao passar o mouse' } as const
 const PASSO = 50
 const snap = (v: number) => Math.round(v / PASSO) * PASSO
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v))
@@ -113,7 +114,7 @@ export function LinhaDoTempo({ editor }: { editor: Editor }) {
             return (
               <div key={l.id} className={cx('group flex h-[22px] items-center', l.oculta && 'opacity-45')}>
                 <button type="button" onClick={() => acoes.selecionar([l.id])} title={`Selecionar “${l.nome}”`} className="w-[76px] shrink-0 truncate pr-2 text-left text-[11px] text-texto2 hover:text-texto">
-                  {l.nome}
+                  {l.gatilho === 'after' ? '↳ ' : l.gatilho ? '◎ ' : ''}{l.nome}
                 </button>
                 <div
                   ref={l === linhas[0] ? trilhas : undefined}
@@ -127,11 +128,11 @@ export function LinhaDoTempo({ editor }: { editor: Editor }) {
                       <div
                         role="slider"
                         tabIndex={0}
-                        aria-label={`${l.nome}: ${nomeAnimacao(l.tipo)}, atraso ${l.inicio} ms, duração ${l.fim - l.inicio} ms`}
+                        aria-label={`${l.nome}: ${nomeAnimacao(l.tipo)}, atraso ${l.inicio} ms, duração ${l.fim - l.inicio} ms${l.gatilho ? `, ${GATILHOS[l.gatilho]}` : ''}`}
                         aria-valuemin={0}
                         aria-valuemax={5000}
                         aria-valuenow={l.inicio}
-                        title={`${nomeAnimacao(l.tipo)} · ${l.inicio}–${l.fim} ms${l.loop ? ` · loop: ${nomeLoop(l.loop)}` : ''}${l.saida ? ` · saída: ${nomeAnimacao(l.saida)}` : ''}`}
+                        title={`${nomeAnimacao(l.tipo)} · ${l.inicio}–${l.fim} ms${l.gatilho ? ` · ${GATILHOS[l.gatilho]}` : ''}${l.loop ? ` · loop: ${nomeLoop(l.loop)}` : ''}${l.saida ? ` · saída: ${nomeAnimacao(l.saida)}` : ''}`}
                         onPointerDown={(e) => iniciar(e, l, 'mover')}
                         onKeyDown={(e) => {
                           if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
