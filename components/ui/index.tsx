@@ -1,5 +1,5 @@
 'use client'
-import { cloneElement, forwardRef, isValidElement, useEffect, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { cloneElement, forwardRef, isValidElement, useEffect, useId, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 import { Loader2, X } from 'lucide-react'
 import { Marca, Simbolo } from './Logo'
 
@@ -158,6 +158,7 @@ export function EstadoVazio({ icone, titulo, descricao, acao }: { icone?: ReactN
 // ---------- Modal ----------
 export function Modal({ aberto, aoFechar, titulo, descricao, children, rodape, largura = 'md' }: { aberto: boolean; aoFechar: () => void; titulo: string; descricao?: string; children: ReactNode; rodape?: ReactNode; largura?: 'sm' | 'md' | 'lg' }) {
   const ref = useRef<HTMLDivElement>(null)
+  const idTitulo = useId() // único por modal: modais aninhados (ex.: confirmar dentro de Compartilhar) não podem repetir o id
   useEffect(() => {
     if (!aberto) return
     const anterior = document.activeElement as HTMLElement | null
@@ -180,10 +181,10 @@ export function Modal({ aberto, aoFechar, titulo, descricao, children, rodape, l
   const larguras = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl' }
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-4 sm:items-center" onMouseDown={(e) => e.target === e.currentTarget && aoFechar()}>
-      <div ref={ref} role="dialog" aria-modal="true" aria-labelledby="modal-titulo" className={cx('w-full rounded-xl border bg-superficie shadow-painel', larguras[largura])}>
+      <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={idTitulo} className={cx('w-full rounded-xl border bg-superficie shadow-painel', larguras[largura])}>
         <div className="flex items-start justify-between gap-4 px-6 pt-5">
           <div>
-            <h2 id="modal-titulo" className="text-xl font-medium tracking-[-0.03em]">{titulo}</h2>
+            <h2 id={idTitulo} className="text-xl font-medium tracking-[-0.03em]">{titulo}</h2>
             {descricao && <p className="mt-0.5 text-sm text-texto2">{descricao}</p>}
           </div>
           <BotaoIcone rotulo="Fechar" onClick={aoFechar}><X className="h-4 w-4" /></BotaoIcone>

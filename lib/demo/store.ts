@@ -288,7 +288,8 @@ export async function enviarArquivo(arquivo: File, aoProgredir: (p: ProgressoUpl
     const limpo = opcoes.sanitizarSvg ? opcoes.sanitizarSvg(texto) : texto
     blob = new Blob([limpo], { type: 'image/svg+xml' })
   }
-  const url = URL.createObjectURL(blob)
+  // blob: URLs morrem quando a página recarrega; arquivos pequenos vão como data: URL para sobreviver no localStorage
+  const url = blob.size <= LIMITE_DATA_URL ? await lerComoDataUrl(blob) : URL.createObjectURL(blob)
   const dims = cl.tipo === 'video' ? await dimensoesVideo(url) : cl.tipo === 'image' || cl.tipo === 'gif' || cl.tipo === 'svg' ? await dimensoesImagem(url) : cl.tipo === 'lottie' && texto ? lottieDims(texto) : { width: null, height: null }
   for (let p = 10; p <= 100; p += 30) {
     await espera(90)
@@ -421,6 +422,17 @@ export async function desbloquear(token: string, senha: string): Promise<{ ok: t
 // ---------- util ----------
 
 const espera = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+/** Até este tamanho o arquivo enviado no modo demo é guardado inline (data: URL) e continua disponível após recarregar. */
+const LIMITE_DATA_URL = 1_500_000
+function lerComoDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const leitor = new FileReader()
+    leitor.onload = () => resolve(String(leitor.result))
+    leitor.onerror = () => reject(leitor.error)
+    leitor.readAsDataURL(blob)
+  })
+}
 
 function dimensoesImagem(url: string): Promise<{ width: number | null; height: number | null; duration?: number }> {
   return new Promise((resolve) => {

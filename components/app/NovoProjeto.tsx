@@ -153,8 +153,8 @@ export function NovoProjeto() {
               <p className="mt-4 text-[14px] leading-relaxed text-texto2">Cada imagem vira uma tela. SVGs do Figma e do Illustrator viram vetores editáveis, GLB do Blender vira 3D, JSON do After Effects vira Lottie. Você também pode pular e colar tudo depois, direto no editor.</p>
             </section>
             <section>
-              <input ref={entrada} type="file" multiple accept={EXTENSOES_ACEITAS} className="hidden" onChange={(e) => { setArquivos((a) => [...a, ...Array.from(e.target.files ?? [])]); e.target.value = '' }} />
-              <button type="button" onClick={() => entrada.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); setArquivos((a) => [...a, ...Array.from(e.dataTransfer.files)]) }} className="flex w-full flex-col items-center gap-2 rounded-xl border-[1.5px] border-dashed border-[#D4D4D4] bg-superficie px-6 py-14 text-center hover:border-acento">
+              <input ref={entrada} type="file" multiple accept={EXTENSOES_ACEITAS} className="hidden" onChange={(e) => { const novos = Array.from(e.target.files ?? []); setArquivos((a) => [...a, ...novos]); e.target.value = '' }} />
+              <button type="button" onClick={() => entrada.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const soltos = Array.from(e.dataTransfer.files); setArquivos((a) => [...a, ...soltos]) }} className="flex w-full flex-col items-center gap-2 rounded-xl border-[1.5px] border-dashed border-[#D4D4D4] bg-superficie px-6 py-14 text-center hover:border-acento">
                 <Upload className="h-5 w-5 text-texto2" />
                 <span className="text-[15px] font-medium">Arraste arquivos aqui ou clique para escolher</span>
                 <span className="text-[13px] text-texto3">PNG, JPG, WebP, GIF, SVG, MP4, WebM, GLB/GLTF, Lottie (JSON)</span>
