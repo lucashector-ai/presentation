@@ -94,7 +94,7 @@ const ATLAS = {
         { id: 'titulo', name: 'titulo', type: 'text', text: 'Atlas', x: 120, y: 180, width: 600, height: 170, fontSize: 160, fontWeight: 500, letterSpacing: -8, lineHeight: 1, color: '#2B1D16' },
         { id: 'foto', name: 'foto', type: 'shape', shape: 'rect', x: 120, y: 420, width: 640, height: 520, fill: '#B4532A', pattern: 'stripes', radius: 8 },
         { id: 'vaso', type: 'model3d', assetId: 'as-vaso', x: 860, y: 140, width: 940, height: 820, cameraOrbit: '30deg 72deg 105%', exposure: 1.1, rotationSpeed: 24, ariaLabel: 'Vaso esmaltado em 3D' },
-        { id: 'dica', type: 'text', text: 'arraste para girar', x: 1180, y: 960, width: 320, height: 34, color: '#8C6A55', ...mono, fontSize: 18, align: 'center' },
+        { id: 'dica', type: 'text', text: 'arraste para girar', x: 1180, y: 1020, width: 320, height: 34, color: '#8C6A55', ...mono, fontSize: 18, align: 'center' },
         { id: 'voltar', type: 'text', text: '← Capa', ariaLabel: 'Voltar à capa', x: 120, y: 980, width: 200, height: 40, fontSize: 28, color: '#5B4335', interactions: [clique({ action: 'goToScene', targetSceneId: 'capa' }, { type: 'morph', duration: 800 })] },
       ],
     },

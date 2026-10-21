@@ -32,7 +32,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   }, [router])
   useEffect(() => setMenuMovel(false), [caminho])
 
-  if (!pronto) return <div className="min-h-dvh bg-fundo" />
+  if (!pronto) return <div className={cx('min-h-dvh', /\/apresentar$|\/apresentador$/.test(caminho) ? 'bg-[#111]' : 'bg-fundo')} />
   if (SEM_CHROME.test(caminho)) return <>{children}</>
 
   const plano = PLANOS[ws.planoId]

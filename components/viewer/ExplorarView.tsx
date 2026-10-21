@@ -19,13 +19,15 @@ export function posicoesNoMapa(cenas: Cena[]): { x: number; y: number }[] {
   return cenas.map((c, i) => c.map ?? { x: (i % colunas) * (c.size.width + ESPACO), y: Math.floor(i / colunas) * (c.size.height + ESPACO) })
 }
 
-export function ExplorarView({ documento, tamanho, runtime, visaoGeral, aoEscolher, ...comum }: { documento: DocumentoProjeto; tamanho: { width: number; height: number }; runtime: EstadoRuntime; visaoGeral: boolean; aoEscolher: (i: number) => void } & Comum) {
+export function ExplorarView({ documento, tamanho, runtime, visaoGeral, preencher = false, aoEscolher, ...comum }: { documento: DocumentoProjeto; tamanho: { width: number; height: number }; runtime: EstadoRuntime; visaoGeral: boolean; preencher?: boolean; aoEscolher: (i: number) => void } & Comum) {
   const pos = useMemo(() => posicoesNoMapa(documento.scenes), [documento.scenes])
   const retangulos = documento.scenes.map((c, i) => ({ x: pos[i]!.x, y: pos[i]!.y, width: c.size.width, height: c.size.height }))
   const atual = retangulos[runtime.indice] ?? retangulos[0]!
   const alvo = visaoGeral ? envolvente(retangulos) : atual
   const margem = visaoGeral ? 80 : 0
-  const escala = tamanho.width ? Math.min((tamanho.width - margem * 2) / alvo.width, (tamanho.height - margem * 2) / alvo.height) : 0
+  // "Preencher tela" vale para a tela atual (a visão geral sempre mostra o mapa inteiro)
+  const ajuste = preencher && !visaoGeral ? Math.max : Math.min
+  const escala = tamanho.width ? ajuste((tamanho.width - margem * 2) / alvo.width, (tamanho.height - margem * 2) / alvo.height) : 0
   const tx = tamanho.width / 2 - (alvo.x + alvo.width / 2) * escala
   const ty = tamanho.height / 2 - (alvo.y + alvo.height / 2) * escala
   if (!tamanho.width) return null

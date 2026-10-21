@@ -10,6 +10,7 @@ import { estadoDoLink } from '@/lib/share/token'
 import { CapaProjeto } from './CapaProjeto'
 import { EstadoVazio, ModalConfirmar, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
+import { abrirApresentacao } from '@/components/viewer/retorno'
 
 type Filtro = 'todos' | 'recentes' | 'rascunhos' | 'publicados' | 'privados' | 'arquivados'
 
@@ -135,7 +136,7 @@ export function Dashboard() {
                   {menu === p.id && (
                     <div role="menu" className="absolute bottom-9 right-0 z-10 w-48 rounded-lg border border-borda bg-superficie p-1 text-[13px] shadow-painel" onMouseLeave={() => setMenu(null)}>
                       <Item icone={<Pencil />} onClick={() => router.push(`/app/projects/${p.id}/edit`)}>Editar</Item>
-                      <Item icone={<Play />} onClick={() => router.push(`/app/projects/${p.id}/apresentar`)}>Apresentar</Item>
+                      <Item icone={<Play />} onClick={() => abrirApresentacao(router, p.id)}>Apresentar</Item>
                       <Item icone={<Share2 />} onClick={() => router.push(`/app/projects/${p.id}/share`)}>Compartilhar</Item>
                       <Item icone={<Copy />} onClick={() => agir(() => duplicarProjeto(p.id), 'Projeto duplicado.')}>Duplicar</Item>
                       {p.status === 'archived'

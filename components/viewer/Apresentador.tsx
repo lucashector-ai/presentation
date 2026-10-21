@@ -18,9 +18,9 @@ function formatarTempo(ms: number) {
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 }
 
-export function Apresentador({ projetoId, nome, documento, assets, aoSair }: { projetoId: string; nome: string; documento: DocumentoProjeto; assets: AssetsResolvidos; aoSair: () => void }) {
+export function Apresentador({ projetoId, nome, documento, assets, indiceInicial = 0, aoMudarTela, aoSair }: { projetoId: string; nome: string; documento: DocumentoProjeto; assets: AssetsResolvidos; indiceInicial?: number; aoMudarTela?: (indice: number) => void; aoSair: (indice: number) => void }) {
   useFontesDoDocumento(documento)
-  const [indice, setIndice] = useState(0)
+  const [indice, setIndice] = useState(indiceInicial)
   const [publicoConectado, setPublicoConectado] = useState(false)
   const [inicio, setInicio] = useState<number | null>(null)
   const [pausadoEm, setPausadoEm] = useState<number | null>(null)
@@ -54,15 +54,19 @@ export function Apresentador({ projetoId, nome, documento, assets, aoSair }: { p
     [enviar, total]
   )
 
+  useEffect(() => { aoMudarTela?.(indice) }, [indice, aoMudarTela])
+
+  const encerrar = useCallback(() => { enviar({ tipo: 'encerrar' }); aoSair(indice) }, [enviar, aoSair, indice])
+
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
       if (['ArrowRight', 'ArrowDown', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); ir(indice + 1) }
       if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key)) { e.preventDefault(); ir(indice - 1) }
-      if (e.key === 'Escape') aoSair()
+      if (e.key === 'Escape') encerrar()
     }
     window.addEventListener('keydown', tecla)
     return () => window.removeEventListener('keydown', tecla)
-  }, [ir, indice, aoSair])
+  }, [ir, indice, encerrar])
 
   const abrirPublico = () => {
     window.open(`/app/projects/${projetoId}/apresentar?canal=1&inicio=${indice}`, `mostra-publico-${projetoId}`, 'popup=yes,width=1280,height=720')
@@ -85,7 +89,7 @@ export function Apresentador({ projetoId, nome, documento, assets, aoSair }: { p
           {publicoConectado ? 'Tela do público conectada' : 'Tela do público fechada'}
         </span>
         <button onClick={abrirPublico} className="flex h-9 items-center gap-2 rounded-lg bg-violeta px-3 text-sm font-medium hover:bg-[#4A55E0]"><ExternalLink className="h-4 w-4" /> Abrir tela do público</button>
-        <button aria-label="Sair da visão do apresentador" onClick={() => { enviar({ tipo: 'encerrar' }); aoSair() }} className="rounded-lg p-2 hover:bg-white/10"><X className="h-4 w-4" /></button>
+        <button aria-label="Sair da visão do apresentador" onClick={encerrar} className="rounded-lg p-2 hover:bg-white/10"><X className="h-4 w-4" /></button>
       </header>
 
       <div className="grid min-h-0 flex-1 gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_380px]">

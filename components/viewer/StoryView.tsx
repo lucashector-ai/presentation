@@ -1,9 +1,13 @@
 'use client'
-/** Story: fluxo vertical contínuo com largura editorial e animações por rolagem (scrollThreshold). */
+/**
+ * Story: fluxo vertical contínuo com largura editorial e animações por rolagem (scrollThreshold).
+ * Em telas largas, o fundo de cada tela se estende pelas laterais (sem faixas escuras dos lados).
+ */
 import { useEffect, useRef, useState } from 'react'
 import type { Camada, DocumentoProjeto, Interacao } from '@/lib/scene/schema'
 import { aoSairHover, estadoInicialRuntime, executar, type Efeito, type EstadoRuntime } from '@/lib/scene/motor'
 import { SceneRenderer, type SceneRendererProps } from '@/components/renderer/SceneRenderer'
+import { FundoEstendido } from './FundoEstendido'
 
 type Comum = Omit<SceneRendererProps, 'cena' | 'escala' | 'runtime' | 'chaveEntrada'>
 
@@ -49,7 +53,7 @@ export function StoryView({ documento, tamanho, runtime, aplicar, ...comum }: { 
   if (!tamanho.width) return null
   return (
     <div className="rolagem-fina absolute inset-0 overflow-y-auto overflow-x-hidden" style={{ scrollSnapType: 'y proximity' }}>
-      <div className="mx-auto flex flex-col items-center" style={{ width: larguraEditorial }}>
+      <div className="flex w-full flex-col">
         {documento.scenes.map((cena, indice) => {
           const escala = larguraEditorial / cena.size.width
           const rt = runtimes[cena.id] ?? estadoInicialRuntime(indice)
@@ -65,8 +69,9 @@ export function StoryView({ documento, tamanho, runtime, aplicar, ...comum }: { 
             comum.aoInteragir?.(camada, inters.filter((i) => i.do.action === 'openLink' || i.do.action === 'toggleVideo'), 'click')
           }
           return (
-            <div key={cena.id} ref={(el) => { if (el) refs.current.set(cena.id, el) }} style={{ scrollSnapAlign: 'start' }}>
-              <SceneRenderer cena={cena} escala={escala} runtime={rt} chaveEntrada={cena.id} {...comum} aoInteragir={interagir} />
+            <div key={cena.id} ref={(el) => { if (el) refs.current.set(cena.id, el) }} className="relative w-full" style={{ scrollSnapAlign: 'start' }}>
+              {tamanho.width > larguraEditorial && <FundoEstendido cena={cena} assets={comum.assets} escala={escala} x={(tamanho.width - larguraEditorial) / 2} y={0} largura={tamanho.width} altura={cena.size.height * escala} style={{ left: 0, top: 0, width: '100%' }} />}
+              <SceneRenderer cena={cena} escala={escala} runtime={rt} chaveEntrada={cena.id} {...comum} aoInteragir={interagir} style={{ margin: '0 auto' }} />
             </div>
           )
         })}
