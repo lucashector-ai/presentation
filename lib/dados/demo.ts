@@ -78,6 +78,7 @@ export const fonteDemo: FonteDados = {
     roteiro: (pedido, sinal) => envolver(() => api.ia.roteiro(pedido, sinal)),
     texto: (pedido, sinal) => envolver(() => api.ia.texto(pedido, sinal)),
     tela: (pedido, sinal) => envolver(() => api.ia.tela(pedido, sinal)),
+    pdf: (pdf, paginas, sinal) => envolver(() => api.ia.pdf(pdf, paginas, sinal)),
   },
   registrarUsoIa: ({ custo, motivo, gerador, houveResultado }) => {
     if (gerador === 'claude' || houveResultado) {

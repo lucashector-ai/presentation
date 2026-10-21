@@ -10,6 +10,9 @@ Fonte única dos números: `lib/ia/economia.ts` (estimativas de tokens e contas)
 | Design (componente, variante, fundo, ênfase, texto ajustado ao layout) | Claude Opus 5.5 | 4 · 20 · 0,20 · 5 | medium | 1 por tela, streaming; system (catálogo) e roteiro do deck em cache |
 | Refazer uma tela (editor) | Claude Sonnet 5.5 | 2 · 10 · 0,20 · 2,50 | medium | 1, sem streaming |
 | Reescrever o texto de uma tela (editor) | Claude Haiku 5.5 | 0,10 · 0,50 · 0,01 · 0,125 | low | 1, sem streaming |
+| Ler PDF escaneado ("Criar com IA", rota `/api/ai/pdf`) | Claude Sonnet 5.5 | 2 · 10 · — · — | low | 1 por leitura (até 40 páginas), streaming; o PDF vai como documento na mensagem, sem cache |
+
+PDF com texto e .docx não passam pela IA: o navegador extrai o texto (pdf.js / fflate), de graça, e ele entra no roteiro como material (1 crédito a cada 2.500 caracteres, como texto colado). Só as páginas **sem texto extraível** (escaneadas, só imagem) podem ser lidas pelo Claude, e só quando a pessoa pede: o navegador renderiza essas páginas como JPEG (lado maior 2.000 px), monta um PDF novo só com elas (jsPDF) e envia; o servidor confere o PDF (cabeçalho, sem script/anexo/formulário/fluxo de objetos, número de páginas = o informado), cobra e repassa ao Claude. O PDF não é gravado (nem no R2, nem no banco, nem em log).
 
 Sonnet e Opus usam a reserva no servidor (`fallbacks: "default"`): se o modelo recusar por política, a API tenta o modelo recomendado na mesma chamada e o custo é calculado pelo modelo que de fato respondeu (iterações de `usage`).
 
@@ -25,6 +28,9 @@ Os systems são medidos do texto real dos prompts (3,3 caracteres por token, con
 | Design, por tela | 60 (pedido da tela) | 850 | prefixo = 2.952 + 300 + 130 por tela do deck: escrito na 1ª tela, lido nas demais |
 | Refazer tela | 298 (system) + 700 | 900 | — |
 | Reescrever texto | 353 (system) + 600 | 600 | — |
+| Ler PDF escaneado | 400 (system) + 120 + **6.384 por página** (4.784 da imagem + 1.600 de texto) | 200 + **1.100 por página** | — |
+
+Leitura de PDF, de onde vem cada número: a API transforma cada página em imagem e extrai o texto que houver ([PDF support](https://platform.claude.com/docs/en/build-with-claude/pdf-support)). Imagem: `⌈largura/28⌉ × ⌈altura/28⌉` tokens visuais, com teto de **4.784** no nível de alta resolução (modelos 4.7 e posteriores, lado maior até 2.576 px) — usamos o teto (pior caso). Texto: a documentação fala em 1.500–3.000 tokens por página de texto; o PDF que enviamos só tem imagem, então a parte de texto deve ser quase zero, mas contamos **1.600** como folga. Saída: a transcrição de uma página cheia (≈ 400–900 tokens em português) + o pensamento em esforço baixo + o JSON por página = **1.100**. O uso medido de cada leitura fica no débito (seção 6) para conferir.
 
 ## 3. Custo por ação (USD → créditos)
 
@@ -41,6 +47,11 @@ Premissas: **1 crédito cobre até US$ 0,002 de IA** (teto de custo do crédito)
 | Redesenhar 1 tela de um deck de 10 (depois de editar o roteiro) | US$ 0,0258 | R$ 0,15 | 17 | **17** | 1,32× |
 | Refazer uma tela (editor) | US$ 0,0110 | R$ 0,07 | 7 | **8** | 1,46× |
 | Reescrever o texto de uma tela (editor) | US$ 0,0004 | R$ 0,002 | 1 | **1** (mínimo) | 5,06× |
+| Ler 1 página escaneada de PDF | US$ 0,0268 | R$ 0,16 | 17 | **19** (4 + 15) | 1,42× |
+| Ler 5 páginas escaneadas | US$ 0,1219 | R$ 0,73 | 77 | **79** | 1,30× |
+| Ler 10 páginas escaneadas | US$ 0,2407 | R$ 1,44 | 151 | **154** | 1,28× |
+| Ler 20 páginas escaneadas | US$ 0,4784 | R$ 2,87 | 299 | **304** | 1,27× |
+| Ler 40 páginas escaneadas (máximo por leitura) | US$ 0,9538 | R$ 5,72 | 597 | **604** | 1,27× |
 
 "Cobertura" = créditos cobrados × US$ 0,002 ÷ custo estimado (já inclui a folga de 25% no "necessário").
 
@@ -50,6 +61,7 @@ Premissas: **1 crédito cobre até US$ 0,002 de IA** (teto de custo do crédito)
 - Gerar outro roteiro: só a parte do roteiro (10 telas = 40).
 - Trocar tema, estilo ou reordenar: grátis (o design de cada tela é guardado pelo conteúdo; o tema é aplicado na montagem). Só telas novas ou alteradas são redesenhadas, a 17 créditos cada.
 - Refazer uma tela: **8**. Reescrever o texto de uma tela: **1**. Imagem: 20 (indisponível; preço a confirmar com o fornecedor).
+- Ler PDF escaneado (`LEITURA_PDF_CREDITOS` e `custoLeituraPdf`): **4 + 15 por página** lida pela IA (≈ US$ 0,024 de custo por página, 0,030 de cobertura). Páginas com texto, páginas em branco e .docx não pagam leitura. O valor aparece no botão ("Ler 3 páginas com a IA · 49 créditos") antes de qualquer cobrança; se a leitura falhar, estorna. Limite por leitura: Free 10 páginas, Plus 25, Pro e Studio 40 (`paginasPdfIa`). Importar PDF como apresentação não usa IA (Free 30 páginas, Plus 150, Pro e Studio 300: `paginasPdfImportar`).
 
 Casos de borda conhecidos (prejuízo pequeno, coberto pela sobra da geração do mesmo deck):
 - Redesenhar 1 tela com a plataforma ociosa há mais de 5 minutos (cache todo frio): US$ 0,040 = 20 créditos de custo (25 com a folga) contra 17 cobrados.
@@ -86,13 +98,15 @@ O que mudou em relação à tabela anterior: antes, 10 telas custavam 60 crédit
 
 - **Design no Sonnet 5.5 em vez do Opus 5.5**: o design de 10 telas cairia de ≈ US$ 0,203 para ≈ US$ 0,106 (10 telas ≈ US$ 0,155 no total), permitindo ≈ 9 créditos por tela no design. A escolha atual (Opus no design) prioriza a qualidade da composição; a troca é uma linha em `MODELO_POR_ETAPA`.
 - **Esforço do design em `high`**: a saída por tela tende a crescer ≈ 1,5×–2× (mais pensamento); o design de 10 telas iria para ≈ US$ 0,30–0,37, ainda dentro da cobertura de 170 créditos (US$ 0,34) só no limite — medir antes.
+- **Leitura de PDF em outro modelo**: no Haiku 5.5, ≈ US$ 0,0012 por página (1 crédito por página bastaria), mas a transcrição de página escaneada (tabelas, números pequenos, duas colunas) é onde a qualidade mais pesa, e o material alimenta o roteiro do Sonnet; no Opus 5.5, ≈ US$ 0,048 por página (30 créditos). A troca é uma linha em `MODELO_POR_ETAPA.pdf`; o teste de economia mostra o novo mínimo.
+- **Página menor**: a imagem enviada pesa o teto de 4.784 tokens; renderizar a 1.568 px de lado maior cairia para ≈ 1.600–2.000 tokens visuais (≈ US$ 0,006 a menos por página), com risco de perder texto pequeno de documentos escaneados. Mantido em 2.000 px.
 - **Câmbio**: cada R$ 0,50 a mais no dólar aumenta o peso da IA no pior caso em ≈ 4 pontos percentuais (Plus anual: 48% → 52% com R$ 6,50).
 
 ## 6. Acompanhamento da margem (banco)
 
 A migração `db/migrations/0003_custo_ia_por_debito.sql` (aditiva) grava em cada débito de IA, em `credit_transactions`:
 
-- `ai_action` (roteiro, design, tela, texto), `ai_model`, `ai_cost_usd`, `ai_cost_source` e os tokens (`ai_input_tokens`, `ai_output_tokens`, `ai_cache_read_tokens`, `ai_cache_write_tokens`).
+- `ai_action` (roteiro, design, tela, texto, pdf), `ai_model`, `ai_cost_usd`, `ai_cost_source` e os tokens (`ai_input_tokens`, `ai_output_tokens`, `ai_cache_read_tokens`, `ai_cache_write_tokens`).
 - O débito nasce com a **previsão** (`ai_cost_source = 'previsto'`, modelo planejado, custo da tabela acima) pela função `debitar_creditos_ia`; quando a resposta chega, `registrar_uso_ia` troca pela conta do **uso medido** (`'uso'`: tokens da resposta × preço do modelo que respondeu). Se a geração falhar, os créditos são estornados numa linha própria e o custo do que foi consumido continua no débito.
 - A view `ai_margem_diaria` soma por dia, ação e modelo: débitos, créditos, custo em USD e **USD por crédito** — o número a comparar com o teto de US$ 0,002 (e com a receita por crédito de cada plano).
 

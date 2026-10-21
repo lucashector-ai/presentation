@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { CUSTO_CREDITOS, DIVISAO_TELA, PACOTES_AVULSOS, PLANOS, custoDesenho, custoRoteiro, type PlanoId } from '@/lib/planos'
+import { CUSTO_CREDITOS, DIVISAO_TELA, LEITURA_PDF_CREDITOS, PACOTES_AVULSOS, PLANOS, custoDesenho, custoLeituraPdf, custoRoteiro, podeImportarPaginasPdf, podeLerPdfComIa, type PlanoId } from '@/lib/planos'
 import { INSTRUCOES_DESIGN } from './design'
-import { ESTIMATIVA, TETO_IA_SOBRE_RECEITA, USD_POR_CREDITO, coberturaUsd, creditosNecessarios, custoDesenhoUsd, custoRefazerTelaUsd, custoReescreverUsd, custoRoteiroUsd, margemDoPacote, margemDoPlano, tabelaAcoes } from './economia'
+import { ESTIMATIVA, TETO_IA_SOBRE_RECEITA, USD_POR_CREDITO, coberturaUsd, creditosNecessarios, custoDesenhoUsd, custoLeituraPdfUsd, custoRefazerTelaUsd, custoReescreverUsd, custoRoteiroUsd, margemDoPacote, margemDoPlano, tabelaAcoes } from './economia'
+import { INSTRUCOES_PDF, LEITURA_PDF } from './pdf'
 import { MODELOS, MODELO_POR_ETAPA, custoDaResposta, custoUsd, modeloPorId } from './modelos'
 import { INSTRUCOES_SISTEMA } from './prompt'
 
@@ -61,7 +62,33 @@ describe('preço em créditos cobre o custo com folga', () => {
   it('tabela da documentação: tudo cobrado ≥ necessário', () => {
     const t = tabelaAcoes()
     for (const a of t.apresentacoes) expect(a.creditos).toBeGreaterThanOrEqual(a.necessarios)
-    for (const a of [t.material, t.redesenhar1, t.refazer, t.reescrever]) expect(a.creditos).toBeGreaterThanOrEqual(a.necessarios)
+    for (const a of [t.material, t.redesenhar1, t.refazer, t.reescrever, ...t.leituraPdf]) expect(a.creditos).toBeGreaterThanOrEqual(a.necessarios)
+  })
+  it('leitura de PDF escaneado: cada quantidade de páginas até o máximo por pedido cobre o custo com folga', () => {
+    for (let n = 1; n <= LEITURA_PDF.maxPaginas; n++) expect(custoLeituraPdf(n)).toBeGreaterThanOrEqual(creditosNecessarios(custoLeituraPdfUsd(n).usd))
+    expect(custoLeituraPdf(0)).toBe(0)
+    expect(custoLeituraPdf(10)).toBe(LEITURA_PDF_CREDITOS.base + 10 * LEITURA_PDF_CREDITOS.porPagina)
+    // a página pesa o teto de imagem do nível de alta resolução + o texto: ≈ US$ 0,024 por página no Sonnet 5.5
+    const porPagina = custoLeituraPdfUsd(11).usd - custoLeituraPdfUsd(10).usd
+    expect(porPagina).toBeGreaterThan(0.02)
+    expect(porPagina).toBeLessThan(LEITURA_PDF_CREDITOS.porPagina * USD_POR_CREDITO)
+    expect(MODELO_POR_ETAPA.pdf).toBe(MODELOS.sonnet)
+    expect(ESTIMATIVA.pdf.sistema).toBeGreaterThanOrEqual(Math.ceil(INSTRUCOES_PDF.length / 3.3))
+  })
+  it('limites de páginas de PDF por plano: a leitura pela IA cabe num pedido e o plano maior nunca tem menos', () => {
+    const ordem: PlanoId[] = ['free', 'plus', 'pro', 'studio']
+    for (const [i, id] of ordem.entries()) {
+      const l = PLANOS[id].limites
+      expect(l.paginasPdfIa).toBeLessThanOrEqual(LEITURA_PDF.maxPaginas)
+      expect(l.paginasPdfImportar).toBeLessThanOrEqual(300) // máximo de telas de um documento
+      if (i > 0) {
+        expect(l.paginasPdfIa).toBeGreaterThanOrEqual(PLANOS[ordem[i - 1]!].limites.paginasPdfIa)
+        expect(l.paginasPdfImportar).toBeGreaterThanOrEqual(PLANOS[ordem[i - 1]!].limites.paginasPdfImportar)
+      }
+    }
+    expect(podeLerPdfComIa('free', 10).ok).toBe(true)
+    expect(podeLerPdfComIa('free', 11).ok).toBe(false)
+    expect(podeImportarPaginasPdf('plus', 151)).toMatchObject({ ok: false, upgradePara: 'pro' })
   })
 })
 

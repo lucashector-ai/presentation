@@ -38,6 +38,7 @@
     "lottie-web": "^5.13.0",
     "lucide-react": "^0.460.0",
     "modern-screenshot": "4.7.0",
+    "pdfjs-dist": "6.4.299",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-server-dom-webpack": "^19.3.1",

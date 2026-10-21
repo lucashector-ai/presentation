@@ -18,6 +18,8 @@ export const CODIGOS_ERRO = {
   muitas_tentativas: 429,
   limite_do_plano: 403,
   erro_interno: 500,
+  /** Recurso que depende de um serviço que não está ligado neste ambiente (ex.: IA sem chave). */
+  indisponivel: 503,
 } as const
 export type CodigoErro = keyof typeof CODIGOS_ERRO
 

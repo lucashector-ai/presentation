@@ -18,7 +18,7 @@ export async function debitarCreditos(ctx: Pick<Contexto, 'workspaceId'>, custo:
 }
 
 /** Ação de IA registrada no extrato (para acompanhar custo e margem por ação). */
-export type AcaoIa = 'roteiro' | 'design' | 'tela' | 'texto'
+export type AcaoIa = 'roteiro' | 'design' | 'tela' | 'texto' | 'pdf'
 
 export interface UsoIaRegistro {
   modelo: string

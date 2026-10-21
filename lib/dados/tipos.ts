@@ -10,6 +10,7 @@ import type { AssetsResolvidos } from '@/components/renderer/SceneRenderer'
 import type { PlanoId, UsoWorkspace } from '@/lib/planos'
 import type { AssetDemo, LinkCompartilhado, MovimentoCredito, Projeto, Usuario, Workspace } from '@/lib/demo/tipos'
 import type { PedidoRoteiro, RespostaRoteiro } from '@/lib/ia/pedido'
+import type { RespostaPdf } from '@/lib/ia/pdf'
 import type { PedidoTextoSchema, RespostaTexto } from '@/lib/ia/texto'
 import type { PedidoTelaSchema, RespostaTela } from '@/lib/ia/tela'
 import type { z } from 'zod'
@@ -110,6 +111,8 @@ export interface FonteDados {
     roteiro(pedido: Partial<PedidoRoteiro>, sinal?: AbortSignal): Promise<RespostaRoteiro>
     texto(pedido: z.input<typeof PedidoTextoSchema>, sinal?: AbortSignal): Promise<RespostaTexto>
     tela(pedido: z.input<typeof PedidoTelaSchema>, sinal?: AbortSignal): Promise<RespostaTela>
+    /** A IA lê as páginas escaneadas de um PDF (o PDF montado no navegador só com elas). */
+    pdf(pdf: Uint8Array, paginas: number[], sinal?: AbortSignal): Promise<RespostaPdf>
   }
   /** Depois de uma resposta da IA: demo debita o saldo fictício; real relê o saldo que a rota já debitou. */
   registrarUsoIa(uso: { custo: number; motivo: string; gerador: 'claude' | 'local'; houveResultado: boolean }): void

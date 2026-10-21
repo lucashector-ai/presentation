@@ -13,6 +13,10 @@ export interface Limites {
   membros: number
   telasPorPrompt: number
   dominios: number
+  /** Páginas de um PDF importado como apresentação (cada página vira uma tela). */
+  paginasPdfImportar: number
+  /** Páginas escaneadas que a IA lê de um PDF por vez ("Criar com IA"). */
+  paginasPdfIa: number
 }
 
 export interface Capacidades {
@@ -53,25 +57,25 @@ export const PLANOS: Record<PlanoId, Plano> = {
   free: {
     id: 'free', nome: 'Free', precoMensalBRL: 0, precoAnualBRL: 0, porMembro: false,
     creditos: { quantidade: 450, recorrencia: 'cadastro' },
-    limites: { projetos: 3, armazenamentoBytes: 1 * GB, tamanhoArquivoBytes: 50 * MB, bandaMensalBytes: 10 * GB, membros: 1, telasPorPrompt: 10, dominios: 0 },
+    limites: { projetos: 3, armazenamentoBytes: 1 * GB, tamanhoArquivoBytes: 50 * MB, bandaMensalBytes: 10 * GB, membros: 1, telasPorPrompt: 10, dominios: 0, paginasPdfImportar: 30, paginasPdfIa: 10 },
     capacidades: { marcaDaPlataforma: true, linksPrivados: true, senhaNoLink: false, metricas: false, interacoesCompletas: true, modelos3d: true, imagensIaPremium: false, api: false, equipe: false, marcaPropria: false },
   },
   plus: {
     id: 'plus', nome: 'Plus', precoMensalBRL: 29, precoAnualBRL: 24, porMembro: false,
     creditos: { quantidade: 800, recorrencia: 'mensal' },
-    limites: { projetos: ILIMITADO, armazenamentoBytes: 20 * GB, tamanhoArquivoBytes: 200 * MB, bandaMensalBytes: 100 * GB, membros: 1, telasPorPrompt: 50, dominios: 0 },
+    limites: { projetos: ILIMITADO, armazenamentoBytes: 20 * GB, tamanhoArquivoBytes: 200 * MB, bandaMensalBytes: 100 * GB, membros: 1, telasPorPrompt: 50, dominios: 0, paginasPdfImportar: 150, paginasPdfIa: 25 },
     capacidades: { marcaDaPlataforma: false, linksPrivados: true, senhaNoLink: false, metricas: false, interacoesCompletas: true, modelos3d: true, imagensIaPremium: true, api: false, equipe: false, marcaPropria: false },
   },
   pro: {
     id: 'pro', nome: 'Pro', precoMensalBRL: 74, precoAnualBRL: 59, porMembro: false,
     creditos: { quantidade: 2000, recorrencia: 'mensal' },
-    limites: { projetos: ILIMITADO, armazenamentoBytes: 50 * GB, tamanhoArquivoBytes: 500 * MB, bandaMensalBytes: 300 * GB, membros: 1, telasPorPrompt: 100, dominios: 10 },
+    limites: { projetos: ILIMITADO, armazenamentoBytes: 50 * GB, tamanhoArquivoBytes: 500 * MB, bandaMensalBytes: 300 * GB, membros: 1, telasPorPrompt: 100, dominios: 10, paginasPdfImportar: 300, paginasPdfIa: 40 },
     capacidades: { marcaDaPlataforma: false, linksPrivados: true, senhaNoLink: true, metricas: true, interacoesCompletas: true, modelos3d: true, imagensIaPremium: true, api: true, equipe: false, marcaPropria: true },
   },
   studio: {
     id: 'studio', nome: 'Studio', precoMensalBRL: 149, precoAnualBRL: 119, porMembro: true,
     creditos: { quantidade: 4000, recorrencia: 'mensal', compartilhados: true, porMembro: true },
-    limites: { projetos: ILIMITADO, armazenamentoBytes: 50 * GB, tamanhoArquivoBytes: 1024 * MB, bandaMensalBytes: 1024 * GB, membros: 50, telasPorPrompt: 100, dominios: 100 },
+    limites: { projetos: ILIMITADO, armazenamentoBytes: 50 * GB, tamanhoArquivoBytes: 1024 * MB, bandaMensalBytes: 1024 * GB, membros: 50, telasPorPrompt: 100, dominios: 100, paginasPdfImportar: 300, paginasPdfIa: 40 },
     capacidades: { marcaDaPlataforma: false, linksPrivados: true, senhaNoLink: true, metricas: true, interacoesCompletas: true, modelos3d: true, imagensIaPremium: true, api: true, equipe: true, marcaPropria: true },
   },
 }
@@ -104,6 +108,20 @@ export type RecursoIa = keyof typeof CUSTO_CREDITOS
 export const DIVISAO_TELA = { roteiro: 3, desenho: 17 } as const satisfies Record<string, number>
 /** Material colado/importado longo: 1 crédito a cada 2.500 caracteres (entrada do roteiro). */
 export const MATERIAL_CREDITOS = { caracteres: 2500, creditos: 1 } as const
+
+/**
+ * Leitura de PDF escaneado (ou com pouco texto extraível) pela IA (rota /api/ai/pdf, Claude lê o PDF como
+ * documento: cada página vira imagem + texto). Cobrada só pelas páginas sem texto que a pessoa manda ler:
+ * parte fixa + crédito por página (conta em docs/economia-ia.md, coberta pelo teste de economia).
+ * PDF com texto e .docx são lidos no navegador, de graça; o material entra no roteiro como texto colado.
+ */
+export const LEITURA_PDF_CREDITOS = { base: 4, porPagina: 15 } as const
+
+/** Créditos para a IA ler N páginas de PDF (escaneadas). */
+export function custoLeituraPdf(paginas: number): number {
+  const n = Math.max(0, Math.round(paginas))
+  return n > 0 ? LEITURA_PDF_CREDITOS.base + n * LEITURA_PDF_CREDITOS.porPagina : 0
+}
 
 /** Tamanho de referência usado para traduzir créditos em apresentações ("≈ 16 apresentações de 10 telas"). */
 export const TELAS_REFERENCIA = 10
@@ -227,6 +245,20 @@ export function podeGerarTelas(planoId: PlanoId, telas: number): Decisao {
   const plano = PLANOS[planoId]
   if (telas <= plano.limites.telasPorPrompt) return { ok: true }
   return { ok: false, motivo: `O plano ${plano.nome} gera apresentações de até ${plano.limites.telasPorPrompt} telas com IA.`, upgradePara: proximoPlano(planoId) }
+}
+
+/** Importar um PDF como apresentação: até `paginasPdfImportar` páginas no plano (as demais ficam de fora). */
+export function podeImportarPaginasPdf(planoId: PlanoId, paginas: number): Decisao {
+  const plano = PLANOS[planoId]
+  if (paginas <= plano.limites.paginasPdfImportar) return { ok: true }
+  return { ok: false, motivo: `O plano ${plano.nome} importa até ${plano.limites.paginasPdfImportar} páginas de PDF por vez.`, upgradePara: proximoPlano(planoId) }
+}
+
+/** Leitura de PDF escaneado pela IA: até `paginasPdfIa` páginas por vez no plano. */
+export function podeLerPdfComIa(planoId: PlanoId, paginas: number): Decisao {
+  const plano = PLANOS[planoId]
+  if (paginas <= plano.limites.paginasPdfIa) return { ok: true }
+  return { ok: false, motivo: `No plano ${plano.nome}, a IA lê até ${plano.limites.paginasPdfIa} páginas escaneadas por vez.`, upgradePara: proximoPlano(planoId) }
 }
 
 export function formatarBytes(b: number): string {

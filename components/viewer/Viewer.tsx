@@ -271,6 +271,8 @@ export function Viewer(props: ViewerProps) {
     if (modo !== 'slides' || mobile) return
     const alvo = e.target as HTMLElement
     if (alvo.closest('[role="button"], button, a, video, model-viewer, iframe')) return
+    // quem acabou de selecionar texto (páginas de PDF importadas) não quer trocar de tela
+    if (window.getSelection()?.toString()) return
     const rect = ref.current?.getBoundingClientRect()
     if (!rect) return
     const frac = (e.clientX - rect.left) / rect.width
