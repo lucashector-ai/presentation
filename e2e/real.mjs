@@ -84,9 +84,9 @@ await passo('Cadastro no Neon Auth → painel com conta, plano e créditos do se
   await page.getByRole('button', { name: 'Criar conta' }).click()
   await page.waitForURL(`${BASE}/app`, { timeout: 30000 })
   await page.getByRole('heading', { level: 1, name: /^(Bom dia|Boa tarde|Boa noite), Rita\.$/ }).waitFor({ timeout: 20000 })
-  // conta nova: plano Free e 450 créditos de boas-vindas (lib/planos.ts, db/migrations/0003), sem projetos
+  // conta nova: plano Free e 50 créditos de boas-vindas (1 crédito = 1 tela; lib/planos.ts, db/migrations/0006), sem projetos
   await page.getByText('Plano Free', { exact: false }).first().waitFor()
-  await page.getByText('450 créditos').first().waitFor()
+  await page.getByText('50 créditos').first().waitFor()
   await page.getByRole('heading', { name: 'Nenhum projeto ainda' }).waitFor({ timeout: 20000 })
   const conta = await page.evaluate(async () => (await (await fetch('/api/conta')).json()).data)
   idUsuario = conta.usuario.id
