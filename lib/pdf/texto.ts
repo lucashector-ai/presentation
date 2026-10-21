@@ -3,12 +3,20 @@
  * Recebe os trechos de texto de cada página já em coordenadas da página (origem no canto superior esquerdo, y na
  * linha de base) e reconstrói linhas, ordem de leitura (inclusive duas colunas), títulos (pelo tamanho da fonte),
  * listas, tabelas simples e parágrafos; tira cabeçalhos/rodapés repetidos e números de página. Números e
- * pontuação são mantidos como estão. Puro: sem DOM, sem pdf.js (quem lê o PDF é `lib/pdf/ler.ts`).
+ * pontuação são mantidos como estão. Puro: sem DOM, sem pdf.js (quem lê o PDF é `lib/pdf/ler.ts`; as páginas
+ * escaneadas chegam do OCR do navegador, `lib/pdf/ocr.ts`, no mesmo formato).
  */
 
 /** Um trecho de texto posicionado (unidades da página, em pontos). `y` = linha de base, medida do topo. */
 export interface ItemPdf { texto: string; x: number; y: number; largura: number; tamanho: number }
-export interface PaginaPdf { numero: number; largura: number; altura: number; itens: ItemPdf[] }
+export interface PaginaPdf {
+  numero: number
+  largura: number
+  altura: number
+  itens: ItemPdf[]
+  /** Texto reconhecido na imagem da página (OCR), não lido do PDF: o tamanho da fonte é estimado, então o corpo do texto é medido à parte. */
+  ocr?: boolean
+}
 
 export interface Segmento { texto: string; x: number; xFim: number }
 export interface Linha { y: number; x: number; xFim: number; tamanho: number; segmentos: Segmento[]; texto: string }
@@ -222,12 +230,14 @@ export function estruturarPdf(paginas: PaginaPdf[]): ResultadoTexto {
   const filtradas = linhasPorPagina.map((ls, k) =>
     ls.filter((l) => !(naMargem(l, paginas[k]!.altura) && (RE_NUMERO_PAGINA.test(l.texto) || (paginas.length >= 2 && (contagem.get(chaveRepeticao(l.texto)) ?? 0) >= minimo))))
   )
-  const corpo = tamanhoDoCorpo(filtradas.flat())
+  // corpo do texto medido à parte nas páginas de OCR (tamanho estimado pela altura da linha na imagem)
+  const corpoDe = (ocr: boolean) => tamanhoDoCorpo(filtradas.filter((_, k) => !!paginas[k]!.ocr === ocr).flat())
+  const corpos = { pdf: corpoDe(false), ocr: corpoDe(true) }
   let titulos = 0
   let itensLista = 0
   let tabelas = 0
   const blocosPorPagina = filtradas.map((ls, k) => {
-    const b = blocosDe(ordemDeLeitura(ls, paginas[k]!.largura), corpo)
+    const b = blocosDe(ordemDeLeitura(ls, paginas[k]!.largura), paginas[k]!.ocr ? corpos.ocr : corpos.pdf)
     for (const x of b) { if (x.tipo === 'titulo') titulos++; else if (x.tipo === 'item') itensLista++; else if (x.tipo === 'tabela') tabelas++ }
     return b
   })
