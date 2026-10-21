@@ -184,7 +184,7 @@ export const PLANOS_MARKETING: PlanoMarketing[] = [
   {
     ...plano('studio'), periodo: '/ membro / mês',
     descricao: 'Para estúdios e agências que trabalham em equipe.',
-    creditosLegenda: 'por mês · compartilhados',
+    creditosLegenda: 'por membro, por mês · compartilhados',
     inclui: 'Tudo do Pro, e:', itens: ['Créditos compartilhados pela equipe', 'Modelos de IA mais avançados para texto e imagem', 'Edição em tempo real e biblioteca', 'Até 100 domínios próprios'],
     cta: 'Falar com vendas',
     cores: { fundo: '#F2C14E', tinta: '#2A2118', moeda: '#FAFAF9', ctaFundo: '#171717', ctaTinta: '#FAFAF9' },

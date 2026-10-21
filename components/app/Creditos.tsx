@@ -109,7 +109,7 @@ function ModalComprarCreditos({ aberto, aoFechar, motivo }: { aberto: boolean; a
           </button>
         ))}
       </div>
-      <p className="mt-4 text-[12px] leading-relaxed text-texto2">Conta feita com apresentações de {TELAS_REFERENCIA} telas ({custoApresentacao(TELAS_REFERENCIA)} créditos cada). {simulada ? 'Modo demonstração: nenhuma cobrança é feita.' : 'O pagamento on-line ainda está chegando: por enquanto, fale com a gente para recarregar.'}</p>
+      <p className="mt-4 text-[12px] leading-relaxed text-texto2">Conta feita com apresentações de {TELAS_REFERENCIA} telas ({custoApresentacao(TELAS_REFERENCIA)} créditos cada: roteiro + design de cada tela). {simulada ? 'Modo demonstração: nenhuma cobrança é feita.' : 'O pagamento on-line ainda está chegando: por enquanto, fale com a gente para recarregar.'}</p>
     </Modal>
   )
 }

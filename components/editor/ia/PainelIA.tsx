@@ -15,6 +15,7 @@ import { CUSTO_CREDITOS, textoApresentacoes } from '@/lib/planos'
 import { ACOES_TEXTO, IDIOMAS, NOMES_IDIOMA, ROTULOS_ACAO, type AcaoTexto, type Idioma } from '@/lib/ia/texto'
 import { aplicarTela, mapearTela, quantidadeDeItens, textosDaTela, textosParaReescrever, type ConteudoTela, type MapaTela } from '@/lib/ia/tela'
 import type { TipoTela } from '@/lib/ia/roteiro'
+import { NOMES_TIPO_TELA } from '@/lib/ia/designSystem'
 import { useCreditos } from '@/components/app/Creditos'
 import { Botao, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
@@ -31,7 +32,7 @@ export function abrirIA(aba: AbaIA = 'texto') {
   window.dispatchEvent(new CustomEvent(EVENTO, { detail: { aba } }))
 }
 
-const NOMES_TIPO: Record<TipoTela, string> = { capa: 'Capa', conceito: 'Conceito', secao: 'Seção', lista: 'Lista', numeros: 'Números', citacao: 'Citação', paleta: 'Paleta', tipografia: 'Tipografia', imagem: 'Imagem', comparacao: 'Comparação', encerramento: 'Encerramento' }
+const NOMES_TIPO: Record<TipoTela, string> = NOMES_TIPO_TELA
 const DICA_ACAO: Record<AcaoTexto, string> = { curto: 'Corta palavras e orações', impactante: 'Direto, sem rodeios', formal: 'Tom profissional', simples: 'Palavras do dia a dia', corrigir: 'Ortografia e pontuação', traduzir: 'Inglês, espanhol ou português' }
 const SUGESTOES = ['Deixe mais direto', 'Foque em números', 'Tom mais formal', 'Mais simples']
 

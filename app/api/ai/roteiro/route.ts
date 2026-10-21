@@ -1,48 +1,55 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { autenticar, ErroHttp, hashIp, lerJson, limitar, responder, rota } from '@/lib/api/servidor'
-import { cobrarIa } from '@/lib/api/creditosServidor'
-import { gerarRoteiroClaude, iaConfigurada, RecusaModelo } from '@/lib/ia/claude'
-import { gerarRoteiroLocal } from '@/lib/ia/local'
-import { PedidoRoteiroSchema, type RespostaRoteiro } from '@/lib/ia/pedido'
-import { custoDe } from '@/lib/planos'
+import { cobrarIaComUso, type CobrancaIa } from '@/lib/api/creditosServidor'
+import { custoDoErro, gerarRoteiroClaude, iaConfigurada, RecusaModelo } from '@/lib/ia/claude'
+import { custoRoteiroUsd } from '@/lib/ia/economia'
+import { gerarRoteiroLocal, temaSugerido } from '@/lib/ia/local'
+import { MODELO_POR_ETAPA } from '@/lib/ia/modelos'
+import { PedidoRoteiroSchema, tipoEfetivo, type RespostaRoteiro } from '@/lib/ia/pedido'
+import { custoRoteiro } from '@/lib/planos'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 120
+export const maxDuration = 180
 
 const DEMO = process.env.NEXT_PUBLIC_DEMO === '1'
+const aviso = (requestId: string, mensagem: string) => console.error(JSON.stringify({ nivel: 'aviso', requestId, mensagem }))
 
 /**
- * POST /api/ai/roteiro — escreve o roteiro de uma apresentação.
- * Com ANTHROPIC_API_KEY usa o Claude; sem chave (ou se a API estiver fora do ar) usa o gerador local.
- * Fora do modo demo exige sessão e debita créditos do workspace antes de chamar o modelo.
+ * POST /api/ai/roteiro — etapa 1 do "Criar com IA": escreve o roteiro (estrutura e texto de cada tela).
+ * Com ANTHROPIC_API_KEY usa o Claude (Sonnet); sem chave (ou se a API estiver fora do ar) usa o gerador local.
+ * Fora do modo demo exige sessão e debita o roteiro (parte fixa + parte de cada tela + material longo) antes de
+ * chamar o modelo, com a previsão de custo; depois grava o custo medido. Se falhar, estorna.
  */
 export const POST = rota(async (req, _ctx, requestId) => {
   limitar(`ia:${await hashIp(req)}`, 20, 10 * 60_000)
   const pedido = await lerJson(req, PedidoRoteiroSchema)
-  const custo = custoDe({ roteiro: 1, tela: pedido.telas })
+  const custo = custoRoteiro(pedido.telas, pedido.conteudo.length)
+  const tipo = tipoEfetivo(pedido)
+  const local = () => responder<RespostaRoteiro>({ roteiro: gerarRoteiroLocal(pedido), gerador: 'local', modelo: null, tipo, tema: temaSugerido(tipo), creditos: 0 }, requestId)
 
   // créditos só são cobrados quando o modelo de fato escreve o roteiro; se falhar, estorna
-  let estornar = async () => {}
+  let cobranca: CobrancaIa | null = null
   if (!DEMO) {
     const ctx = await autenticar(req, requestId)
     if (iaConfigurada()) {
-      estornar = await cobrarIa(ctx, custo, { debito: 'Roteiro com IA', estorno: 'Estorno: roteiro com IA não gerado', semSaldo: 'Créditos insuficientes para gerar este roteiro.' })
+      cobranca = await cobrarIaComUso(ctx, custo, { debito: `Roteiro com IA · ${pedido.telas} telas`, estorno: 'Estorno: roteiro com IA não gerado', semSaldo: 'Créditos insuficientes para gerar este roteiro.' }, { acao: 'roteiro', modelo: MODELO_POR_ETAPA.roteiro.id, custoUsd: custoRoteiroUsd(pedido.telas, pedido.conteudo.length).usd })
     }
   }
 
-  if (!iaConfigurada()) {
-    return responder<RespostaRoteiro>({ roteiro: gerarRoteiroLocal(pedido), gerador: 'local', modelo: null }, requestId)
-  }
+  if (!iaConfigurada()) return local()
   try {
-    const { roteiro, modelo } = await gerarRoteiroClaude(pedido, req.signal)
-    return responder<RespostaRoteiro>({ roteiro, gerador: 'claude', modelo }, requestId)
+    const r = await gerarRoteiroClaude(pedido, req.signal)
+    await cobranca?.registrar({ modelo: r.modelo, custoUsd: r.custo.usd, uso: r.custo.uso }).catch((e) => aviso(requestId, `registro de uso: ${e instanceof Error ? e.message : e}`))
+    return responder<RespostaRoteiro>({ roteiro: r.roteiro, gerador: 'claude', modelo: r.modelo, tipo, tema: r.tema, creditos: cobranca ? custo : 0 }, requestId)
   } catch (e) {
-    await estornar().catch(() => {})
+    const gasto = custoDoErro(e)
+    if (gasto) await cobranca?.registrar({ modelo: gasto.modelo, custoUsd: gasto.usd, uso: gasto.uso }).catch(() => {})
+    await cobranca?.estornar().catch(() => {})
     if (e instanceof RecusaModelo) throw new ErroHttp('entrada_invalida', 'A IA não pôde escrever esse roteiro. Reformule o pedido.')
     // indisponibilidade da API não deve travar o usuário: entrega a estrutura local
     if (e instanceof Anthropic.RateLimitError || e instanceof Anthropic.InternalServerError || e instanceof Anthropic.APIConnectionError) {
-      console.error(JSON.stringify({ nivel: 'aviso', requestId, mensagem: `IA indisponível: ${e.message}` }))
-      return responder<RespostaRoteiro>({ roteiro: gerarRoteiroLocal(pedido), gerador: 'local', modelo: null }, requestId)
+      aviso(requestId, `IA indisponível: ${e.message}`)
+      return local()
     }
     throw e
   }

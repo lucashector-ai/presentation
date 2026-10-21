@@ -90,7 +90,8 @@ describe('mapearTela (telas geradas pela IA)', () => {
     expect(r.mapa.tipo).toBe('lista')
     expect(r.atual.titulo).toBe('Nossa abordagem')
     expect(r.atual.itens).toEqual(['Diagnóstico em duas semanas', 'Conceito e protótipo', 'Lançamento com métricas'])
-    expect(r.mapa.rotulo).toBeDefined()
+    // o rótulo do design system é uma etiqueta ("Abordagem"), não o título repetido: não é reescrito junto
+    expect(r.mapa.rotulo).toBeUndefined()
   })
   it('números: "valor|legenda" e aplica nas duas camadas', () => {
     const r = mapearTela(tela(3), 3, doc.scenes.length)!
@@ -114,13 +115,14 @@ describe('mapearTela (telas geradas pela IA)', () => {
     const fim = mapearTela(tela(5), 5, doc.scenes.length)!
     expect(fim.mapa.tipo).toBe('encerramento')
   })
-  it('aplicar mantém estilos e caixas, atualiza rótulo, título da tela e notas; documento continua válido', () => {
+  it('aplicar mantém estilos e caixas e o rótulo, atualiza título da tela e notas; documento continua válido', () => {
     const c = tela(2)
     const r = mapearTela(c, 2, doc.scenes.length)!
     const nova = aplicarTela(c, r.mapa, { titulo: 'Como vamos trabalhar', texto: '', itens: ['Um', 'Dois', 'Três'], notas: 'Falar do processo.' })
     expect(nova.title).toBe('Como vamos trabalhar')
     expect(nova.notes).toBe('Falar do processo.')
-    expect(nova.layers.find((l) => l.id === r.mapa.rotulo && l.type === 'text')).toMatchObject({ text: '03 — Como vamos trabalhar' })
+    expect(nova.layers.find((l) => l.id.startsWith('rotulo-') && l.type === 'text')).toMatchObject({ text: 'Abordagem' })
+    expect(nova.layers.filter((l) => l.type === 'text' && l.id.startsWith('item-')).map((l) => (l as { text: string }).text)).toEqual(['Um', 'Dois', 'Três'])
     nova.layers.forEach((l, k) => {
       const antes = c.layers[k]!
       expect({ ...l, text: undefined }).toEqual({ ...antes, text: undefined })

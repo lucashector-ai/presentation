@@ -5,6 +5,7 @@
 import { FORMATOS, type DocumentoProjeto } from '@/lib/scene/schema'
 import { parseDocumento } from '@/lib/scene/migrar'
 import type { AssetDemo, EstadoDemo, LinkCompartilhado, Projeto, Snapshot } from './tipos'
+import { PLANOS } from '@/lib/planos'
 
 const AGORA = '2026-10-20T14:00:00.000Z'
 const WS = 'ws-demo'
@@ -213,6 +214,6 @@ export function estadoVazio(usuario?: { nome: string; email: string }): EstadoDe
     links: [],
     snapshots: [],
     auditoria: [],
-    creditos: { saldo: 400, movimentos: [{ id: 'mv-boas-vindas', quantidade: 400, motivo: 'Créditos de boas-vindas do plano Free', criadoEm: agora }] },
+    creditos: { saldo: PLANOS.free.creditos.quantidade, movimentos: [{ id: 'mv-boas-vindas', quantidade: PLANOS.free.creditos.quantidade, motivo: 'Créditos de boas-vindas do plano Free', criadoEm: agora }] },
   }
 }

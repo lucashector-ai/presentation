@@ -5,6 +5,7 @@
 - `migrations/0000_base.sql` — schema do MVP (seção 11 do blueprint): perfis, workspaces, projetos, cenas, snapshots, mídias, links, billing, auditoria e `garantir_conta()` (perfil + workspace no primeiro acesso).
 - `migrations/0001_funcoes_transacionais.sql` — `save_project_scenes`, `publish_project` (optimistic concurrency por revisão) e `increment_share_views`.
 - `migrations/0002_criativo_creditos_ia.sql` — modos/tipos do editor criativo, planos free/plus/pro/studio, créditos (`debitar_creditos`, saldo inicial por trigger) e registro de gerações de IA.
+- `migrations/0003_custo_ia_por_debito.sql` — custo estimado em USD, modelo e tokens em cada débito de IA (`debitar_creditos_ia`, `registrar_uso_ia`), view `ai_margem_diaria` e boas-vindas do Free em 450 créditos (ver docs/economia-ia.md).
 - Aplicar: `npm run db:migrar` (usa `DATABASE_URL_UNPOOLED` do `.env.local`; `-- --status` só lista). As aplicadas ficam em `public.schema_migrations` com o sha256 do arquivo; uma por transação; advisory lock impede dois migradores ao mesmo tempo.
 - Novas mudanças: criar `000N_descricao.sql` sequencial. Nunca editar migração já aplicada (o script recusa).
 - Antes de produção, teste num branch: `neon branches create --name teste-x --parent production --expires-at <data>`, `neon env pull --branch teste-x --file .env.teste.local`, `node --env-file=.env.teste.local db/migrar.mjs`, depois `npm run db:migrar` no production e `neon branches delete teste-x`.
