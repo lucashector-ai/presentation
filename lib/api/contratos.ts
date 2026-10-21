@@ -23,6 +23,12 @@ export const CODIGOS_ERRO = {
 } as const
 export type CodigoErro = keyof typeof CODIGOS_ERRO
 
+/**
+ * `details.motivo` de um 503 em que a sessão não pôde ser conferida (o Neon Auth não respondeu: limite de taxa,
+ * erro dele, rede). O handler da rota não rodou, então o cliente repete o pedido sozinho (`details.tenteEmS`).
+ */
+export const MOTIVO_SESSAO_INDISPONIVEL = 'sessao_indisponivel'
+
 export interface ErroApi {
   code: CodigoErro
   message: string

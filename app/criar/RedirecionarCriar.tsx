@@ -12,7 +12,8 @@ export function RedirecionarCriar() {
     const ir = (logado: boolean) => router.replace(logado ? destino : `/signup?${new URLSearchParams({ proximo: destino })}`)
     if (MODO_DEMO) return ir(sessaoAtiva())
     let vivo = true
-    verificarSessao().then((ok) => { if (vivo) ir(ok) })
+    // sem resposta sobre a sessão (servidor não conseguiu conferir): segue para /app/criar, cujo Shell confere de novo
+    verificarSessao().then((ok) => { if (vivo) ir(ok) }, () => { if (vivo) ir(true) })
     return () => { vivo = false }
   }, [router, params])
   return <div className="min-h-dvh bg-fundo" />

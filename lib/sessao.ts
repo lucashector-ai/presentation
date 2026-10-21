@@ -17,14 +17,32 @@ export function sessaoAtiva(): boolean {
   try { return !!localStorage.getItem(CHAVE) } catch { return false }
 }
 
-/** Há sessão? No modo real pergunta ao Neon Auth (cookie de sessão). */
+/** Erro que não diz nada sobre a sessão: o servidor não conseguiu conferir (429/5xx) ou não houve resposta. */
+function falhaPassageira(e: unknown): boolean {
+  const status = (e as { status?: unknown } | null)?.status
+  return typeof status !== 'number' || status === 0 || status === 429 || status >= 500
+}
+
+/**
+ * Há sessão? No modo real pergunta ao servidor (cookie de sessão; /api/auth/get-session). "Não" só quando o
+ * servidor responde que não há sessão: se ele não conseguiu conferir (Neon Auth fora, limite de taxa, rede),
+ * tenta de novo algumas vezes e então LANÇA (a tela mostra "tentar de novo") em vez de mandar ao login.
+ */
 export async function verificarSessao(): Promise<boolean> {
   if (MODO_DEMO) return sessaoAtiva()
-  try {
-    const { data } = await (await carregarAuth()).getSession()
-    return !!data?.user
-  } catch {
-    return false
+  const auth = await carregarAuth()
+  for (let tentativa = 0; ; tentativa++) {
+    let falha: unknown
+    try {
+      const { data, error } = await auth.getSession()
+      if (!error) return !!data?.user
+      falha = error
+    } catch (e) {
+      falha = e
+    }
+    if (!falhaPassageira(falha)) return false
+    if (tentativa >= 3) throw new Error('Não foi possível confirmar sua sessão agora. Tente de novo em instantes.')
+    await new Promise((r) => setTimeout(r, 1000 * 2 ** tentativa))
   }
 }
 

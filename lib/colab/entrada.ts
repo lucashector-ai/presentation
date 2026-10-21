@@ -5,7 +5,7 @@
  * outro site poderia abrir a sala em nome da pessoa), a sessão do Neon Auth pelo cookie e se a pessoa é membro do
  * workspace do projeto, com o papel atual. Só então repassa ao DO, com a identidade num cabeçalho interno.
  */
-import { sessaoDaRequisicao } from '@/lib/auth/servidor'
+import { AuthIndisponivel, sessaoDaRequisicao } from '@/lib/auth/servidor'
 import { ErroHttp, ehUuid, limitar } from '@/lib/api/servidor'
 import { acessoAoProjeto } from './salaServidor'
 import { CABECALHO_ENTRADA, type InfoEntrada } from './protocolo'
@@ -40,7 +40,14 @@ export async function entrarNaSala(req: Request, salas: NamespaceSalas | undefin
   const clienteId = new URL(req.url).searchParams.get('cliente') ?? ''
   if (!RE_CLIENTE.test(clienteId)) return recusar(400, 'Cliente inválido')
 
-  const usuario = await sessaoDaRequisicao(req)
+  let usuario
+  try {
+    usuario = await sessaoDaRequisicao(req)
+  } catch (e) {
+    // o Neon Auth não respondeu: não é "sem sessão" (o cliente segue tentando reconectar, sem ir ao login)
+    if (e instanceof AuthIndisponivel) return recusar(503, 'Não foi possível confirmar a sessão agora')
+    throw e
+  }
   if (!usuario) return recusar(401, 'Faça login para continuar')
   try {
     limitar(`sala:${usuario.id}`, 60, 60_000)

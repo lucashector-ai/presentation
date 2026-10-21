@@ -9,9 +9,9 @@ import 'server-only'
  */
 import { NextResponse } from 'next/server'
 import type { ZodType } from 'zod'
-import { CODIGOS_ERRO, erro, ok, type CodigoErro, type TipoEventoAuditoria } from './contratos'
+import { CODIGOS_ERRO, erro, MOTIVO_SESSAO_INDISPONIVEL, ok, type CodigoErro, type TipoEventoAuditoria } from './contratos'
 import { sql } from '@/lib/db/neon'
-import { sessaoDaRequisicao } from '@/lib/auth/servidor'
+import { AuthIndisponivel, sessaoDaRequisicao } from '@/lib/auth/servidor'
 
 export class ErroHttp extends Error {
   constructor(public code: CodigoErro, message: string, public details?: unknown) {
@@ -145,7 +145,15 @@ const PAPEIS = new Set<PapelWorkspace>(['owner', 'editor', 'viewer'])
  */
 export async function autenticar(req: Request, requestId: string, opcoes: { permitirVisualizador?: boolean } = {}): Promise<Contexto> {
   verificarOrigem(req)
-  const usuario = await sessaoDaRequisicao(req, cookiesDaRequisicao.get(req))
+  let usuario
+  try {
+    usuario = await sessaoDaRequisicao(req, cookiesDaRequisicao.get(req))
+  } catch (e) {
+    // o Neon Auth não respondeu: a sessão não foi negada. 503 (não 401) para o cliente tentar de novo em vez de
+    // mandar a pessoa ao login; o handler não rodou, então repetir é seguro para qualquer método
+    if (e instanceof AuthIndisponivel) throw new ErroHttp('indisponivel', 'Não foi possível confirmar sua sessão agora. Tente de novo em instantes.', { motivo: MOTIVO_SESSAO_INDISPONIVEL, tenteEmS: e.tenteEmS })
+    throw e
+  }
   if (!usuario) throw new ErroHttp('nao_autenticado', 'Faça login para continuar')
   const ativo = workspaceDoCookie(req)
   const linhas = await sql()`
