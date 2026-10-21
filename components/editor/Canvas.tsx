@@ -43,7 +43,7 @@ const ZOOM_MAX = 8
 
 type Gesto =
   | { tipo: 'mover'; inicio: { x: number; y: number }; iniciais: Map<string, Retangulo>; raizes: string[]; caixa: Retangulo; moveu: boolean; antes: DocumentoProjeto; fluxo: boolean; delta: { x: number; y: number }; ponteiro: { x: number; y: number }; duplicar: boolean }
-  | { tipo: 'redimensionar'; alca: Alca; inicio: { x: number; y: number }; caixa: Retangulo; iniciais: Map<string, Retangulo>; antes: DocumentoProjeto }
+  | { tipo: 'redimensionar'; alca: Alca; inicio: { x: number; y: number }; caixa: Retangulo; iniciais: Map<string, Retangulo>; antes: DocumentoProjeto; moveu?: boolean }
   | { tipo: 'rotacionar'; centro: { x: number; y: number }; id: string; antes: DocumentoProjeto }
   | { tipo: 'area'; inicio: { x: number; y: number }; atual: { x: number; y: number }; base: string[] }
   | { tipo: 'desenhar'; inicio: { x: number; y: number }; atual: { x: number; y: number }; manterFerramenta: boolean }
@@ -416,6 +416,11 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
         break
       }
       case 'redimensionar': {
+        // clique sem arrastar não mexe em nada (nem no modo de tamanho do texto): só depois de 3 px de tela
+        if (!g.moveu) {
+          if (Math.hypot(pc.x - g.inicio.x, pc.y - g.inicio.y) * (vp?.s ?? 1) < 3) break
+          g.moveu = true
+        }
         const svgUnico = g.iniciais.size === 1 && camadas.find((l) => g.iniciais.has(l.id))?.type === 'svg'
         const movidos = new Set(comDescendentes([...g.iniciais.keys()], camadas))
         const res = redimensionarComEncaixe(g.caixa, g.alca, pc.x - g.inicio.x, pc.y - g.inicio.y, visiveisExceto(movidos), cena.size, limiar, { proporcional: ev.shiftKey || svgUnico, doCentro: ev.altKey, semEncaixe, grade })
@@ -487,7 +492,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
         }
         acoes.registrarHistorico(g.antes)
       }
-    } else if (g.tipo === 'redimensionar' || g.tipo === 'rotacionar') acoes.registrarHistorico(g.antes)
+    } else if ((g.tipo === 'redimensionar' && g.moveu) || g.tipo === 'rotacionar') acoes.registrarHistorico(g.antes)
     if (g.tipo === 'desenhar') {
       const r = retDe(g.inicio, g.atual)
       const pequeno = r.width < 8 && r.height < 8
@@ -516,6 +521,17 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
 
   const onDoubleClick = (ev: React.MouseEvent) => {
     if (editandoTexto) return
+    // como no Figma: duplo clique numa alça de texto ajusta a caixa ao texto naquele eixo
+    const alcaClicada = (ev.target as HTMLElement).dataset.alca as Alca | 'rot' | undefined
+    if (alcaClicada && alcaClicada !== 'rot') {
+      if (unica?.type === 'text') {
+        const lateral = alcaClicada === 'e' || alcaClicada === 'w'
+        const vertical = alcaClicada === 'n' || alcaClicada === 's'
+        const patch: Partial<Camada> = lateral ? { sizingW: 'hug', sizingH: 'hug' } : vertical ? { sizingH: 'hug' } : { sizingW: 'hug', sizingH: 'hug' }
+        acoes.atualizarCamadas([unica.id], patch)
+      }
+      return
+    }
     const pc = paraCena(local(ev))
     const atingida = camadaNoPonto(cena, pc, { ignorarTravadas: true })
     if (!atingida) return
@@ -674,8 +690,9 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
             onPointerDown={(e) => e.stopPropagation()}
             onDoubleClick={(e) => e.stopPropagation()}
             wrap={hug ? 'off' : 'soft'}
-            className="absolute z-20 resize-none overflow-hidden bg-transparent caret-acento outline-none ring-[1.5px] ring-acento"
-            style={{ left: r.x, top: r.y, width: r.width + (hug ? 2 : 0), height: r.height, whiteSpace: hug ? 'pre' : 'pre-wrap', wordBreak: 'break-word', fontFamily: pilhaFonte(textoEmEdicao.fontFamily), fontSize: textoEmEdicao.fontSize * vp.s, fontWeight: textoEmEdicao.fontWeight, fontStyle: textoEmEdicao.italic ? 'italic' : undefined, textDecoration: textoEmEdicao.underline ? 'underline' : undefined, color: textoEmEdicao.color, textAlign: textoEmEdicao.align === 'justify' ? 'justify' : textoEmEdicao.align, lineHeight: textoEmEdicao.lineHeight, letterSpacing: textoEmEdicao.letterSpacing * vp.s, padding: textoEmEdicao.padding * vp.s, textTransform: textoEmEdicao.transform === 'none' ? undefined : textoEmEdicao.transform, background: textoEmEdicao.background, borderRadius: textoEmEdicao.radius * vp.s, transform: textoEmEdicao.rotation ? `rotate(${textoEmEdicao.rotation}deg)` : undefined, transformOrigin: 'center' }}
+            className="absolute z-20 resize-none overflow-hidden bg-transparent caret-acento selection:bg-acento/20"
+            // um contorno só, fino, exatamente na caixa do texto (o estilo global de foco desenharia outro por fora)
+            style={{ outline: '1px solid rgb(89 101 242)', outlineOffset: 0, borderRadius: textoEmEdicao.radius * vp.s, left: r.x, top: r.y, width: r.width + (hug ? 2 : 0), height: r.height, whiteSpace: hug ? 'pre' : 'pre-wrap', wordBreak: 'break-word', fontFamily: pilhaFonte(textoEmEdicao.fontFamily), fontSize: textoEmEdicao.fontSize * vp.s, fontWeight: textoEmEdicao.fontWeight, fontStyle: textoEmEdicao.italic ? 'italic' : undefined, textDecoration: textoEmEdicao.underline ? 'underline' : undefined, color: textoEmEdicao.color, textAlign: textoEmEdicao.align === 'justify' ? 'justify' : textoEmEdicao.align, lineHeight: textoEmEdicao.lineHeight, letterSpacing: textoEmEdicao.letterSpacing * vp.s, padding: textoEmEdicao.padding * vp.s, textTransform: textoEmEdicao.transform === 'none' ? undefined : textoEmEdicao.transform, background: textoEmEdicao.background, transform: textoEmEdicao.rotation ? `rotate(${textoEmEdicao.rotation}deg)` : undefined, transformOrigin: 'center' }}
           />
         )
       })()}
