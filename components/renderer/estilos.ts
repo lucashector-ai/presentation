@@ -1,22 +1,24 @@
 /** Conversões puras do modelo de camada para CSS (compartilhadas por renderer e miniaturas). */
 import type { CSSProperties } from 'react'
 import type { Camada, Efeitos, Gradiente } from '@/lib/scene/schema'
+import { boxShadowCss, desfoqueDe, dropShadowCss, projetadas, sombrasVisiveis } from '@/lib/scene/efeitos'
 
 export function gradienteCss(g: Gradiente): string {
   const stops = [...g.stops].sort((a, b) => a.pos - b.pos).map((s) => `${s.color} ${s.pos}%`).join(', ')
   return g.type === 'radial' ? `radial-gradient(circle at center, ${stops})` : `linear-gradient(${g.angle}deg, ${stops})`
 }
 
+/** box-shadow com todas as sombras visíveis (projetadas e internas), na ordem do painel. */
 export function sombraCss(e: Efeitos | undefined): string | undefined {
-  const s = e?.shadow
-  return s ? `${s.x}px ${s.y}px ${s.blur}px ${s.spread}px ${s.color}` : undefined
+  return boxShadowCss(sombrasVisiveis(e))
 }
 
-/** Filtro de desfoque + sombra como drop-shadow (para formas não retangulares, SVG, 3D). */
+/** Filtro de desfoque + sombras projetadas como drop-shadow (para formas não retangulares, SVG, 3D). */
 export function filtroCss(e: Efeitos | undefined, comDropShadow: boolean, extra = ''): string | undefined {
   const partes: string[] = []
-  if (e?.blur) partes.push(`blur(${e.blur}px)`)
-  if (comDropShadow && e?.shadow) partes.push(`drop-shadow(${e.shadow.x}px ${e.shadow.y}px ${e.shadow.blur / 2}px ${e.shadow.color})`)
+  const blur = desfoqueDe(e)
+  if (blur) partes.push(`blur(${blur}px)`)
+  if (comDropShadow) { const d = dropShadowCss(projetadas(e)); if (d) partes.push(d) }
   if (extra) partes.push(extra)
   return partes.length ? partes.join(' ') : undefined
 }

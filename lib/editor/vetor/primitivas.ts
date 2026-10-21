@@ -4,6 +4,7 @@
  */
 import type { CamadaForma, CaminhoVetor, NoVetor, Vetor } from '@/lib/scene/schema'
 import { raiosDe } from '@/lib/editor/raios'
+import { pontosEstrela, pontosPoligono } from '@/lib/scene/formas'
 
 /** Constante da aproximação de um quarto de círculo por uma cúbica. */
 export const KAPPA = 0.5522847498307936
@@ -47,16 +48,6 @@ export function retanguloVetor(w: number, h: number, raios: readonly [number, nu
   return { nos, fechado: true }
 }
 
-function estrela(w: number, h: number): [number, number][] {
-  const pts: [number, number][] = []
-  for (let i = 0; i < 10; i++) {
-    const r = i % 2 === 0 ? 0.5 : 0.2
-    const a = (Math.PI / 5) * i - Math.PI / 2
-    pts.push([w / 2 + Math.cos(a) * w * r, h / 2 + Math.sin(a) * h * r])
-  }
-  return pts
-}
-
 /**
  * Caminho equivalente à forma e o que muda no estilo para continuar igual
  * (linha e seta são traços: o preenchimento vira traço).
@@ -75,7 +66,9 @@ export function vetorDaForma(c: CamadaForma): { vetor: Vetor; patch: Partial<Cam
     case 'triangle':
       return { vetor: base([poligono([[w / 2, sw], [w - sw, h - sw], [sw, h - sw]])]), patch: {} }
     case 'star':
-      return { vetor: base([poligono(estrela(w, h))]), patch: {} }
+      return { vetor: base([poligono(pontosEstrela(w, h, c.count ?? 5, c.ratio ?? 0.4))]), patch: {} }
+    case 'polygon':
+      return { vetor: base([poligono(pontosPoligono(w, h, c.count ?? 3))]), patch: {} }
     case 'semicircle': {
       const rx = w / 2 - sw, ry = h - sw * 2, cx = w / 2, cy = h - sw
       const kx = rx * KAPPA, ky = ry * KAPPA

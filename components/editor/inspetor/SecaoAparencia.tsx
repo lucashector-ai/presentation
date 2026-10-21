@@ -1,17 +1,18 @@
 'use client'
 /** Aparência: visibilidade e mesclagem no título; opacidade e raio dos cantos. */
 import { useState } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Link2, Link2Off } from 'lucide-react'
 import type { Camada } from '@/lib/scene/schema'
 import { MODOS_MESCLAGEM } from '@/lib/scene/schema'
 import { cx } from '@/components/ui'
 import { BotaoCampo, BotaoMini, CampoNum, MISTO, Rotulo, Secao } from './controles'
-import { IconeCantos, IconeMesclagem, IconeOpacidade, IconeRaio } from './icones'
+import { IconeCantos, IconeMesclagem, IconeOpacidade, IconeRaio, IconeSuavizacao } from './icones'
 import { comum, useCamadas, type PropsSecao } from './selecao'
-import { NOMES_CANTOS, aceitaCantos, comCanto, comRaio as raioUnicoEm, raioUnico, raiosDe } from '@/lib/editor/raios'
+import { NOMES_CANTOS, aceitaCantos, aceitaSuavizacao, comCanto, comRaio as raioUnicoEm, raioUnico, raiosDe } from '@/lib/editor/raios'
 
-/** Seleções com os 4 cantos abertos nesta sessão. */
+/** Seleções com os 4 cantos abertos nesta sessão, e as com o cadeado (cantos iguais) fechado. */
 const cantosAbertos = new Set<string>()
+const cantosTravados = new Set<string>()
 
 function IconeCanto({ indice }: { indice: number }) {
   return (
@@ -21,7 +22,12 @@ function IconeCanto({ indice }: { indice: number }) {
   )
 }
 
-export const NOMES_MESCLAGEM: Record<(typeof MODOS_MESCLAGEM)[number], string> = { normal: 'Normal', multiply: 'Multiplicar', screen: 'Tela', overlay: 'Sobrepor', darken: 'Escurecer', lighten: 'Clarear', 'color-dodge': 'Subexpor cor', difference: 'Diferença', luminosity: 'Luminosidade' }
+export const NOMES_MESCLAGEM: Record<(typeof MODOS_MESCLAGEM)[number], string> = {
+  normal: 'Normal', darken: 'Escurecer', multiply: 'Multiplicar', 'color-burn': 'Superexpor cor', lighten: 'Clarear', screen: 'Tela', 'color-dodge': 'Subexpor cor',
+  overlay: 'Sobrepor', 'soft-light': 'Luz suave', 'hard-light': 'Luz forte', difference: 'Diferença', exclusion: 'Exclusão', hue: 'Matiz', saturation: 'Saturação', color: 'Cor', luminosity: 'Luminosidade',
+}
+/** Ordem e grupos do menu (como no Figma: escurecer, clarear, contraste, diferença, componentes). */
+const GRUPOS_MESCLAGEM: (typeof MODOS_MESCLAGEM)[number][][] = [['normal'], ['darken', 'multiply', 'color-burn'], ['lighten', 'screen', 'color-dodge'], ['overlay', 'soft-light', 'hard-light'], ['difference', 'exclusion'], ['hue', 'saturation', 'color', 'luminosity']]
 
 const efeitosBase = { blur: 0, backdropBlur: 0, blend: 'normal' as const }
 
@@ -38,6 +44,15 @@ export function SecaoAparencia({ editor }: PropsSecao) {
   const raio = raioComum === null ? MISTO : raioComum
   const podeCantos = comRaio && sel.every(aceitaCantos)
   const independentes = podeCantos && (cantosAbertos.has(chave) || sel.some((c) => 'radii' in c && !!c.radii))
+  const travados = cantosTravados.has(chave)
+  const podeSuavizar = comRaio && sel.every(aceitaSuavizacao)
+  const suavizacao = comum(sel, (c) => Math.round((c.cornerSmoothing ?? 0) * 100))
+  const mudarCanto = (c: Camada, i: number, r: number) => (travados ? raioUnicoEm(c, r) : comCanto(c, i, r))
+  const alternarTrava = () => {
+    if (travados) cantosTravados.delete(chave)
+    else { cantosTravados.add(chave); if (sel.some((c) => raioUnico(c) === null)) setFn((c) => raioUnicoEm(c, Math.max(...raiosDe(c)))) }
+    forcar((n) => n + 1)
+  }
   const alternarCantos = () => {
     if (independentes) {
       cantosAbertos.delete(chave)
@@ -63,7 +78,11 @@ export function SecaoAparencia({ editor }: PropsSecao) {
               className="absolute inset-0 cursor-pointer opacity-0"
             >
               {blend === MISTO && <option value="">Misto</option>}
-              {MODOS_MESCLAGEM.map((m) => <option key={m} value={m}>{NOMES_MESCLAGEM[m]}</option>)}
+              {GRUPOS_MESCLAGEM.map((g, i) => (
+                <optgroup key={i} label={i === 0 ? 'Normal' : ['Escurecer', 'Clarear', 'Contraste', 'Inversão', 'Componente'][i - 1]}>
+                  {g.map((m) => <option key={m} value={m}>{NOMES_MESCLAGEM[m]}</option>)}
+                </optgroup>
+              ))}
             </select>
           </span>
         </>
@@ -88,12 +107,27 @@ export function SecaoAparencia({ editor }: PropsSecao) {
         <div className="mt-2 grid grid-cols-[1fr_1fr_32px] gap-2" role="group" aria-label="Cantos independentes">
           {NOMES_CANTOS.map((nome, i) => {
             const v = comum(sel, (c) => raiosDe(c)[i]!)
+            // ordem visual como no Figma: superiores na 1ª linha, inferiores na 2ª (esq. | dir.)
+            const col = i === 0 || i === 3 ? 'col-start-1' : 'col-start-2'
+            const lin = i < 2 ? 'row-start-1' : 'row-start-2'
             return (
-              <div key={nome} className={i % 2 === 0 ? 'col-start-1 min-w-0' : 'col-start-2 min-w-0'}>
-                <CampoNum prefixo={<IconeCanto indice={i} />} rotulo={nome} titulo={nome} valor={v} min={0} max={999} aoMudar={(r) => setFn((c) => comCanto(c, i, r))} aoDelta={(d) => setFn((c) => comCanto(c, i, raiosDe(c)[i]! + d))} />
+              <div key={nome} className={`${col} ${lin} min-w-0`}>
+                <CampoNum prefixo={<IconeCanto indice={i} />} rotulo={nome} titulo={nome} valor={v} min={0} max={999} aoMudar={(r) => setFn((c) => mudarCanto(c, i, r))} aoDelta={(d) => setFn((c) => mudarCanto(c, i, raiosDe(c)[i]! + d))} />
               </div>
             )
           })}
+          <BotaoCampo rotulo={travados ? 'Cantos iguais (cadeado fechado): editar um canto muda os quatro' : 'Travar cantos iguais'} ativo={travados} className="col-start-3 row-start-1 row-span-2 self-center" onClick={alternarTrava}>
+            {travados ? <Link2 className="h-3.5 w-3.5" /> : <Link2Off className="h-3.5 w-3.5" />}
+          </BotaoCampo>
+        </div>
+      )}
+      {podeSuavizar && (independentes || (suavizacao !== 0)) && (
+        <div className="mt-2 grid grid-cols-[1fr_1fr_32px] items-end gap-2">
+          <div className="min-w-0">
+            <Rotulo>Suavizar cantos</Rotulo>
+            <CampoNum prefixo={<IconeSuavizacao />} rotulo="Suavização dos cantos" titulo="Suavização dos cantos (squircle, 60% = iOS)" valor={suavizacao} min={0} max={100} sufixo="%" aoMudar={(v) => set({ cornerSmoothing: v ? v / 100 : undefined })} aoDelta={(d) => setFn((c) => ({ ...c, cornerSmoothing: Math.max(0, Math.min(1, (c.cornerSmoothing ?? 0) + d / 100)) || undefined }))} />
+          </div>
+          <BotaoMini rotulo="Suavização iOS (60%)" className="mb-0.5 h-7 w-auto justify-self-start px-2.5 text-[11px]" ativo={suavizacao === 60} onClick={() => set({ cornerSmoothing: 0.6 })}>iOS</BotaoMini>
         </div>
       )}
     </Secao>

@@ -1,6 +1,7 @@
 'use client'
 import { useRef, useState, type JSX } from 'react'
 import { Box, ChevronDown, ChevronRight, Code2, Copy, Crosshair, Eye, EyeOff, Film, GalleryHorizontal, Image as ImageIcon, Lock, LockOpen, MousePointerClick, PenTool, Quote, Sparkles, Square, Tag, Trash2, Type, Upload, Video, ArrowRight } from 'lucide-react'
+import { IconeAutoLayout, IconeMascara } from './inspetor/icones'
 import type { Camada } from '@/lib/scene/schema'
 import { mapaDe, paiDe } from '@/lib/scene/arvore'
 import type { Editor, AbaEsquerda } from '@/lib/editor/useEditor'
@@ -164,13 +165,18 @@ function Camadas({ editor }: { editor: Editor }) {
               <ChevronRight className={cx('h-3 w-3 transition-transform', aberto && 'rotate-90')} />
             </button>
           ) : nivel > 0 ? <span className="w-3 shrink-0" /> : null}
-          <Icone className={cx('h-3.5 w-3.5 shrink-0', sel ? 'text-acento' : 'text-texto3')} strokeWidth={1.75} />
+          {ehFrame && l.layout ? (
+            <span title={`Auto layout ${l.layout.direction === 'vertical' ? 'vertical' : l.layout.direction === 'wrap' ? 'com quebra' : 'horizontal'}`} className={cx('flex shrink-0', sel ? 'text-acento' : 'text-texto3')}><IconeAutoLayout direcao={l.layout.direction} /></span>
+          ) : l.type === 'shape' && l.isMask ? (
+            <span title="Máscara" className={cx('flex shrink-0', sel ? 'text-acento' : 'text-texto3')}><IconeMascara /></span>
+          ) : (
+            <Icone className={cx('h-3.5 w-3.5 shrink-0', sel ? 'text-acento' : 'text-texto3')} strokeWidth={1.75} />
+          )}
           {renomeando === l.id ? (
             <input autoFocus aria-label="Renomear camada" defaultValue={l.name ?? ''} placeholder={nomeCamada(l)} onBlur={(e) => { acoes.atualizarCamadas([l.id], { name: e.target.value || undefined }); setRenomeando(null) }} onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur() }} className="h-6 min-w-0 flex-1 rounded bg-superficie px-1 outline-none ring-1 ring-acento" />
           ) : (
             <span className="min-w-0 flex-1 truncate">{nomeCamada(l)}</span>
           )}
-          {ehFrame && l.layout && <span className="rotulo-mono shrink-0 !text-[9px] text-texto3" title="Auto layout">{l.layout.direction === 'vertical' ? '↓' : l.layout.direction === 'wrap' ? '↩' : '→'}</span>}
           {l.interactions.length > 0 && <MousePointerClick className="h-3 w-3 shrink-0 text-acento" aria-label="Tem interação" />}
           <button type="button" aria-label={l.locked ? 'Destravar' : 'Travar'} onClick={(e) => { e.stopPropagation(); acoes.atualizarCamadas([l.id], { locked: !l.locked }) }} className={cx('shrink-0 text-texto3 hover:text-texto', !l.locked && 'opacity-0 group-hover:opacity-100')}>{l.locked ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}</button>
           <button type="button" aria-label={l.hidden ? 'Mostrar' : 'Ocultar'} onClick={(e) => { e.stopPropagation(); acoes.atualizarCamadas([l.id], { hidden: !l.hidden }) }} className={cx('shrink-0 text-texto3 hover:text-texto', !l.hidden && 'opacity-0 group-hover:opacity-100')}>{l.hidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}</button>

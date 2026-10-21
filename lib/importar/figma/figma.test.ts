@@ -10,6 +10,7 @@
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { pontosEstrela } from '@/lib/scene/formas'
 import { describe, expect, it } from 'vitest'
 import DOMPurify from 'isomorphic-dompurify'
 import { compileSchema, encodeBinarySchema } from 'kiwi-schema'
@@ -99,13 +100,16 @@ describe('conversão de cópias reais', () => {
     expect(inst).toMatchObject({ type: 'shape', fill: '#0000ff80', stroke: '#000000' })
   })
 
-  it('estrela vira SVG com 10 vértices preenchendo a caixa', () => {
+  it('estrela vira forma editável (5 pontas, 40%) ocupando a mesma área do Figma', () => {
     const [s] = camadas(fixture('star-5-40-100x100-black.clipboard.html'))
-    expect(s!.type).toBe('svg')
-    const markup = s!.markup as string
-    expect(dimensoesSvg(markup)).toEqual({ width: 100, height: 100 })
-    expect(markup.match(/[ML]/g)!.length).toBe(10)
-    expect(markup).toContain('M50 0')
+    expect(s).toMatchObject({ type: 'shape', shape: 'star', count: 5, ratio: 0.4 })
+    expect(() => parseCamada(s)).not.toThrow()
+    // a figura desenhada (não a caixa) mede 100 × 100, como no Figma
+    const pts = pontosEstrela(s!.width as number, s!.height as number, 5, 0.4)
+    const xs = pts.map((p) => p[0])
+    const ys = pts.map((p) => p[1])
+    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(100, 0)
+    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(100, 0)
   })
 
   it('nós reais: texto com estilos mistos, vetores, instância com propriedades', () => {
@@ -469,5 +473,61 @@ describe('compatibilidade com o schema real ao recodificar', () => {
     const html = `<meta charset="utf-8" /><span data-metadata="<!--(figmeta)${btoa('{"dataType":"scene"}')}(/figmeta)-->"></span><span data-buffer="<!--(figma)${btoa(s)}(/figma)-->"></span>`
     const [c] = camadas(html)
     expect(c).toMatchObject({ type: 'text', text: 'Oi', fontWeight: 500 })
+  })
+})
+
+describe('traços, sombras e cantos do Figma nos campos novos', () => {
+  it('traço de fora, tracejado e duas sombras (projetada + interna) viram strokes/shadows, não SVG', () => {
+    const r = converterMensagem(
+      msg([
+        {
+          guid: G(2), ...filho(PAGINA, '!'), type: 'ROUNDED_RECTANGLE', size: { x: 120, y: 80 }, transform: T(0, 0), cornerRadius: 16, cornerSmoothing: 0.6,
+          fillPaints: [solido(1, 1, 1)],
+          strokePaints: [solido(0, 0, 1)], strokeWeight: 3, strokeAlign: 'OUTSIDE', dashPattern: [6, 4],
+          effects: [
+            { type: 'DROP_SHADOW', offset: { x: 0, y: 4 }, radius: 8, spread: 0, color: { r: 0, g: 0, b: 0, a: 0.25 }, visible: true },
+            { type: 'INNER_SHADOW', offset: { x: 0, y: 2 }, radius: 4, spread: 0, color: { r: 0, g: 0, b: 0, a: 0.5 }, visible: true },
+          ],
+        },
+      ]),
+      { cena: CENA }
+    )
+    const c = r.camadas[0]!.camada
+    expect(c).toMatchObject({ type: 'shape', shape: 'rect', radius: 16, cornerSmoothing: 0.6 })
+    expect(c.strokes).toEqual([expect.objectContaining({ color: '#0000ff', weight: 3, position: 'outside', style: 'dashed', dash: 6, gap: 4 })])
+    const ef = c.effects as { shadows: { inner?: boolean; y: number }[] }
+    expect(ef.shadows).toHaveLength(2)
+    // de cima para baixo como no painel (o Figma guarda de baixo para cima)
+    expect(ef.shadows[0]).toMatchObject({ inner: true, y: 2 })
+    expect(ef.shadows[1]).toMatchObject({ y: 4 })
+    expect(() => parseCamada(c)).not.toThrow()
+  })
+
+  it('espessura por lado e traço centralizado em elipse', () => {
+    const r = converterMensagem(
+      msg([
+        { guid: G(2), ...filho(PAGINA, '!'), type: 'RECTANGLE', size: { x: 100, y: 50 }, transform: T(0, 0), fillPaints: [solido(1, 0, 0)], strokePaints: [solido(0, 0, 0)], strokeWeight: 1, strokeAlign: 'INSIDE', borderStrokeWeightsIndependent: true, borderTopWeight: 0, borderBottomWeight: 4, borderLeftWeight: 0, borderRightWeight: 0 },
+        { guid: G(3), ...filho(PAGINA, '"'), type: 'ELLIPSE', size: { x: 50, y: 50 }, transform: T(200, 0), fillPaints: [solido(0, 1, 0)], strokePaints: [solido(0, 0, 0)], strokeWeight: 2, strokeAlign: 'CENTER' },
+      ]),
+      { cena: CENA }
+    )
+    const [ret, eli] = r.camadas.map((x) => x.camada)
+    expect(ret!.strokes).toEqual([expect.objectContaining({ sides: { top: 0, right: 0, bottom: 4, left: 0 }, weight: 4, position: 'inside' })])
+    expect(eli).toMatchObject({ type: 'shape', shape: 'ellipse' })
+    expect(eli!.strokes).toEqual([expect.objectContaining({ weight: 2, position: 'center' })])
+  })
+
+  it('contorno de texto vira traço das letras; polígono vira forma com lados', () => {
+    const r = converterMensagem(
+      msg([
+        { guid: G(2), ...filho(PAGINA, '!'), type: 'TEXT', size: { x: 80, y: 20 }, transform: T(0, 0), fontSize: 16, fontName: { family: 'Inter', style: 'Regular' }, textData: { characters: 'Oi' }, fillPaints: [solido(0, 0, 0)], strokePaints: [solido(1, 0, 0)], strokeWeight: 1 },
+        { guid: G(3), ...filho(PAGINA, '"'), type: 'REGULAR_POLYGON', size: { x: 60, y: 60 }, transform: T(200, 0), fillPaints: [solido(0, 0, 1)], count: 6 },
+      ]),
+      { cena: CENA }
+    )
+    const cs = r.camadas.map((x) => x.camada)
+    expect(cs.find((c) => c.type === 'text')!.strokes).toEqual([expect.objectContaining({ color: '#ff0000', weight: 1, position: 'outside' })])
+    expect(cs.find((c) => c.type === 'shape')).toMatchObject({ shape: 'polygon', count: 6, width: 60, height: 60 })
+    expect(r.avisos.join(' ')).not.toContain('Contorno em texto')
   })
 })

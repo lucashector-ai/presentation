@@ -1,7 +1,8 @@
 'use client'
 /** Propriedades da tela atual (nada selecionado), no mesmo visual do painel Design. */
 import { Minus, TriangleAlert, CircleCheck } from 'lucide-react'
-import { FORMATOS, type Cena, type Transicao } from '@/lib/scene/schema'
+import { FORMATOS, type Cena, type Tamanho, type Transicao } from '@/lib/scene/schema'
+import { converterFormato } from '@/lib/scene/restricoes'
 import type { Editor } from '@/lib/editor/useEditor'
 import type { AssetDemo } from '@/lib/demo/tipos'
 import { cx } from '@/components/ui'
@@ -25,7 +26,9 @@ export function InspetorTela({ editor, assets }: { editor: Editor; assets: Asset
     if (p.tipo === 'solido') set({ background: p.cor, backgroundGradient: undefined })
     else if (p.tipo === 'gradiente') set({ backgroundGradient: p.gradiente })
   }
-  const tamanho = (w: number, h: number) => set({ size: { width: Math.round(Math.max(16, Math.min(8192, w))), height: Math.round(Math.max(16, Math.min(8192, h))) } })
+  /** Novo tamanho: camadas com restrições acompanham a tela (as demais ficam onde estão, como antes). */
+  const redimensionar = (size: Tamanho) => acoes.transformarCena((c) => ({ ...c, size, layers: c.layers.some((l) => l.constraints) ? converterFormato(c.layers, c.size, size, 'manter') : c.layers }), historico())
+  const tamanho = (w: number, h: number) => redimensionar({ width: Math.round(Math.max(16, Math.min(8192, w))), height: Math.round(Math.max(16, Math.min(8192, h))) })
   return (
     <div className="pb-6">
       <div className="border-b border-borda px-3 pb-2 pt-3">
@@ -34,7 +37,7 @@ export function InspetorTela({ editor, assets }: { editor: Editor; assets: Asset
       </div>
 
       <Secao titulo="Formato">
-        <SeletorLista rotulo="Formato da tela" valor={formato} aoMudar={(v) => { const f = FORMATOS[v as keyof typeof FORMATOS]; if (f) set({ size: f }) }} opcoes={[...Object.entries(FORMATOS).map(([id, s]) => ({ id, rotulo: `${NOMES_FORMATO[id]} · ${s.width}×${s.height}` })), ...(formato === 'personalizado' ? [{ id: 'personalizado', rotulo: `Personalizado · ${cena.size.width}×${cena.size.height}` }] : [])]} />
+        <SeletorLista rotulo="Formato da tela" valor={formato} aoMudar={(v) => { const f = FORMATOS[v as keyof typeof FORMATOS]; if (f) redimensionar({ ...f }) }} opcoes={[...Object.entries(FORMATOS).map(([id, s]) => ({ id, rotulo: `${NOMES_FORMATO[id]} · ${s.width}×${s.height}` })), ...(formato === 'personalizado' ? [{ id: 'personalizado', rotulo: `Personalizado · ${cena.size.width}×${cena.size.height}` }] : [])]} />
         <div className="grid grid-cols-[1fr_1fr_32px] gap-2">
           <CampoNum prefixo="W" rotulo="Largura da tela" valor={cena.size.width} min={16} max={8192} aoMudar={(w) => tamanho(w, cena.size.height)} />
           <CampoNum prefixo="H" rotulo="Altura da tela" valor={cena.size.height} min={16} max={8192} aoMudar={(h) => tamanho(cena.size.width, h)} />

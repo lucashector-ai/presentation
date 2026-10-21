@@ -12,6 +12,7 @@ import { alinhar as alinharRects, envolvente, enquadrarNaCena, type Alinhamento 
 import { comDescendentes, ehFrame, filhosDe, mapaDe, paiDe, raizesDaSelecao } from '@/lib/scene/arvore'
 import { LAYOUT_PADRAO, inferirLayout, inserirNoFrame as inserirNoFrameFn, moverNaLista as moverNaListaFn, resolverCamadas, type OpcoesResolver } from './autolayout'
 import { distribuir as distribuirRects } from './guias'
+import { criarMascara, ehMascara, removerMascara } from '@/lib/scene/mascara'
 import { ErroDemo, salvarDocumento, obterProjeto, mapaAssets } from '@/lib/demo/store'
 import type { AssetDemo } from '@/lib/demo/tipos'
 
@@ -522,6 +523,24 @@ export function useEditor(projetoId: string) {
         const l = c?.layers.find((x) => x.id === id)
         const p = c && l ? paiDe(l, mapaDe(c.layers)) : undefined
         if (p) dispatch({ tipo: 'selecionar', ids: [p.id] })
+      },
+      /**
+       * ⌃⌘M (como no Figma): a camada de baixo da seleção vira máscara das demais; se a seleção já tem
+       * máscara, remove. Devolve 'criada' | 'removida' | null (seleção sem forma que sirva de máscara).
+       */
+      alternarMascara: (ids: string[]): 'criada' | 'removida' | null => {
+        const c = cenaAtualRef()
+        if (!c || !ids.length) return null
+        const sel = c.layers.filter((l) => ids.includes(l.id))
+        if (sel.some((l) => ehMascara(l) || l.maskId)) {
+          atualizarCenaAtual((cc) => ({ ...cc, layers: removerMascara(cc.layers, ids) }))
+          return 'removida'
+        }
+        const raizes = raizesDaSelecao(ids, c.layers)
+        const r = criarMascara(c.layers, raizes, comDescendentes(raizes, c.layers), novoId('grupo', c.layers))
+        if (!r) return null
+        atualizarCenaAtual((cc) => ({ ...cc, layers: r }))
+        return 'criada'
       },
       inverter: (ids: string[], eixo: 'x' | 'y') => atualizarCenaAtual((c) => ({ ...c, layers: c.layers.map((l) => (ids.includes(l.id) ? (eixo === 'x' ? { ...l, flipX: !l.flipX } : { ...l, flipY: !l.flipY }) : l)) })),
 

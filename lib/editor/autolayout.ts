@@ -18,6 +18,7 @@
 import type { AutoLayout, Camada, CamadaFrame, Dimensionamento } from '@/lib/scene/schema'
 import type { Retangulo } from '@/lib/scene/transform'
 import { ancestrais, descendentes, filhosDe, mapaDe, normalizarArvore, paiDe, temAutoLayout } from '@/lib/scene/arvore'
+import { propagarRestricoes } from '@/lib/scene/restricoes'
 
 type Caixa = Retangulo
 type Tam = { width: number; height: number }
@@ -255,7 +256,112 @@ export function resolverCamadas(antes: readonly Camada[], depois: readonly Camad
   }
   if (!comFrames) return mudou ? lista : (depois as Camada[])
 
+  // 3. restrições (constraints) dos filhos de frames livres que mudaram de tamanho
+  lista = propagarRestricoes(antes, lista)
+
   return calcularLayout(normalizarArvore(lista))
+}
+
+// ---------- teclado: reordenar no fluxo (setas) ----------
+
+/**
+ * Seta que reordena um filho de auto layout (como no Figma): ← → no horizontal, ↑ ↓ no vertical; na quebra
+ * (wrap) as quatro setas andam pela ordem (← ↑ = anterior, → ↓ = próximo). 0 = a seta não reordena neste eixo.
+ */
+export function passoDaSeta(direcao: AutoLayout['direction'], tecla: string): -1 | 0 | 1 {
+  const ant = direcao === 'wrap' ? tecla === 'ArrowLeft' || tecla === 'ArrowUp' : direcao === 'horizontal' ? tecla === 'ArrowLeft' : tecla === 'ArrowUp'
+  const prox = direcao === 'wrap' ? tecla === 'ArrowRight' || tecla === 'ArrowDown' : direcao === 'horizontal' ? tecla === 'ArrowRight' : tecla === 'ArrowDown'
+  return ant ? -1 : prox ? 1 : 0
+}
+
+/**
+ * Move as camadas `ids` (irmãs no mesmo frame com auto layout) uma posição no fluxo (−1 = anterior, +1 = próximo).
+ * Itens ocultos/absolutos não contam como posição. Bloco selecionado anda junto; nas pontas nada muda
+ * (devolve a mesma lista).
+ */
+export function moverNoFluxo(camadas: readonly Camada[], ids: readonly string[], passo: -1 | 1): Camada[] {
+  const mapa = mapaDe(camadas)
+  const primeiro = mapa.get(ids[0] ?? '')
+  const pai = primeiro ? paiDe(primeiro, mapa) : undefined
+  if (!pai || !temAutoLayout(pai)) return camadas as Camada[]
+  const todos = filhosDe(pai.id, camadas)
+  const noFluxo = todos.filter((c) => !c.hidden && !c.absolute)
+  const sel = new Set(ids.filter((id) => noFluxo.some((c) => c.id === id)))
+  if (!sel.size || ids.some((id) => mapa.get(id)?.parentId !== pai.id)) return camadas as Camada[]
+  const ordem = [...noFluxo]
+  // nas pontas o bloco não sai do lugar
+  if (passo > 0 ? sel.has(ordem[ordem.length - 1]!.id) : sel.has(ordem[0]!.id)) return camadas as Camada[]
+  if (passo > 0) {
+    for (let k = ordem.length - 2; k >= 0; k--) if (sel.has(ordem[k]!.id) && !sel.has(ordem[k + 1]!.id)) [ordem[k], ordem[k + 1]] = [ordem[k + 1]!, ordem[k]!]
+  } else {
+    for (let k = 1; k < ordem.length; k++) if (sel.has(ordem[k]!.id) && !sel.has(ordem[k - 1]!.id)) [ordem[k], ordem[k - 1]] = [ordem[k - 1]!, ordem[k]!]
+  }
+  // devolve os itens do fluxo às posições do fluxo entre todos os irmãos (ocultos/absolutos ficam onde estão)
+  let i = 0
+  const nova = todos.map((c) => (c.hidden || c.absolute ? c : ordem[i++]!))
+  const zs = new Map(nova.map((c, k) => [c.id, k]))
+  const r = camadas.map((c) => (zs.has(c.id) && zs.get(c.id) !== c.z ? ({ ...c, z: zs.get(c.id)! } as Camada) : c))
+  return normalizarArvore(r)
+}
+
+// ---------- áreas de espaço (destaque rosa ao passar o mouse nos campos) ----------
+
+export type TipoEspaco = 'gap' | 'rowGap' | 'padding' | 'paddingH' | 'paddingV' | 'top' | 'right' | 'bottom' | 'left'
+
+/** Retângulos (coordenadas da cena) do espaço entre itens ou do padding do frame, como o destaque do Figma. */
+export function areasDeEspaco(frame: CamadaFrame, camadas: readonly Camada[], tipo: TipoEspaco): Retangulo[] {
+  const L = { ...LAYOUT_PADRAO, ...frame.layout }
+  const p = L.padding
+  const { x, y, width: w, height: h } = frame
+  const dentro = { x: x + p.left, y: y + p.top, width: Math.max(0, w - p.left - p.right), height: Math.max(0, h - p.top - p.bottom) }
+  const lado = {
+    top: { x, y, width: w, height: p.top },
+    bottom: { x, y: y + h - p.bottom, width: w, height: p.bottom },
+    left: { x, y: y + p.top, width: p.left, height: Math.max(0, h - p.top - p.bottom) },
+    right: { x: x + w - p.right, y: y + p.top, width: p.right, height: Math.max(0, h - p.top - p.bottom) },
+  }
+  const validos = (rs: Retangulo[]) => rs.filter((r) => r.width > 0.5 && r.height > 0.5)
+  if (tipo === 'top' || tipo === 'right' || tipo === 'bottom' || tipo === 'left') return validos([lado[tipo]])
+  if (tipo === 'padding') return validos([lado.top, lado.right, lado.bottom, lado.left])
+  if (tipo === 'paddingH') return validos([lado.left, lado.right])
+  if (tipo === 'paddingV') return validos([lado.top, lado.bottom])
+  const itens = filhosNoFluxo(frame.id, camadas)
+  const r: Retangulo[] = []
+  if (L.direction === 'vertical') {
+    for (let k = 1; k < itens.length; k++) {
+      const a = itens[k - 1]!
+      const b = itens[k]!
+      if (tipo === 'gap') r.push({ x: dentro.x, y: a.y + a.height, width: dentro.width, height: b.y - (a.y + a.height) })
+    }
+    return validos(r)
+  }
+  // horizontal e wrap: linhas pela posição y
+  // na quebra, uma linha nova começa quando o item volta para a esquerda
+  const linhas: Camada[][] = []
+  for (const c of itens) {
+    const ult = linhas[linhas.length - 1]
+    const anterior = ult?.[ult.length - 1]
+    if (ult && anterior && (L.direction !== 'wrap' || c.x > anterior.x)) ult.push(c)
+    else linhas.push([c])
+  }
+  if (tipo === 'gap') {
+    for (const linha of linhas) {
+      const topo = L.direction === 'wrap' ? Math.min(...linha.map((c) => c.y)) : dentro.y
+      const alt = L.direction === 'wrap' ? Math.max(...linha.map((c) => c.y + c.height)) - topo : dentro.height
+      for (let k = 1; k < linha.length; k++) {
+        const a = linha[k - 1]!
+        const b = linha[k]!
+        r.push({ x: a.x + a.width, y: topo, width: b.x - (a.x + a.width), height: alt })
+      }
+    }
+  } else if (tipo === 'rowGap' && L.direction === 'wrap') {
+    for (let k = 1; k < linhas.length; k++) {
+      const fimA = Math.max(...linhas[k - 1]!.map((c) => c.y + c.height))
+      const iniB = Math.min(...linhas[k]!.map((c) => c.y))
+      r.push({ x: dentro.x, y: fimA, width: dentro.width, height: iniB - fimA })
+    }
+  }
+  return validos(r)
 }
 
 // ---------- reordenação e inserção ----------

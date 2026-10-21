@@ -145,6 +145,8 @@ export interface NodeChange {
   rectangleBottomLeftCornerRadius?: number
   rectangleBottomRightCornerRadius?: number
   rectangleCornerRadiiIndependent?: boolean
+  /** Suavização dos cantos (0–1). */
+  cornerSmoothing?: number
   // frames
   frameMaskDisabled?: boolean
   resizeToFit?: boolean

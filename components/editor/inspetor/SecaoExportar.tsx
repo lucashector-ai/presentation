@@ -1,6 +1,8 @@
 'use client'
 /** Exportar (recolhida com "+"): PNG/JPG da seleção em 1×–3×, copiar CSS, baixar o vetor ou o arquivo original. */
 import { useState } from 'react'
+import { tracosVisiveis } from '@/lib/scene/tracos'
+import { desfoqueDe, vidroDe } from '@/lib/scene/efeitos'
 import { Clipboard, Download, Loader2 } from 'lucide-react'
 import { ESCALAS, type FormatoImagem } from '@/lib/exportar/medidas'
 import { useExportar } from '../useExportar'
@@ -23,9 +25,16 @@ export function cssDaCamada(c: Camada): string {
   else if ('radius' in c && c.radius) linhas.push(`border-radius: ${c.radius}px;`)
   if (c.type === 'shape') {
     linhas.push(c.gradient ? `background: ${gradienteCss(c.gradient)};` : `background: ${c.fill};`)
-    if (c.stroke && c.strokeWidth) linhas.push(`border: ${c.strokeWidth}px ${c.dash ? 'dashed' : 'solid'} ${c.stroke};`)
     if (c.shape === 'ellipse') linhas.push('border-radius: 50%;')
   }
+  // traço de cima (como o Figma no CSS): dentro/centro = border, fora = outline
+  const t = tracosVisiveis(c)[0]
+  if (t && c.type !== 'text') {
+    const estilo = t.style === 'solid' ? 'solid' : t.style
+    if (t.sides) linhas.push(`border-style: ${estilo};`, `border-color: ${t.color};`, `border-width: ${t.sides.top}px ${t.sides.right}px ${t.sides.bottom}px ${t.sides.left}px;`)
+    else if (t.position === 'outside') linhas.push(`outline: ${t.weight}px ${estilo} ${t.color};`)
+    else linhas.push(`border: ${t.weight}px ${estilo} ${t.color};`)
+  } else if (t) linhas.push(`-webkit-text-stroke: ${t.weight}px ${t.color};`)
   if (c.type === 'text') {
     linhas.push(`font-family: ${pilhaFonte(c.fontFamily).replace(/var\(--font-geist-sans\)/, 'Geist').replace(/var\(--font-geist-mono\)/, '"Geist Mono"')};`, `font-size: ${c.fontSize}px;`, `font-weight: ${c.fontWeight};`, `line-height: ${c.lineHeight};`)
     if (c.letterSpacing) linhas.push(`letter-spacing: ${c.letterSpacing}px;`)
@@ -40,8 +49,8 @@ export function cssDaCamada(c: Camada): string {
   }
   const sombra = sombraCss(c.effects)
   if (sombra) linhas.push(`box-shadow: ${sombra};`)
-  if (c.effects?.blur) linhas.push(`filter: blur(${c.effects.blur}px);`)
-  if (c.effects?.backdropBlur) linhas.push(`backdrop-filter: blur(${c.effects.backdropBlur}px);`)
+  if (desfoqueDe(c.effects)) linhas.push(`filter: blur(${desfoqueDe(c.effects)}px);`)
+  if (vidroDe(c.effects)) linhas.push(`backdrop-filter: blur(${vidroDe(c.effects)}px);`)
   if (c.effects?.blend && c.effects.blend !== 'normal') linhas.push(`mix-blend-mode: ${c.effects.blend};`)
   return `/* ${c.name || c.id} */\n${linhas.join('\n')}`
 }

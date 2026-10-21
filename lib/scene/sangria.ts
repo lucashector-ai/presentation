@@ -5,6 +5,7 @@
  * borda da tela, como numa arte com sangria. Texto, vetores e formas não retangulares nunca são esticados.
  */
 import type { Camada } from './schema'
+import { temTraco } from './tracos'
 
 /** Área extra disponível em cada lado, em unidades da cena (px do projeto). */
 export interface Sangria {
@@ -18,13 +19,14 @@ export interface Sangria {
 const TOLERANCIA = 1
 
 function esticavel(c: Camada): boolean {
-  if (c.parentId || c.hidden || Math.abs(c.rotation % 360) > 0.01) return false
+  if (c.parentId || c.hidden || c.maskId || Math.abs(c.rotation % 360) > 0.01) return false
+  if (c.type === 'shape' && c.isMask) return false
   if (c.flipX || c.flipY) return c.type === 'shape' || c.type === 'frame'
   switch (c.type) {
     case 'shape':
-      return c.shape === 'rect' && !c.radius && !c.strokeWidth
+      return c.shape === 'rect' && !c.radius && !temTraco(c)
     case 'frame':
-      return !c.radius && !c.strokeWidth
+      return !c.radius && !temTraco(c)
     case 'image':
       // sem recorte manual e sem máscara: com "cover" a foto só ganha mais área visível
       return c.fit === 'cover' && !c.crop && !c.radius && (c.mask ?? 'none') === 'none'

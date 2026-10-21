@@ -7,6 +7,8 @@ import { useEditor } from '@/lib/editor/useEditor'
 import { deslocarComGrade } from '@/lib/editor/guias'
 import { atalhoFigma, opacidadePorDigito, type MemoriaDigito } from '@/lib/editor/atalhos'
 import { envolvente } from '@/lib/scene/transform'
+import { mapaDe, paiDe, temAutoLayout } from '@/lib/scene/arvore'
+import { moverNoFluxo, passoDaSeta } from '@/lib/editor/autolayout'
 import { importarArquivos, importarConteudo, type Avisar } from '@/lib/editor/importar'
 import { lerDataTransfer, serializarCamadas } from '@/lib/importar/clipboard'
 import { EXTENSOES_ACEITAS } from '@/lib/importar/arquivos'
@@ -223,6 +225,13 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
       if (mod && (e.code === 'BracketRight' || e.code === 'BracketLeft') && sel[0]) { e.preventDefault(); const f = e.code === 'BracketRight'; acoes.ordem(sel[0], e.altKey ? (f ? 'frente' : 'tras') : f ? 'avancar' : 'recuar'); return }
       if (mod && e.shiftKey && k === 'c') { e.preventDefault(); window.dispatchEvent(new Event('mostra:copiar-png')); return }
       if (mod && k === '0') { e.preventDefault(); acoes.setZoom(1); return }
+      // ⌃⌘M (Mac) / Ctrl+Alt+M: usar como máscara / remover máscara (como no Figma)
+      if (e.code === 'KeyM' && e.ctrlKey && (e.metaKey || e.altKey) && sel.length) {
+        e.preventDefault()
+        const r = acoes.alternarMascara(sel)
+        mostrar(r === 'criada' ? 'Máscara criada: a forma de baixo recorta as outras camadas.' : r === 'removida' ? 'Máscara removida.' : 'Selecione uma forma e as camadas a recortar.')
+        return
+      }
       if (mod) return
       // auto layout e grade (atalhos do Figma)
       if (e.shiftKey && e.altKey && e.code === 'KeyA') { e.preventDefault(); camadasSelecionadas.filter((l) => l.type === 'frame').forEach((l) => acoes.removerAutoLayout(l.id)); return }
@@ -252,6 +261,15 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
           if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { const prox = estado.documento.scenes[editor.indiceCena + 1]; if (prox) acoes.irParaCena(prox.id) }
           else { const ant = estado.documento.scenes[editor.indiceCena - 1]; if (ant) acoes.irParaCena(ant.id) }
           return
+        }
+        // filho de auto layout: a seta na direção do fluxo troca a ordem entre os irmãos (como no Figma)
+        if (cena && camadasSelecionadas.length) {
+          const pai = paiDe(camadasSelecionadas[0]!, mapaDe(cena.layers))
+          if (pai?.type === 'frame' && temAutoLayout(pai) && camadasSelecionadas.every((l) => l.parentId === pai.id && !l.absolute)) {
+            const passo = passoDaSeta(pai.layout!.direction, e.key)
+            if (passo) acoes.transformarCena((c) => { const r = moverNoFluxo(c.layers, sel, passo); return r === c.layers ? c : { ...c, layers: r } })
+            return
+          }
         }
         // 1 px (Shift = 10 px) em pixels inteiros; com a grade ligada, vai para a próxima linha da grade
         const p = e.shiftKey ? 10 : 1
