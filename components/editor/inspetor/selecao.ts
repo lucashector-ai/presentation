@@ -1,6 +1,6 @@
 'use client'
 /** Ajudantes das seções do painel Design: valores comuns da seleção ("Misto") e gravação com histórico. */
-import { Box, Code2, Crosshair, Image as ImageIcon, PenTool, Sparkles, Square, Type, Video } from 'lucide-react'
+import { Box, Code2, Crosshair, Frame, Image as ImageIcon, PenTool, Sparkles, Square, Type, Video } from 'lucide-react'
 import type { Camada } from '@/lib/scene/schema'
 import type { Editor } from '@/lib/editor/useEditor'
 import type { AssetDemo } from '@/lib/demo/tipos'
@@ -10,8 +10,8 @@ import { useHistorico } from './contexto'
 /** Props comuns das seções do painel Design (`<SecaoX editor={editor} />`). */
 export interface PropsSecao { editor: Editor; assets?: AssetDemo[] }
 
-export const ICONE_TIPO: Record<Camada['type'], typeof Type> = { text: Type, shape: Square, image: ImageIcon, video: Video, hotspot: Crosshair, svg: PenTool, model3d: Box, lottie: Sparkles, embed: Code2 }
-export const NOME_TIPO: Record<Camada['type'], string> = { text: 'Texto', shape: 'Forma', image: 'Imagem', video: 'Vídeo', hotspot: 'Hotspot', svg: 'Vetor (SVG)', model3d: 'Modelo 3D', lottie: 'Animação Lottie', embed: 'Incorporado' }
+export const ICONE_TIPO: Record<Camada['type'], typeof Type> = { text: Type, shape: Square, image: ImageIcon, video: Video, hotspot: Crosshair, svg: PenTool, model3d: Box, lottie: Sparkles, embed: Code2, frame: Frame }
+export const NOME_TIPO: Record<Camada['type'], string> = { text: 'Texto', shape: 'Forma', image: 'Imagem', video: 'Vídeo', hotspot: 'Hotspot', svg: 'Vetor (SVG)', model3d: 'Modelo 3D', lottie: 'Animação Lottie', embed: 'Incorporado', frame: 'Frame' }
 export const NOME_FORMA: Record<string, string> = { rect: 'Retângulo', ellipse: 'Elipse', triangle: 'Triângulo', semicircle: 'Semicírculo', line: 'Linha', star: 'Estrela', arrow: 'Seta' }
 
 /** Valor igual em toda a seleção, ou MISTO. */

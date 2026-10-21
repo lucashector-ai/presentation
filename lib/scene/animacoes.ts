@@ -339,7 +339,7 @@ export function escalonar(camadas: Camada[], base: number, intervalo: number, or
 export function nomeCamada(c: Camada): string {
   if (c.name?.trim()) return c.name.trim()
   if (c.type === 'text') return c.text.trim().slice(0, 40) || 'Texto'
-  const nomes: Record<Camada['type'], string> = { text: 'Texto', image: 'Imagem', video: 'Vídeo', shape: 'Forma', hotspot: 'Hotspot', svg: 'Vetor', model3d: 'Modelo 3D', lottie: 'Lottie', embed: 'Incorporado' }
+  const nomes: Record<Camada['type'], string> = { text: 'Texto', image: 'Imagem', video: 'Vídeo', shape: 'Forma', hotspot: 'Hotspot', svg: 'Vetor', model3d: 'Modelo 3D', lottie: 'Lottie', embed: 'Incorporado', frame: 'Frame' }
   return nomes[c.type]
 }
 

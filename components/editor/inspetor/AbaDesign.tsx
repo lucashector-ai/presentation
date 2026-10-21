@@ -9,6 +9,7 @@ import type { AssetDemo } from '@/lib/demo/tipos'
 import { CabecalhoCamada } from './CabecalhoCamada'
 import { SecaoPosicao } from './SecaoPosicao'
 import { SecaoLayout } from './SecaoLayout'
+import { SecaoAutoLayout } from './SecaoAutoLayout'
 import { SecaoAparencia } from './SecaoAparencia'
 import { SecoesDoTipo } from './SecoesTipo'
 import { SecaoPreenchimento, SecaoTraco } from './SecaoPreenchimento'
@@ -27,6 +28,7 @@ export function AbaDesign({ editor, assets }: { editor: Editor; assets: AssetDem
       <CabecalhoCamada {...p} />
       <SecaoPosicao {...p} />
       <SecaoLayout {...p} />
+      <SecaoAutoLayout {...p} />
       <SecaoAparencia {...p} />
       <SecoesDoTipo {...p} />
       <SecaoPreenchimento {...p} />

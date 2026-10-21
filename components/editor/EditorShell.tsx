@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronDown, ChevronLeft, ChevronRight, CloudOff, Crosshair, Eye, Hand, Image as ImageIcon, Keyboard, Loader2, MonitorPlay, MousePointer2, Play, Redo2, Square, Type, Undo2, TriangleAlert, Grid3X3, Magnet, Box } from 'lucide-react'
 import { useEditor, type Ferramenta } from '@/lib/editor/useEditor'
+import { deslocarComGrade } from '@/lib/editor/guias'
+import { envolvente } from '@/lib/scene/transform'
 import { importarArquivos, importarConteudo, type Avisar } from '@/lib/editor/importar'
 import { lerDataTransfer, serializarCamadas } from '@/lib/importar/clipboard'
 import { EXTENSOES_ACEITAS } from '@/lib/importar/arquivos'
@@ -23,10 +25,12 @@ const ATALHOS: [string, string][] = [
   ['V', 'Mover / selecionar'], ['T', 'Texto'], ['R', 'Forma'], ['H', 'Hotspot'], ['Espaço + arrastar', 'Mão (pan)'],
   ['Ctrl/⌘ + roda', 'Zoom no cursor'], ['Shift + 1', 'Ajustar à tela'], ['Ctrl/⌘ + 0', 'Zoom 100%'], ['+ / −', 'Zoom'],
   ['Ctrl/⌘ + C / X / V', 'Copiar, recortar, colar (também do Figma e Illustrator)'], ['Ctrl/⌘ + D', 'Duplicar'], ['Delete', 'Excluir'],
-  ['Ctrl/⌘ + G', 'Agrupar'], ['Ctrl/⌘ + Shift + G', 'Desagrupar'], ['Ctrl/⌘ + Alt + C / V', 'Copiar / colar estilo'],
+  ['Ctrl/⌘ + G', 'Agrupar'], ['Ctrl/⌘ + Shift + G', 'Desagrupar / desfazer frame'], ['Ctrl/⌘ + Alt + G', 'Envolver em frame'], ['Shift + A', 'Adicionar auto layout'], ['Shift + Alt + A', 'Remover auto layout'],
+  ['Enter', 'Editar texto / selecionar filhos'], ['Shift + Enter', 'Selecionar frame pai'], ['Ctrl/⌘ + clique', 'Selecionar camada dentro do frame'], ['Ctrl/⌘ + Alt + C / V', 'Copiar / colar estilo'],
   [']  /  [', 'Trazer para frente / enviar para trás'], ['Setas', 'Mover 1 px (Shift = 10 px)'], ['Ctrl/⌘ + A', 'Selecionar tudo'],
   ['Ctrl/⌘ + Z', 'Desfazer'], ['Ctrl/⌘ + Shift + Z', 'Refazer'], ['Ctrl/⌘ + L', 'Travar / destravar'], ['Ctrl/⌘ + Shift + H', 'Ocultar / mostrar'],
-  ['Alt + arrastar', 'Mover sem guias'], ['Shift + arrastar', 'Travar eixo / proporção'], ['← →', 'Telas (sem seleção)'], ['P', 'Pré-visualizar'], ['?', 'Esta lista'],
+  ['Ctrl/⌘ + arrastar', 'Mover / redimensionar sem encaixe'], ['Alt (segurar)', 'Medir distâncias até a camada sob o cursor'], ['Alt + alça', 'Redimensionar a partir do centro'], ['Shift + arrastar', 'Travar eixo / proporção'],
+  ["Shift + '", 'Grade (encaixe na grade)'], ['T + clique', 'Texto com largura automática (arraste = largura fixa)'], ['← →', 'Telas (sem seleção)'], ['P', 'Pré-visualizar'], ['?', 'Esta lista'],
 ]
 
 export function EditorShell({ projetoId }: { projetoId: string }) {
@@ -137,12 +141,25 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
       if (mod && e.altKey && k === 'c' && camadasSelecionadas[0]) { e.preventDefault(); acoes.copiarEstilo(camadasSelecionadas[0]); mostrar('Estilo copiado.'); return }
       if (mod && e.altKey && k === 'v') { e.preventDefault(); acoes.colarEstilo(sel); return }
       if (mod && k === 'd' && sel.length) { e.preventDefault(); acoes.duplicarCamadas(sel); return }
+      if (mod && e.altKey && e.code === 'KeyG' && sel.length) { e.preventDefault(); acoes.emoldurar(sel); return }
       if (mod && k === 'g') { e.preventDefault(); if (e.shiftKey) acoes.desagrupar(sel); else acoes.agrupar(sel); return }
       if (mod && k === 'a' && cena) { e.preventDefault(); acoes.selecionarExato(cena.layers.filter((l) => !l.locked && !l.hidden).map((l) => l.id)); return }
       if (mod && k === 'l' && sel.length) { e.preventDefault(); acoes.atualizarCamadas(sel, (l) => ({ ...l, locked: !l.locked })); return }
       if (mod && e.shiftKey && k === 'h' && sel.length) { e.preventDefault(); acoes.atualizarCamadas(sel, (l) => ({ ...l, hidden: !l.hidden })); return }
       if (mod && k === '0') { e.preventDefault(); acoes.setZoom(1); return }
       if (mod) return
+      // auto layout e grade (atalhos do Figma)
+      if (e.shiftKey && e.altKey && e.code === 'KeyA') { e.preventDefault(); camadasSelecionadas.filter((l) => l.type === 'frame').forEach((l) => acoes.removerAutoLayout(l.id)); return }
+      if (e.shiftKey && !e.altKey && e.code === 'KeyA' && sel.length) { e.preventDefault(); acoes.adicionarAutoLayout(sel); return }
+      if (e.shiftKey && e.code === 'Quote') { e.preventDefault(); acoes.ui({ grade: !estado.grade }); return }
+      if (e.key === 'Enter' && camadasSelecionadas.length === 1) {
+        const l = camadasSelecionadas[0]!
+        e.preventDefault()
+        if (e.shiftKey) acoes.selecionarPai(l.id)
+        else if (l.type === 'text' && !l.locked) window.dispatchEvent(new CustomEvent('mostra:editar-texto', { detail: { id: l.id } }))
+        else if (l.type === 'frame') acoes.selecionarFilhos(l.id)
+        return
+      }
       if ((e.key === 'Delete' || e.key === 'Backspace') && sel.length) { e.preventDefault(); acoes.removerCamadas(sel); return }
       if (e.key === 'Escape') { acoes.selecionarExato([]); acoes.setFerramenta('mover'); setMenu(null); return }
       if (e.key === '?' ) { setAtalhos(true); return }
@@ -158,8 +175,16 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
           else { const ant = estado.documento.scenes[editor.indiceCena - 1]; if (ant) acoes.irParaCena(ant.id) }
           return
         }
+        // 1 px (Shift = 10 px) em pixels inteiros; com a grade ligada, vai para a próxima linha da grade
         const p = e.shiftKey ? 10 : 1
-        acoes.deslocar(sel, e.key === 'ArrowLeft' ? -p : e.key === 'ArrowRight' ? p : 0, e.key === 'ArrowUp' ? -p : e.key === 'ArrowDown' ? p : 0)
+        const g = estado.grade ? estado.gradePasso : 0
+        const caixa = camadasSelecionadas.length ? envolvente(camadasSelecionadas) : { x: 0, y: 0, width: 0, height: 0 }
+        const sx = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0
+        const sy = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0
+        const dx = sx ? deslocarComGrade(caixa.x, sx, p, g) - caixa.x : 0
+        const dy = sy ? deslocarComGrade(caixa.y, sy, p, g) - caixa.y : 0
+        acoes.deslocar(sel, dx, dy)
+        window.dispatchEvent(new Event('mostra:empurrou'))
         return
       }
       const ferr: Record<string, Ferramenta> = { v: 'mover', t: 'texto', r: 'forma', h: 'hotspot' }
@@ -168,7 +193,7 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
     }
     window.addEventListener('keydown', tecla)
     return () => window.removeEventListener('keydown', tecla)
-  }, [acoes, sel, cena, preview, escala, estado.documento.scenes, editor.indiceCena, camadasSelecionadas, mostrar])
+  }, [acoes, sel, cena, preview, escala, estado.documento.scenes, estado.grade, estado.gradePasso, editor.indiceCena, camadasSelecionadas, mostrar])
 
   if (!editor.existe || !projeto) {
     return <div className="flex h-dvh items-center justify-center p-6 text-center text-sm text-texto2">Projeto não encontrado. <Link className="ml-1 underline" href="/app">Voltar ao painel</Link></div>
@@ -256,7 +281,13 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
         <button aria-label="Aumentar zoom" className="rounded px-2 py-1 hover:bg-hover hover:text-texto" onClick={() => acoes.setZoom(Math.min(8, escala * 1.2))}>+</button>
         <button className="rounded px-2 py-1 hover:bg-hover hover:text-texto" onClick={acoes.ajustar}>Ajustar</button>
         <span className="mx-1 h-4 w-px bg-borda" />
-        <BotaoIcone rotulo="Grade" ativo={estado.grade} className="h-6 w-6" onClick={() => acoes.ui({ grade: !estado.grade })}><Grid3X3 className="h-3.5 w-3.5" /></BotaoIcone>
+        <BotaoIcone rotulo="Grade (Shift + ')" ativo={estado.grade} className="h-6 w-6" onClick={() => acoes.ui({ grade: !estado.grade })}><Grid3X3 className="h-3.5 w-3.5" /></BotaoIcone>
+        {estado.grade && (
+          <label className="flex items-center gap-1 rounded px-1 text-texto2" title="Tamanho da grade (posição e tamanho arredondam para ela)">
+            <input aria-label="Tamanho da grade" type="number" min={1} max={200} value={estado.gradePasso} onChange={(e) => { const v = Math.round(Number(e.target.value)); if (v >= 1 && v <= 200) acoes.ui({ gradePasso: v }) }} onKeyDown={(e) => e.stopPropagation()} className="mono h-5 w-9 rounded bg-superficie2 px-1 text-right text-[11px] text-texto outline-none focus:ring-1 focus:ring-acento" />
+            <span className="text-[11px]">px</span>
+          </label>
+        )}
         <BotaoIcone rotulo="Guias inteligentes" ativo={estado.snap} className="h-6 w-6" onClick={() => acoes.ui({ snap: !estado.snap })}><Magnet className="h-3.5 w-3.5" /></BotaoIcone>
         <BotaoIcone rotulo="Interagir com 3D e incorporados no canvas" ativo={interagir3d} className="h-6 w-6" onClick={() => setInteragir3d((v) => !v)}><Box className="h-3.5 w-3.5" /></BotaoIcone>
         <span className="flex-1" />

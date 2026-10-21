@@ -110,6 +110,25 @@ function validarCena(
       add({ gravidade: 'aviso', codigo: 'modelo_sem_poster', mensagem: 'Modelo 3D sem imagem de capa: o convidado verá um espaço vazio enquanto carrega', ...ctx })
     }
 
+    // frames: pai precisa existir, ser frame e não formar ciclo
+    if (camada.parentId) {
+      const pai = idsCamada.get(camada.parentId)
+      if (!pai) add({ gravidade: 'aviso', codigo: 'pai_inexistente', mensagem: 'Camada aponta para um frame que não existe (será tratada como solta)', ...ctx })
+      else if (pai.type !== 'frame') add({ gravidade: 'erro', codigo: 'pai_nao_e_frame', mensagem: 'Só frames podem conter outras camadas', ...ctx })
+      else {
+        const vistos = new Set([camada.id])
+        let p: Camada | undefined = pai
+        while (p) {
+          if (vistos.has(p.id)) { add({ gravidade: 'erro', codigo: 'ciclo_de_frames', mensagem: 'Frames aninhados formam um ciclo', ...ctx }); break }
+          vistos.add(p.id)
+          p = p.parentId ? idsCamada.get(p.parentId) : undefined
+        }
+      }
+    }
+    if ((camada.sizingW === 'fill' || camada.sizingH === 'fill') && !(camada.parentId && idsCamada.get(camada.parentId)?.type === 'frame' && (idsCamada.get(camada.parentId) as { layout?: unknown }).layout)) {
+      add({ gravidade: 'aviso', codigo: 'fill_sem_auto_layout', mensagem: '“Preencher” só vale dentro de um frame com auto layout (fica fixo)', ...ctx })
+    }
+
     // hotspot sem interação é inútil
     if (camada.type === 'hotspot' && camada.interactions.length === 0) {
       add({ gravidade: 'aviso', codigo: 'hotspot_sem_acao', mensagem: 'Hotspot sem ação configurada', ...ctx })

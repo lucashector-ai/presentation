@@ -5,10 +5,12 @@
  * locais e mostra conflito; desfazer/refazer por comandos na sessão (gestos contínuos viram uma entrada).
  */
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
-import { FORMATOS, novaCena, parseCamada, type Camada, type Cena, type DocumentoProjeto, type Interacao } from '@/lib/scene/schema'
+import { FORMATOS, novaCena, parseCamada, type AutoLayout, type Camada, type CamadaFrame, type Cena, type DocumentoProjeto, type Interacao } from '@/lib/scene/schema'
 import { validarDocumento, type ResultadoValidacao } from '@/lib/scene/validate'
 import { moverCena, normalizarZ, novoId, trazerParaFrente, enviarParaTras, avancarUm, recuarUm } from '@/lib/scene/order'
-import { alinhar as alinharRects, enquadrarNaCena, type Alinhamento } from '@/lib/scene/transform'
+import { alinhar as alinharRects, envolvente, enquadrarNaCena, type Alinhamento } from '@/lib/scene/transform'
+import { comDescendentes, ehFrame, filhosDe, mapaDe, paiDe, raizesDaSelecao } from '@/lib/scene/arvore'
+import { LAYOUT_PADRAO, inferirLayout, inserirNoFrame as inserirNoFrameFn, moverNaLista as moverNaListaFn, resolverCamadas, type OpcoesResolver } from './autolayout'
 import { distribuir as distribuirRects } from './guias'
 import { ErroDemo, salvarDocumento, obterProjeto, mapaAssets } from '@/lib/demo/store'
 import type { AssetDemo } from '@/lib/demo/tipos'
@@ -32,6 +34,8 @@ export interface EstadoEditor {
   zoom: number
   pan: { x: number; y: number }
   grade: boolean
+  /** Passo da grade em px da cena (com a grade ligada, posição e tamanho arredondam para ela). */
+  gradePasso: number
   snap: boolean
   reguas: boolean
   ferramenta: Ferramenta
@@ -52,7 +56,7 @@ type Acao =
   | { tipo: 'cena'; id: string }
   | { tipo: 'salvamento'; valor: EstadoSalvamento; revisao?: number; salvoEm?: string; conflito?: { currentRevision: number } | null }
   | { tipo: 'substituir'; documento: DocumentoProjeto; revisao: number }
-  | { tipo: 'ui'; patch: Partial<Pick<EstadoEditor, 'zoom' | 'pan' | 'grade' | 'snap' | 'reguas' | 'ferramenta' | 'abaEsquerda' | 'abaDireita' | 'mostrarHotspots' | 'previa'>> }
+  | { tipo: 'ui'; patch: Partial<Pick<EstadoEditor, 'zoom' | 'pan' | 'grade' | 'gradePasso' | 'snap' | 'reguas' | 'ferramenta' | 'abaEsquerda' | 'abaDireita' | 'mostrarHotspots' | 'previa'>> }
 
 const LIMITE_HISTORICO = 150
 
@@ -111,7 +115,8 @@ export function clonarCamadas(camadas: Camada[], existentes: { id: string }[], d
   return camadas.map((c, i) => {
     const groupId = c.groupId ? (grupos.get(c.groupId) ?? (grupos.set(c.groupId, novoId('grupo', usados)), grupos.get(c.groupId))) : undefined
     const interactions = c.interactions.map((it) => (it.do.action === 'toggleLayer' || it.do.action === 'animate' || it.do.action === 'toggleVideo') && mapa.has(it.do.targetLayerId) ? ({ ...it, do: { ...it.do, targetLayerId: mapa.get(it.do.targetLayerId)! } } as Interacao) : it)
-    return { ...structuredClone(c), id: mapa.get(c.id)!, groupId, interactions, x: c.x + deslocamento, y: c.y + deslocamento, z: 100_000 + i }
+    const parentId = c.parentId ? (mapa.get(c.parentId) ?? c.parentId) : undefined
+    return { ...structuredClone(c), id: mapa.get(c.id)!, groupId, parentId, interactions, x: c.x + deslocamento, y: c.y + deslocamento, z: 100_000 + i }
   })
 }
 
@@ -143,6 +148,7 @@ export function useEditor(projetoId: string) {
     zoom: 0,
     pan: { x: 0, y: 0 },
     grade: false,
+    gradePasso: 8,
     snap: true,
     reguas: false,
     ferramenta: 'mover',
@@ -207,8 +213,19 @@ export function useEditor(projetoId: string) {
   const camadasSelecionadas = cena ? cena.layers.filter((l) => e.selecao.includes(l.id)) : []
   const cenaAtualRef = () => estadoRef.current.documento.scenes.find((s) => s.id === estadoRef.current.cenaId)
 
+  /** Toda edição da tela passa pelo resolvedor de frames/auto layout (lib/editor/autolayout.ts). */
   const atualizarCenaAtual = useCallback(
-    (fn: (c: Cena) => Cena, historico = true) => aplicar((d) => ({ ...d, scenes: d.scenes.map((s) => (s.id === estadoRef.current.cenaId ? fn(s) : s)) }), historico),
+    (fn: (c: Cena) => Cena, historico = true, opcoes?: OpcoesResolver) =>
+      aplicar((d) => ({
+        ...d,
+        scenes: d.scenes.map((s) => {
+          if (s.id !== estadoRef.current.cenaId) return s
+          const n = fn(s)
+          if (n === s) return s
+          const layers = resolverCamadas(s.layers, n.layers, opcoes)
+          return layers === n.layers ? n : { ...n, layers }
+        }),
+      }), historico),
     [aplicar]
   )
 
@@ -221,7 +238,7 @@ export function useEditor(projetoId: string) {
     }
 
     /** Cria uma camada com defaults do schema no centro da tela (ou no retângulo dado). */
-    const criarCamada = (parcial: Record<string, unknown> & { type: Camada['type'] }, rect?: { x: number; y: number; width: number; height: number }) => {
+    const criarCamada = (parcial: Record<string, unknown> & { type: Camada['type'] }, rect?: { x: number; y: number; width: number; height: number }, opcoes: { historico?: boolean } = {}) => {
       const c = cenaAtualRef()
       if (!c) return null
       const id = novoId(parcial.type, c.layers)
@@ -237,14 +254,57 @@ export function useEditor(projetoId: string) {
         model3d: {},
         lottie: {},
         embed: { radius: 12 },
+        frame: { fill: '#FFFFFF' },
       }[parcial.type] as Record<string, unknown>
       try {
         const camada = parseCamada({ id, z, ...padrao, ...extras, ...parcial })
-        inserirCamadas([camada])
+        if (opcoes.historico === false) {
+          atualizarCenaAtual((cc) => ({ ...cc, layers: normalizarZ([...cc.layers, camada]) }), false)
+          dispatch({ tipo: 'selecionar', ids: [camada.id] })
+        } else inserirCamadas([camada])
         return camada
       } catch {
         return null
       }
+    }
+
+    /** Envolve a seleção num frame (com ou sem auto layout) ou liga o auto layout num frame existente. */
+    const emoldurar = (ids: string[], comLayout: boolean) => {
+      const c = cenaAtualRef()
+      if (!c || !ids.length) return
+      const raizes = raizesDaSelecao(ids, c.layers)
+      const sel = c.layers.filter((l) => raizes.includes(l.id))
+      const unico = sel.length === 1 ? sel[0]! : undefined
+      if (comLayout && unico && ehFrame(unico) && !unico.layout) {
+        const filhos = filhosDe(unico.id, c.layers)
+        const { layout, ordem } = inferirLayout(filhos)
+        const caixa = filhos.length ? envolvente(filhos) : null
+        const padding = caixa
+          ? { top: Math.max(0, Math.round(caixa.y - unico.y)), left: Math.max(0, Math.round(caixa.x - unico.x)), right: Math.max(0, Math.round(unico.x + unico.width - caixa.x - caixa.width)), bottom: Math.max(0, Math.round(unico.y + unico.height - caixa.y - caixa.height)) }
+          : layout.padding
+        const zOrdem = new Map(ordem.map((i, k) => [filhos[i]!.id, k]))
+        atualizarCenaAtual((cc) => ({ ...cc, layers: cc.layers.map((l) => (l.id === unico.id ? ({ ...l, layout: { ...layout, padding }, sizingW: 'hug', sizingH: 'hug' } as Camada) : zOrdem.has(l.id) ? ({ ...l, z: zOrdem.get(l.id)! } as Camada) : l)) }))
+        return
+      }
+      const mapa = mapaDe(c.layers)
+      const paiPrimeiro = sel[0] ? paiDe(sel[0], mapa)?.id : undefined
+      const paiId = sel.every((l) => paiDe(l, mapa)?.id === paiPrimeiro) ? paiPrimeiro : undefined
+      const caixa = envolvente(sel)
+      const id = novoId('frame', c.layers)
+      const { layout, ordem } = inferirLayout(sel)
+      const minZ = Math.min(...sel.map((l) => l.z))
+      const frame = parseCamada({
+        id, type: 'frame', name: comLayout ? 'Auto layout' : 'Frame', z: Math.floor(minZ),
+        x: Math.round(caixa.x), y: Math.round(caixa.y), width: Math.max(1, Math.round(caixa.width)), height: Math.max(1, Math.round(caixa.height)),
+        ...(paiId ? { parentId: paiId } : {}),
+        ...(comLayout ? { layout, sizingW: 'hug', sizingH: 'hug' } : {}),
+      }) as CamadaFrame
+      const posicao = new Map(ordem.map((i, k) => [sel[i]!.id, k]))
+      atualizarCenaAtual((cc) => ({
+        ...cc,
+        layers: [...cc.layers.map((l) => (posicao.has(l.id) ? ({ ...l, parentId: id, z: comLayout ? posicao.get(l.id)! : l.z } as Camada) : l)), frame],
+      }))
+      dispatch({ tipo: 'selecionar', ids: [id] })
     }
 
     return {
@@ -328,14 +388,19 @@ export function useEditor(projetoId: string) {
         const rect = ponto ? { ...r, x: ponto.x - r.width / 2, y: ponto.y - r.height / 2 } : r
         return criarCamada({ type: tipo, assetId: asset.id, name: asset.nome.replace(/\.[^.]+$/, '').slice(0, 80) }, rect)
       },
-      atualizarCamadas: (ids: string[], patch: Partial<Camada> | ((l: Camada) => Camada), historico = true) =>
-        atualizarCenaAtual((c) => ({ ...c, layers: c.layers.map((l) => (ids.includes(l.id) ? (typeof patch === 'function' ? patch(l) : ({ ...l, ...patch } as Camada)) : l)) }), historico),
-      removerCamadas: (ids: string[]) => atualizarCenaAtual((c) => ({ ...c, layers: c.layers.filter((l) => !ids.includes(l.id)) })),
+      atualizarCamadas: (ids: string[], patch: Partial<Camada> | ((l: Camada) => Camada), historico = true, opcoes?: OpcoesResolver) =>
+        atualizarCenaAtual((c) => ({ ...c, layers: c.layers.map((l) => (ids.includes(l.id) ? (typeof patch === 'function' ? patch(l) : ({ ...l, ...patch } as Camada)) : l)) }), historico, opcoes),
+      /** Excluir um frame exclui o conteúdo (como no Figma). */
+      removerCamadas: (ids: string[], historico = true) => atualizarCenaAtual((c) => { const todos = new Set(comDescendentes(ids, c.layers)); return { ...c, layers: c.layers.filter((l) => !todos.has(l.id)) } }, historico),
       duplicarCamadas: (ids: string[]) => {
         const c = cenaAtualRef()
         if (!c) return
-        const copias = clonarCamadas(c.layers.filter((l) => ids.includes(l.id)), c.layers, 24)
-        inserirCamadas(copias)
+        const raizes = raizesDaSelecao(ids, c.layers)
+        const todos = new Set(comDescendentes(raizes, c.layers))
+        const originais = c.layers.filter((l) => todos.has(l.id))
+        const copias = clonarCamadas(originais, c.layers, 24)
+        atualizarCenaAtual((cc) => ({ ...cc, layers: normalizarZ([...cc.layers, ...copias]) }))
+        dispatch({ tipo: 'selecionar', ids: originais.map((l, i) => (raizes.includes(l.id) ? copias[i]!.id : '')).filter(Boolean) })
       },
       ordem: (id: string, op: 'frente' | 'tras' | 'avancar' | 'recuar') =>
         atualizarCenaAtual((c) => ({ ...c, layers: op === 'frente' ? trazerParaFrente(c.layers, id) : op === 'tras' ? enviarParaTras(c.layers, id) : op === 'avancar' ? avancarUm(c.layers, id) : recuarUm(c.layers, id) })),
@@ -356,21 +421,92 @@ export function useEditor(projetoId: string) {
           const novos = distribuirRects(c.layers.filter((l) => ids.includes(l.id)), eixo)
           return { ...c, layers: c.layers.map((l) => novos.find((n) => n.id === l.id) ?? l) }
         }),
-      deslocar: (ids: string[], dx: number, dy: number) => atualizarCenaAtual((c) => ({ ...c, layers: c.layers.map((l) => (ids.includes(l.id) && !l.locked ? { ...l, x: l.x + dx, y: l.y + dy } : l)) })),
+      deslocar: (ids: string[], dx: number, dy: number) => atualizarCenaAtual((c) => ({ ...c, layers: c.layers.map((l) => (ids.includes(l.id) && !l.locked ? { ...l, x: Math.round(l.x + dx), y: Math.round(l.y + dy) } : l)) })),
       agrupar: (ids: string[]) => {
         if (ids.length < 2) return
         const c = cenaAtualRef()
         const groupId = novoId('grupo', c?.layers ?? [])
         atualizarCenaAtual((cc) => ({ ...cc, layers: cc.layers.map((l) => (ids.includes(l.id) ? { ...l, groupId } : l)) }))
       },
-      desagrupar: (ids: string[]) => atualizarCenaAtual((c) => ({ ...c, layers: c.layers.map((l) => (ids.includes(l.id) ? { ...l, groupId: undefined } : l)) })),
+      /** Desagrupa grupos e desfaz frames selecionados (filhos sobem para o pai do frame), como ⇧⌘G no Figma. */
+      desagrupar: (ids: string[]) => {
+        const c = cenaAtualRef()
+        if (!c) return
+        const frames = new Map(c.layers.filter((l) => ids.includes(l.id) && l.type === 'frame').map((f) => [f.id, f]))
+        atualizarCenaAtual((cc) => ({
+          ...cc,
+          layers: normalizarZ(
+            cc.layers
+              .filter((l) => !frames.has(l.id))
+              .map((l) => {
+                let n = ids.includes(l.id) ? ({ ...l, groupId: undefined } as Camada) : l
+                const f = l.parentId ? frames.get(l.parentId) : undefined
+                if (f) n = { ...n, parentId: f.parentId, absolute: undefined, sizingW: n.sizingW === 'fill' ? 'fixed' : n.sizingW, sizingH: n.sizingH === 'fill' ? 'fixed' : n.sizingH, z: f.z + (n.z - f.z) / 10_000 } as Camada
+                return n
+              })
+          ),
+        }))
+        if (frames.size) dispatch({ tipo: 'selecionar', ids: c.layers.filter((l) => l.parentId && frames.has(l.parentId)).map((l) => l.id) })
+      },
+
+      // ----- frames e auto layout -----
+      /**
+       * ⇧A: num frame sem auto layout, liga o auto layout; senão envolve a seleção num frame novo
+       * com auto layout (direção, gap e alinhamento inferidos do arranjo), abraçando o conteúdo.
+       */
+      adicionarAutoLayout: (ids: string[]) => emoldurar(ids, true),
+      /** ⌥⌘G: envolve a seleção num frame (sem auto layout). */
+      emoldurar: (ids: string[]) => emoldurar(ids, false),
+      removerAutoLayout: (id: string) =>
+        atualizarCenaAtual((c) => ({
+          ...c,
+          layers: c.layers.map((l) =>
+            l.id === id && l.type === 'frame'
+              ? ({ ...l, layout: undefined, sizingW: l.sizingW === 'hug' ? 'fixed' : l.sizingW, sizingH: l.sizingH === 'hug' ? 'fixed' : l.sizingH } as Camada)
+              : l.parentId === id
+                ? ({ ...l, absolute: undefined, sizingW: l.sizingW === 'fill' ? 'fixed' : l.sizingW, sizingH: l.sizingH === 'fill' ? 'fixed' : l.sizingH } as Camada)
+                : l
+          ),
+        })),
+      atualizarLayout: (id: string, patch: Partial<AutoLayout>, historico = true) =>
+        atualizarCenaAtual((c) => ({ ...c, layers: c.layers.map((l) => (l.id === id && l.type === 'frame' ? ({ ...l, layout: { ...LAYOUT_PADRAO, ...l.layout, ...patch } } as Camada) : l)) }), historico),
+      /** Coloca a camada dentro de um frame (na posição `indice` do fluxo) ou na raiz da tela (frameId undefined); `posicao` move junto com os descendentes. */
+      inserirNoFrame: (id: string, frameId: string | undefined, indice?: number, posicao?: { x: number; y: number }, historico = true) =>
+        atualizarCenaAtual((c) => {
+          const original = c.layers.find((l) => l.id === id)
+          if (!original) return c
+          const dx = posicao ? Math.round(posicao.x) - original.x : 0
+          const dy = posicao ? Math.round(posicao.y) - original.y : 0
+          const mover = new Set(dx || dy ? comDescendentes([id], c.layers) : [])
+          const base = mover.size ? c.layers.map((l) => (mover.has(l.id) ? ({ ...l, x: l.x + dx, y: l.y + dy } as Camada) : l)) : c.layers
+          const r = inserirNoFrameFn(base, id, frameId, indice)
+          if (r === base) return mover.size ? { ...c, layers: base } : c
+          const alvo = frameId ? c.layers.find((l) => l.id === frameId) : undefined
+          const semLayout = !(alvo?.type === 'frame' && alvo.layout)
+          return { ...c, layers: r.map((l) => (l.id === id && semLayout ? ({ ...l, absolute: undefined, sizingW: l.sizingW === 'fill' ? 'fixed' : l.sizingW, sizingH: l.sizingH === 'fill' ? 'fixed' : l.sizingH } as Camada) : l)) }
+        }, historico),
+      /** Painel de camadas: soltar acima/abaixo de outra camada (mesmo pai) ou dentro de um frame. */
+      moverNaLista: (id: string, alvoId: string, onde: 'acima' | 'abaixo' | 'dentro') => atualizarCenaAtual((c) => ({ ...c, layers: moverNaListaFn(c.layers, id, alvoId, onde) })),
+      /** Enter: seleciona os filhos do frame; Shift+Enter: seleciona o pai. */
+      selecionarFilhos: (id: string) => {
+        const c = cenaAtualRef()
+        const f = c ? filhosDe(id, c.layers) : []
+        if (f.length) dispatch({ tipo: 'selecionar', ids: f.map((x) => x.id) })
+      },
+      selecionarPai: (id: string) => {
+        const c = cenaAtualRef()
+        const l = c?.layers.find((x) => x.id === id)
+        const p = c && l ? paiDe(l, mapaDe(c.layers)) : undefined
+        if (p) dispatch({ tipo: 'selecionar', ids: [p.id] })
+      },
       inverter: (ids: string[], eixo: 'x' | 'y') => atualizarCenaAtual((c) => ({ ...c, layers: c.layers.map((l) => (ids.includes(l.id) ? (eixo === 'x' ? { ...l, flipX: !l.flipX } : { ...l, flipY: !l.flipY }) : l)) })),
 
       // ----- área de transferência -----
       copiar: (ids: string[]) => {
         const c = cenaAtualRef()
         if (!c) return []
-        const camadas = c.layers.filter((l) => ids.includes(l.id))
+        const todos = new Set(comDescendentes(ids, c.layers)) // frame copiado leva o conteúdo
+        const camadas = c.layers.filter((l) => todos.has(l.id))
         areaTransferencia.current = structuredClone(camadas)
         return camadas
       },
@@ -388,7 +524,7 @@ export function useEditor(projetoId: string) {
         inserirCamadas(clonarCamadas(validas, c.layers, sobrepoe ? 24 : 0))
       },
       copiarEstilo: (camada: Camada) => {
-        const { id: _i, x: _x, y: _y, width: _w, height: _h, z: _z, name: _n, interactions: _it, groupId: _g, ...estilo } = camada as Camada & Record<string, unknown>
+        const { id: _i, x: _x, y: _y, width: _w, height: _h, z: _z, name: _n, interactions: _it, groupId: _g, parentId: _p, absolute: _a, ...estilo } = camada as Camada & Record<string, unknown>
         estiloCopiado.current = estilo as Partial<Camada>
       },
       colarEstilo: (ids: string[]) => {

@@ -204,6 +204,30 @@ export type Gradiente = z.infer<typeof GradienteSchema>
 
 // ---------- camadas ----------
 
+/** fixed = tamanho fixo · hug = abraçar conteúdo · fill = preencher o pai (auto layout). */
+export const DIMENSIONAMENTOS = ['fixed', 'hug', 'fill'] as const
+export type Dimensionamento = (typeof DIMENSIONAMENTOS)[number]
+
+export const DIRECOES_LAYOUT = ['horizontal', 'vertical', 'wrap'] as const
+export const ALINHAMENTOS_LAYOUT = ['start', 'center', 'end'] as const
+
+/** Auto layout de um frame. Alinhamento em coordenadas absolutas (grade 3×3 do Figma). */
+export const AutoLayoutSchema = z.object({
+  direction: z.enum(DIRECOES_LAYOUT).default('horizontal'),
+  /** Espaço entre itens (px de referência). */
+  gap: z.number().min(-2000).max(2000).default(16),
+  /** Espaço automático (space-between) no eixo principal. */
+  gapAuto: z.boolean().default(false),
+  /** Espaço entre linhas quando a direção é wrap (ausente = gap). */
+  rowGap: z.number().min(-2000).max(2000).optional(),
+  padding: z
+    .object({ top: z.number().min(0).max(2000), right: z.number().min(0).max(2000), bottom: z.number().min(0).max(2000), left: z.number().min(0).max(2000) })
+    .default({ top: 0, right: 0, bottom: 0, left: 0 }),
+  alignX: z.enum(ALINHAMENTOS_LAYOUT).default('start'),
+  alignY: z.enum(ALINHAMENTOS_LAYOUT).default('start'),
+})
+export type AutoLayout = z.infer<typeof AutoLayoutSchema>
+
 const CamadaBase = z.object({
   id: IdSchema,
   name: z.string().max(80).optional(),
@@ -232,6 +256,16 @@ const CamadaBase = z.object({
   effects: EfeitosSchema.optional(),
   /** Ajustes simples para celular. */
   mobile: z.object({ fit: z.enum(['contain', 'cover']).optional(), hidden: z.boolean().optional() }).optional(),
+  /** Frame que contém esta camada (aninhamento). Coordenadas continuam absolutas na cena. */
+  parentId: IdSchema.optional(),
+  /**
+   * Dimensionamento por eixo (como no Figma): fixo, abraçar o conteúdo (frames com auto layout e textos)
+   * ou preencher o frame pai com auto layout. Ausente = fixo (documentos antigos não mudam).
+   */
+  sizingW: z.enum(DIMENSIONAMENTOS).optional(),
+  sizingH: z.enum(DIMENSIONAMENTOS).optional(),
+  /** Filho de auto layout com posição absoluta (ignora o fluxo). */
+  absolute: z.boolean().optional(),
 })
 
 export const EncaixeSchema = z.enum(['contain', 'cover', 'fill'])
@@ -379,6 +413,20 @@ export const CamadaEmbedSchema = CamadaBase.extend({
   radius: z.number().min(0).max(999).default(0),
 })
 
+/** Frame: contêiner (com ou sem auto layout). Filhos apontam para ele via `parentId`. */
+export const CamadaFrameSchema = CamadaBase.extend({
+  type: z.literal('frame'),
+  fill: CorSchema.optional(),
+  gradient: GradienteSchema.optional(),
+  stroke: CorSchema.optional(),
+  strokeWidth: z.number().min(0).max(100).default(0),
+  radius: z.number().min(0).max(999).default(0),
+  /** Recorta o conteúdo nos limites do frame. */
+  clip: z.boolean().default(false),
+  /** Ausente = frame livre (filhos com posição própria). */
+  layout: AutoLayoutSchema.optional(),
+})
+
 export const CamadaSchema = z.discriminatedUnion('type', [
   CamadaImagemSchema,
   CamadaVideoSchema,
@@ -389,6 +437,7 @@ export const CamadaSchema = z.discriminatedUnion('type', [
   CamadaModelo3dSchema,
   CamadaLottieSchema,
   CamadaEmbedSchema,
+  CamadaFrameSchema,
 ])
 export type Camada = z.infer<typeof CamadaSchema>
 export type TipoCamada = Camada['type']
@@ -401,6 +450,7 @@ export type CamadaSvg = z.infer<typeof CamadaSvgSchema>
 export type CamadaModelo3d = z.infer<typeof CamadaModelo3dSchema>
 export type CamadaLottie = z.infer<typeof CamadaLottieSchema>
 export type CamadaEmbed = z.infer<typeof CamadaEmbedSchema>
+export type CamadaFrame = z.infer<typeof CamadaFrameSchema>
 
 /** Tipos que referenciam um asset do storage (para validação de posse e URLs assinadas). */
 export function assetsDaCamada(c: Camada): string[] {
