@@ -1,8 +1,9 @@
 'use client'
 /** Layout: largura e altura com travar proporção (por camada, lembrado na sessão). */
 import { useState } from 'react'
-import { Link2, MoveHorizontal, Square, Type, Unlink2 } from 'lucide-react'
+import { LayoutPanelLeft, Link2, MoveHorizontal, Square, Type, Unlink2 } from 'lucide-react'
 import { dimensionamentoDoModo, modoTexto, type ModoTexto } from '@/lib/editor/medirTexto'
+import { abrirPreencher } from '../PreencherGrade'
 import type { Camada } from '@/lib/scene/schema'
 import { BotaoCampo, CampoNum, Secao, Segmentado } from './controles'
 import { comum, useCamadas, type PropsSecao } from './selecao'
@@ -23,11 +24,14 @@ export function SecaoLayout({ editor }: PropsSecao) {
   const altura = (fn: (c: Camada) => number) => setFn((c) => { const height = Math.max(1, fn(c)); return { ...c, height, width: trava ? Math.max(1, Math.round((height * c.width) / c.height)) : c.width } })
   return (
     <Secao titulo="Layout">
-      <div className="grid grid-cols-[1fr_1fr_28px] gap-1.5">
+      <div className="grid grid-cols-[1fr_1fr_28px_28px] gap-1.5">
         <CampoNum prefixo="W" rotulo="Largura" valor={w} min={1} aoMudar={(v) => largura(() => v)} aoDelta={(d) => largura((c) => c.width + d)} />
         <CampoNum prefixo="H" rotulo="Altura" valor={h} min={1} aoMudar={(v) => altura(() => v)} aoDelta={(d) => altura((c) => c.height + d)} />
         <BotaoCampo rotulo={trava ? 'Destravar proporção' : 'Travar proporção'} ativo={trava} onClick={() => { sel.forEach((c) => travas.set(c.id, !trava)); atualizar((n) => n + 1) }}>
           {trava ? <Link2 className="h-3.5 w-3.5" /> : <Unlink2 className="h-3.5 w-3.5" />}
+        </BotaoCampo>
+        <BotaoCampo rotulo="Preencher (metades, terços, grade)" title="Preencher: metades, terços, quartos ou células (Ctrl+Alt+setas)" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); abrirPreencher(r.left - 250, r.bottom + 6) }}>
+          <LayoutPanelLeft className="h-3.5 w-3.5" />
         </BotaoCampo>
       </div>
       {sel.length === 1 && l.type === 'text' && (

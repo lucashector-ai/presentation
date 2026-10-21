@@ -12,7 +12,7 @@ export interface PropsSecao { editor: Editor; assets?: AssetDemo[] }
 
 export const ICONE_TIPO: Record<Camada['type'], typeof Type> = { text: Type, shape: Square, image: ImageIcon, video: Video, hotspot: Crosshair, svg: PenTool, model3d: Box, lottie: Sparkles, embed: Code2, frame: Frame }
 export const NOME_TIPO: Record<Camada['type'], string> = { text: 'Texto', shape: 'Forma', image: 'Imagem', video: 'Vídeo', hotspot: 'Hotspot', svg: 'Vetor (SVG)', model3d: 'Modelo 3D', lottie: 'Animação Lottie', embed: 'Incorporado', frame: 'Frame' }
-export const NOME_FORMA: Record<string, string> = { rect: 'Retângulo', ellipse: 'Elipse', triangle: 'Triângulo', semicircle: 'Semicírculo', line: 'Linha', star: 'Estrela', arrow: 'Seta' }
+export const NOME_FORMA: Record<string, string> = { rect: 'Retângulo', ellipse: 'Elipse', triangle: 'Triângulo', semicircle: 'Semicírculo', line: 'Linha', star: 'Estrela', arrow: 'Seta', path: 'Vetor' }
 
 /** Valor igual em toda a seleção, ou MISTO. */
 export function comum<T>(sel: readonly Camada[], f: (c: Camada) => T): T | Misto {

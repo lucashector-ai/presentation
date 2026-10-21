@@ -51,7 +51,7 @@ colar do Figma).
 | Seleção de cores mistas | "Click + to replace mixed content" | Feito — texto explicativo + "+" aplica o primeiro em todas | — | `SecaoPreenchimento.tsx` |
 | Imagem: ajustes | Exposição, contraste, saturação, temperatura, tinta, realces, sombras; modo Fill/Fit/Crop/Tile | Parcial — brilho, contraste, saturação, P&B; cobrir/conter/esticar; recorte numérico; máscara (círculo/arco/triângulo) | P2 (recorte direto no canvas) | `SecoesTipo.tsx` |
 | Painel de tela (nada selecionado) | Propriedades da página/frame: fundo, grades de layout, exportar | Feito — formato e W/H, preenchimento (cor, gradiente linear/radial, imagem com encaixe), transição, auto-avanço, notas, verificação | — | `InspetorTela.tsx` |
-| Grades de layout | Colunas/linhas/grade por frame (⌃G mostra) | Parcial — grade global no canvas (botão na barra inferior) | P2 | `Canvas.tsx` |
+| Grades de layout | Colunas/linhas/grade por frame (⌃G mostra) | Parcial — grade de pixels global e grade de layout de 12 colunas (margem 96 / gutter 24 em 1920) na barra inferior, com encaixe nas colunas; não é por frame nem configurável | P2 | `Canvas.tsx`, `lib/editor/preencher.ts`, `GuiasCanvas.tsx` (`ColunasCanvas`) |
 
 ## 2. Seletor de cor
 
@@ -81,19 +81,22 @@ colar do Figma).
 | Ordem | ⌘] / ⌘[ um passo, ⌥⌘] / ⌥⌘[ frente/trás | Feito — ⌘]/⌘[ e ⌥⌘]/⌥⌘[ como no Figma; `]`/`[` e ⇧]/⇧[ continuam | — | `EditorShell.tsx` |
 | Agrupar / frames | ⌘G, ⇧⌘G; ⌥⌘G cria frame | Feito — grupos planos, frames aninhados (`parentId`), ⌥⌘G envolve em frame, ⇧⌘G desfaz; ferramenta F desenha frame | — | `useEditor.ts` |
 | Máscara | ⌃⌘M usa a camada de baixo como máscara | Parcial — máscara de forma só em imagem | P3 | `SecoesTipo.tsx` |
-| Operações booleanas | União, subtração, interseção, exclusão | Fora (camadas vetoriais vêm prontas como SVG) | P3 | — |
+| Operações booleanas | União, subtração, interseção, exclusão | Falta (os caminhos agora são editáveis — ver "Editar vetor") | P3 | — |
 
 ## 4. Ferramentas e canvas
 
 | Recurso | Comportamento no Figma | Estado no Mostra | Prioridade | Arquivo |
 |---|---|---|---|---|
-| Ferramentas | V mover, K escala, F frame, R retângulo, O elipse, L linha, ⇧L seta, P caneta, T texto, H mão, C comentário | Feito (sem K, P, C) — V, F (arrastar desenha frame), R, O, L, ⇧L (arrasto do início ao fim, ⇧ = 45°), T, H = mão (como no Figma), **S = hotspot** (antes H), espaço = mão temporária; barra com menu de formas que lembra a última | P3 (caneta, escala, comentários) | `BarraFerramentas.tsx`, `lib/editor/atalhos.ts`, `Canvas.tsx` |
+| Ferramentas | V mover, K escala, F frame, R retângulo, O elipse, L linha, ⇧L seta, P caneta, T texto, H mão, C comentário | Feito (sem K, C) — P = caneta (pré-visualizar passou para ⌘↵) — V, F (arrastar desenha frame), R, O, L, ⇧L (arrasto do início ao fim, ⇧ = 45°), T, H = mão (como no Figma), **S = hotspot** (antes H), espaço = mão temporária; barra com menu de formas que lembra a última | P3 (caneta, escala, comentários) | `BarraFerramentas.tsx`, `lib/editor/atalhos.ts`, `Canvas.tsx` |
 | Clique para digitar | T + clique cria caixa de texto com largura automática | Feito — clique = largura automática já em edição; arrastar = largura fixa; T sobre texto edita no ponto | — | `Canvas.tsx`, `lib/editor/medirTexto.ts` |
 | Redimensionar | ⇧ mantém proporção, ⌥ a partir do centro | Feito — ⇧ proporção, ⌥ do centro, com encaixe | — | `Canvas.tsx`, `lib/editor/guias.ts` |
 | Rotacionar | Alça fora do canto; ⇧ passos de 15° | Feito (alça superior; ⇧ 15°) | — | `Canvas.tsx` |
 | Mover com setas | 1 px; ⇧ 10 px (configurável) | Feito (sem configurar) | P3 | `EditorShell.tsx` |
 | ⌥+arrastar duplica | Duplica enquanto arrasta | Feito — ⌥ ao começar o arraste deixa o original e arrasta a cópia (com o conteúdo de frames), um desfazer; cursor de duplicar ao segurar ⌥ sobre uma camada; parado, ⌥ continua medindo distâncias | — | `Canvas.tsx`, `useEditor.ts` (`duplicarParaArrastar`) |
 | Zoom | ⌘+roda / pinça, ⇧1 ajustar tudo, ⇧2 ajustar seleção, ⌘0 100% | Feito — roda/pinça, ⇧1, ⇧2, ⌘0, +/−; origem da tela em pixel inteiro do dispositivo (sem frestas entre camadas encostadas) | — | `Canvas.tsx` |
+| Editar vetor | Enter / duplo clique numa forma ou vetor: nós como círculos, alças de Bézier, barra secundária (Mover V, Laço, Caneta P, Curvar ⌘, Cortar X, Pintar ⇧B), Esc/Enter saem | Feito — duplo clique/Enter/menu "Editar vetor" em formas e SVG; primitivas viram `shape: 'path'` com `vetor` na primeira edição (elipse = 4 nós suaves, cantos arredondados = 2 nós com κ); SVG vira um vetor por cor (agrupados). Barra: Mover V (Shift soma, arrastar no vazio = área, duplo clique no segmento cria nó), Laço Q, Caneta P, Curvar B (Alt quebra simetria; clique no nó alterna canto/suave), Cortar X, Apagar E, Pintar ⇧B; setas (Shift ×10), Delete, ⌘A, um desfazer por gesto; nós encaixam em nós, camadas, tela/frações e pixel; a caixa volta a abraçar o caminho sem mover o desenho. Pintar liga/desliga o preenchimento por subcaminho (não por região da rede vetorial) | P3 (redes vetoriais com ramificações, booleanas) | `components/editor/vetor/EditorVetor.tsx`, `lib/editor/vetor/*` |
+| Caneta | P: clique = canto, arrastar = curva, clicar no primeiro nó fecha, Enter/Esc termina | Feito — também dentro do modo vetor (continua de uma ponta aberta; clique num segmento cria nó) | — | `EditorVetor.tsx` |
+| Preencher em grade | (não existe no Figma; inspirado no Rectangle/Snap do Windows) | Feito — menu de contexto "Preencher…", botão ao lado de W/H e ⌃⌥ + setas/↵/D F G E T/U I J K; predefinições (tela, metades, terços, quartos), grade de células para arrastar (4×4, 6×4, 12×6), "Com margens" (da grade de layout), prévia tracejada no canvas e "Dividir em grade" (C × L cópias com espaço) | — | `components/editor/PreencherGrade.tsx`, `lib/editor/preencher.ts` |
 | Réguas e guias arrastáveis | ⇧R mostra réguas; arrastar cria guia | Falta — só a flag `reguas` no estado (nada é desenhado), por isso ⇧R ainda não tem atalho | P2 | `Canvas.tsx` |
 
 ## 5. Snapping e medidas
@@ -101,6 +104,7 @@ colar do Figma).
 | Recurso | Comportamento no Figma | Estado no Mostra | Prioridade | Arquivo |
 |---|---|---|---|---|
 | Guias inteligentes | Bordas e centros de camadas vizinhas, distâncias iguais | Feito — bordas/centros das camadas, do frame pai e da tela, vãos iguais e distâncias em vermelho; limiar em px de tela | — | `lib/editor/guias.ts`, `GuiasCanvas.tsx` |
+| Frações da tela | — (extra da Mostra) | Feito — ao mover/redimensionar, 1/4, 1/3, 1/2, 2/3, 3/4 da tela (e colunas da grade de layout) são alvos de encaixe com etiqueta na guia; botão na barra inferior liga/desliga; ⌘/Ctrl desliga como os demais | — | `lib/editor/preencher.ts` (`alvosDeFracao`), `lib/editor/guias.ts` (`extras`) |
 | Medir distâncias | Selecionar + segurar ⌥ e passar sobre outra camada mostra distâncias em vermelho | Feito — até a camada sob o cursor, o frame pai ou a tela (só parado; arrastando com ⌥ duplica) | — | `Canvas.tsx` |
 | Snap ao pixel | Snap to pixel grid (⇧⌘') | Parcial — posições inteiras ao arrastar; grade opcional | P2 | `Canvas.tsx` |
 | Desligar snap temporariamente | Segurar ⌘ enquanto arrasta | Feito — ⌘/Ctrl (mover e redimensionar) | — | `Canvas.tsx` |
@@ -148,7 +152,7 @@ colar do Figma).
 |---|---|---|---|---|
 | Copiar/colar/recortar/duplicar | ⌘C ⌘V ⌘X ⌘D; colar mantém posição se houver espaço | Feito (desloca 24 px se sobrepuser) | — | `useEditor.ts`, `MenuContexto.tsx` |
 | Colar sobre a seleção / substituir | ⇧⌘V cola por cima; ⇧⌘R substitui | Falta | P2 | — |
-| Colar do Figma | Buffer próprio do Figma (não legível pelo navegador) | Feito — o HTML fig-kiwi do Figma é decodificado: frames, retângulos/elipses (com cantos independentes), textos, imagens, gradientes, sombras; vetores viram SVG | — | `lib/importar/figma/*` |
+| Colar do Figma | Buffer próprio do Figma (não legível pelo navegador) | Feito — o HTML fig-kiwi do Figma é decodificado: frames, retângulos/elipses (com cantos independentes), textos, imagens, gradientes, sombras; vetores viram SVG, que vira caminho editável ao entrar em "Editar vetor" (um vetor por cor) | P3 (VECTOR direto para `vetor`, sem passar por SVG) | `lib/importar/figma/*`, `lib/editor/vetor/svgVetor.ts` |
 | Colar imagem/arquivo | Imagem vira preenchimento de retângulo | Feito (imagem, SVG, GLB, Lottie, links de embed) | — | `lib/editor/importar.ts` |
 
 ## 11. Atalhos — resumo do que falta
@@ -158,7 +162,8 @@ colar do Figma).
 | ⌥A / ⌥D / ⌥H / ⌥W / ⌥S / ⌥V | Alinhar | Feito | — |
 | ⇧H / ⇧V | Espelhar | Feito | — |
 | 0–9 | Opacidade 100%/10%…90% | Feito (dois dígitos) | — |
-| F R O L ⇧L T H | Ferramentas | Feito (H = mão; hotspot em S) | — |
+| F R O L ⇧L P T H | Ferramentas | Feito (H = mão; hotspot em S; P = caneta) | — |
+| Enter (forma/vetor) | Editar vetor | Feito (também duplo clique) | — |
 | ⌥ + arrastar | Duplicar | Feito | — |
 | ⇧A | Auto layout | Feito | — |
 | ⌥⌘K | Criar componente | — | P1 |
@@ -183,7 +188,10 @@ colar do Figma).
 - **Seções plugáveis:** `AbaDesign.tsx` é só uma lista; cada `SecaoX({ editor, assets })` decide se aparece.
 - **Matemática de cor pura** em `lib/editor/cor.ts` (testes em `cor.test.ts`).
 - **Mudanças de schema (aditivas, sem migração):** `radii` em formas/frames/imagens; `theme.colorStyles`
-  e `colorStyleIds` nas camadas. Ainda pedem schema: vários preenchimentos/sombras, gradiente
+  e `colorStyleIds` nas camadas; `shape: 'path'` + `vetor: { w, h, caminhos: [{ nos: [{ x, y, entrada?, saida?,
+  tipo: 'canto' | 'suave' }], fechado, semPreenchimento? }], fillRule }` (coordenadas locais num quadro w × h que o
+  renderizador escala para a camada; alças em posição absoluta). Matemática pura e testada em `lib/editor/vetor/`
+  (de Casteljau, caixa exata pelas derivadas, laço, `d` do SVG com arcos/quadráticas). Ainda pedem schema: vários preenchimentos/sombras, gradiente
   angular/diamante, travar proporção persistente, posição do traço.
 
 ## Editor no celular e tablet

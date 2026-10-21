@@ -341,7 +341,41 @@ export const CamadaTextoSchema = CamadaBase.extend({
   radius: z.number().min(0).max(999).default(0),
 })
 
-export const FORMAS = ['rect', 'ellipse', 'triangle', 'semicircle', 'line', 'star', 'arrow'] as const
+/** `path` = caminho vetorial editável (`vetor`); as demais são primitivas desenhadas pelo renderizador. */
+export const FORMAS = ['rect', 'ellipse', 'triangle', 'semicircle', 'line', 'star', 'arrow', 'path'] as const
+
+/** Ponto em coordenadas locais do vetor (0..w, 0..h). */
+export const PontoVetorSchema = z.object({ x: z.number(), y: z.number() })
+/**
+ * Nó de um caminho: posição e alças de Bézier (posições absolutas, nas mesmas coordenadas locais).
+ * `suave` = alças espelhadas (mesma direção); `canto` = alças independentes ou nenhuma.
+ */
+export const NoVetorSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  entrada: PontoVetorSchema.optional(),
+  saida: PontoVetorSchema.optional(),
+  tipo: z.enum(['canto', 'suave']).default('canto'),
+})
+export const CaminhoVetorSchema = z.object({
+  nos: z.array(NoVetorSchema).min(1).max(5000),
+  fechado: z.boolean().default(false),
+  /** Região sem preenchimento (ferramenta Pintar); caminhos abertos desenhados com a caneta começam assim. */
+  semPreenchimento: z.boolean().optional(),
+})
+/**
+ * Caminho vetorial editável (modo "Editar vetor"). Coordenadas locais num quadro de referência `w × h`;
+ * o renderizador escala para o tamanho atual da camada (redimensionar não reescreve os nós).
+ */
+export const VetorSchema = z.object({
+  w: z.number().positive(),
+  h: z.number().positive(),
+  caminhos: z.array(CaminhoVetorSchema).min(1).max(500),
+  fillRule: z.enum(['nonzero', 'evenodd']).default('nonzero'),
+})
+export type NoVetor = z.infer<typeof NoVetorSchema>
+export type CaminhoVetor = z.infer<typeof CaminhoVetorSchema>
+export type Vetor = z.infer<typeof VetorSchema>
 
 export const CamadaFormaSchema = CamadaBase.extend({
   type: z.literal('shape'),
@@ -356,6 +390,8 @@ export const CamadaFormaSchema = CamadaBase.extend({
   radii: RaiosSchema.optional(),
   /** Textura listrada dos placeholders do design. */
   pattern: z.enum(['none', 'stripes', 'dots', 'grid']).default('none'),
+  /** Caminho editável (aditivo). Com `shape: 'path'` o renderizador desenha este caminho. */
+  vetor: VetorSchema.optional(),
 })
 
 /** Área clicável transparente sobre uma arte finalizada. */

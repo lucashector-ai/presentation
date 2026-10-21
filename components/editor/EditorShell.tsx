@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronDown, ChevronLeft, ChevronRight, CloudOff, Eye, Keyboard, Loader2, MonitorPlay, PanelLeft, Play, Redo2, SlidersHorizontal, Undo2, TriangleAlert, Grid3X3, Magnet, Box } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, CloudOff, Eye, Keyboard, Loader2, MonitorPlay, PanelLeft, Play, Redo2, SlidersHorizontal, Undo2, TriangleAlert, Grid3X3, Magnet, Box, Columns3, Ratio } from 'lucide-react'
 import { useEditor } from '@/lib/editor/useEditor'
 import { deslocarComGrade } from '@/lib/editor/guias'
 import { atalhoFigma, opacidadePorDigito, type MemoriaDigito } from '@/lib/editor/atalhos'
@@ -21,6 +21,8 @@ import { BotaoIA } from './ia/PainelIA'
 import { BarraFerramentas } from './BarraFerramentas'
 import { MenuEditor } from './MenuEditor'
 import { Gaveta } from './Gaveta'
+import { EVENTO_ABRIR, PainelPreencher, preencherSelecao } from './PreencherGrade'
+import { atalhoPreencher } from '@/lib/editor/preencher'
 import { Viewer } from '@/components/viewer/Viewer'
 import { consumirTela, marcarOrigem, pedirTelaCheia, urlApresentar } from '@/components/viewer/retorno'
 import { Compartilhar } from '@/components/compartilhar/Compartilhar'
@@ -28,17 +30,18 @@ import { Botao, BotaoIcone, Modal, Simbolo, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 
 const ATALHOS: [string, string][] = [
-  ['V', 'Mover / selecionar'], ['F', 'Frame (arraste para desenhar)'], ['R', 'Retângulo'], ['O', 'Elipse'], ['L', 'Linha'], ['Shift + L', 'Seta'], ['T', 'Texto'], ['S', 'Hotspot (área clicável)'], ['H', 'Mão'], ['Espaço + arrastar', 'Mão temporária (pan)'],
+  ['V', 'Mover / selecionar'], ['F', 'Frame (arraste para desenhar)'], ['R', 'Retângulo'], ['O', 'Elipse'], ['L', 'Linha'], ['Shift + L', 'Seta'], ['P', 'Caneta (clique = canto, arraste = curva)'], ['T', 'Texto'], ['S', 'Hotspot (área clicável)'], ['H', 'Mão'], ['Espaço + arrastar', 'Mão temporária (pan)'],
   ['Alt + A / D', 'Alinhar à esquerda / direita'], ['Alt + W / S', 'Alinhar ao topo / à base'], ['Alt + H / V', 'Centralizar na horizontal / vertical'], ['Shift + H / V', 'Espelhar na horizontal / vertical'],
   ['1 … 9 / 0', 'Opacidade 10–90% / 100% (dois dígitos: 5 5 = 55%)'], ['Alt + arrastar', 'Duplicar e arrastar a cópia'],
   ['Ctrl/⌘ + roda', 'Zoom no cursor'], ['Shift + 1', 'Ajustar à tela'], ['Shift + 2', 'Zoom na seleção'], ['Ctrl/⌘ + Shift + C', 'Copiar como PNG'], ['Ctrl/⌘ + ] / [', 'Um passo à frente / atrás'], ['Ctrl/⌘ + 0', 'Zoom 100%'], ['+ / −', 'Zoom'],
   ['Ctrl/⌘ + C / X / V', 'Copiar, recortar, colar (também do Figma e Illustrator)'], ['Ctrl/⌘ + D', 'Duplicar'], ['Delete', 'Excluir'],
   ['Ctrl/⌘ + G', 'Agrupar'], ['Ctrl/⌘ + Shift + G', 'Desagrupar / desfazer frame'], ['Ctrl/⌘ + Alt + G', 'Envolver em frame'], ['Shift + A', 'Adicionar auto layout'], ['Shift + Alt + A', 'Remover auto layout'],
-  ['Enter', 'Editar texto / selecionar filhos'], ['Shift + Enter', 'Selecionar frame pai'], ['Ctrl/⌘ + clique', 'Selecionar camada dentro do frame'], ['Ctrl/⌘ + Alt + C / V', 'Copiar / colar estilo'],
+  ['Enter / duplo clique', 'Editar texto, editar vetor (forma/SVG) ou selecionar filhos'], ['Editar vetor: V Q P B X E ⇧B', 'Mover, Laço, Caneta, Curvar, Cortar, Apagar, Pintar'], ['Editar vetor: Delete / setas / Esc', 'Apagar nós / mover nós (Shift = 10) / concluir'],
+  ['Ctrl + Alt + ← → ↑ ↓', 'Preencher metade esquerda / direita / superior / inferior'], ['Ctrl + Alt + Enter', 'Preencher a tela inteira'], ['Ctrl + Alt + D F G / E T', 'Terços / dois terços'], ['Ctrl + Alt + U I J K', 'Quartos (cantos)'], ['Shift + Enter', 'Selecionar frame pai'], ['Ctrl/⌘ + clique', 'Selecionar camada dentro do frame'], ['Ctrl/⌘ + Alt + C / V', 'Copiar / colar estilo'],
   [']  /  [', 'Trazer para frente / enviar para trás'], ['Setas', 'Mover 1 px (Shift = 10 px)'], ['Ctrl/⌘ + A', 'Selecionar tudo'],
   ['Ctrl/⌘ + Z', 'Desfazer'], ['Ctrl/⌘ + Shift + Z', 'Refazer'], ['Ctrl/⌘ + L', 'Travar / destravar'], ['Ctrl/⌘ + Shift + H', 'Ocultar / mostrar'],
   ['Ctrl/⌘ + arrastar', 'Mover / redimensionar sem encaixe'], ['Alt (segurar)', 'Medir distâncias até a camada sob o cursor'], ['Alt + alça', 'Redimensionar a partir do centro'], ['Shift + arrastar', 'Travar eixo / proporção'],
-  ["Shift + '", 'Grade (encaixe na grade)'], ['T + clique', 'Texto com largura automática (arraste = largura fixa)'], ['← →', 'Telas (sem seleção)'], ['P', 'Pré-visualizar'], ['?', 'Esta lista'],
+  ["Shift + '", 'Grade (encaixe na grade)'], ['T + clique', 'Texto com largura automática (arraste = largura fixa)'], ['← →', 'Telas (sem seleção)'], ['Ctrl/⌘ + Enter', 'Pré-visualizar'], ['?', 'Esta lista'],
 ]
 
 export function EditorShell({ projetoId }: { projetoId: string }) {
@@ -56,6 +59,8 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
   const [atalhos, setAtalhos] = useState(false)
   const [publicando, setPublicando] = useState(false)
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
+  const [preencher, setPreencher] = useState<{ x: number; y: number } | null>(null)
+  const fecharPreencher = useCallback(() => setPreencher(null), [])
   const [menuApresentar, setMenuApresentar] = useState(false)
   const [gaveta, setGaveta] = useState<'esquerda' | 'direita' | null>(null)
   const usuario = useDemo((e) => e.usuario)
@@ -157,9 +162,11 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
   useEffect(() => {
     const f = (e: Event) => { const d = (e as CustomEvent<{ bloco: string; ponto: { x: number; y: number } }>).detail; inserirBloco(d.bloco, d.ponto) }
     const m = (e: Event) => setMenu((e as CustomEvent<{ x: number; y: number }>).detail)
+    const p = (e: Event) => setPreencher((e as CustomEvent<{ x: number; y: number }>).detail)
     window.addEventListener('mostra:bloco', f)
     window.addEventListener('mostra:menu', m)
-    return () => { window.removeEventListener('mostra:bloco', f); window.removeEventListener('mostra:menu', m) }
+    window.addEventListener(EVENTO_ABRIR, p)
+    return () => { window.removeEventListener('mostra:bloco', f); window.removeEventListener('mostra:menu', m); window.removeEventListener(EVENTO_ABRIR, p) }
   }, [inserirBloco])
 
   // ---------- colar (Figma, Illustrator, imagens, texto, camadas) ----------
@@ -200,6 +207,10 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
       if (mod && k === 'y') { if (digitando) return; e.preventDefault(); acoes.refazer(); return }
       if (mod && k === 's') { e.preventDefault(); acoes.salvarAgora(); mostrar('Todas as alterações foram salvas.', 'sucesso'); return }
       if (digitando || preview) return
+      // ⌃⌥ + tecla: preencher metade/terço/quarto (como o Rectangle no macOS)
+      const pre = sel.length ? atalhoPreencher(e) : null
+      if (pre && !(e.code === 'KeyG' && !/Mac/i.test(navigator.platform))) { e.preventDefault(); if (!preencherSelecao(editor, pre.celulas)) mostrar('Selecione uma camada fora do auto layout.'); return }
+      if (mod && e.key === 'Enter') { e.preventDefault(); abrirPreview(); return }
       if (mod && e.altKey && k === 'c' && camadasSelecionadas[0]) { e.preventDefault(); acoes.copiarEstilo(camadasSelecionadas[0]); mostrar('Estilo copiado.'); return }
       if (mod && e.altKey && k === 'v') { e.preventDefault(); acoes.colarEstilo(sel); return }
       if (mod && k === 'd' && sel.length) { e.preventDefault(); acoes.duplicarCamadas(sel); return }
@@ -223,6 +234,7 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
         if (e.shiftKey) acoes.selecionarPai(l.id)
         else if (l.type === 'text' && !l.locked) window.dispatchEvent(new CustomEvent('mostra:editar-texto', { detail: { id: l.id } }))
         else if (l.type === 'frame') acoes.selecionarFilhos(l.id)
+        else if ((l.type === 'shape' || l.type === 'svg') && !l.locked) window.dispatchEvent(new CustomEvent('mostra:editar-vetor', { detail: { id: l.id } }))
         return
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && sel.length) { e.preventDefault(); acoes.removerCamadas(sel); return }
@@ -253,7 +265,6 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
         window.dispatchEvent(new Event('mostra:empurrou'))
         return
       }
-      if (k === 'p' && !e.shiftKey && !e.altKey) { abrirPreview(); return }
       // atalhos do Figma: ⌥A/D/W/S/H/V alinham, ⇧H/⇧V espelham, 0–9 opacidade, V F R O L ⇧L T S H ferramentas
       const at = atalhoFigma(e)
       if (!at) return
@@ -270,7 +281,7 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
     }
     window.addEventListener('keydown', tecla)
     return () => window.removeEventListener('keydown', tecla)
-  }, [acoes, sel, cena, preview, escala, estado.documento.scenes, estado.grade, estado.gradePasso, editor.indiceCena, camadasSelecionadas, mostrar, abrirPreview])
+  }, [acoes, sel, cena, preview, escala, estado.documento.scenes, estado.grade, estado.gradePasso, editor, editor.indiceCena, camadasSelecionadas, mostrar, abrirPreview])
 
   if (!editor.existe || !projeto) {
     return <div className="flex h-dvh items-center justify-center p-6 text-center text-sm text-texto2">Projeto não encontrado. <Link className="ml-1 underline" href="/app">Voltar ao painel</Link></div>
@@ -313,7 +324,7 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
         <BotaoIA editor={editor} nomeProjeto={projeto.nome} />
         <span title={`${usuario.nome} — você está editando (colaboração em tempo real chega na Fase 2)`} className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-full bg-salvia text-[11px] font-semibold text-musgo lg:flex">{iniciaisDe(usuario.nome)}</span>
         <Botao tamanho="sm" variante="fantasma" className="hidden lg:inline-flex" icone={<Eye className="h-4 w-4" />} onClick={abrirPreview}>Pré-visualizar</Botao>
-        <BotaoIcone rotulo="Pré-visualizar (P)" className="hidden md:inline-flex lg:hidden" onClick={abrirPreview}><Eye className="h-4 w-4" /></BotaoIcone>
+        <BotaoIcone rotulo="Pré-visualizar (Ctrl/⌘ + Enter)" className="hidden md:inline-flex lg:hidden" onClick={abrirPreview}><Eye className="h-4 w-4" /></BotaoIcone>
         <MenuEditor editor={editor} projetoId={projetoId} nomeProjeto={projeto.nome} aoPreview={abrirPreview} aoApresentar={apresentar} aoAtalhos={() => setAtalhos(true)} />
         <BotaoIcone rotulo="Apresentar" className="shrink-0 lg:hidden" onClick={() => apresentar({ telaCheia: true })}><Play className="h-4 w-4 fill-current" /></BotaoIcone>
         <div className="relative hidden lg:block">
@@ -371,6 +382,8 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
           </label>
         )}
         <BotaoIcone rotulo="Guias inteligentes" ativo={estado.snap} className="h-6 w-6" onClick={() => acoes.ui({ snap: !estado.snap })}><Magnet className="h-3.5 w-3.5" /></BotaoIcone>
+        <BotaoIcone rotulo="Encaixar nas frações da tela (1/2, 1/3, 1/4…)" ativo={estado.fracoes} className="h-6 w-6" onClick={() => acoes.ui({ fracoes: !estado.fracoes })}><Ratio className="h-3.5 w-3.5" /></BotaoIcone>
+        <BotaoIcone rotulo="Grade de layout (12 colunas com margens)" ativo={estado.colunas} className="h-6 w-6" onClick={() => acoes.ui({ colunas: !estado.colunas })}><Columns3 className="h-3.5 w-3.5" /></BotaoIcone>
         <BotaoIcone rotulo="Interagir com 3D e incorporados no canvas" ativo={interagir3d} className="h-6 w-6" onClick={() => setInteragir3d((v) => !v)}><Box className="h-3.5 w-3.5" /></BotaoIcone>
         <span className="flex-1" />
         <button aria-label="Tela anterior" className="rounded p-1 hover:bg-hover disabled:opacity-30" disabled={editor.indiceCena <= 0} onClick={() => acoes.irParaCena(estado.documento.scenes[editor.indiceCena - 1]!.id)}><ChevronLeft className="h-3.5 w-3.5" /></button>
@@ -383,6 +396,7 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
       </footer>
 
       {menu && <MenuContexto editor={editor} x={menu.x} y={menu.y} aoFechar={() => setMenu(null)} avisar={avisar} />}
+      {preencher && <PainelPreencher editor={editor} x={preencher.x} y={preencher.y} aoFechar={fecharPreencher} />}
 
       {preview && (
         <div className="fixed inset-0 z-50 bg-black">
