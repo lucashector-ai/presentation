@@ -193,7 +193,10 @@ export function coresUsadas(cenas: ComCores[], limite = 24): string[] {
     for (const l of c.layers) {
       add(l.fill); add(l.color); add(l.stroke); add(l.background)
       grad(l.gradient)
-      add((l.effects as { shadow?: { color?: string } } | undefined)?.shadow?.color)
+      const ef = l.effects as { shadow?: { color?: string }; shadows?: { color?: string; realistic?: boolean }[] } | undefined
+      add(ef?.shadow?.color)
+      ef?.shadows?.forEach((s) => { if (!s.realistic) add(s.color) })
+      ;(l.strokes as { color?: string; gradient?: unknown }[] | undefined)?.forEach((t) => { add(t.color); grad(t.gradient) })
       const recolor = l.recolor as Record<string, string> | undefined
       if (recolor) Object.values(recolor).forEach(add)
     }

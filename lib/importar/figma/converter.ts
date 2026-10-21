@@ -18,7 +18,8 @@
  * Puro: devolve objetos de camada ainda sem validação; o editor sanitiza SVG, envia imagens e valida.
  */
 import { FONTES_APRESENTACAO } from '@/lib/design-tokens'
-import type { Gradiente } from '@/lib/scene/schema'
+import { MAX_SOMBRAS, MAX_TRACOS, type Gradiente } from '@/lib/scene/schema'
+import { pontosEstrela } from '@/lib/scene/formas'
 import { DocSvg, TIPOS_VETORIAIS, bytesDaImagem, caixaNo, corHex, desenharNo, efeitosVisiveis, ehContainer, montarSvg, pinturasVisiveis, raiosDe, recorta, tamanho, visivel, type Contexto, type No } from './desenho'
 import { IDENTIDADE, aplicar, decompor, deFigma, expandir, intersecao, multiplicar, transformarCaixa, uniao, type Caixa, type M } from './geometria'
 import type { Baseline, DadosTexto, GUID, MensagemFigma, NodeChange, Numero, Paint, ValorPropriedade } from './tipos'
@@ -240,9 +241,10 @@ function colocar(W: M, c: Caixa): Geom | null {
   return { x: centro.x - w / 2, y: centro.y - h / 2, w, h, rotacao: normalizarAngulo(d.rotacao), espelhoX: d.espelhoX }
 }
 
-const MESCLAGEM: Record<string, string> = { MULTIPLY: 'multiply', SCREEN: 'screen', OVERLAY: 'overlay', DARKEN: 'darken', LIGHTEN: 'lighten', COLOR_DODGE: 'color-dodge', DIFFERENCE: 'difference', LUMINOSITY: 'luminosity' }
+const MESCLAGEM: Record<string, string> = { MULTIPLY: 'multiply', SCREEN: 'screen', OVERLAY: 'overlay', DARKEN: 'darken', LIGHTEN: 'lighten', COLOR_DODGE: 'color-dodge', DIFFERENCE: 'difference', LUMINOSITY: 'luminosity', COLOR_BURN: 'color-burn', HARD_LIGHT: 'hard-light', SOFT_LIGHT: 'soft-light', EXCLUSION: 'exclusion', HUE: 'hue', SATURATION: 'saturation', COLOR: 'color' }
 
 const limitar = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v))
+const r2 = (v: number) => Math.round(v * 100) / 100
 
 // ---------- gradiente CSS (camadas shape/text) ----------
 
@@ -273,13 +275,18 @@ export function gradienteCss(p: Paint, w: number, h: number, forcar = false): Gr
 
 // ---------- efeitos de camada ----------
 
+/**
+ * Sombras, desfoques e mesclagem. Uma sombra projetada vira `effects.shadow` (como antes); várias sombras e
+ * sombras internas viram a lista `effects.shadows` (de cima para baixo, como no painel).
+ */
 function efeitosCamada(nc: NodeChange, ctx: Contexto, permitirSombra = true): { effects?: Record<string, unknown>; complexo: boolean } {
   const efs = efeitosVisiveis(nc.effects)
-  const drops = efs.filter((e) => e.type === 'DROP_SHADOW')
-  const complexo = efs.some((e) => e.type === 'INNER_SHADOW') || drops.length > 1
+  const sombras = efs.filter((e) => e.type === 'DROP_SHADOW' || e.type === 'INNER_SHADOW')
+  const complexo = sombras.length > MAX_SOMBRAS
   const effects: Record<string, unknown> = {}
-  const d = drops[0]
-  if (d && permitirSombra) effects.shadow = { x: limitar(d.offset?.x ?? 0, -200, 200), y: limitar(d.offset?.y ?? 0, -200, 200), blur: limitar(d.radius ?? 0, 0, 300), spread: limitar(d.spread ?? 0, -100, 100), color: corHex(d.color) }
+  const conv = (d: (typeof sombras)[number]) => ({ x: limitar(d.offset?.x ?? 0, -200, 200), y: limitar(d.offset?.y ?? 0, -200, 200), blur: limitar(d.radius ?? 0, 0, 300), spread: limitar(d.spread ?? 0, -100, 100), color: corHex(d.color), ...(d.type === 'INNER_SHADOW' ? { inner: true } : {}) })
+  if (permitirSombra && sombras.length === 1 && sombras[0]!.type === 'DROP_SHADOW') effects.shadow = conv(sombras[0]!)
+  else if (permitirSombra && sombras.length) effects.shadows = [...sombras].reverse().slice(0, MAX_SOMBRAS).map(conv)
   const blur = efs.find((e) => e.type === 'FOREGROUND_BLUR')
   if (blur) effects.blur = limitar((blur.radius ?? 0) / 2, 0, 100)
   const fundo = efs.find((e) => e.type === 'BACKGROUND_BLUR')
@@ -290,9 +297,55 @@ function efeitosCamada(nc: NodeChange, ctx: Contexto, permitirSombra = true): { 
   return { effects: Object.keys(effects).length ? effects : undefined, complexo }
 }
 
+// ---------- traços ----------
+
+const POSICAO_TRACO: Record<string, string> = { INSIDE: 'inside', CENTER: 'center', OUTSIDE: 'outside' }
+const PONTA_TRACO: Record<string, string> = { ROUND: 'round', SQUARE: 'square' }
+const JUNCAO_TRACO: Record<string, string> = { ROUND: 'round', BEVEL: 'bevel' }
+
+/**
+ * Traços do Figma → lista `strokes` (de cima para baixo): cor ou gradiente linear, espessura (por lado nos
+ * retângulos), posição, tracejado (traço/espaço; traço 0 = pontilhado), pontas e junções. null se não couber.
+ */
+export function tracosDoFigma(nc: NodeChange, w: number, h: number, padraoPosicao = 'INSIDE'): Record<string, unknown>[] | null {
+  const pinturas = pinturasVisiveis(nc.strokePaints)
+  const peso = nc.strokeWeight ?? 0
+  if (!pinturas.length || peso <= 0) return []
+  const dash = (nc.dashPattern ?? []).filter((n) => Number.isFinite(n) && n >= 0)
+  const lados = nc.borderStrokeWeightsIndependent
+    ? { top: limitar(nc.borderTopWeight ?? peso, 0, 200), right: limitar(nc.borderRightWeight ?? peso, 0, 200), bottom: limitar(nc.borderBottomWeight ?? peso, 0, 200), left: limitar(nc.borderLeftWeight ?? peso, 0, 200) }
+    : undefined
+  const lista: Record<string, unknown>[] = []
+  // o Figma guarda de baixo para cima; o painel (e a Mostra) lista de cima para baixo
+  for (const t of [...pinturas].reverse()) {
+    let cor: string
+    let gradient: Gradiente | undefined
+    if (t.type === 'SOLID') cor = corHex(t.color, t.opacity ?? 1)
+    else if (t.type === 'GRADIENT_LINEAR') {
+      const g = gradienteCss(t, w, h, true)
+      if (!g) return null
+      gradient = g
+      cor = g.stops[0]!.color
+    } else return null
+    lista.push({
+      color: cor,
+      ...(gradient ? { gradient } : {}),
+      weight: limitar(lados ? Math.max(lados.top, lados.right, lados.bottom, lados.left) : peso, 0, 200),
+      position: POSICAO_TRACO[nc.strokeAlign ?? padraoPosicao] ?? 'inside',
+      ...(lados ? { sides: lados } : {}),
+      style: dash.length && dash.some((n) => n > 0) ? (dash[0]! <= 0.01 ? 'dotted' : 'dashed') : 'solid',
+      dash: limitar(dash[0] ?? 8, 0, 500),
+      gap: limitar(dash[1] ?? dash[0] ?? 8, 0, 500),
+      cap: PONTA_TRACO[nc.strokeCap ?? ''] ?? 'none',
+      join: JUNCAO_TRACO[nc.strokeJoin ?? ''] ?? 'miter',
+    })
+  }
+  return lista.slice(0, MAX_TRACOS)
+}
+
 // ---------- forma simples ----------
 
-function formaSimples(nc: NodeChange, forma: 'rect' | 'ellipse', ctx: Contexto): Record<string, unknown> | null {
+function formaSimples(nc: NodeChange, forma: 'rect' | 'ellipse' | 'polygon' | 'star', ctx: Contexto): Record<string, unknown> | null {
   const fills = pinturasVisiveis(nc.fillPaints)
   if (fills.length > 1) return null
   const { w, h } = tamanho(nc)
@@ -312,12 +365,24 @@ function formaSimples(nc: NodeChange, forma: 'rect' | 'ellipse', ctx: Contexto):
   if (tracos.length > 1) return null
   const t = tracos[0]
   if (t && peso > 0) {
-    if (t.type !== 'SOLID' || nc.strokeAlign !== 'INSIDE' || nc.borderStrokeWeightsIndependent || nc.dashPattern?.length || peso > 100) return null
-    props.stroke = corHex(t.color, t.opacity ?? 1)
-    props.strokeWidth = peso
+    const simples = forma !== 'polygon' && forma !== 'star' && t.type === 'SOLID' && nc.strokeAlign === 'INSIDE' && !nc.borderStrokeWeightsIndependent && !nc.dashPattern?.length && peso <= 100
+    if (simples) {
+      props.stroke = corHex(t.color, t.opacity ?? 1)
+      props.strokeWidth = peso
+    } else {
+      // vários traços, centro/fora, tracejado, por lado: lista nova (antes virava SVG)
+      const lista = tracosDoFigma(nc, w, h)
+      if (!lista) return null
+      if (lista.some((x) => x.sides) && forma !== 'rect') return null
+      props.strokes = lista
+    }
   }
   if (forma === 'rect') {
     Object.assign(props, propsRaios(raiosDe(nc), w, h))
+    if ((nc.cornerSmoothing ?? 0) > 0) props.cornerSmoothing = r2(limitar(nc.cornerSmoothing!, 0, 1))
+  } else if (forma === 'polygon' || forma === 'star') {
+    props.count = Math.round(limitar(nc.count ?? (forma === 'star' ? 5 : 3), 3, 60))
+    if (forma === 'star') props.ratio = r2(limitar(nc.starInnerScale ?? 0.382, 0.05, 1))
   } else if (nc.arcData && ((nc.arcData.innerRadius ?? 0) > 0 || Math.abs((nc.arcData.endingAngle ?? Math.PI * 2) - (nc.arcData.startingAngle ?? 0)) < Math.PI * 2 - 1e-3)) return null
   const ef = efeitosCamada(nc, ctx)
   if (ef.complexo) return null
@@ -651,6 +716,35 @@ class Conversor {
     return true
   }
 
+  /**
+   * Polígono/estrela simples (sem rotação, preenchimento sólido ou gradiente linear): vira forma editável com
+   * lados/pontas. O Figma estica a figura até a caixa; na Mostra a estrela é inscrita no círculo, então a
+   * caixa é aumentada para que a estrela ocupe exatamente a área do Figma.
+   */
+  private poligono(no: No, est: Estado, W: M, forma: 'polygon' | 'star'): boolean {
+    const nc = no.nc
+    if (pinturasVisiveis(nc.fillPaints).some((p) => p.type === 'IMAGE')) return false
+    const props = formaSimples(nc, forma, this.ctx)
+    const { w, h } = tamanho(nc)
+    const g = props ? colocar(W, { x: 0, y: 0, w, h }) : null
+    if (!props || !g || g.rotacao || g.espelhoX || w < 1 || h < 1) return false
+    // dentro de um frame que recorta só parte da figura: o SVG corta certo (a forma seria achatada)
+    if (est.recorte) { const r = est.recorte; if (g.x < r.x - 0.5 || g.y < r.y - 0.5 || g.x + g.w > r.x + r.w + 0.5 || g.y + g.h > r.y + r.h + 0.5) return false }
+    let caixa = { x: g.x, y: g.y, w: g.w, h: g.h }
+    if (forma === 'star') {
+      const pts = pontosEstrela(1, 1, props.count as number, props.ratio as number)
+      const xs = pts.map((p) => p[0])
+      const ys = pts.map((p) => p[1])
+      const fw = Math.max(...xs) - Math.min(...xs)
+      const fh = Math.max(...ys) - Math.min(...ys)
+      const nw = g.w / fw
+      const nh = g.h / fh
+      caixa = { x: g.x - Math.min(...xs) * nw, y: g.y - Math.min(...ys) * nh, w: nw, h: nh }
+    }
+    this.empurrar(this.interna(props as Interna['props'], { ...g, ...caixa }, { ...est, opacidade: est.opacidade * (nc.opacity ?? 1) }), est, nc)
+    return true
+  }
+
   /** Retângulo/elipse/fundo de frame. */
   private forma(no: No, est: Estado, W: M, forma: 'rect' | 'ellipse') {
     const nc = no.nc
@@ -669,7 +763,9 @@ class Conversor {
   private texto(no: No, est: Estado, W: M) {
     const nc = no.nc
     const pedacos = textoParaPedacos(nc, this.ctx, this.fontes)
-    if (pinturasVisiveis(nc.strokePaints).length && (nc.strokeWeight ?? 0) > 0) this.ctx.avisos.add('Contorno em texto não existe na Mostra e foi ignorado.')
+    // contorno das letras: o primeiro traço vira -webkit-text-stroke (centro ou fora)
+    const tracosTexto = pinturasVisiveis(nc.strokePaints).length && (nc.strokeWeight ?? 0) > 0 ? tracosDoFigma({ ...nc, borderStrokeWeightsIndependent: false }, tamanho(nc).w, tamanho(nc).h, 'OUTSIDE') : []
+    if (tracosTexto === null) this.ctx.avisos.add('Contornos de texto com imagem ou gradiente radial foram ignorados.')
     const ef = efeitosCamada(nc, this.ctx)
     for (const p of pedacos) {
       // O Figma não corta letras que passam da entrelinha (ascendentes/descendentes com entrelinha curta);
@@ -681,7 +777,7 @@ class Conversor {
       const d = decompor(W)
       const geo = g ?? { ...transformarCaixa(W, caixa), rotacao: 0, espelhoX: false }
       const escala = g ? d.sy : 1
-      const props: Interna['props'] = { type: 'text', text: p.texto.slice(0, 5000), ...p.props, padding: respiro, ...(ef.effects ? { effects: ef.effects } : {}) }
+      const props: Interna['props'] = { type: 'text', text: p.texto.slice(0, 5000), ...p.props, padding: respiro, ...(ef.effects ? { effects: ef.effects } : {}), ...(tracosTexto?.length ? { strokes: tracosTexto.map((x) => ({ ...x, position: x.position === 'inside' ? 'center' : x.position })) } : {}) }
       if (Math.abs(escala - 1) > 1e-3) props.fontSize = (props.fontSize as number) * escala
       this.empurrar(this.interna(props, { ...geo, w: Math.max(1, geo.w), h: Math.max(1, geo.h) }, { ...est, opacidade: est.opacidade * (nc.opacity ?? 1) }), est, nc)
     }
@@ -720,6 +816,7 @@ class Conversor {
     }
     if (tipo === 'RECTANGLE' || tipo === 'ROUNDED_RECTANGLE') return this.forma(no, est, W, 'rect')
     if (tipo === 'ELLIPSE') return this.forma(no, est, W, 'ellipse')
+    if ((tipo === 'REGULAR_POLYGON' || tipo === 'STAR') && this.poligono(no, est, W, tipo === 'STAR' ? 'star' : 'polygon')) return
     if (TIPOS_VETORIAIS.has(tipo) || nc.fillGeometry?.length || nc.strokeGeometry?.length) return this.svg(no, est, W)
     if (tipo === 'SLICE' || tipo === 'CONNECTOR' || tipo === 'STICKY' || tipo === 'SHAPE_WITH_TEXT' || tipo === 'WIDGET' || tipo === 'STAMP') {
       this.ctx.avisos.add('Elementos do FigJam e fatias de exportação foram ignorados.')
@@ -739,8 +836,6 @@ function caixaGirada(i: Geom): Caixa {
   return { x: i.x + i.w / 2 - w / 2, y: i.y + i.h / 2 - h / 2, w, h }
 }
 
-const r2 = (v: number) => Math.round(v * 100) / 100
-
 function escalarProps(p: Record<string, unknown>, s: number) {
   if (s === 1) return
   for (const k of ['fontSize', 'letterSpacing', 'padding', 'radius', 'strokeWidth', 'dash']) if (typeof p[k] === 'number') p[k] = (p[k] as number) * s
@@ -750,6 +845,13 @@ function escalarProps(p: Record<string, unknown>, s: number) {
     for (const k of ['blur', 'backdropBlur']) if (typeof ef[k] === 'number') ef[k] = (ef[k] as number) * s
     const sh = ef.shadow as Record<string, number> | undefined
     if (sh) for (const k of ['x', 'y', 'blur', 'spread']) if (typeof sh[k] === 'number') sh[k] = sh[k]! * s
+    if (Array.isArray(ef.shadows)) ef.shadows = (ef.shadows as Record<string, number>[]).map((x) => ({ ...x, x: x.x! * s, y: x.y! * s, blur: x.blur! * s, spread: x.spread! * s }))
+  }
+  if (Array.isArray(p.strokes)) {
+    p.strokes = (p.strokes as Record<string, unknown>[]).map((t) => {
+      const lados = t.sides as Record<string, number> | undefined
+      return { ...t, weight: (t.weight as number) * s, dash: (t.dash as number) * s, gap: (t.gap as number) * s, ...(lados ? { sides: Object.fromEntries(Object.entries(lados).map(([k, v]) => [k, v * s])) } : {}) }
+    })
   }
 }
 

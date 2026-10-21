@@ -6,7 +6,7 @@
 import type { Alinhamento } from '@/lib/scene/transform'
 
 /** Ferramentas do editor (V, F, R, O, L, ⇧L, P, T, S, H). */
-export type Ferramenta = 'mover' | 'mao' | 'texto' | 'forma' | 'elipse' | 'linha' | 'seta' | 'frame' | 'hotspot' | 'caneta'
+export type Ferramenta = 'mover' | 'mao' | 'texto' | 'forma' | 'elipse' | 'linha' | 'seta' | 'poligono' | 'estrela' | 'frame' | 'hotspot' | 'caneta'
 
 export interface TeclaPressionada {
   key: string
@@ -65,10 +65,10 @@ export function opacidadePorDigito(digito: number, agora: number, anterior: Memo
 }
 
 /** Ferramentas que desenham arrastando (ou clicando, com o tamanho padrão). */
-export const FERRAMENTAS_DESENHO: readonly Ferramenta[] = ['texto', 'forma', 'elipse', 'linha', 'seta', 'frame', 'hotspot']
+export const FERRAMENTAS_DESENHO: readonly Ferramenta[] = ['texto', 'forma', 'elipse', 'linha', 'seta', 'poligono', 'estrela', 'frame', 'hotspot']
 
 /** Forma do schema criada por cada ferramenta de forma. */
-export const FORMA_DA_FERRAMENTA: Partial<Record<Ferramenta, 'rect' | 'ellipse' | 'line' | 'arrow'>> = { forma: 'rect', elipse: 'ellipse', linha: 'line', seta: 'arrow' }
+export const FORMA_DA_FERRAMENTA: Partial<Record<Ferramenta, 'rect' | 'ellipse' | 'line' | 'arrow' | 'polygon' | 'star'>> = { forma: 'rect', elipse: 'ellipse', linha: 'line', seta: 'arrow', poligono: 'polygon', estrela: 'star' }
 
 /**
  * Linha/seta desenhada de `a` até `b`: caixa horizontal com o comprimento do traço, girada no ângulo do arraste

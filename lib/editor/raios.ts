@@ -11,7 +11,12 @@ type ComRaio = Camada & { radius?: number; radii?: Raios }
 
 /** Camadas que aceitam cantos independentes. */
 export function aceitaCantos(c: Camada): boolean {
-  return c.type === 'shape' || c.type === 'frame' || c.type === 'image'
+  return c.type === 'shape' || c.type === 'frame' || c.type === 'image' || c.type === 'video' || c.type === 'text' || c.type === 'embed' || c.type === 'lottie' || c.type === 'model3d'
+}
+
+/** Camadas com suavização de cantos (squircle) desenhada: retângulos, frames e imagens. */
+export function aceitaSuavizacao(c: Camada): boolean {
+  return (c.type === 'shape' && c.shape === 'rect') || c.type === 'frame' || c.type === 'image'
 }
 
 export function raiosDe(c: Camada): Raios {

@@ -29,6 +29,17 @@ export function SecoesDoTipo({ editor, assets = [] }: PropsSecao) {
     case 'svg': return <SecaoSvg c={l} set={set} />
     case 'model3d': return <SecaoModelo c={l} set={set} assets={assets} />
     case 'lottie': return <SecaoLottie c={l} set={set} />
+    case 'shape':
+      // polígono: lados; estrela: pontas e raio interno (como no Figma)
+      if (l.shape !== 'polygon' && l.shape !== 'star') return null
+      return (
+        <Secao titulo={l.shape === 'star' ? 'Estrela' : 'Polígono'}>
+          <div className="grid grid-cols-2 gap-1.5">
+            <CampoNum prefixo={l.shape === 'star' ? '✦' : '⬡'} rotulo={l.shape === 'star' ? 'Pontas' : 'Lados'} titulo={l.shape === 'star' ? 'Número de pontas' : 'Número de lados'} valor={l.count ?? (l.shape === 'star' ? 5 : 3)} min={3} max={60} aoMudar={(v) => set({ count: Math.round(v) } as Partial<Camada>)} />
+            {l.shape === 'star' && <CampoNum prefixo="◎" rotulo="Raio interno" titulo="Raio interno (% do externo)" valor={Math.round((l.ratio ?? 0.4) * 100)} min={5} max={100} sufixo="%" aoMudar={(v) => set({ ratio: v / 100 } as Partial<Camada>)} />}
+          </div>
+        </Secao>
+      )
     case 'embed':
       return (
         <Secao titulo="Incorporado">

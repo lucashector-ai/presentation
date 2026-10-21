@@ -18,6 +18,10 @@ import { ancestrais, mapaDe } from '@/lib/scene/arvore'
 import { recolorirSvg, svgParaDataUrl } from '@/lib/importar/svg'
 import { pilhaFonte } from '@/lib/design-tokens'
 import { MASCARAS, filtroCss, gradienteCss, raioCss, sombraCss, transformCss } from './estilos'
+import { boxShadowCss, desfoqueDe, internas, projetadas, textShadowCss, vidroDe } from '@/lib/scene/efeitos'
+import { caminhoCantos, raiosDaCamada, temSuavizacao } from '@/lib/scene/cantos'
+import { estiloMascara } from '@/lib/scene/mascara'
+import { Tracos, estiloTracoTexto } from './camadas/Tracos'
 import { TextoSegmentado, planoAnimacao, usePreviaAnimacao, varsAnimacao, type PedidoPrevia } from './animacao'
 import { Forma } from './camadas/Forma'
 import { Modelo3d } from './camadas/Modelo3d'
@@ -91,6 +95,12 @@ function CenaRender(props: PropsInternas) {
   const passo = escala > 0 ? 1 / (escala * dpr) : undefined
   const camadas = useMemo(() => costurar(ordenarParaRender(sangrar(calcularLayout(cena.layers), cena.size, sangria)), passo), [cena.layers, cena.size, sangria, passo])
   const herdado = useMemo(() => herancaDeFrames(camadas), [camadas])
+  // máscaras de forma: cada camada recortada recebe a mask-image da sua forma-máscara
+  const mascaras = useMemo(() => {
+    if (!camadas.some((c) => c.maskId)) return null
+    const m = mapaDe(camadas)
+    return new Map(camadas.filter((c) => c.maskId).map((c) => [c.id, estiloMascara(c, m)]))
+  }, [camadas])
   const mapaMorph = useMemo(() => (morphDe ? new Map(morphDe.layers.map((l) => [chaveMorph(l), l])) : null), [morphDe])
   const fundoCss = cena.backgroundGradient ? gradienteCss(cena.backgroundGradient) : cena.background
   const [fundoAtual, setFundoAtual] = useState(morphDe ? (morphDe.backgroundGradient ? gradienteCss(morphDe.backgroundGradient) : morphDe.background) : fundoCss)
@@ -103,7 +113,7 @@ function CenaRender(props: PropsInternas) {
     <div className={[className, classeTransicao].filter(Boolean).join(' ') || undefined} style={{ width: cena.size.width * escala, height: cena.size.height * escala, position: 'relative', overflow: sangria ? 'visible' : 'hidden', background: morphDe ? fundoAtual : fundoCss, transition: morphDe ? `background ${props.morphDuracao ?? 600}ms ${props.morphEasing ?? 'ease'}` : undefined, ...(classeTransicao ? { ['--dur' as string]: `${props.morphDuracao ?? 500}ms` } : {}), ...style }}>
       <div style={{ width: cena.size.width, height: cena.size.height, transform: `scale(${escala})`, transformOrigin: '0 0', position: 'absolute', left: 0, top: 0 }}>
         {fundo && <img src={modo === 'miniatura' ? fundo.thumbUrl || fundo.url : fundo.url} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: cena.backgroundFit, pointerEvents: 'none' }} />}
-        {camadas.map((c) => (props.ocultar?.has(c.id) ? null : <LayerView key={c.id} camada={c} props={props} origemMorph={mapaMorph?.get(chaveMorph(c))} heranca={herdado.get(c.id)} />))}
+        {camadas.map((c) => (props.ocultar?.has(c.id) ? null : <LayerView key={c.id} camada={c} props={props} origemMorph={mapaMorph?.get(chaveMorph(c))} heranca={herdado.get(c.id)} mascara={mascaras?.get(c.id)} />))}
         {children}
       </div>
     </div>
@@ -156,7 +166,7 @@ function useDensidade(): number {
   return dpr
 }
 
-function LayerView({ camada: c, props, origemMorph, heranca }: { camada: Camada; props: PropsInternas; origemMorph?: Camada; heranca?: Heranca }) {
+function LayerView({ camada: c, props, origemMorph, heranca, mascara }: { camada: Camada; props: PropsInternas; origemMorph?: Camada; heranca?: Heranca; mascara?: CSSProperties }) {
   const { modo, runtime, reduzirMovimento = false, semHover = false, mobile = false, aoInteragir, chaveEntrada, morphDe, morphDuracao = 600, morphEasing = 'ease' } = props
   const viewer = modo === 'viewer'
   const visivel = (runtime ? camadaVisivel(c, runtime) : !c.hidden) && !heranca?.oculta
@@ -197,8 +207,9 @@ function LayerView({ camada: c, props, origemMorph, heranca }: { camada: Camada;
     ...varsAnimacao(c),
     cursor: clicavel ? 'pointer' : undefined,
     mixBlendMode: e?.blend && e.blend !== 'normal' ? e.blend : undefined,
-    backdropFilter: e?.backdropBlur ? `blur(${e.backdropBlur}px)` : undefined,
-    WebkitBackdropFilter: e?.backdropBlur ? `blur(${e.backdropBlur}px)` : undefined,
+    backdropFilter: vidroDe(e) ? `blur(${vidroDe(e)}px)` : undefined,
+    WebkitBackdropFilter: vidroDe(e) ? `blur(${vidroDe(e)}px)` : undefined,
+    ...mascara,
     transition: origemMorph ? `left ${morphDuracao}ms ${morphEasing}, top ${morphDuracao}ms ${morphEasing}, width ${morphDuracao}ms ${morphEasing}, height ${morphDuracao}ms ${morphEasing}, opacity ${morphDuracao}ms ${morphEasing}, transform ${morphDuracao}ms ${morphEasing}` : undefined,
     ...plano.estilo,
   }
@@ -225,6 +236,7 @@ function LayerView({ camada: c, props, origemMorph, heranca }: { camada: Camada;
   return (
     <div key={chaveAnim} data-layer-id={c.id} className={classes || undefined} style={base} {...eventos}>
       <Conteudo camada={c} props={props} origemMorph={morphFim ? undefined : origemMorph} morphDuracao={morphDuracao} morphEasing={morphEasing} animTexto={plano.texto} />
+      {c.strokes && !(c.type === 'shape' && c.isMask) && <Tracos camada={c} />}
     </div>
   )
 }
@@ -238,25 +250,29 @@ function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, an
       return <Texto c={c} origem={origemMorph?.type === 'text' ? origemMorph : undefined} modo={modo} duracao={morphDuracao} easing={morphEasing} animTexto={animTexto} />
     case 'shape':
       return (
-        <div style={{ width: '100%', height: '100%', filter: filtroCss(e, c.shape !== 'rect' && c.shape !== 'ellipse') }}>
+        <div style={{ width: '100%', height: '100%', filter: filtroCss(e, (c.shape !== 'rect' && c.shape !== 'ellipse') || (c.shape === 'rect' && temSuavizacao(c))) }}>
           <Forma camada={origemMorph?.type === 'shape' ? { ...c, fill: origemMorph.fill } : c} />
         </div>
       )
-    case 'frame':
-      return (
+    case 'frame': {
+      const suave = temSuavizacao(c)
+      const caixa = (
         <div
           style={{
             width: '100%',
             height: '100%',
             boxSizing: 'border-box',
             background: c.gradient ? gradienteCss(c.gradient) : c.fill,
-            border: c.stroke && c.strokeWidth ? `${c.strokeWidth}px solid ${c.stroke}` : undefined,
-            borderRadius: raioCss(c),
-            boxShadow: sombraCss(e),
-            filter: filtroCss(e, false),
+            border: !c.strokes && c.stroke && c.strokeWidth ? `${c.strokeWidth}px solid ${c.stroke}` : undefined,
+            borderRadius: suave ? undefined : raioCss(c),
+            clipPath: suave ? recorteSuave(c) : undefined,
+            boxShadow: suave ? boxShadowCss(internas(e)) : sombraCss(e),
+            filter: suave ? undefined : filtroCss(e, false),
           }}
         />
       )
+      return suave ? <div style={{ width: '100%', height: '100%', filter: filtroCss(e, true) }}>{caixa}</div> : caixa
+    }
     case 'hotspot':
       return modo === 'editor' ? <div style={{ width: '100%', height: '100%', border: '2px dashed rgba(89,101,242,.9)', background: 'rgba(89,101,242,.08)', borderRadius: 6 }} aria-hidden /> : null
     case 'image': {
@@ -264,17 +280,21 @@ function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, an
       const fit = mobile && c.mobile?.fit ? c.mobile.fit : c.fit
       const adj = c.adjust
       const filtroAjuste = adj ? `brightness(${adj.brightness}) contrast(${adj.contrast}) saturate(${adj.saturate}) grayscale(${adj.grayscale})` : ''
-      return (
-        <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: raioCss(c), overflow: 'hidden', clipPath: MASCARAS[c.mask], boxShadow: c.mask === 'none' ? sombraCss(e) : undefined, filter: filtroCss(e, c.mask !== 'none', filtroAjuste) }}>
+      const suave = c.mask === 'none' && temSuavizacao(c)
+      const dentro = c.mask === 'none' ? boxShadowCss(internas(e)) : undefined
+      const imagem = (
+        <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: suave ? undefined : raioCss(c), overflow: 'hidden', clipPath: suave ? recorteSuave(c) : MASCARAS[c.mask], boxShadow: c.mask === 'none' && !suave ? boxShadowCss(projetadas(e)) : undefined, filter: filtroCss(e, c.mask !== 'none', filtroAjuste) }}>
           <Midia src={a ? (modo === 'miniatura' ? a.thumbUrl || a.url : a.url) : undefined} fit={fit} crop={c.crop} />
+          {dentro && <div aria-hidden style={{ position: 'absolute', inset: 0, borderRadius: suave ? undefined : raioCss(c), boxShadow: dentro, pointerEvents: 'none' }} />}
         </div>
       )
+      return suave ? <div style={{ width: '100%', height: '100%', filter: filtroCss(e, true) }}>{imagem}</div> : imagem
     }
     case 'video': {
       const a = assets[c.assetId]
       const poster = c.posterAssetId ? assets[c.posterAssetId]?.url : a?.posterUrl ?? undefined
       const fit = mobile && c.mobile?.fit ? c.mobile.fit : c.fit
-      if (modo !== 'viewer') return <div style={{ width: '100%', height: '100%', borderRadius: c.radius, overflow: 'hidden', background: '#000' }}>{poster ? <Midia src={poster} fit={fit} /> : <video src={a?.url} muted playsInline preload="metadata" style={{ width: '100%', height: '100%', objectFit: fit }} />}</div>
+      if (modo !== 'viewer') return <div style={{ width: '100%', height: '100%', borderRadius: raioCss(c), overflow: 'hidden', background: '#000', boxShadow: sombraCss(e), filter: filtroCss(e, false) }}>{poster ? <Midia src={poster} fit={fit} /> : <video src={a?.url} muted playsInline preload="metadata" style={{ width: '100%', height: '100%', objectFit: fit }} />}</div>
       return (
         <video
           ref={(el) => registrarVideo?.(c.id, el)}
@@ -286,7 +306,7 @@ function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, an
           controls={c.controls}
           playsInline
           preload="metadata"
-          style={{ width: '100%', height: '100%', objectFit: fit, borderRadius: c.radius, background: '#000', boxShadow: sombraCss(e), filter: filtroCss(e, false) }}
+          style={{ width: '100%', height: '100%', objectFit: fit, borderRadius: raioCss(c), background: '#000', boxShadow: sombraCss(e), filter: filtroCss(e, false) }}
         />
       )
     }
@@ -298,17 +318,21 @@ function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, an
       const a = assets[c.assetId]
       const poster = c.posterAssetId ? assets[c.posterAssetId]?.url : undefined
       return (
-        <div style={{ width: '100%', height: '100%', filter: filtroCss(e, true) }}>
+        <div style={{ width: '100%', height: '100%', filter: filtroCss(e, true), borderRadius: raioCss(c) || undefined, overflow: c.radius ? 'hidden' : undefined }}>
           <Modelo3d camada={c} src={a?.url} poster={poster} interativo={interativo} estatico={modo === 'miniatura'} />
         </div>
       )
     }
     case 'lottie':
-      return <Lottie camada={c} src={c.assetId ? assets[c.assetId]?.url : undefined} estatico={modo === 'miniatura'} />
+      return (
+        <div style={{ width: '100%', height: '100%', borderRadius: raioCss(c) || undefined, overflow: c.radius ? 'hidden' : undefined, filter: filtroCss(e, true) }}>
+          <Lottie camada={c} src={c.assetId ? assets[c.assetId]?.url : undefined} estatico={modo === 'miniatura'} />
+        </div>
+      )
     case 'embed':
       if (modo !== 'viewer' && !interativo) {
         return (
-          <div style={{ width: '100%', height: '100%', borderRadius: c.radius, background: '#171717', color: '#A3A3A3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, fontFamily: 'var(--font-geist-mono), monospace', fontSize: Math.max(14, c.width * 0.025), textAlign: 'center', padding: 24 }}>
+          <div style={{ width: '100%', height: '100%', borderRadius: raioCss(c), background: '#171717', color: '#A3A3A3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, fontFamily: 'var(--font-geist-mono), monospace', fontSize: Math.max(14, c.width * 0.025), textAlign: 'center', padding: 24 }}>
             <span style={{ color: '#FAFAF9', fontSize: '1.4em' }}>▶ Incorporado</span>
             <span style={{ wordBreak: 'break-all' }}>{new URL(c.url).hostname}</span>
           </div>
@@ -322,7 +346,7 @@ function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, an
           sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox"
           allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
           referrerPolicy="strict-origin-when-cross-origin"
-          style={{ width: '100%', height: '100%', border: 0, borderRadius: c.radius, background: '#000', pointerEvents: interativo ? 'auto' : 'none' }}
+          style={{ width: '100%', height: '100%', border: 0, borderRadius: raioCss(c), background: '#000', pointerEvents: interativo ? 'auto' : 'none' }}
         />
       )
   }
@@ -340,7 +364,7 @@ function Texto({ c, origem, modo, duracao, easing, animTexto }: { c: CamadaTexto
         flexDirection: 'column',
         justifyContent: c.valign === 'middle' ? 'center' : c.valign === 'bottom' ? 'flex-end' : 'flex-start',
         background: fonte.background,
-        borderRadius: c.radius,
+        borderRadius: raioCss(c),
         padding: c.padding,
         overflow: 'hidden',
         transition: origem || modo === 'viewer' ? `color ${duracao}ms ${easing}, font-size ${duracao}ms ${easing}, background ${duracao}ms ${easing}, letter-spacing ${duracao}ms ${easing}` : undefined,
@@ -358,8 +382,9 @@ function Texto({ c, origem, modo, duracao, easing, animTexto }: { c: CamadaTexto
         whiteSpace: c.sizingW === 'hug' ? 'pre' : 'pre-wrap',
         wordBreak: 'break-word',
         userSelect: modo === 'editor' ? 'none' : undefined,
-        textShadow: c.effects?.shadow ? `${c.effects.shadow.x}px ${c.effects.shadow.y}px ${c.effects.shadow.blur}px ${c.effects.shadow.color}` : undefined,
-        filter: c.effects?.blur ? `blur(${c.effects.blur}px)` : undefined,
+        textShadow: textShadowCss(projetadas(c.effects)),
+        filter: desfoqueDe(c.effects) ? `blur(${desfoqueDe(c.effects)}px)` : undefined,
+        ...estiloTracoTexto(c),
       }}
     >
       {animTexto ? (
@@ -369,6 +394,11 @@ function Texto({ c, origem, modo, duracao, easing, animTexto }: { c: CamadaTexto
       )}
     </div>
   )
+}
+
+/** clip-path dos cantos suavizados (squircle) de uma caixa. */
+function recorteSuave(c: { width: number; height: number; radius?: number; radii?: [number, number, number, number]; cornerSmoothing?: number }): string {
+  return `path("${caminhoCantos(c.width, c.height, raiosDaCamada(c), c.cornerSmoothing ?? 0)}")`
 }
 
 function Midia({ src, fit, crop }: { src?: string; fit: 'contain' | 'cover' | 'fill'; crop?: { x: number; y: number; w: number; h: number } }) {

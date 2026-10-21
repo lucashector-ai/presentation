@@ -4,7 +4,7 @@
  * Caneta P · Texto T · Mídia · Hotspot S · Mão H.
  */
 import { useEffect, useRef, useState, type JSX } from 'react'
-import { ChevronDown, Circle, Crosshair, Frame, Hand, Image as ImageIcon, MousePointer2, MoveUpRight, PenTool, Slash, Square, Type } from 'lucide-react'
+import { ChevronDown, Circle, Crosshair, Frame, Hand, Hexagon, Image as ImageIcon, MousePointer2, MoveUpRight, PenTool, Slash, Square, Star, Type } from 'lucide-react'
 import type { Ferramenta } from '@/lib/editor/atalhos'
 import { BotaoIcone, cx } from '@/components/ui'
 
@@ -13,6 +13,8 @@ const FORMAS: { id: Ferramenta; rotulo: string; tecla: string; icone: JSX.Elemen
   { id: 'elipse', rotulo: 'Elipse', tecla: 'O', icone: <Circle className="h-4 w-4" /> },
   { id: 'linha', rotulo: 'Linha', tecla: 'L', icone: <Slash className="h-4 w-4" /> },
   { id: 'seta', rotulo: 'Seta', tecla: 'Shift+L', icone: <MoveUpRight className="h-4 w-4" /> },
+  { id: 'poligono', rotulo: 'Polígono', tecla: '', icone: <Hexagon className="h-4 w-4" /> },
+  { id: 'estrela', rotulo: 'Estrela', tecla: '', icone: <Star className="h-4 w-4" /> },
 ]
 
 export function BarraFerramentas({ ferramenta, aoFerramenta, aoMidia, className, menuAcima }: { ferramenta: Ferramenta; aoFerramenta: (f: Ferramenta) => void; aoMidia: () => void; className?: string; menuAcima?: boolean }) {
@@ -36,7 +38,7 @@ export function BarraFerramentas({ ferramenta, aoFerramenta, aoMidia, className,
       <BotaoIcone rotulo="Mover (V)" ativo={ferramenta === 'mover'} onClick={() => aoFerramenta('mover')}><MousePointer2 className="h-4 w-4" /></BotaoIcone>
       <BotaoIcone rotulo="Frame (F)" ativo={ferramenta === 'frame'} onClick={() => aoFerramenta('frame')}><Frame className="h-4 w-4" /></BotaoIcone>
       <div ref={ref} className="relative flex">
-        <BotaoIcone rotulo={`${forma.rotulo} (${forma.tecla})`} ativo={formaAtiva} className="rounded-r-none" onClick={() => aoFerramenta(forma.id)}>{forma.icone}</BotaoIcone>
+        <BotaoIcone rotulo={forma.tecla ? `${forma.rotulo} (${forma.tecla})` : forma.rotulo} ativo={formaAtiva} className="rounded-r-none" onClick={() => aoFerramenta(forma.id)}>{forma.icone}</BotaoIcone>
         <button type="button" aria-label="Mais formas" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((v) => !v)} className={cx('inline-flex h-8 w-4 items-center justify-center rounded-r-md text-texto2 hover:bg-hover hover:text-texto', formaAtiva && 'bg-grafite/90 text-white hover:bg-grafite hover:text-white')}>
           <ChevronDown className="h-3 w-3" />
         </button>

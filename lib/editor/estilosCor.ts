@@ -39,11 +39,20 @@ export function adicionarEstilo(doc: DocumentoProjeto, estilo: EstiloCor): Docum
   return estilos.some((e) => e.id === estilo.id) ? doc : comEstilos(doc, [...estilos, estilo])
 }
 
+/**
+ * Escreve a cor na propriedade. Com a lista de traços nova (`strokes`), o estilo de traço vale para o
+ * primeiro traço da lista (o de cima, como no Figma) e o gradiente dele sai.
+ */
+function comCorNaProp(c: Camada, prop: PropCor, cor: string): Camada {
+  if (prop === 'stroke' && c.strokes?.length) return { ...c, strokes: c.strokes.map((t, i) => (i === 0 ? { ...t, color: cor, gradient: undefined } : t)) } as Camada
+  return { ...c, [prop]: cor } as Camada
+}
+
 /** Liga a propriedade ao estilo (e aplica a cor). Gradiente de preenchimento/texto sai, como no Figma. */
 export function ligarEstilo(c: Camada, prop: PropCor, estilo: EstiloCor): Camada {
   if (!(prop in c) && !(prop === 'stroke' || prop === 'background')) return c
   const limpaGradiente = (prop === 'fill' || prop === 'color') && 'gradient' in c ? { gradient: undefined } : {}
-  return { ...c, [prop]: estilo.color, ...limpaGradiente, colorStyleIds: { ...c.colorStyleIds, [prop]: estilo.id } } as Camada
+  return { ...comCorNaProp(c, prop, estilo.color), ...limpaGradiente, colorStyleIds: { ...c.colorStyleIds, [prop]: estilo.id } } as Camada
 }
 
 /** Remove a ligação (a cor literal fica). */
@@ -55,7 +64,7 @@ export function desligarEstilo(c: Camada, prop: PropCor): Camada {
 
 /** Grava uma cor numa propriedade: com `estiloId` liga ao estilo, sem ele desliga (editar a cor solta o estilo). */
 export function gravarCor(c: Camada, prop: PropCor, cor: string, estiloId?: string): Camada {
-  const n = { ...c, [prop]: cor } as Camada
+  const n = comCorNaProp(c, prop, cor)
   return estiloId ? ({ ...n, colorStyleIds: { ...c.colorStyleIds, [prop]: estiloId } } as Camada) : desligarEstilo(n, prop)
 }
 
@@ -84,7 +93,7 @@ export function atualizarEstilo(doc: DocumentoProjeto, id: string, patch: Partia
       if (!ids) return l
       const props = PROPS_COR.filter((p) => ids[p] === id)
       if (!props.length) return l
-      return { ...l, ...Object.fromEntries(props.map((p) => [p, cor])) } as Camada
+      return props.reduce((c, p) => comCorNaProp(c, p, cor), l)
     })
   }
   return d

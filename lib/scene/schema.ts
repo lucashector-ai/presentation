@@ -26,6 +26,7 @@ export const TamanhoSchema = z.object({
   width: z.number().int().min(16).max(8192),
   height: z.number().int().min(16).max(8192),
 })
+export type Tamanho = z.infer<typeof TamanhoSchema>
 
 /** Formatos de referência. */
 export const FORMATOS = {
@@ -171,7 +172,8 @@ export const ACOES_POR_TRIGGER: Record<Trigger, readonly TipoAcao[]> = {
 
 // ---------- efeitos e preenchimento ----------
 
-export const MODOS_MESCLAGEM = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'color-dodge', 'difference', 'luminosity'] as const
+/** Modos de mesclagem do CSS (os mesmos do Figma). Os 9 primeiros existem desde a v2; os demais são aditivos. */
+export const MODOS_MESCLAGEM = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'color-dodge', 'difference', 'luminosity', 'color-burn', 'hard-light', 'soft-light', 'exclusion', 'hue', 'saturation', 'color'] as const
 
 export const SombraSchema = z.object({
   x: z.number().min(-200).max(200).default(0),
@@ -179,15 +181,47 @@ export const SombraSchema = z.object({
   blur: z.number().min(0).max(300).default(40),
   spread: z.number().min(-100).max(100).default(-12),
   color: CorSchema.default('#00000059'),
+  /** Sombra interna (inset). Aditivo. */
+  inner: z.boolean().optional(),
+  /** Oculta pelo olho do painel (mantém os valores). */
+  hidden: z.boolean().optional(),
+  /** Camada gerada por "Sombra realista" (regerada quando os ajustes mudam). */
+  realistic: z.boolean().optional(),
 })
 export type Sombra = z.infer<typeof SombraSchema>
 
+export const MAX_SOMBRAS = 16
+
+/**
+ * Ajustes da "Sombra realista" (como o plugin Beautiful Shadows): posição da luz em relação ao centro da
+ * camada (−1…1; a sombra cai do lado oposto), elevação (quanto a camada flutua, px), intensidade (0–1),
+ * suavidade (0–1), número de camadas e cor. As sombras geradas ficam em `shadows` com `realistic: true`.
+ */
+export const SombraRealistaSchema = z.object({
+  light: z.object({ x: z.number().min(-1).max(1), y: z.number().min(-1).max(1) }).default({ x: -0.35, y: -0.75 }),
+  elevation: z.number().min(0).max(200).default(24),
+  intensity: z.number().min(0).max(1).default(0.5),
+  softness: z.number().min(0).max(1).default(0.6),
+  layers: z.number().int().min(1).max(10).default(6),
+  color: CorSchema.default('#0F1235'),
+  hidden: z.boolean().optional(),
+})
+export type SombraRealista = z.infer<typeof SombraRealistaSchema>
+
 export const EfeitosSchema = z.object({
+  /** Sombra única (documentos antigos). Quando `shadows` existe, ela é ignorada. */
   shadow: SombraSchema.optional(),
+  /** Lista de sombras (projetadas e internas), de cima para baixo como no painel. Aditivo. */
+  shadows: z.array(SombraSchema).max(MAX_SOMBRAS).optional(),
+  /** Ajustes da sombra realista (as camadas geradas estão em `shadows`). Aditivo. */
+  realistic: SombraRealistaSchema.optional(),
   /** Desfoque gaussiano da própria camada, em px de referência. */
   blur: z.number().min(0).max(100).default(0),
   /** Desfoque do que está atrás (vidro). */
   backdropBlur: z.number().min(0).max(100).default(0),
+  /** Olho dos desfoques (mantém o valor). */
+  blurHidden: z.boolean().optional(),
+  backdropBlurHidden: z.boolean().optional(),
   blend: z.enum(MODOS_MESCLAGEM).default('normal'),
 })
 export type Efeitos = z.infer<typeof EfeitosSchema>
@@ -201,6 +235,41 @@ export const GradienteSchema = z.object({
     .max(8),
 })
 export type Gradiente = z.infer<typeof GradienteSchema>
+
+// ---------- traço ----------
+
+export const POSICOES_TRACO = ['inside', 'center', 'outside'] as const
+export const ESTILOS_TRACO = ['solid', 'dashed', 'dotted'] as const
+export const PONTAS_TRACO = ['none', 'round', 'square'] as const
+export const JUNCOES_TRACO = ['miter', 'round', 'bevel'] as const
+const LadoTraco = z.number().min(0).max(200)
+
+/**
+ * Um traço (como no Figma): cor/gradiente, espessura, posição (dentro, centro, fora — a geometria da camada
+ * não muda), espessura por lado (retângulos), estilo (contínuo, tracejado com traço/espaço, pontilhado),
+ * pontas e junções (linhas, setas e caminhos). Aditivo: camadas antigas usam `stroke/strokeWidth/dash`.
+ */
+export const TracoSchema = z.object({
+  color: CorSchema.default('#171717'),
+  gradient: GradienteSchema.optional(),
+  weight: z.number().min(0).max(200).default(1),
+  position: z.enum(POSICOES_TRACO).default('inside'),
+  sides: z.object({ top: LadoTraco, right: LadoTraco, bottom: LadoTraco, left: LadoTraco }).optional(),
+  style: z.enum(ESTILOS_TRACO).default('solid'),
+  dash: z.number().min(0).max(500).default(8),
+  gap: z.number().min(0).max(500).default(8),
+  cap: z.enum(PONTAS_TRACO).default('none'),
+  join: z.enum(JUNCOES_TRACO).default('miter'),
+  hidden: z.boolean().optional(),
+})
+export type Traco = z.infer<typeof TracoSchema>
+export const MAX_TRACOS = 8
+
+/** Restrições (constraints) do Figma: como a camada acompanha o pai (frame livre ou tela) quando ele muda de tamanho. */
+export const RESTRICOES_H = ['left', 'right', 'leftRight', 'center', 'scale'] as const
+export const RESTRICOES_V = ['top', 'bottom', 'topBottom', 'center', 'scale'] as const
+export const RestricoesSchema = z.object({ h: z.enum(RESTRICOES_H).default('left'), v: z.enum(RESTRICOES_V).default('top') })
+export type Restricoes = z.infer<typeof RestricoesSchema>
 
 // ---------- camadas ----------
 
@@ -280,6 +349,14 @@ const CamadaBase = z.object({
    * todas as camadas ligadas. Renderizadores ignoram este campo.
    */
   colorStyleIds: z.object({ fill: IdSchema.optional(), color: IdSchema.optional(), stroke: IdSchema.optional(), background: IdSchema.optional() }).optional(),
+  /** Traços (lista, de cima para baixo). Aditivo: ausente = `stroke/strokeWidth/dash` antigos (formas e frames). */
+  strokes: z.array(TracoSchema).max(MAX_TRACOS).optional(),
+  /** Suavização dos cantos (squircle, 0–1, como o "corner smoothing" do Figma) em camadas retangulares. */
+  cornerSmoothing: z.number().min(0).max(1).optional(),
+  /** Restrições em relação ao pai (frame sem auto layout ou a tela). Ausente = esquerda/topo. */
+  constraints: RestricoesSchema.optional(),
+  /** Camada recortada pela forma-máscara `maskId` (uma forma com `isMask` acima dela). */
+  maskId: IdSchema.optional(),
 })
 
 export const EncaixeSchema = z.enum(['contain', 'cover', 'fill'])
@@ -317,6 +394,7 @@ export const CamadaVideoSchema = CamadaBase.extend({
   muted: z.boolean().default(true),
   controls: z.boolean().default(true),
   radius: z.number().min(0).max(999).default(0),
+  radii: RaiosSchema.optional(),
 })
 
 export const CamadaTextoSchema = CamadaBase.extend({
@@ -339,10 +417,12 @@ export const CamadaTextoSchema = CamadaBase.extend({
   background: CorSchema.optional(),
   padding: z.number().min(0).max(200).default(0),
   radius: z.number().min(0).max(999).default(0),
+  /** Cantos independentes do fundo da caixa. */
+  radii: RaiosSchema.optional(),
 })
 
 /** `path` = caminho vetorial editável (`vetor`); as demais são primitivas desenhadas pelo renderizador. */
-export const FORMAS = ['rect', 'ellipse', 'triangle', 'semicircle', 'line', 'star', 'arrow', 'path'] as const
+export const FORMAS = ['rect', 'ellipse', 'triangle', 'semicircle', 'line', 'star', 'arrow', 'path', 'polygon'] as const
 
 /** Ponto em coordenadas locais do vetor (0..w, 0..h). */
 export const PontoVetorSchema = z.object({ x: z.number(), y: z.number() })
@@ -392,6 +472,12 @@ export const CamadaFormaSchema = CamadaBase.extend({
   pattern: z.enum(['none', 'stripes', 'dots', 'grid']).default('none'),
   /** Caminho editável (aditivo). Com `shape: 'path'` o renderizador desenha este caminho. */
   vetor: VetorSchema.optional(),
+  /** Forma usada como máscara: não é desenhada; recorta as camadas com `maskId` igual ao seu id. */
+  isMask: z.boolean().optional(),
+  /** Polígono: número de lados; estrela: número de pontas (ausente = 3 no polígono, 5 na estrela). */
+  count: z.number().int().min(3).max(60).optional(),
+  /** Estrela: raio interno em fração do externo (ausente = 0,4). */
+  ratio: z.number().min(0.05).max(1).optional(),
 })
 
 /** Área clicável transparente sobre uma arte finalizada. */
@@ -436,6 +522,8 @@ export const CamadaModelo3dSchema = CamadaBase.extend({
   autoplay: z.boolean().default(true),
   /** Permite ver em realidade aumentada no celular. */
   ar: z.boolean().default(false),
+  radius: z.number().min(0).max(999).default(0),
+  radii: RaiosSchema.optional(),
 })
 
 /** Animação Lottie (JSON exportado do After Effects/LottieFiles). */
@@ -448,6 +536,8 @@ export const CamadaLottieSchema = CamadaBase.extend({
   loop: z.boolean().default(true),
   autoplay: z.boolean().default(true),
   speed: z.number().min(0.1).max(5).default(1),
+  radius: z.number().min(0).max(999).default(0),
+  radii: RaiosSchema.optional(),
 }).refine((c) => !!c.data || !!c.assetId, 'Lottie precisa de data ou assetId')
 
 /** Conteúdo incorporado de serviços confiáveis (YouTube, Vimeo, Figma, Loom, Spline, Sketchfab). */
@@ -463,6 +553,7 @@ export const CamadaEmbedSchema = CamadaBase.extend({
     }
   }, 'Incorporação permitida só de YouTube, Vimeo, Figma, Loom, Spline, Sketchfab e Spotify (https)'),
   radius: z.number().min(0).max(999).default(0),
+  radii: RaiosSchema.optional(),
 })
 
 /** Frame: contêiner (com ou sem auto layout). Filhos apontam para ele via `parentId`. */

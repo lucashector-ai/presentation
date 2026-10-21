@@ -27,10 +27,15 @@ describe('cantos independentes', () => {
     expect(c.radii).toBeUndefined()
     expect(c.radius).toBe(999)
   })
-  it('texto não tem cantos independentes (muda o raio único)', () => {
+  it('texto (fundo da caixa) também aceita cantos independentes', () => {
     const c = comCanto(texto(), 1, 12) as Camada & { radius: number; radii?: number[] }
     expect(c.radius).toBe(12)
-    expect(c.radii).toBeUndefined()
+    expect(c.radii).toEqual([4, 12, 4, 4])
+    expect(() => parseCamada(c)).not.toThrow()
+  })
+  it('hotspot e SVG não têm raio: comCanto não muda nada', () => {
+    const h = parseCamada({ id: 'h', type: 'hotspot', ariaLabel: 'x', x: 0, y: 0, width: 10, height: 10 })
+    expect(comCanto(h, 0, 5)).toBe(h)
   })
   it('documentos antigos (sem radii) continuam válidos', () => {
     expect((forma() as Camada & { radii?: unknown }).radii).toBeUndefined()

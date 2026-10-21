@@ -20,7 +20,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { Camada, CamadaFrame, CamadaTexto, DocumentoProjeto } from '@/lib/scene/schema'
 import type { Editor } from '@/lib/editor/useEditor'
 import { encaixar, guiasDaCaixa, intersecta, anguloRotacao, limiarEmCena, medirDistancias, redimensionarComEncaixe, LIMIAR_TELA } from '@/lib/editor/guias'
-import { indiceDeInsercao, type Insercao } from '@/lib/editor/autolayout'
+import { areasDeEspaco, indiceDeInsercao, type Insercao, type TipoEspaco } from '@/lib/editor/autolayout'
 import { alvoDoClique, ancestrais, comDescendentes, mapaDe, ocultasEfetivas, paiDe, raizDe, raizesDaSelecao, temAutoLayout } from '@/lib/scene/arvore'
 import { camadaNoPonto, contemPonto, envolvente, type Alca, type Retangulo } from '@/lib/scene/transform'
 import { indiceNoPonto, medirTexto, textoAutomatico } from '@/lib/editor/medirTexto'
@@ -83,6 +83,13 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
   const [previaAtiva, setPreviaAtiva] = useState(false)
   const [guiasTemporarias, setGuiasTemporarias] = useState(0)
   const [fontesProntas, setFontesProntas] = useState(0)
+  // inspetor: mouse sobre gap/padding do auto layout destaca a área (rosa, como no Figma)
+  const [espacoRealce, setEspacoRealce] = useState<{ frameId: string; tipo: TipoEspaco } | null>(null)
+  useEffect(() => {
+    const f = (e: Event) => setEspacoRealce((e as CustomEvent<{ frameId: string; tipo: TipoEspaco } | null>).detail)
+    window.addEventListener('mostra:destacar-espaco', f)
+    return () => window.removeEventListener('mostra:destacar-espaco', f)
+  }, [])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const estiloTexto = useRef<EstiloTexto>({})
   /** Modo "Editar vetor": camada em edição (null = caneta antes do primeiro clique). */
@@ -734,6 +741,11 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
       {insercao && g?.tipo === 'mover' && g.moveu && <LinhaInsercao linha={insercao.linha} paraTela={paraTela} />}
 
       {/* grade de layout (12 colunas) e prévia de "Preencher" */}
+      {espacoRealce && (() => {
+        const f = mapa.get(espacoRealce.frameId)
+        if (f?.type !== 'frame' || !f.layout) return null
+        return areasDeEspaco(f, cena.layers, espacoRealce.tipo).map((r, i) => { const t = paraTela(r); return <div key={i} data-testid="realce-espaco" className="pointer-events-none absolute z-20" style={{ left: t.x, top: t.y, width: t.width, height: t.height, background: 'repeating-linear-gradient(135deg, rgb(242 72 160 / .28) 0 3px, rgb(242 72 160 / .14) 3px 6px)', outline: '1px solid rgb(242 72 160 / .6)' }} /> })
+      })()}
       {gradeLayout && <ColunasCanvas colunas={colunasDaGrade(cena.size, gradeLayout)} paraTela={paraTela} />}
       {previaPreencher && <PreviaRegiao r={previaPreencher} paraTela={paraTela} />}
 
