@@ -34,7 +34,8 @@ export function gerarSombrasRealistas(p: Partial<SombraRealista> = {}): Sombra[]
   const dx = -lim(a.light.x, -1, 1)
   const dy = -lim(a.light.y, -1, 1)
   // opacidade de cada camada para que o empilhamento chegue perto da intensidade total pedida
-  const total = lim(a.intensity, 0, 1) * 0.9
+  // (as camadas longas são difusas: a soma precisa passar da intensidade para a sombra aparecer na borda)
+  const total = Math.min(0.95, lim(a.intensity, 0, 1) * 1.4)
   const alfa = 1 - Math.pow(1 - total, 1 / n)
   const suave = lim(a.softness, 0, 1)
   const sombras: Sombra[] = []

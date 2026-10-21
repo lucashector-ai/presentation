@@ -15,7 +15,8 @@ Atalhos escritos no padrão Mac (⌘ = Ctrl, ⌥ = Alt no Windows).
 **Estado:** Feito · Parcial · Falta · Fora (não faz sentido num editor de apresentações).
 **Prioridade:** P0 (próximo ciclo) · P1 (importante) · P2 (desejável) · P3 (talvez nunca).
 
-Última auditoria: out/2026 (rodada 3), depois de atalhos/ferramentas do Figma, ⌥+arrastar, cantos
+Última auditoria: out/2026 (rodada 4: traço completo, efeitos empilhados e sombra realista, cantos com cadeado e
+suavização, restrições, máscara, polígono/estrela e auto layout pelo teclado). Rodada 3: depois de atalhos/ferramentas do Figma, ⌥+arrastar, cantos
 independentes, estilos de cor, exportação PNG/JPG/PDF e editor no celular — conferindo no código o que
 outras frentes entregaram (encaixe com espaçamento igual e distâncias em vermelho, ⌥ para medir, ⌘ sem
 encaixe, ⌥ redimensiona do centro, frames + auto layout, Enter/⇧Enter, ⌘+clique, clique para digitar,
@@ -35,19 +36,19 @@ colar do Figma).
 | X / Y | Campos com letra dentro; múltipla seleção mostra "Mixed" | Feito — "Misto", valor digitado vale para todas; ↑/↓ e arraste somam em cada uma | — | `SecaoPosicao.tsx`, `campos.tsx` |
 | Rotação | Campo com ícone de ângulo, girar 90°, espelhar H/V (⇧H / ⇧V) | Feito — painel (ângulo normalizado em −180…180) e ⇧H/⇧V | — | `SecaoPosicao.tsx`, `lib/editor/atalhos.ts` |
 | W / H + travar proporção | Cadeado de proporção ao lado de W/H | Feito — trava por camada (padrão ligado para imagem, SVG, 3D, Lottie), vale também em seleção múltipla; lembrado só na sessão | P2 (persistir no schema) | `SecaoLayout.tsx` |
-| Constraints / redimensionamento responsivo | Esquerda/direita/centro/escala relativas ao frame | Fora — telas escalam inteiras; há "Responsivo › Ocultar no celular / ajuste" | P3 | `SecoesMostra.tsx` |
+| Constraints / redimensionamento responsivo | Esquerda/direita/esquerda e direita/centro/escala (e topo/base…) relativas ao frame pai; diagrama clicável com ⇧ para somar o lado oposto | Feito — seção "Restrições" (diagrama + dois menus) para filhos de frame livre, absolutos no auto layout e camadas soltas na tela; redimensionar o frame pai aplica as restrições; mudar o formato/tamanho da tela também (camadas sem restrição ficam onde estão, como antes) | — | `SecaoRestricoes.tsx`, `lib/scene/restricoes.ts`, `lib/editor/autolayout.ts` (`resolverCamadas`) |
 | Campos numéricos: arrastar rótulo | Arrastar o ícone/letra muda o valor | Feito — Shift ×10, um único desfazer por arraste | — | `campos.tsx` (`CampoNum`) |
 | Campos numéricos: setas, expressões, Esc | ↑/↓ (⇧ = 10), matemática (`100/2`), Enter/Tab confirmam, Esc cancela | Feito | — | `campos.tsx`, `lib/editor/expressao.ts` |
 | Opacidade da camada | Campo % com ícone; teclas 0–9 definem opacidade com a camada selecionada | Feito — painel e teclas 1–9 = 10–90%, 0 = 100%, dois dígitos rápidos = valor exato ("5","5" = 55%), um desfazer | — | `SecaoAparencia.tsx`, `lib/editor/atalhos.ts` |
-| Modo de mesclagem | Menu no título de Aparência/Camada | Feito (9 modos) | — | `SecaoAparencia.tsx` |
+| Modo de mesclagem | Menu no título de Aparência/Camada, em grupos (escurecer, clarear, contraste, inversão, componente) | Feito — 16 modos do CSS, agrupados como no Figma | — | `SecaoAparencia.tsx` |
 | Visibilidade no painel | Olho no título de Aparência | Feito (⇧⌘H também) | — | `SecaoAparencia.tsx` |
-| Raio de canto | Campo com ícone; cantos independentes (4 campos) | Feito — `radii: [se, sd, id, ie]` em formas, frames e imagens (aditivo; `radius` guarda o maior canto para renderizadores antigos); o botão abre 4 campos; campo único mostra "Misto"; colar do Figma traz cantos diferentes como forma (antes virava SVG) | — | `SecaoAparencia.tsx`, `lib/editor/raios.ts`, `lib/scene/schema.ts`, `renderer/estilos.ts` |
-| Suavização de cantos (squircle) | "Corner smoothing" 0–100% | Falta | P3 | — |
+| Raio de canto | Campo com ícone; cantos independentes (4 campos) | Feito — `radii: [se, sd, id, ie]` em formas, frames, imagens, vídeo, texto (fundo), incorporados, Lottie e 3D (aditivo; `radius` guarda o maior canto); o botão abre os 4 campos na ordem do Figma (superiores em cima) com **cadeado** "cantos iguais" (editar um muda os quatro); campo único mostra "Misto"; colar do Figma traz cantos diferentes como forma | — | `SecaoAparencia.tsx`, `lib/editor/raios.ts`, `renderer/estilos.ts` |
+| Suavização de cantos (squircle) | "Corner smoothing" 0–100% (60% = iOS) | Feito — `cornerSmoothing` (0–1) em retângulos, frames e imagens; curva do artigo "Desperately seeking squircles" desenhada como `clip-path: path()` (sombra externa vira `drop-shadow`); botão "iOS" = 60%; colar do Figma traz o valor | — | `lib/scene/cantos.ts`, `SecaoAparencia.tsx`, `SceneRenderer.tsx` |
 | Tipografia | Fonte, peso, tamanho, entrelinha, espaçamento, alinhamento H/V, decoração, caixa, estilos de texto | Feito — inclusive largura/altura automática (Largura · Altura · Fixo); sem estilos de texto, truncar e listas | P1 (estilos de texto) | `SecoesTipo.tsx` |
 | Preenchimento: lista com +/−, olho, % | Vários preenchimentos empilhados; olho oculta; % de opacidade do preenchimento | Parcial — 1 preenchimento por camada (cor + gradiente); olho = opacidade 0 ↔ anterior; "−" deixa transparente | P2 (lista de preenchimentos no schema) | `SecaoPreenchimento.tsx` |
 | Ícone de estilos ao lado de Preenchimento | Abre estilos/variáveis de cor da biblioteca | Feito — aba "Paleta" com "Estilos" do documento (aplicar, editar, excluir), paleta Mostra e cores da página; camada ligada mostra o nome do estilo e "Desvincular" | — | `SeletorCor.tsx`, `CampoCor.tsx` |
-| Traço | Cor, espessura, posição (dentro/centro/fora), tracejado, pontas, por lado | Parcial — cor (com alfa), espessura e tracejado em formas; sem posição/pontas/lados; texto e imagem sem traço | P2 | `SecaoPreenchimento.tsx` (`SecaoTraco`) |
-| Efeitos | Até 8 sombras projetadas e 8 internas, desfoque da camada, desfoque do fundo, ruído, textura, vidro | Parcial — 1 sombra projetada (predefinições + X/Y/desfoque/expansão/cor), desfoque da camada, desfoque do fundo | P2 (sombra interna, várias sombras) | `SecaoEfeitos.tsx` |
+| Traço | Lista de traços (+/−, olho); cor/gradiente; posição dentro/centro/fora; espessura e espessura por lado; tracejado (traço e espaço), pontas e junções em "Mais opções" | Feito — `strokes[]` em todos os tipos com caixa e formas (até 8): dentro/centro/fora sem mudar a geometria (SVG deslocado acompanhando raios e suavização; polígonos/caminhos com recorte/máscara), por lado (retângulos, frames, mídia), contínuo/tracejado/pontilhado, pontas e junções em linhas/setas/caminhos, gradiente linear/radial; texto = contorno das letras (centro/fora). Traço antigo (`stroke/strokeWidth/dash`) aparece como um traço e só é regravado ao editar | — | `SecaoTraco.tsx`, `lib/scene/tracos.ts`, `renderer/camadas/Tracos.tsx` |
+| Efeitos | Até 8 sombras projetadas e 8 internas, desfoque da camada, desfoque do fundo; olho e "−" por efeito; plugins como Beautiful Shadows geram sombras em camadas a partir de uma luz | Feito — lista `effects.shadows` (até 16, projetadas e internas, olho por linha, predefinições), desfoque da camada e do fundo com olho; **Sombra realista**: arraste a luz em volta da camada, elevação, intensidade, suavidade, camadas (1–10), cor e 4 elevações prontas — gera camadas suaves (distância dobrando até a elevação, lado oposto à luz) e regera ao mudar | P3 (ruído, textura, vidro com refração) | `SecaoEfeitos.tsx`, `lib/scene/efeitos.ts`, `lib/scene/sombrasRealistas.ts` |
 | Seleção de cores mistas | "Click + to replace mixed content" | Feito — texto explicativo + "+" aplica o primeiro em todas | — | `SecaoPreenchimento.tsx` |
 | Imagem: ajustes | Exposição, contraste, saturação, temperatura, tinta, realces, sombras; modo Fill/Fit/Crop/Tile | Parcial — brilho, contraste, saturação, P&B; cobrir/conter/esticar; recorte numérico; máscara (círculo/arco/triângulo) | P2 (recorte direto no canvas) | `SecoesTipo.tsx` |
 | Painel de tela (nada selecionado) | Propriedades da página/frame: fundo, grades de layout, exportar | Feito — formato e W/H, preenchimento (cor, gradiente linear/radial, imagem com encaixe), transição, auto-avanço, notas, verificação | — | `InspetorTela.tsx` |
@@ -80,14 +81,14 @@ colar do Figma).
 | Travar / ocultar | ⇧⌘L / ⇧⌘H | Feito — ⇧⌘L (e ⌘L) e ⇧⌘H | — | `EditorShell.tsx` |
 | Ordem | ⌘] / ⌘[ um passo, ⌥⌘] / ⌥⌘[ frente/trás | Feito — ⌘]/⌘[ e ⌥⌘]/⌥⌘[ como no Figma; `]`/`[` e ⇧]/⇧[ continuam | — | `EditorShell.tsx` |
 | Agrupar / frames | ⌘G, ⇧⌘G; ⌥⌘G cria frame | Feito — grupos planos, frames aninhados (`parentId`), ⌥⌘G envolve em frame, ⇧⌘G desfaz; ferramenta F desenha frame | — | `useEditor.ts` |
-| Máscara | ⌃⌘M usa a camada de baixo como máscara | Parcial — máscara de forma só em imagem | P3 | `SecoesTipo.tsx` |
+| Máscara | ⌃⌘M usa a camada de baixo como máscara | Feito — ⌃⌘M (Ctrl+Alt+M) e menu de contexto: a forma de baixo da seleção (ou a forma mais de cima, se a de baixo não for forma) vira máscara das outras, tudo num grupo; de novo remove. A forma-máscara não é desenhada; as recortadas ganham `mask-image` com a geometria dela (com rotação) | P3 (imagem/texto como máscara, máscara de alfa) | `lib/scene/mascara.ts`, `useEditor.ts` (`alternarMascara`), `SceneRenderer.tsx` |
 | Operações booleanas | União, subtração, interseção, exclusão | Falta (os caminhos agora são editáveis — ver "Editar vetor") | P3 | — |
 
 ## 4. Ferramentas e canvas
 
 | Recurso | Comportamento no Figma | Estado no Mostra | Prioridade | Arquivo |
 |---|---|---|---|---|
-| Ferramentas | V mover, K escala, F frame, R retângulo, O elipse, L linha, ⇧L seta, P caneta, T texto, H mão, C comentário | Feito (sem K, C) — P = caneta (pré-visualizar passou para ⌘↵) — V, F (arrastar desenha frame), R, O, L, ⇧L (arrasto do início ao fim, ⇧ = 45°), T, H = mão (como no Figma), **S = hotspot** (antes H), espaço = mão temporária; barra com menu de formas que lembra a última | P3 (caneta, escala, comentários) | `BarraFerramentas.tsx`, `lib/editor/atalhos.ts`, `Canvas.tsx` |
+| Ferramentas | V mover, K escala, F frame, R retângulo, O elipse, L linha, ⇧L seta, polígono e estrela no menu de formas, P caneta, T texto, H mão, C comentário | Feito (sem K, C) — P = caneta (pré-visualizar passou para ⌘↵) — V, F (arrastar desenha frame), R, O, L, ⇧L (arrasto do início ao fim, ⇧ = 45°), **Polígono e Estrela** no menu de formas (lados; pontas e raio interno no painel), T, H = mão (como no Figma), **S = hotspot** (antes H), espaço = mão temporária; barra com menu de formas que lembra a última | P3 (escala, comentários) | `BarraFerramentas.tsx`, `lib/editor/atalhos.ts`, `lib/scene/formas.ts`, `SecoesTipo.tsx` |
 | Clique para digitar | T + clique cria caixa de texto com largura automática | Feito — clique = largura automática já em edição; arrastar = largura fixa; T sobre texto edita no ponto | — | `Canvas.tsx`, `lib/editor/medirTexto.ts` |
 | Redimensionar | ⇧ mantém proporção, ⌥ a partir do centro | Feito — ⇧ proporção, ⌥ do centro, com encaixe | — | `Canvas.tsx`, `lib/editor/guias.ts` |
 | Rotacionar | Alça fora do canto; ⇧ passos de 15° | Feito (alça superior; ⇧ 15°) | — | `Canvas.tsx` |
@@ -113,9 +114,9 @@ colar do Figma).
 
 | Recurso | Comportamento no Figma | Estado no Mostra | Prioridade | Arquivo |
 |---|---|---|---|---|
-| Ativar auto layout | ⇧A em frame ou camadas soltas (cria frame) | Feito — ⇧A infere direção/gap do arranjo; ⇧⌥A remove | — | `inspetor/SecaoAutoLayout.tsx`, `lib/editor/autolayout.ts` |
-| Direção, gap, padding, alinhamento 3×3 | Horizontal/vertical/quebra; gap; padding por lado (⌘+clique abre os 4) | Feito — inclusive quebra (wrap) com gap de linha e espaço automático | — | `SecaoAutoLayout.tsx` |
-| Hug / Fill / Fixed | Por eixo, em pais e filhos | Feito — rótulo "Hug"/"Fill" no tamanho do canvas; arrastar um filho reordena com linha azul | — | `SecaoAutoLayout.tsx`, `Canvas.tsx` |
+| Ativar auto layout | ⇧A em frame ou camadas soltas (cria frame); ícone de barras na direção do fluxo | Feito — ⇧A infere direção/gap do arranjo; ⇧⌥A remove; ícone de barras (horizontal, vertical, quebra) no painel de camadas, no botão "+" e na direção | — | `inspetor/SecaoAutoLayout.tsx`, `icones.tsx` (`IconeAutoLayout`), `lib/editor/autolayout.ts` |
+| Direção, gap, padding, alinhamento 3×3 | Horizontal/vertical/quebra; gap com "auto"; padding H/V ou por lado; passar o mouse no campo destaca o espaço em rosa no canvas | Feito — direção, L/A (Abraçar/Fixo/Preencher), grade 3×3 + gap (botão de espaço automático ao lado), gap entre linhas na quebra, padding H/V com botão "por lado" (abre sozinho quando os lados diferem), "Recortar conteúdo"; hover/foco nos campos de gap/padding destaca a área no canvas | — | `SecaoAutoLayout.tsx`, `Canvas.tsx`, `lib/editor/autolayout.ts` (`areasDeEspaco`) |
+| Hug / Fill / Fixed + ordem dos filhos | Por eixo, em pais e filhos; com um filho selecionado, ← → (horizontal) / ↑ ↓ (vertical) trocam a ordem entre os irmãos | Feito — rótulo "Hug"/"Fill" no tamanho do canvas; arrastar um filho reordena com linha azul; **setas na direção do fluxo reordenam** (bloco de vários itens anda junto; na quebra as quatro setas andam pela ordem; a seta perpendicular não faz nada, como no Figma); seção "No auto layout" mostra "2 de 3" com botões antes/depois | — | `EditorShell.tsx`, `SecaoAutoLayout.tsx`, `lib/editor/autolayout.ts` (`passoDaSeta`, `moverNoFluxo`) |
 | Wrap, mín./máx., posição absoluta | Quebra com gap H/V; limites; filho ignorando o fluxo | Parcial — wrap e posição absoluta; sem mín./máx. | P2 | `lib/editor/autolayout.ts` |
 
 ## 7. Componentes, estilos e variáveis
@@ -152,7 +153,7 @@ colar do Figma).
 |---|---|---|---|---|
 | Copiar/colar/recortar/duplicar | ⌘C ⌘V ⌘X ⌘D; colar mantém posição se houver espaço | Feito (desloca 24 px se sobrepuser) | — | `useEditor.ts`, `MenuContexto.tsx` |
 | Colar sobre a seleção / substituir | ⇧⌘V cola por cima; ⇧⌘R substitui | Falta | P2 | — |
-| Colar do Figma | Buffer próprio do Figma (não legível pelo navegador) | Feito — o HTML fig-kiwi do Figma é decodificado: frames, retângulos/elipses (com cantos independentes), textos, imagens, gradientes, sombras; vetores viram SVG, que vira caminho editável ao entrar em "Editar vetor" (um vetor por cor) | P3 (VECTOR direto para `vetor`, sem passar por SVG) | `lib/importar/figma/*`, `lib/editor/vetor/svgVetor.ts` |
+| Colar do Figma | Buffer próprio do Figma (não legível pelo navegador) | Feito — o HTML fig-kiwi do Figma é decodificado: frames, retângulos/elipses (com cantos independentes e suavização), textos (com contorno das letras), imagens, gradientes; **traços** (vários, dentro/centro/fora, por lado, tracejado, pontas) e **sombras** (várias, internas) vão para os campos novos em vez de virar SVG; polígonos e estrelas simples viram formas editáveis; 16 modos de mesclagem; vetores viram SVG, que vira caminho editável ao entrar em "Editar vetor" | P3 (VECTOR direto para `vetor`, auto layout do Figma) | `lib/importar/figma/*`, `lib/editor/vetor/svgVetor.ts` |
 | Colar imagem/arquivo | Imagem vira preenchimento de retângulo | Feito (imagem, SVG, GLB, Lottie, links de embed) | — | `lib/editor/importar.ts` |
 
 ## 11. Atalhos — resumo do que falta
@@ -166,6 +167,8 @@ colar do Figma).
 | Enter (forma/vetor) | Editar vetor | Feito (também duplo clique) | — |
 | ⌥ + arrastar | Duplicar | Feito | — |
 | ⇧A | Auto layout | Feito | — |
+| ⌃⌘M | Usar como máscara | Feito (também Ctrl+Alt+M) | — |
+| ← → / ↑ ↓ (filho de auto layout) | Reordenar no fluxo | Feito | — |
 | ⌥⌘K | Criar componente | — | P1 |
 | ⌘R | Renomear | — | P2 |
 | ⇧2 | Zoom na seleção | Feito | — |
@@ -191,8 +194,12 @@ colar do Figma).
   e `colorStyleIds` nas camadas; `shape: 'path'` + `vetor: { w, h, caminhos: [{ nos: [{ x, y, entrada?, saida?,
   tipo: 'canto' | 'suave' }], fechado, semPreenchimento? }], fillRule }` (coordenadas locais num quadro w × h que o
   renderizador escala para a camada; alças em posição absoluta). Matemática pura e testada em `lib/editor/vetor/`
-  (de Casteljau, caixa exata pelas derivadas, laço, `d` do SVG com arcos/quadráticas). Ainda pedem schema: vários preenchimentos/sombras, gradiente
-  angular/diamante, travar proporção persistente, posição do traço.
+  (de Casteljau, caixa exata pelas derivadas, laço, `d` do SVG com arcos/quadráticas). Rodada 4 (aditivo, sem migração): `strokes[]` (traços), `effects.shadows[]` com `inner`/`hidden`/`realistic`,
+  `effects.realistic` (ajustes da sombra realista), `blurHidden`/`backdropBlurHidden`, `cornerSmoothing`, `constraints`,
+  `maskId`/`isMask`, `shape: 'polygon'` com `count`, estrela com `count`/`ratio`, `radii` em vídeo/texto/incorporado/Lottie/3D e
+  7 modos de mesclagem novos. Documentos antigos desenham igual: o traço antigo só é convertido ao editar e a sombra única
+  continua valendo enquanto não há lista. Ainda pedem schema: vários preenchimentos, gradiente angular/diamante,
+  travar proporção persistente.
 
 ## Editor no celular e tablet
 

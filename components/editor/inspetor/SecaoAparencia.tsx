@@ -127,7 +127,7 @@ export function SecaoAparencia({ editor }: PropsSecao) {
             <Rotulo>Suavizar cantos</Rotulo>
             <CampoNum prefixo={<IconeSuavizacao />} rotulo="Suavização dos cantos" titulo="Suavização dos cantos (squircle, 60% = iOS)" valor={suavizacao} min={0} max={100} sufixo="%" aoMudar={(v) => set({ cornerSmoothing: v ? v / 100 : undefined })} aoDelta={(d) => setFn((c) => ({ ...c, cornerSmoothing: Math.max(0, Math.min(1, (c.cornerSmoothing ?? 0) + d / 100)) || undefined }))} />
           </div>
-          <BotaoMini rotulo="Suavização iOS (60%)" className="mb-0.5 h-7 w-auto px-2 text-[11px]" ativo={suavizacao === 60} onClick={() => set({ cornerSmoothing: 0.6 })}>iOS</BotaoMini>
+          <BotaoMini rotulo="Suavização iOS (60%)" className="mb-0.5 h-7 w-auto justify-self-start px-2.5 text-[11px]" ativo={suavizacao === 60} onClick={() => set({ cornerSmoothing: 0.6 })}>iOS</BotaoMini>
         </div>
       )}
     </Secao>
