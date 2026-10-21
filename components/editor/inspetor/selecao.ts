@@ -3,6 +3,7 @@
 import { Box, Code2, Crosshair, Frame, Image as ImageIcon, PenTool, Sparkles, Square, Type, Video } from 'lucide-react'
 import type { Camada } from '@/lib/scene/schema'
 import type { Editor } from '@/lib/editor/useEditor'
+import type { OpcoesResolver } from '@/lib/editor/autolayout'
 import type { AssetDemo } from '@/lib/demo/tipos'
 import { MISTO, type Misto } from './campos'
 import { useHistorico } from './contexto'
@@ -39,6 +40,6 @@ export function useCamadas(editor: Editor) {
     ids,
     multi: sel.length > 1,
     set: (patch: Partial<Camada>) => acoes.atualizarCamadas(ids, patch, historico()),
-    setFn: (fn: (c: Camada) => Camada) => acoes.atualizarCamadas(ids, fn, historico()),
+    setFn: (fn: (c: Camada) => Camada, opcoes?: OpcoesResolver) => acoes.atualizarCamadas(ids, fn, historico(), opcoes),
   }
 }

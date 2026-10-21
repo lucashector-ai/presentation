@@ -368,6 +368,51 @@ describe('mapeamento de propriedades', () => {
     expect(pesoDoEstilo('Light Italic')).toBe(300)
   })
 
+  it('texto: opções do "Type settings" (corte vertical, tachado ondulado, versalete, lista, parágrafos, truncar)', () => {
+    const r = converterMensagem(
+      msg([
+        {
+          guid: G(2),
+          ...filho(PAGINA, '!'),
+          type: 'TEXT',
+          size: { x: 300, y: 70 },
+          transform: T(10, 20),
+          fontSize: 20,
+          fontName: { family: 'Inter', style: 'Regular' },
+          textDecoration: 'STRIKETHROUGH',
+          textDecorationStyle: 'WAVY',
+          textDecorationThickness: { value: 2, units: 'PIXELS' },
+          textDecorationSkipInk: false,
+          textDecorationFillPaints: [solido(1, 0, 0)],
+          textCase: 'SMALL_CAPS',
+          fontVariantNumericSpacing: 'TABULAR',
+          fontVariantCommonLigatures: false,
+          leadingTrim: 'CAP_HEIGHT',
+          textTruncation: 'ENDING',
+          maxLines: 3,
+          paragraphSpacing: 12,
+          fillPaints: [solido(0, 0, 0)],
+          textData: { characters: 'Um\nDois', lines: [{ lineType: 'UNORDERED_LIST' }, { lineType: 'UNORDERED_LIST' }] },
+          // com corte vertical as linhas passam da caixa do nó (o Figma mede da maiúscula à linha de base)
+          derivedTextData: { baselines: [{ firstCharacter: 0, endCharacter: 3, lineY: -6, lineHeight: 24, position: { x: 0, y: 14 }, width: 30 }, { firstCharacter: 3, endCharacter: 7, lineY: 42, lineHeight: 24, position: { x: 0, y: 62 }, width: 40 }] },
+        },
+      ]),
+      { cena: CENA }
+    )
+    const t = r.camadas[0]!.camada
+    expect(t).toMatchObject({ type: 'text', strikethrough: true, underline: false, decorationStyle: 'wavy', decorationThickness: 2, decorationSkipInk: false, decorationColor: '#ff0000', transform: 'smallCaps', tabularNums: true, ligatures: false, leadingTrim: 'cap', truncate: true, maxLines: 3, paragraphSpacing: 12, listStyle: 'bullet', padding: 0 })
+    // a caixa é a do nó (justa), sem o respiro que evita cortar letras
+    expect(t).toMatchObject({ width: 300, height: 70 })
+    expect(r.avisos.join(' ')).not.toMatch(/riscado|versalete/i)
+    expect(() => parseCamada({ ...t, id: 'x' })).not.toThrow()
+  })
+
+  it('texto: lista misturada com parágrafos comuns fica sem marcadores (com aviso)', () => {
+    const r = converterMensagem(msg([{ guid: G(2), ...filho(PAGINA, '!'), type: 'TEXT', size: { x: 300, y: 50 }, transform: T(0, 0), fontSize: 20, fontName: { family: 'Inter', style: 'Regular' }, fillPaints: [solido(0, 0, 0)], textData: { characters: 'Título\nItem', lines: [{ lineType: 'PLAIN' }, { lineType: 'ORDERED_LIST' }] } }]), { cena: CENA })
+    expect(r.camadas[0]!.camada.listStyle).toBeUndefined()
+    expect(r.avisos.join(' ')).toMatch(/Listas misturadas/)
+  })
+
   it('texto com estilo por parágrafo vira uma caixa por parágrafo nas alturas do Figma', () => {
     const r = converterMensagem(
       msg([

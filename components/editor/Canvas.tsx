@@ -23,7 +23,8 @@ import { encaixar, guiasDaCaixa, intersecta, anguloRotacao, limiarEmCena, medirD
 import { areasDeEspaco, indiceDeInsercao, type Insercao, type TipoEspaco } from '@/lib/editor/autolayout'
 import { alvoDoClique, ancestrais, comDescendentes, mapaDe, ocultasEfetivas, paiDe, raizDe, raizesDaSelecao, temAutoLayout } from '@/lib/scene/arvore'
 import { camadaNoPonto, contemPonto, envolvente, type Alca, type Retangulo } from '@/lib/scene/transform'
-import { indiceNoPonto, medirTexto, textoAutomatico } from '@/lib/editor/medirTexto'
+import { comDimensionamento, indiceNoPonto, medirTexto, textoAutomatico } from '@/lib/editor/medirTexto'
+import { caixaCss, corteVertical, decoracaoCss, recuoLista } from '@/lib/scene/tipografia'
 import { FERRAMENTAS_DESENHO, FORMA_DA_FERRAMENTA, caixaDeLinha } from '@/lib/editor/atalhos'
 import { pilhaFonte } from '@/lib/design-tokens'
 import { SceneRenderer, type AssetsResolvidos } from '@/components/renderer/SceneRenderer'
@@ -45,6 +46,7 @@ const SVG_DUPLICAR = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height=
 const CURSOR_DUPLICAR = `url("data:image/svg+xml,${encodeURIComponent(SVG_DUPLICAR)}") 3 2, copy`
 
 const ALCAS: Alca[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
+const BORDAS: Alca[] = ['n', 'e', 's', 'w']
 const CURSORES: Record<Alca, string> = { n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize', ne: 'nesw-resize', sw: 'nesw-resize', nw: 'nwse-resize', se: 'nwse-resize' }
 const ZOOM_MIN = 0.05
 const ZOOM_MAX = 8
@@ -72,6 +74,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
   const { estado, cena, acoes, indiceCena } = editor
   const { ref, tamanho } = useTamanho<HTMLDivElement>()
   const gesto = useRef<Gesto | null>(null)
+  const alcaPressionada = useRef<{ alca: Alca; t: number } | null>(null)
   const [, forcar] = useState(0)
   const [sobre, setSobre] = useState<Sobreposicao>(SEM_SOBREPOSICAO)
   const [insercao, setInsercao] = useState<(Insercao & { frameId: string }) | null>(null)
@@ -397,6 +400,8 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
     if (ev.button !== 0) return
     const alvo = ev.target as HTMLElement
     const alca = alvo.dataset.alca as Alca | 'rot' | undefined
+    // o ponteiro é capturado pelo canvas: o dblclick chega com o canvas como alvo, então a borda fica guardada aqui
+    alcaPressionada.current = alca && alca !== 'rot' ? { alca, t: ev.timeStamp } : null
     if (alca === 'rot' && unica) {
       gesto.current = { tipo: 'rotacionar', centro: { x: unica.x + unica.width / 2, y: unica.y + unica.height / 2 }, id: unica.id, antes: acoes.documentoAtual() }
       return
@@ -608,17 +613,41 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
     forcar((n) => n + 1)
   }
 
+  /**
+   * Como no Figma: duplo clique na borda (ou alça) ajusta a caixa ao conteúdo naquele eixo.
+   * Texto: borda de cima/baixo = altura automática (mantém a largura); esquerda/direita ou canto = largura
+   * automática (abraça as duas). Frame com auto layout: abraçar no eixo da borda; canto = nos dois.
+   * Um único passo de desfazer (o tamanho medido entra junto com o modo novo).
+   */
+  const abracarPelaBorda = (alca: Alca) => {
+    const eixoW = /[ew]/.test(alca)
+    const eixoH = /[ns]/.test(alca)
+    const novas = new Map<string, Camada>()
+    for (const l of selecionadas) {
+      if (l.locked) continue
+      if (l.type === 'text') {
+        const d: Pick<Camada, 'sizingW' | 'sizingH'> = eixoW ? { sizingW: 'hug', sizingH: 'hug' } : { sizingW: l.sizingW, sizingH: 'hug' }
+        if (l.sizingW === d.sizingW && l.sizingH === 'hug') continue
+        novas.set(l.id, comDimensionamento(l, d, !temAutoLayout(paiDe(l, mapa))))
+      } else if (l.type === 'frame' && l.layout) {
+        const w = eixoW && l.sizingW !== 'hug'
+        const h = eixoH && l.sizingH !== 'hug'
+        if (!w && !h) continue
+        // espaço automático não combina com abraçar no eixo principal (como no painel)
+        const principalW = l.layout.direction !== 'vertical'
+        const tiraAuto = l.layout.gapAuto && ((principalW && w) || (!principalW && h))
+        novas.set(l.id, { ...l, ...(w ? { sizingW: 'hug' } : {}), ...(h ? { sizingH: 'hug' } : {}), ...(tiraAuto ? { layout: { ...l.layout, gapAuto: false } } : {}) })
+      }
+    }
+    if (novas.size) acoes.atualizarCamadas([...novas.keys()], (l) => novas.get(l.id) ?? l, true, { manterDimensionamento: true })
+  }
+
   const onDoubleClick = (ev: React.MouseEvent) => {
     if (editandoTexto) return
-    // como no Figma: duplo clique numa alça de texto ajusta a caixa ao texto naquele eixo
-    const alcaClicada = (ev.target as HTMLElement).dataset.alca as Alca | 'rot' | undefined
+    const pressionada = alcaPressionada.current
+    const alcaClicada = ((ev.target as HTMLElement).dataset.alca as Alca | 'rot' | undefined) ?? (pressionada && ev.timeStamp - pressionada.t < 800 ? pressionada.alca : undefined)
     if (alcaClicada && alcaClicada !== 'rot') {
-      if (unica?.type === 'text') {
-        const lateral = alcaClicada === 'e' || alcaClicada === 'w'
-        const vertical = alcaClicada === 'n' || alcaClicada === 's'
-        const patch: Partial<Camada> = lateral ? { sizingW: 'hug', sizingH: 'hug' } : vertical ? { sizingH: 'hug' } : { sizingW: 'hug', sizingH: 'hug' }
-        acoes.atualizarCamadas([unica.id], patch)
-      }
+      abracarPelaBorda(alcaClicada)
       return
     }
     const pc = paraCena(local(ev))
@@ -739,6 +768,15 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
         return (
           <>
             {selecionadas.length > 1 && <Contorno r={r} rot={0} cor="rgb(89 101 242)" tracejado />}
+            {/* bordas inteiras: arrastar redimensiona naquele eixo; duplo clique abraça o conteúdo (texto, auto layout) */}
+            {!travada && (unica ? !unica.rotation : true) && BORDAS.map((a) => {
+              const dentroX = Math.min(4, r.width / 4)
+              const dentroY = Math.min(4, r.height / 4)
+              const s = a === 'n' || a === 's'
+                ? { left: r.x + 4, width: Math.max(0, r.width - 8), top: a === 'n' ? r.y - 4 : r.y + r.height - dentroY, height: 4 + dentroY }
+                : { top: r.y + 4, height: Math.max(0, r.height - 8), left: a === 'w' ? r.x - 4 : r.x + r.width - dentroX, width: 4 + dentroX }
+              return <div key={`b-${a}`} data-alca={a} data-testid={`borda-${a}`} className="absolute z-10" style={{ ...s, cursor: CURSORES[a] }} />
+            })}
             {!travada && (unica ? !unica.rotation : true) && ALCAS.map((a) => {
               const cx = a.includes('w') ? r.x : a.includes('e') ? r.x + r.width : r.x + r.width / 2
               const cy = a.includes('n') ? r.y : a.includes('s') ? r.y + r.height : r.y + r.height / 2
@@ -794,8 +832,13 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
 
       {/* edição de texto no lugar: o documento muda a cada tecla (sem histórico); um passo de desfazer por sessão */}
       {textoEmEdicao && (() => {
-        const r = paraTela(textoEmEdicao)
+        const r0 = paraTela(textoEmEdicao)
         const hug = textoEmEdicao.sizingW === 'hug'
+        // corte vertical: a área de edição volta a ter a entrelinha inteira, para as letras ficarem no mesmo lugar
+        const corte = corteVertical(textoEmEdicao)
+        const r = { ...r0, y: r0.y - corte.topo * vp.s, height: r0.height + (corte.topo + corte.base) * vp.s }
+        const recuo = recuoLista(textoEmEdicao)
+        const deco = decoracaoCss(textoEmEdicao)
         return (
           <textarea
             ref={textareaRef}
@@ -810,7 +853,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
             wrap={hug ? 'off' : 'soft'}
             className="absolute z-20 resize-none overflow-hidden bg-transparent caret-acento selection:bg-acento/20"
             // um contorno só, fino, exatamente na caixa do texto (o estilo global de foco desenharia outro por fora)
-            style={{ outline: '1px solid rgb(89 101 242)', outlineOffset: 0, borderRadius: textoEmEdicao.radius * vp.s, left: r.x, top: r.y, width: r.width + (hug ? 2 : 0), height: r.height, whiteSpace: hug ? 'pre' : 'pre-wrap', wordBreak: 'break-word', fontFamily: pilhaFonte(textoEmEdicao.fontFamily), fontSize: textoEmEdicao.fontSize * vp.s, fontWeight: textoEmEdicao.fontWeight, fontStyle: textoEmEdicao.italic ? 'italic' : undefined, textDecoration: textoEmEdicao.underline ? 'underline' : undefined, color: textoEmEdicao.color, textAlign: textoEmEdicao.align === 'justify' ? 'justify' : textoEmEdicao.align, lineHeight: textoEmEdicao.lineHeight, letterSpacing: textoEmEdicao.letterSpacing * vp.s, padding: textoEmEdicao.padding * vp.s, textTransform: textoEmEdicao.transform === 'none' ? undefined : textoEmEdicao.transform, background: textoEmEdicao.background, transform: textoEmEdicao.rotation ? `rotate(${textoEmEdicao.rotation}deg)` : undefined, transformOrigin: 'center' }}
+            style={{ outline: '1px solid rgb(89 101 242)', outlineOffset: 0, borderRadius: textoEmEdicao.radius * vp.s, left: r.x, top: r.y, width: r.width + (hug ? 2 : 0), height: r.height, whiteSpace: hug ? 'pre' : 'pre-wrap', wordBreak: 'break-word', fontFamily: pilhaFonte(textoEmEdicao.fontFamily), fontSize: textoEmEdicao.fontSize * vp.s, fontWeight: textoEmEdicao.fontWeight, fontStyle: textoEmEdicao.italic ? 'italic' : undefined, ...deco, textDecorationThickness: typeof deco.textDecorationThickness === 'number' ? deco.textDecorationThickness * vp.s : undefined, textUnderlineOffset: typeof deco.textUnderlineOffset === 'number' ? deco.textUnderlineOffset * vp.s : undefined, color: textoEmEdicao.color, textAlign: textoEmEdicao.align === 'justify' ? 'justify' : textoEmEdicao.align, lineHeight: textoEmEdicao.lineHeight, letterSpacing: textoEmEdicao.letterSpacing * vp.s, padding: textoEmEdicao.padding * vp.s, paddingLeft: recuo ? `calc(${textoEmEdicao.padding * vp.s}px + ${recuo})` : undefined, ...caixaCss(textoEmEdicao.transform), fontVariantNumeric: textoEmEdicao.tabularNums ? 'tabular-nums' : undefined, fontVariantLigatures: textoEmEdicao.ligatures === false ? 'none' : undefined, background: textoEmEdicao.background, transform: textoEmEdicao.rotation ? `rotate(${textoEmEdicao.rotation}deg)` : undefined, transformOrigin: 'center' }}
           />
         )
       })()}

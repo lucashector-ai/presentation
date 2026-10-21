@@ -2,7 +2,8 @@
 /** Layout: largura e altura com travar proporção (por camada, lembrado na sessão). */
 import { useState } from 'react'
 import { LayoutPanelLeft, Link2, MoveHorizontal, Square, Type, Unlink2 } from 'lucide-react'
-import { dimensionamentoDoModo, modoTexto, type ModoTexto } from '@/lib/editor/medirTexto'
+import { comDimensionamento, dimensionamentoDoModo, modoTexto, type ModoTexto } from '@/lib/editor/medirTexto'
+import { mapaDe, paiDe, temAutoLayout } from '@/lib/scene/arvore'
 import { abrirPreencher } from '../PreencherGrade'
 import type { Camada } from '@/lib/scene/schema'
 import { BotaoCampo, CampoNum, Secao, Segmentado } from './controles'
@@ -13,7 +14,7 @@ const proporcionalPorPadrao = (c: Camada) => c.type === 'svg' || c.type === 'ima
 const travada = (c: Camada) => travas.get(c.id) ?? proporcionalPorPadrao(c)
 
 export function SecaoLayout({ editor }: PropsSecao) {
-  const { sel, set, setFn } = useCamadas(editor)
+  const { sel, setFn } = useCamadas(editor)
   const [, atualizar] = useState(0)
   const l = sel[0]
   if (!l) return null
@@ -41,7 +42,8 @@ export function SecaoLayout({ editor }: PropsSecao) {
             <Segmentado<ModoTexto>
               rotulo="Redimensionar texto"
               valor={modoTexto(l)}
-              aoMudar={(m) => set(dimensionamentoDoModo(m))}
+              // já com o tamanho medido: um único passo de desfazer volta também a altura/largura de antes
+              aoMudar={(m) => setFn((c) => (c.type === 'text' ? comDimensionamento(c, dimensionamentoDoModo(m), !temAutoLayout(paiDe(c, mapaDe(editor.cena?.layers ?? [])))) : c), { manterDimensionamento: true })}
               icones
               opcoes={[
                 { id: 'larguraAuto', rotulo: 'Auto horizontal (cresce com o texto)', icone: <MoveHorizontal className="h-3.5 w-3.5" /> },

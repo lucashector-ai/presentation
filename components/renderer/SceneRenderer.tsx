@@ -16,7 +16,6 @@ import { sangrar, type Sangria } from '@/lib/scene/sangria'
 import { costurar } from '@/lib/scene/costura'
 import { ancestrais, mapaDe } from '@/lib/scene/arvore'
 import { recolorirSvg, svgParaDataUrl } from '@/lib/importar/svg'
-import { pilhaFonte } from '@/lib/design-tokens'
 import { MASCARAS, filtroCss, gradienteCss, raioCss, sombraCss, transformCss } from './estilos'
 import { boxShadowCss, desfoqueDe, internas, projetadas, textShadowCss, vidroDe } from '@/lib/scene/efeitos'
 import { caminhoCantos, raiosDaCamada, temSuavizacao } from '@/lib/scene/cantos'
@@ -27,6 +26,8 @@ import { atrasosEfetivos, esperaGatilho, interacoesDosGatilhos } from '@/lib/sce
 import { Forma } from './camadas/Forma'
 import { Modelo3d } from './camadas/Modelo3d'
 import { Lottie } from './camadas/Lottie'
+import { CorpoTexto, CorteTexto } from './camadas/CorpoTexto'
+import { estiloCaixaTexto } from '@/lib/scene/tipografia'
 
 export interface AssetResolvido {
   url: string
@@ -302,7 +303,7 @@ function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, an
       const a = assets[c.assetId]
       const fit = mobile && c.mobile?.fit ? c.mobile.fit : c.fit
       const adj = c.adjust
-      const filtroAjuste = adj ? `brightness(${adj.brightness}) contrast(${adj.contrast}) saturate(${adj.saturate}) grayscale(${adj.grayscale})` : ''
+      const filtroAjuste = adj ? `brightness(${adj.brightness}) contrast(${adj.contrast}) saturate(${adj.saturate}) grayscale(${adj.grayscale})${adj.invert ? ` invert(${adj.invert})` : ''}` : ''
       const suave = c.mask === 'none' && temSuavizacao(c)
       const dentro = c.mask === 'none' ? boxShadowCss(internas(e)) : undefined
       const imagem = (
@@ -383,27 +384,14 @@ function Texto({ c, origem, modo, duracao, easing, animTexto }: { c: CamadaTexto
       style={{
         width: '100%',
         height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: c.valign === 'middle' ? 'center' : c.valign === 'bottom' ? 'flex-end' : 'flex-start',
+        // alinhamento vertical, padding, fonte, decoração, caixa e quebra: lib/scene/tipografia.ts (igual à medição)
+        ...estiloCaixaTexto(c),
         background: fonte.background,
         borderRadius: raioCss(c),
-        padding: c.padding,
-        overflow: 'hidden',
         transition: origem || modo === 'viewer' ? `color ${duracao}ms ${easing}, font-size ${duracao}ms ${easing}, background ${duracao}ms ${easing}, letter-spacing ${duracao}ms ${easing}` : undefined,
-        fontFamily: pilhaFonte(c.fontFamily),
         fontSize: fonte.fontSize,
-        fontWeight: c.fontWeight,
-        fontStyle: c.italic ? 'italic' : undefined,
-        textDecoration: c.underline ? 'underline' : undefined,
-        textTransform: c.transform === 'none' ? undefined : c.transform,
         color: fonte.color,
-        textAlign: c.align,
-        lineHeight: c.lineHeight,
         letterSpacing: fonte.letterSpacing,
-        // largura automática (hug) não quebra linha; senão quebra na largura da caixa
-        whiteSpace: c.sizingW === 'hug' ? 'pre' : 'pre-wrap',
-        wordBreak: 'break-word',
         // texto invisível sobre a imagem de uma página de PDF importada: selecionável ao apresentar
         userSelect: modo === 'editor' ? 'none' : /^#[0-9a-f]{6}00$/i.test(c.color) && !c.background ? 'text' : undefined,
         textShadow: textShadowCss(projetadas(c.effects)),
@@ -412,9 +400,9 @@ function Texto({ c, origem, modo, duracao, easing, animTexto }: { c: CamadaTexto
       }}
     >
       {animTexto ? (
-        <TextoSegmentado texto={c.text} animacao={animTexto} gradiente={gradiente} cor={c.gradient?.stops[0]?.color ?? c.color} />
+        <CorteTexto c={c}><TextoSegmentado texto={c.text} animacao={animTexto} gradiente={gradiente} cor={c.gradient?.stops[0]?.color ?? c.color} /></CorteTexto>
       ) : (
-        <span style={gradiente ? { backgroundImage: gradiente, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' } : undefined}>{c.text}</span>
+        <CorpoTexto c={c} gradiente={gradiente} />
       )}
     </div>
   )

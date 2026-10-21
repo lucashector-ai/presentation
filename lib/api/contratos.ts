@@ -229,6 +229,25 @@ export const AceitarConviteRes = z.object({ workspaceId: z.string(), papel: Pape
 export const WorkspaceItemSchema = z.object({ id: z.string(), nome: z.string(), dono: z.string(), papel: PapelSchema, proprio: z.boolean(), ativo: z.boolean() })
 export type WorkspaceItem = z.infer<typeof WorkspaceItemSchema>
 
+// ---------- kits de marca (Criar com IA) ----------
+
+const HexSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Cor deve ser #RRGGBB').transform((c) => c.toUpperCase())
+/** Logo do kit: a mídia do workspace e o que a montagem precisa (proporção e cor média). */
+export const LogoKitSchema = z.object({ assetId: z.string().uuid().or(z.string().regex(/^as-[a-z0-9]+$/)), largura: z.number().positive().max(100000), altura: z.number().positive().max(100000), cor: HexSchema })
+export const KitMarcaReq = z.object({
+  nome: z.string().trim().min(1, 'Dê um nome ao kit').max(60),
+  cores: z.array(HexSchema).max(6).default([]),
+  fontes: z.object({ titulo: z.string().trim().min(1).max(80), texto: z.string().trim().min(1).max(80) }).nullable().default(null),
+  logo: LogoKitSchema.nullable().default(null),
+  /** Logo também discreto no rodapé das telas de conteúdo. */
+  logoRodape: z.boolean().default(false),
+})
+export const KitMarcaSchema = KitMarcaReq.extend({ id: z.string(), criadoEm: z.string(), atualizadoEm: z.string() })
+export type KitMarca = z.infer<typeof KitMarcaSchema>
+export type NovoKitMarca = z.input<typeof KitMarcaReq>
+/** Kits de marca por workspace (o servidor recusa acima disso). */
+export const MAX_KITS_MARCA = 30
+
 // ---------- compartilhamento ----------
 
 export const CriarShareLinkReq = z.object({

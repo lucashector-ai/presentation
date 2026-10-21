@@ -62,6 +62,13 @@ export const FONTES_APRESENTACAO = [
   'Playfair Display',
   'IBM Plex Sans',
   'Archivo Black',
+  'Cormorant Garamond',
+  'Syne',
+  'Fredoka',
+  'Source Serif 4',
+  'Unbounded',
+  'Bebas Neue',
+  'Manrope',
   'Georgia',
   'system-ui',
 ] as const
@@ -76,6 +83,13 @@ export const FONTES_GOOGLE: Record<string, string> = {
   'Playfair Display': 'Playfair+Display:wght@400..800',
   'IBM Plex Sans': 'IBM+Plex+Sans:wght@300;400;500;600;700',
   'Archivo Black': 'Archivo+Black',
+  'Cormorant Garamond': 'Cormorant+Garamond:ital,wght@0,400..700;1,400..700',
+  Syne: 'Syne:wght@400..800',
+  Fredoka: 'Fredoka:wght@300..700',
+  'Source Serif 4': 'Source+Serif+4:ital,opsz,wght@0,8..60,300..800;1,8..60,300..800',
+  Unbounded: 'Unbounded:wght@300..800',
+  'Bebas Neue': 'Bebas+Neue',
+  Manrope: 'Manrope:wght@300..800',
 }
 
 /** Resolve o nome de fonte do conteúdo para a pilha CSS (Geist vem das variáveis do next/font). */

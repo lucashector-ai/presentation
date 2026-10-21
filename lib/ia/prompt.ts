@@ -3,8 +3,8 @@
  * componente do design system. O desenho de cada tela vem depois (etapa de design, `design.ts`).
  * O system é fixo (catálogo de componentes, arcos por tipo de apresentação e temas) para aproveitar o cache.
  */
-import { COMPONENTES, TEMAS, TIPOS_TELA } from './designSystem'
-import { tipoEfetivo, tomEfetivo, type PedidoRoteiro } from './pedido'
+import { COMPONENTES, TEMAS, TIPOS_TELA, regrasDe, temaPorId } from './designSystem'
+import { NOMES_IDIOMA, tipoEfetivo, tomEfetivo, type PedidoRoteiro } from './pedido'
 import { DESCRICAO_TOM, TIPOS, TIPOS_APRESENTACAO, arcoResumido } from './tiposApresentacao'
 
 const componentes = TIPOS_TELA.map((t) => {
@@ -61,8 +61,19 @@ export function mensagemUsuario(p: PedidoRoteiro): string {
     `Tom: ${DESCRICAO_TOM[tomEfetivo(p)]}.`,
     `Público: ${p.publico ? seguro(p.publico) : def.publico || 'geral'}.`,
   ]
+  if (p.idioma !== 'pt-BR') partes.push(`Idioma: escreva todo o texto das telas e as notas em ${NOMES_IDIOMA[p.idioma].toLowerCase()}.`)
+  if (p.tema) {
+    const t = temaPorId(p.tema)
+    partes.push(`Estilo visual já escolhido pela pessoa: ${t.nome} (${t.descricao}; ${regrasDe(t).composicao}). Escreva no espírito dele e devolva "${t.id}" em "tema".`)
+  }
   if (p.marca.nome) partes.push(`Marca: <marca>${seguro(p.marca.nome)}</marca>.`)
+  if (p.marca.cores.length) partes.push(`Cores da marca (use estas em telas de paleta): ${p.marca.cores.join(', ')}.`)
   if (p.prompt) partes.push(`<pedido>\n${seguro(p.prompt)}\n</pedido>`)
   if (p.conteudo) partes.push(`Use este material como base. Organize, resuma e distribua pelas telas sem perder os fatos:\n<material>\n${seguro(p.conteudo)}\n</material>`)
+  const m = p.material
+  if (m.numeros.length) partes.push(`Números-chave da pessoa (use exatamente estes valores em telas de métricas ou gráfico; não invente outros):\n<material>\n${m.numeros.map((n) => `- ${seguro(n)}`).join('\n')}\n</material>`)
+  if (m.obrigatorio) partes.push(`O que não pode faltar na apresentação:\n<material>\n${seguro(m.obrigatorio)}\n</material>`)
+  if (m.evitar) partes.push(`O que evitar (assuntos, palavras ou promessas):\n<material>\n${seguro(m.evitar)}\n</material>`)
+  if (m.fotos.length) partes.push(`A pessoa tem ${m.fotos.length} ${m.fotos.length === 1 ? 'foto própria' : 'fotos próprias'} que entram nos espaços de imagem, na ordem das telas: ${m.fotos.map((f, i) => `${i + 1}. ${seguro(f) || 'sem legenda'}`).join('; ')}. Inclua telas de imagem ou galeria para elas (a capa também pode usar uma).`)
   return partes.join('\n\n')
 }

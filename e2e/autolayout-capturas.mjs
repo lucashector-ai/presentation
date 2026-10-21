@@ -1,0 +1,45 @@
+// Capturas "antes/depois" das telas geradas pela IA no editor, com todas as camadas selecionadas (caixas à vista).
+// Uso: node e2e/autolayout-capturas.mjs <base> <pasta> <prefixo>   (modo demo)
+import { chromium } from 'playwright'
+
+const [BASE = 'http://localhost:8797', OUT, PREFIXO = 'depois'] = process.argv.slice(2)
+const browser = await chromium.launch()
+const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'pt-BR' })
+const page = await ctx.newPage()
+await page.goto(`${BASE}/signup`, { waitUntil: 'networkidle' })
+await page.getByLabel('Nome').fill('Ana Teste')
+await page.getByLabel('E-mail').fill('ana@exemplo.com')
+await page.getByLabel('Senha').fill('senhaforte123')
+await page.getByRole('button', { name: 'Criar conta' }).click()
+await page.getByRole('button', { name: 'Continuar para o painel' }).click()
+await page.waitForURL(`${BASE}/app`)
+await page.goto(`${BASE}/app/criar?prompt=${encodeURIComponent('Pitch da Aurora, startup de energia solar por assinatura, buscando R$ 5 milhões')}`, { waitUntil: 'networkidle' })
+const nav = page.getByRole('navigation', { name: 'Passos' })
+const temNav = await nav.count()
+if (temNav) {
+  await nav.getByRole('button', { name: /Tamanho/ }).click()
+  await page.getByRole('radio', { name: '8 telas', exact: true }).click()
+  await nav.getByRole('button', { name: /Revisar e gerar/ }).click()
+} else {
+  await page.getByRole('radio', { name: '8 telas', exact: true }).click()
+}
+await page.getByRole('button', { name: 'Gerar roteiro →' }).click()
+await page.getByText('Roteiro · 8 telas').waitFor({ timeout: 60000 })
+await page.getByRole('button', { name: 'Gerar apresentação' }).click()
+await page.getByText('Pronto · 8 telas').waitFor({ timeout: 60000 })
+await page.waitForTimeout(800)
+await page.getByRole('button', { name: 'Abrir no editor →' }).click()
+await page.waitForURL(/\/edit/, { timeout: 20000 })
+const telas = page.getByRole('listbox', { name: 'Telas' }).getByRole('option')
+await telas.first().waitFor()
+const n = await telas.count()
+for (const [i, nome] of [[0, 'capa'], [1, 'conceito'], [n - 2, 'chamada']]) {
+  await telas.nth(i).click()
+  await page.waitForTimeout(700)
+  await page.getByTestId('canvas').click({ position: { x: 5, y: 5 } }).catch(() => {})
+  await page.keyboard.press('Control+a')
+  await page.waitForTimeout(500)
+  await page.getByTestId('canvas').screenshot({ path: `${OUT}/autolayout-ia-${PREFIXO}-${nome}.png` })
+}
+await browser.close()
+console.log('ok', n)
