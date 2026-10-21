@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { AnimacaoSchema, TIPOS_ANIMACAO, parseCamada, type Animacao } from './schema'
-import { ajustesQueServem, cssDaAnimacao, definicao, divisao, keyframeDaParte, parametros, semAjustesPadrao } from './parametros'
+import { ajustesDeIntensidade, ajustesQueServem, aplicarIntensidade, cssDaAnimacao, definicao, divisao, intensidadeDe, keyframeDaParte, parametros, semAjustesPadrao, temIntensidade } from './parametros'
 import { agruparLinhas, analisarNumero, curvaBezier, formatarNumero, ordemDasPartes, passosDaOrdem } from './texto-animado'
 import { PRESETS_ENTRADA, PRESETS_SAIDA, animacaoDoPreset, atrasosEfetivos, ehNumeroDestaque, esperaGatilho, interacoesDosGatilhos, presetSelecionado, tempoSegmentos } from './animacoes'
 
@@ -166,5 +166,24 @@ describe('galeria e gatilhos', () => {
     const it0 = m.get('botao')!.click[0]!
     expect(it0.do).toMatchObject({ action: 'animate', targetLayerId: 'alvo', animation: { type: 'pop' } })
     expect((it0.do as { animation: Animacao }).animation.trigger).toBeUndefined()
+  })
+})
+
+describe('intensidade', () => {
+  it('fraca/média/forte escalam o quanto o efeito se afasta do final; média = padrão', () => {
+    expect(ajustesDeIntensidade('scaleIn', 2)).toEqual({ scale: 0.84 })
+    expect(ajustesDeIntensidade('blurIn', 0.5)).toEqual({ blur: 12 })
+    expect(ajustesDeIntensidade('rotateIn', 2)).toEqual({ scale: 0.88, rotate: -24 })
+    expect(ajustesDeIntensidade('flip', 2)).toEqual({ rotate: 160 })
+    expect(aplicarIntensidade('zoomIn', 'media')).toEqual({ patch: {}, remover: ['scale', 'blur'] })
+    expect(intensidadeDe(anim({ type: 'zoomIn' }))).toBe('media')
+    expect(intensidadeDe(anim({ type: 'zoomIn', ...ajustesDeIntensidade('zoomIn', 2) }))).toBe('forte')
+    expect(intensidadeDe(anim({ type: 'zoomIn', scale: 0.33 }))).toBeNull()
+  })
+  it('só aparece onde muda algo (não em texto, fade, máscara nem expandir)', () => {
+    expect(temIntensidade('pop')).toBe(true)
+    expect(temIntensidade('zoomAway')).toBe(true)
+    for (const t of ['fadeIn', 'words', 'mask', 'expand', 'reveal'] as const) expect(temIntensidade(t)).toBe(false)
+    for (const t of TIPOS_ANIMACAO) for (const i of [0.5, 1, 2]) expect(AnimacaoSchema.safeParse({ type: t, ...ajustesDeIntensidade(t, i) }).success).toBe(true)
   })
 })

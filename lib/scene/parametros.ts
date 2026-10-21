@@ -158,6 +158,53 @@ export function ajustesQueServem(a: Partial<Animacao>, tipo: TipoAnim): Partial<
   return r
 }
 
+// ---------- intensidade (um clique: fraca / média / forte) ----------
+
+export type Intensidade = 'fraca' | 'media' | 'forte'
+export const INTENSIDADES: { id: Intensidade; rotulo: string; f: number }[] = [
+  { id: 'fraca', rotulo: 'Fraca', f: 0.5 },
+  { id: 'media', rotulo: 'Média', f: 1 },
+  { id: 'forte', rotulo: 'Forte', f: 2 },
+]
+const CAMPOS_INTENSIDADE = ['distance', 'scale', 'rotate', 'blur'] as const
+
+/**
+ * Ajustes de uma intensidade: multiplica o quanto o efeito se afasta do estado final (distância, escala, giro,
+ * desfoque) a partir do padrão do preset. "Média" = o padrão. Só os campos que o tipo controla e que têm efeito.
+ */
+export function ajustesDeIntensidade(tipo: TipoAnim, f: number): Partial<Animacao> {
+  const d = definicao(tipo)
+  if (d.familia === 'texto' || d.familia === 'nenhuma') return {}
+  const p = { ...BASE, ...d.padrao }
+  const tem = (k: Parametro) => d.controles.includes(k)
+  const r: Partial<Animacao> = {}
+  if (tem('distance') && p.distance > 0) r.distance = Math.round(limitar(p.distance * f, 0, 800))
+  if (tem('scale') && p.scale !== 1) r.scale = Math.round(limitar(1 - (1 - p.scale) * f, 0, 3) * 100) / 100
+  if (tem('rotate') && p.rotate !== 0) r.rotate = Math.round(limitar(p.rotate * f, d.familia === 'flip' ? -180 : -720, d.familia === 'flip' ? 180 : 720))
+  if (tem('blur') && p.blur > 0) r.blur = Math.round(limitar(p.blur * f, 0, 80))
+  return r
+}
+
+/** A intensidade vale para o tipo (as três dão resultados diferentes)? */
+export function temIntensidade(tipo: TipoAnim): boolean {
+  const chaves = INTENSIDADES.map((i) => JSON.stringify(ajustesDeIntensidade(tipo, i.f)))
+  return Object.keys(ajustesDeIntensidade(tipo, 1)).length > 0 && new Set(chaves).size === INTENSIDADES.length
+}
+
+/** Intensidade que corresponde aos ajustes atuais (null = valores personalizados). */
+export function intensidadeDe(a: Pick<Animacao, 'type'> & Partial<Animacao>): Intensidade | null {
+  const p = parametros(a) as unknown as Record<string, unknown>
+  return INTENSIDADES.find((i) => Object.entries(ajustesDeIntensidade(a.type, i.f)).every(([k, v]) => Math.abs(Number(p[k]) - Number(v)) < 1e-6))?.id ?? null
+}
+
+/** Patch para aplicar uma intensidade: "Média" remove os ajustes (volta ao padrão). */
+export function aplicarIntensidade(tipo: TipoAnim, id: Intensidade): { patch: Partial<Animacao>; remover: (typeof CAMPOS_INTENSIDADE)[number][] } {
+  const f = INTENSIDADES.find((i) => i.id === id)?.f ?? 1
+  const patch = ajustesDeIntensidade(tipo, f)
+  if (f === 1) return { patch: {}, remover: Object.keys(patch) as (typeof CAMPOS_INTENSIDADE)[number][] }
+  return { patch, remover: [] }
+}
+
 export const VETOR: Record<Direcao, [number, number]> = {
   up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0],
   'up-left': [-Math.SQRT1_2, -Math.SQRT1_2], 'up-right': [Math.SQRT1_2, -Math.SQRT1_2], 'down-left': [-Math.SQRT1_2, Math.SQRT1_2], 'down-right': [Math.SQRT1_2, Math.SQRT1_2],

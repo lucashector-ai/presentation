@@ -1,7 +1,7 @@
 'use client'
 /** Aba Animação com camadas selecionadas: galerias de Entrada, Ênfase (loop) e Saída + controles simples. */
 import { useEffect, useRef, useState } from 'react'
-import { ClipboardPaste, Copy, Layers } from 'lucide-react'
+import { ClipboardPaste, Copy, Hourglass, Layers, Timer } from 'lucide-react'
 import type { Animacao, Camada, Loop } from '@/lib/scene/schema'
 import type { Editor } from '@/lib/editor/useEditor'
 import {
@@ -67,6 +67,22 @@ const semCampo = <K extends 'enterAnimation' | 'loopAnimation' | 'exitAnimation'
   const copia = { ...c } as Record<string, unknown>
   delete copia[k]
   return copia as Camada
+}
+
+/** Atraso e duração com o rótulo em cima (o prefixo do campo numérico só cabe um ícone/letra). */
+function CamposTempo({ atraso, duracao, rotulo, maxAtraso, aoAtraso, aoDuracao }: { atraso: number; duracao: number; rotulo: string; maxAtraso: number; aoAtraso: (v: number) => void; aoDuracao: (v: number) => void }) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <div className="space-y-1">
+        <Rotulo>Atraso</Rotulo>
+        <CampoNum prefixo={<Hourglass className="h-3 w-3" />} rotulo={`Atraso ${rotulo}`} valor={atraso} min={0} max={maxAtraso} passo={50} sufixo="ms" aoMudar={aoAtraso} />
+      </div>
+      <div className="space-y-1">
+        <Rotulo>Duração</Rotulo>
+        <CampoNum prefixo={<Timer className="h-3 w-3" />} rotulo={`Duração ${rotulo}`} valor={duracao} min={100} max={3000} passo={50} sufixo="ms" aoMudar={aoDuracao} />
+      </div>
+    </div>
+  )
 }
 
 export function AnimacaoCamadas({ editor }: { editor: Editor }) {
@@ -162,6 +178,7 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
           <div className="space-y-2 pt-3">
             <Rotulo acao={a.type !== 'none' ? <BotaoPrevia aoClicar={() => tocar()} /> : undefined}>Como a camada aparece</Rotulo>
             <Galeria
+              key={chaveSel}
               presets={PRESETS_ENTRADA}
               atual={a.type !== 'none' ? a : undefined}
               textoPermitido={todasTexto}
@@ -176,29 +193,45 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
               <div className="space-y-2 pt-1">
                 <Rotulo>Velocidade</Rotulo>
                 <Chips rotulo="Velocidade" cheio valor={velocidadeDe(a.type, a.duration)} opcoes={VELOCIDADES.map((v) => ({ ...v, titulo: `${duracaoPorVelocidade(a.type, v.id)} ms` }))} aoMudar={(v) => patchEntrada({ duration: duracaoPorVelocidade(a.type, v) })} />
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <CampoNum prefixo="Atraso" rotulo="Atraso da entrada" valor={a.delay} min={0} max={5000} passo={50} sufixo="ms" aoMudar={(delay) => (multi && emSequencia ? setEntrada({ ...a, delay }, { restaggerar: true }) : patchEntrada({ delay }))} />
-                  <CampoNum prefixo="Duração" rotulo="Duração da entrada" valor={a.duration} min={100} max={3000} passo={50} sufixo="ms" aoMudar={(duration) => patchEntrada({ duration })} />
-                </div>
-                <Rotulo>Curva</Rotulo>
-                <Chips
-                  rotulo="Curva"
-                  valor={curva}
-                  opcoes={CURVAS.map((c) => ({ id: c.id, rotulo: c.rotulo }))}
-                  aoMudar={(c) => { setCurvaAberta(c === 'personalizada'); if (c === 'personalizada') { if (!a.bezier) patchEntrada({ bezier: pontosDaCurva(a) }) } else patchEntrada(camposDaCurva(c)) }}
+                <PainelAjustes
+                  key={chaveSel}
+                  anim={a}
+                  camada={l}
+                  camadasDaTela={camadasDaTela}
+                  aoMudar={ajustarEntrada}
+                  aoPrevia={() => tocar()}
+                  resumoTempo={`${a.delay ? `após ${a.delay} ms · ` : ''}${CURVAS.find((c) => c.id === curva)?.rotulo ?? ''}`}
+                  tempo={
+                    <>
+                      <CamposTempo
+                        atraso={a.delay}
+                        duracao={a.duration}
+                        rotulo="da entrada"
+                        maxAtraso={5000}
+                        aoAtraso={(delay) => (multi && emSequencia ? setEntrada({ ...a, delay }, { restaggerar: true }) : patchEntrada({ delay }))}
+                        aoDuracao={(duration) => patchEntrada({ duration })}
+                      />
+                      <Rotulo>Curva</Rotulo>
+                      <Chips
+                        rotulo="Curva"
+                        valor={curva}
+                        opcoes={CURVAS.map((c) => ({ id: c.id, rotulo: c.rotulo }))}
+                        aoMudar={(c) => { setCurvaAberta(c === 'personalizada'); if (c === 'personalizada') { if (!a.bezier) patchEntrada({ bezier: pontosDaCurva(a) }) } else patchEntrada(camposDaCurva(c)) }}
+                      />
+                      {curva === 'personalizada' && (
+                        <CurvaEasing
+                          easing={a.easing}
+                          bezier={a.bezier}
+                          duracao={a.duration}
+                          chave={`${a.type}-${a.duration}-${(a.bezier ?? []).join(',')}`}
+                          aoInicio={() => { antesCurva.current = acoes.documentoAtual() }}
+                          aoMudar={(bezier) => acoes.atualizarCamadas(ids, (c) => (c.enterAnimation ? ({ ...c, enterAnimation: { ...c.enterAnimation, bezier } } as Camada) : c), false)}
+                          aoFim={() => { acoes.registrarHistorico(antesCurva.current); tocar() }}
+                        />
+                      )}
+                    </>
+                  }
                 />
-                {curva === 'personalizada' && (
-                  <CurvaEasing
-                    easing={a.easing}
-                    bezier={a.bezier}
-                    duracao={a.duration}
-                    chave={`${a.type}-${a.duration}-${(a.bezier ?? []).join(',')}`}
-                    aoInicio={() => { antesCurva.current = acoes.documentoAtual() }}
-                    aoMudar={(bezier) => acoes.atualizarCamadas(ids, (c) => (c.enterAnimation ? ({ ...c, enterAnimation: { ...c.enterAnimation, bezier } } as Camada) : c), false)}
-                    aoFim={() => { acoes.registrarHistorico(antesCurva.current); tocar() }}
-                  />
-                )}
-                <PainelAjustes anim={a} camada={l} camadasDaTela={camadasDaTela} aoMudar={ajustarEntrada} aoPrevia={() => tocar()} />
               </div>
             )}
           </div>
@@ -244,6 +277,7 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
           <div className="space-y-2 pt-3">
             <Rotulo acao={saida ? <BotaoPrevia aoClicar={() => tocar({ saida: true })} /> : undefined}>Ao sair da tela</Rotulo>
             <Galeria
+              key={chaveSel}
               presets={PRESETS_SAIDA}
               atual={saida}
               textoPermitido={false}
@@ -257,11 +291,17 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
               <>
                 <Rotulo>Velocidade</Rotulo>
                 <Chips rotulo="Velocidade da saída" cheio valor={velocidadeDe(saida.type, saida.duration)} opcoes={VELOCIDADES} aoMudar={(v) => setSaida({ ...saida, duration: duracaoPorVelocidade(saida.type, v) })} />
-                <div className="grid grid-cols-2 gap-2">
-                  <CampoNum prefixo="Atraso" rotulo="Atraso da saída" valor={saida.delay} min={0} max={2000} passo={50} sufixo="ms" aoMudar={(delay) => setSaida({ ...saida, delay })} />
-                  <CampoNum prefixo="Duração" rotulo="Duração da saída" valor={saida.duration} min={100} max={3000} passo={50} sufixo="ms" aoMudar={(duration) => setSaida({ ...saida, duration })} />
-                </div>
-                <PainelAjustes anim={saida} camada={l} camadasDaTela={camadasDaTela} saida aoMudar={(patch, remover) => acoes.atualizarCamadas(ids, (c) => (c.exitAnimation ? ({ ...c, exitAnimation: comAjuste(c.exitAnimation, patch, remover) } as Camada) : c))} aoPrevia={() => tocar({ saida: true })} />
+                <PainelAjustes
+                  key={chaveSel}
+                  anim={saida}
+                  camada={l}
+                  camadasDaTela={camadasDaTela}
+                  saida
+                  aoMudar={(patch, remover) => acoes.atualizarCamadas(ids, (c) => (c.exitAnimation ? ({ ...c, exitAnimation: comAjuste(c.exitAnimation, patch, remover) } as Camada) : c))}
+                  aoPrevia={() => tocar({ saida: true })}
+                  resumoTempo={saida.delay ? `após ${saida.delay} ms` : undefined}
+                  tempo={<CamposTempo atraso={saida.delay} duracao={saida.duration} rotulo="da saída" maxAtraso={2000} aoAtraso={(delay) => setSaida({ ...saida, delay })} aoDuracao={(duration) => setSaida({ ...saida, duration })} />}
+                />
               </>
             )}
           </div>

@@ -95,7 +95,8 @@ export function CartaoPreset({ selecionado, rotulo, aoClicar, children, titulo, 
       onBlur={() => setTocando(false)}
       className={cx('group flex min-w-0 flex-col gap-1 rounded-lg border p-1 pb-1.5 text-left transition-colors', selecionado ? 'border-acento bg-acentoSuave' : 'border-borda bg-superficie hover:border-bordaForte')}
     >
-      <span className={cx('relative block h-10 w-full overflow-hidden rounded-[6px]', selecionado ? 'bg-superficie' : 'bg-superficie2')}>{children(tocando)}</span>
+      {/* sem eventos na prévia: ela remonta ao passar o mouse, e um clique que começa num nó removido não conta */}
+      <span className={cx('pointer-events-none relative block h-10 w-full overflow-hidden rounded-[6px]', selecionado ? 'bg-superficie' : 'bg-superficie2')}>{children(tocando)}</span>
       <span className={cx('block px-0.5 text-[11px] leading-tight', duasLinhas ? 'line-clamp-2 min-h-[26px]' : 'truncate', selecionado ? 'font-medium text-acento' : 'text-texto2 group-hover:text-texto')}>{rotulo}</span>
     </button>
   )
@@ -146,7 +147,7 @@ export function MiniPrevia({ tipo: tipoProp, preset, loop, saida, texto, tocando
     const el = ref.current
     if (ativo || !temAnim || !el || typeof el.getAnimations !== 'function') return
     const meio = tipo === 'reveal' || tipo === 'mask' || tipo === 'iris' || tipo === 'draw' || tipo === 'unfold' || tipo === 'expand' || (!!tipo && ehAnimacaoDeTexto(tipo))
-    const t = loopDef ? loopDef.duration * (loop === 'pulse' || loop === 'float' || loop === 'glow' ? 0.5 : 0.25) : (anim?.duration ?? 600) * (saida ? 0.55 : meio ? 0.45 : 0.2)
+    const t = loopDef ? loopDef.duration * (loop === 'pulse' || loop === 'float' || loop === 'glow' ? 0.5 : 0.25) : (anim?.duration ?? 600) * (saida ? 0.55 : tipo === 'bounce' ? 0.62 : meio ? 0.45 : 0.2)
     for (const a of el.getAnimations({ subtree: true })) {
       a.pause()
       a.currentTime = t

@@ -130,9 +130,12 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 .seg-texto-linha { display: inline; animation-fill-mode: both; }
 .seg-palavra { display: inline-block; white-space: nowrap; }
 /* linha por linha: cada linha renderizada é um bloco; com máscara, a linha sobe de trás da própria borda
-   (a folga em cima/embaixo não corta acentos e descendentes) */
+   (o recorte passa .25em da caixa em cima/embaixo para não cortar acentos e descendentes; é clip-path, e não
+   overflow + padding/margem negativa, porque margens de blocos vizinhos se fundem e o entrelinha abria) */
 .seg-linha-caixa { display: block; }
-.seg-linha-caixa.com-mascara { overflow: hidden; padding: .25em 0; margin: -.25em 0; }
+/* a linha anima como bloco: inline-block dentro do bloco somaria a folga da linha-base e abriria o entrelinha */
+.seg-linha-caixa > .seg-texto { display: block; }
+.seg-linha-caixa.com-mascara { clip-path: inset(-.25em -50% -.25em -50%); }
 /* decodificar: a letra real segura o espaço (sem tremer o texto) e o caractere sorteado aparece por cima */
 .seg-scramble { position: relative; }
 .seg-scramble[data-g] { color: transparent !important; -webkit-text-fill-color: transparent !important; background-image: none !important; }
