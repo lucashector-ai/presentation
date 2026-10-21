@@ -18,8 +18,9 @@ import { FORMATOS_IA, ORIGENS, QUANTIDADES_TELAS, tipoEfetivo } from '@/lib/ia/p
 import { ESTILOS, TIPOS_TELA, montarDocumento, type Densidade, type Estilo, type OpcaoImagens, type Roteiro, type TelaRoteiro, type TipoTela } from '@/lib/ia/roteiro'
 import { NOMES_TOM, TIPOS, TIPOS_APRESENTACAO, TONS, type TipoPedido, type Tom } from '@/lib/ia/tiposApresentacao'
 import { MATERIAL_CREDITOS, PLANOS, custoApresentacao, custoDesenho, custoLeituraPdf, custoRoteiro, podeGastarCreditos, podeGerarTelas, textoApresentacoes } from '@/lib/planos'
-import { juntarPaginas, listaDePaginas, paginasParaIa, resumoMaterial, type MaterialLido } from '@/lib/pdf/material'
+import { aposLeituraIa, juntarPaginas, listaDePaginas, paginasParaIa, resumoMaterial, type MaterialLido } from '@/lib/pdf/material'
 import type { DocumentoPdf } from '@/lib/pdf/navegador'
+import { AvisoPaginasPdf, lerPdfParaMaterial, ProgressoLeitura, type FaseLeitura } from './LeituraPdf'
 import { useCreditos } from './Creditos'
 import type { Cena, DocumentoProjeto } from '@/lib/scene/schema'
 
@@ -164,7 +165,7 @@ export function CriarComIA() {
   const [arrastando, setArrastando] = useState(false)
   /** O que foi lido do arquivo (resumo mostrado antes de gerar). */
   const [material, setMaterial] = useState<MaterialLido | null>(null)
-  const [lendo, setLendo] = useState<{ fase: string; progresso: number } | null>(null)
+  const [lendo, setLendo] = useState<FaseLeitura | null>(null)
   /** PDF aberto (para a IA ler as páginas escaneadas depois) e o texto de cada página. */
   const pdfAberto = useRef<DocumentoPdf | null>(null)
   const textoPaginas = useRef<string[]>([])
@@ -265,10 +266,12 @@ export function CriarComIA() {
         const d = await pdf.abrirPdf(f)
         if (ctrl.signal.aborted) return void d.fechar()
         pdfAberto.current = d
-        const r = await pdf.lerTextoPdf(d, { sinal: ctrl.signal, aoProgredir: (n, total) => setLendo({ fase: `Lendo a página ${n} de ${total}…`, progresso: n / total }) })
+        // texto digital + OCR das páginas escaneadas, tudo no navegador e sem créditos
+        const r = await lerPdfParaMaterial(d, { sinal: ctrl.signal, aoProgredir: setLendo })
         textoPaginas.current = r.porPagina
-        usarTexto(r.texto, { ...base, tipo: 'pdf', paginas: r.paginas, caracteres: r.caracteres, titulos: r.titulos, itensLista: r.itensLista, tabelas: r.tabelas, semTexto: r.paginasSemTexto })
-        if (!r.texto.trim()) mostrar('Este PDF não tem texto para ler no navegador (parece escaneado). A IA pode ler as páginas.')
+        usarTexto(r.texto, { ...base, tipo: 'pdf', ...r.material })
+        if (r.aviso) mostrar(r.aviso)
+        else if (!r.texto.trim()) mostrar('Não encontramos texto legível neste PDF. Se forem gráficos, tabelas ou manuscrito, a IA pode ler as páginas.')
       } else if (/\.docx$/i.test(f.name)) {
         if (f.size > MAX_BYTES_DOCX) throw Object.assign(new Error('O .docx é grande demais para ler no navegador.'), { name: 'ErroLeitura' })
         setLendo({ fase: 'Lendo o .docx…', progresso: 0.5 })
@@ -293,7 +296,7 @@ export function CriarComIA() {
 
   // páginas sem texto (escaneadas) que a IA pode ler agora, dentro do limite do plano
   const limiteIaPdf = PLANOS[planoId].limites.paginasPdfIa
-  const paraIa = material ? paginasParaIa(material.semTexto, limiteIaPdf) : []
+  const paraIa = material ? paginasParaIa(material, limiteIaPdf) : []
   const custoDaLeitura = custoLeituraPdf(paraIa.length)
 
   /** A IA lê as páginas escaneadas: monta um PDF só com elas (imagem), envia e junta o texto na ordem das páginas. */
@@ -312,7 +315,7 @@ export function CriarComIA() {
       if (ctrl.signal.aborted) return
       const emBranco = [...material.emBranco, ...montado.emBranco]
       if (!montado.paginas.length) {
-        setMaterial({ ...material, semTexto: material.semTexto.filter((n) => !paraIa.includes(n)), emBranco })
+        setMaterial(aposLeituraIa(material, paraIa, [], emBranco))
         return mostrar('As páginas sem texto estão em branco; nada para ler.')
       }
       setLendo({ fase: `A IA está lendo ${montado.paginas.length} ${montado.paginas.length === 1 ? 'página' : 'páginas'}…`, progresso: 0.35 })
@@ -323,8 +326,7 @@ export function CriarComIA() {
       for (const p of r.paginas) paginas[p.pagina - 1] = p.texto
       textoPaginas.current = paginas
       const { texto } = juntarPaginas(paginas, Number.MAX_SAFE_INTEGER)
-      const lidas = [...material.lidasPelaIa, ...r.paginas.map((p) => p.pagina)].sort((a, b) => a - b)
-      usarTexto(texto, { ...material, semTexto: material.semTexto.filter((n) => !paraIa.includes(n)), lidasPelaIa: lidas, emBranco })
+      usarTexto(texto, aposLeituraIa(material, paraIa, r.paginas.map((p) => p.pagina), emBranco))
       mostrar(`A IA leu ${r.paginas.length} ${r.paginas.length === 1 ? 'página' : 'páginas'} · ${r.caracteres.toLocaleString('pt-BR')} caracteres · ${cobrado} créditos.`)
     } catch (e) {
       if (ctrl.signal.aborted) return
@@ -496,13 +498,7 @@ export function CriarComIA() {
                     <button type="button" onClick={() => entradaArquivo.current?.click()} disabled={!!lendo} className="ml-auto flex shrink-0 items-center gap-2 rounded-full border-[1.5px] border-bordaForte px-3 py-1.5 text-[13px] font-medium hover:border-grafite disabled:opacity-50"><Upload className="h-3.5 w-3.5" />{arquivo ? 'Trocar arquivo' : 'Escolher arquivo'}</button>
                     <input ref={entradaArquivo} type="file" accept={EXTENSOES_TEXTO} aria-label="Arquivo de material" className="hidden" onChange={(e) => { void importar(e.target.files?.[0]); e.target.value = '' }} />
                   </div>
-                  {lendo && (
-                    <div className="mt-2.5 flex items-center gap-3 text-[13px] text-texto3" role="status" aria-live="polite">
-                      <span aria-hidden className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-[#E7E5E4] border-t-violeta" />
-                      <span className="shrink-0">{lendo.fase}</span>
-                      <span className="h-1 flex-1 overflow-hidden rounded-sm bg-[#EDECEA]"><span className="block h-1 bg-violeta transition-[width]" style={{ width: `${Math.round(lendo.progresso * 100)}%` }} /></span>
-                    </div>
-                  )}
+                  {lendo && <ProgressoLeitura lendo={lendo} />}
                   {material && !lendo && (
                     <div className="mt-2.5 flex flex-col gap-2 text-[13px]" data-testid="resumo-material">
                       <div className="text-texto2" aria-live="polite">
@@ -513,16 +509,7 @@ export function CriarComIA() {
                       {conteudo.length > 0 && (
                         <div className="text-texto3">No roteiro, este material soma <span className="mono text-texto">{custoRoteiro(telas, conteudo.length) - custoRoteiro(telas)}</span> {custoRoteiro(telas, conteudo.length) - custoRoteiro(telas) === 1 ? 'crédito' : 'créditos'} (1 a cada {MATERIAL_CREDITOS.caracteres.toLocaleString('pt-BR')} caracteres), já incluídos no total abaixo. Revise o texto antes de gerar.</div>
                       )}
-                      {material.semTexto.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[10px] bg-[#FFF7E8] px-3 py-2.5 text-[#6B4E16]">
-                          <span className="min-w-0 flex-1">
-                            {material.semTexto.length === material.paginas ? 'Nenhuma página tem texto para ler no navegador' : `${material.semTexto.length} ${material.semTexto.length === 1 ? 'página não tem' : 'páginas não têm'} texto (${material.semTexto.length === 1 ? 'página' : 'páginas'} ${listaDePaginas(material.semTexto)})`}: parece escaneado ou só imagem. A IA pode ler a imagem {material.semTexto.length === 1 ? 'dela' : 'delas'}{paraIa.length < material.semTexto.length ? ` (até ${limiteIaPdf} por vez no plano ${PLANOS[planoId].nome})` : ''}. O PDF não fica guardado.
-                          </span>
-                          <button type="button" onClick={() => void lerComIa()} className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border-[1.5px] border-grafite bg-white px-3 text-[13px] font-medium text-texto hover:bg-[#F5F5F4]">
-                            <Sparkles className="h-3.5 w-3.5 text-acento" />Ler {paraIa.length} {paraIa.length === 1 ? 'página' : 'páginas'} com a IA · <span className="mono">{custoDaLeitura}</span> créditos
-                          </button>
-                        </div>
-                      )}
+                      <AvisoPaginasPdf material={material} paraIa={paraIa} custo={custoDaLeitura} limite={limiteIaPdf} plano={PLANOS[planoId].nome} onLerComIa={() => void lerComIa()} />
                     </div>
                   )}
                 </div>
