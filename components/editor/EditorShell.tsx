@@ -17,6 +17,7 @@ import { Canvas } from './Canvas'
 import { Inspetor } from './inspetor/Inspetor'
 import { MenuContexto } from './MenuContexto'
 import { Viewer } from '@/components/viewer/Viewer'
+import { consumirTela, marcarOrigem, pedirTelaCheia, urlApresentar } from '@/components/viewer/retorno'
 import { Compartilhar } from '@/components/compartilhar/Compartilhar'
 import { Botao, BotaoIcone, Modal, Simbolo, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
@@ -55,6 +56,56 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
   const arquivoRef = useRef<HTMLInputElement>(null)
   const pontoArquivo = useRef<{ x: number; y: number } | undefined>(undefined)
   const sel = estado.selecao
+
+  // ---------- pré-visualizar / apresentar (ida e volta) ----------
+  // A pré-visualização entra no histórico: Esc, X ou o Voltar do navegador fecham e voltam ao editor na tela
+  // que estava sendo apresentada; o foco volta para quem abriu.
+  const telaPreview = useRef(0)
+  const previewNoHistorico = useRef(false)
+  const focoAntesPreview = useRef<HTMLElement | null>(null)
+  const irParaIndice = useCallback((i: number) => {
+    const alvo = editor.estado.documento.scenes[i]
+    if (alvo && alvo.id !== editor.cena?.id) acoes.irParaCena(alvo.id)
+  }, [editor.estado.documento.scenes, editor.cena?.id, acoes])
+  const abrirPreview = useCallback(() => {
+    focoAntesPreview.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    telaPreview.current = Math.max(0, editor.indiceCena)
+    window.history.pushState({ mostraPreview: true }, '')
+    previewNoHistorico.current = true
+    setPreview(true)
+  }, [editor.indiceCena])
+  const fecharPreview = useCallback((indice?: number) => {
+    irParaIndice(indice ?? telaPreview.current)
+    setPreview(false)
+    if (previewNoHistorico.current) { previewNoHistorico.current = false; window.history.back() }
+    const foco = focoAntesPreview.current
+    window.setTimeout(() => foco?.isConnected && foco.focus({ preventScroll: true }), 0)
+  }, [irParaIndice])
+  useEffect(() => {
+    if (!preview) return
+    const voltou = () => { if (previewNoHistorico.current) { previewNoHistorico.current = false; fecharPreview() } }
+    window.addEventListener('popstate', voltou)
+    return () => window.removeEventListener('popstate', voltou)
+  }, [preview, fecharPreview])
+  const apresentar = useCallback((opcoes: { doInicio?: boolean; telaCheia?: boolean; apresentador?: boolean } = {}) => {
+    acoes.salvarAgora()
+    setMenuApresentar(false)
+    const voltar = window.location.pathname
+    marcarOrigem(voltar)
+    if (opcoes.telaCheia) pedirTelaCheia()
+    router.push(urlApresentar(projetoId, { voltar, apresentador: opcoes.apresentador, inicio: opcoes.doInicio ? 0 : Math.max(0, editor.indiceCena) }))
+  }, [acoes, router, projetoId, editor.indiceCena])
+  // ao voltar da apresentação, seleciona a tela que estava sendo apresentada
+  const telaConsumida = useRef(false)
+  useEffect(() => {
+    if (telaConsumida.current || !editor.existe) return
+    telaConsumida.current = true
+    const id = consumirTela(projetoId)
+    if (id && editor.estado.documento.scenes.some((c) => c.id === id)) {
+      acoes.irParaCena(id)
+      window.setTimeout(() => document.querySelector<HTMLElement>('[data-apresentar]')?.focus({ preventScroll: true }), 0)
+    }
+  }, [editor.existe, editor.estado.documento.scenes, projetoId, acoes])
 
   // ---------- blocos ----------
   const inserirBloco = useCallback((id: string, ponto?: { x: number; y: number }) => {
@@ -134,8 +185,9 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
       const digitando = alvo && (['INPUT', 'TEXTAREA', 'SELECT'].includes(alvo.tagName) || alvo.isContentEditable)
       const mod = e.metaKey || e.ctrlKey
       const k = e.key.toLowerCase()
+      if (mod && (k === 'z' || k === 'y') && preview) return // na pré-visualização não mexe no documento
       if (mod && k === 'z') { if (digitando) return; e.preventDefault(); if (e.shiftKey) acoes.refazer(); else acoes.desfazer(); return }
-      if (mod && k === 'y') { e.preventDefault(); acoes.refazer(); return }
+      if (mod && k === 'y') { if (digitando) return; e.preventDefault(); acoes.refazer(); return }
       if (mod && k === 's') { e.preventDefault(); acoes.salvarAgora(); mostrar('Todas as alterações foram salvas.', 'sucesso'); return }
       if (digitando || preview) return
       if (mod && e.altKey && k === 'c' && camadasSelecionadas[0]) { e.preventDefault(); acoes.copiarEstilo(camadasSelecionadas[0]); mostrar('Estilo copiado.'); return }
@@ -189,11 +241,11 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
       }
       const ferr: Record<string, Ferramenta> = { v: 'mover', t: 'texto', r: 'forma', h: 'hotspot' }
       if (ferr[k]) { acoes.setFerramenta(ferr[k]!); return }
-      if (k === 'p') setPreview(true)
+      if (k === 'p') abrirPreview()
     }
     window.addEventListener('keydown', tecla)
     return () => window.removeEventListener('keydown', tecla)
-  }, [acoes, sel, cena, preview, escala, estado.documento.scenes, estado.grade, estado.gradePasso, editor.indiceCena, camadasSelecionadas, mostrar])
+  }, [acoes, sel, cena, preview, escala, estado.documento.scenes, estado.grade, estado.gradePasso, editor.indiceCena, camadasSelecionadas, mostrar, abrirPreview])
 
   if (!editor.existe || !projeto) {
     return <div className="flex h-dvh items-center justify-center p-6 text-center text-sm text-texto2">Projeto não encontrado. <Link className="ml-1 underline" href="/app">Voltar ao painel</Link></div>
@@ -245,16 +297,17 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
         </div>
         <span className="flex-1" />
         <span title="Você está editando (colaboração em tempo real chega na Fase 2)" className="hidden h-7 w-7 items-center justify-center rounded-full bg-salvia text-[11px] font-semibold text-musgo lg:flex">MD</span>
-        <Botao tamanho="sm" variante="fantasma" icone={<Eye className="h-4 w-4" />} onClick={() => setPreview(true)}>Pré-visualizar</Botao>
+        <Botao tamanho="sm" variante="fantasma" icone={<Eye className="h-4 w-4" />} onClick={abrirPreview}>Pré-visualizar</Botao>
         <div className="relative hidden md:block">
           <div className="flex">
-            <Botao tamanho="sm" variante="secundario" className="rounded-r-none border-r-0" icone={<Play className="h-3.5 w-3.5 fill-current" />} onClick={() => { acoes.salvarAgora(); router.push(`/app/projects/${projetoId}/apresentar`) }}>Apresentar</Botao>
+            <Botao tamanho="sm" variante="secundario" className="rounded-r-none border-r-0" icone={<Play className="h-3.5 w-3.5 fill-current" />} data-apresentar onClick={() => apresentar({ telaCheia: true })}>Apresentar</Botao>
             <Botao tamanho="sm" variante="secundario" className="rounded-l-none px-1.5" aria-label="Mais opções de apresentação" aria-expanded={menuApresentar} onClick={() => setMenuApresentar((v) => !v)}><ChevronDown className="h-3.5 w-3.5" /></Botao>
           </div>
           {menuApresentar && (
             <div role="menu" className="absolute right-0 z-40 mt-1 w-60 rounded-lg border border-borda bg-superficie p-1 shadow-painel" onMouseLeave={() => setMenuApresentar(false)}>
-              <button role="menuitem" className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] hover:bg-hover" onClick={() => router.push(`/app/projects/${projetoId}/apresentar`)}><Play className="h-3.5 w-3.5" /> Apresentar em tela cheia</button>
-              <button role="menuitem" className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] hover:bg-hover" onClick={() => { acoes.salvarAgora(); router.push(`/app/projects/${projetoId}/apresentador`) }}><MonitorPlay className="h-3.5 w-3.5" /> Visão do apresentador (notas)</button>
+              <button role="menuitem" className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] hover:bg-hover" onClick={() => apresentar({ telaCheia: true, doInicio: true })}><Play className="h-3.5 w-3.5" /> Apresentar do início</button>
+              <button role="menuitem" className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] hover:bg-hover" onClick={() => apresentar()}><Eye className="h-3.5 w-3.5" /> Apresentar nesta janela</button>
+              <button role="menuitem" className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] hover:bg-hover" onClick={() => apresentar({ apresentador: true })}><MonitorPlay className="h-3.5 w-3.5" /> Visão do apresentador (notas)</button>
             </div>
           )}
         </div>
@@ -263,7 +316,7 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
 
       <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center md:hidden">
         <p className="text-sm text-texto2">No celular você pode pré-visualizar e apresentar. Para editar, use um computador ou tablet.</p>
-        <Botao onClick={() => setPreview(true)} icone={<Eye className="h-4 w-4" />}>Pré-visualizar</Botao>
+        <Botao onClick={abrirPreview} icone={<Eye className="h-4 w-4" />}>Pré-visualizar</Botao>
       </div>
 
       <div className="hidden min-h-0 flex-1 md:flex">
@@ -304,7 +357,7 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
 
       {preview && (
         <div className="fixed inset-0 z-50 bg-black">
-          <Viewer documento={estado.documento} assets={assets} nome={projeto.nome} indiceInicial={Math.max(0, editor.indiceCena)} aoSair={() => setPreview(false)} />
+          <Viewer documento={estado.documento} assets={assets} nome={projeto.nome} indiceInicial={telaPreview.current} aoMudarTela={(i) => { telaPreview.current = i }} aoSair={fecharPreview} />
         </div>
       )}
 

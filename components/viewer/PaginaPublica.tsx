@@ -21,7 +21,7 @@ export function PaginaPublica({ token }: { token: string }) {
     return () => { ativo = false }
   }, [token, liberados])
 
-  if (!res) return <div className="flex h-dvh items-center justify-center bg-[#0F1620] text-sm text-white/70" role="status">Carregando…</div>
+  if (!res) return <div className="flex h-dvh items-center justify-center bg-[#111] text-sm text-white/60" role="status">Carregando…</div>
 
   if (res.state === 'unavailable') {
     return (

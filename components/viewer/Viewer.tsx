@@ -4,12 +4,13 @@
  * Teclado (setas, espaço, Home/End, F, Esc), toque (swipe), tela cheia por gesto, controles que somem,
  * pré-carregamento da próxima tela, tela de carregamento, fallback de mídia, transições fade/slide/scale/morph,
  * avanço automático e sincronização com a visão do apresentador.
+ * Proporção diferente da tela: "Ajustar" (padrão) mostra a cena inteira e estende o fundo dela pelas faixas;
+ * "Preencher tela" cobre a tela cortando o mínimo das bordas (escolha lembrada neste navegador).
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, LayoutGrid, Maximize2, Minimize2, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, LayoutGrid, Maximize2, Minimize2, Proportions, X } from 'lucide-react'
 import type { Camada, Cena, DocumentoProjeto, Interacao } from '@/lib/scene/schema'
 import { adaptarTransicao, aoEntrarNaCena, aoSairHover, cenaAtual, estadoInicialRuntime, executar, irPara, type Efeito, type EstadoRuntime, EASING_CSS } from '@/lib/scene/motor'
-import { calcularEncaixe } from '@/lib/scene/transform'
 import { tempoSaida } from '@/lib/scene/animacoes'
 import { SceneRenderer, type AssetsResolvidos } from '@/components/renderer/SceneRenderer'
 import { usePreferencias, useTamanho } from '@/components/renderer/useTamanho'
@@ -17,6 +18,9 @@ import { useFontesDoDocumento } from '@/components/renderer/fontes'
 import { useCanal } from './canal'
 import { StoryView } from './StoryView'
 import { ExplorarView } from './ExplorarView'
+import { FundoEstendido } from './FundoEstendido'
+import { encaixar, type ModoEncaixe } from './fundo'
+import { useControles } from './useControles'
 import { Marca } from '@/components/ui/Logo'
 
 export interface ViewerProps {
@@ -24,7 +28,10 @@ export interface ViewerProps {
   assets: AssetsResolvidos
   nome: string
   indiceInicial?: number
-  aoSair?: () => void
+  /** Esc (fora da tela cheia) ou botão "Sair": recebe a tela atual. */
+  aoSair?: (indice: number) => void
+  /** A cada troca de tela (ex.: lembrar a tela para selecioná-la no editor ao voltar). */
+  aoMudarTela?: (indice: number) => void
   /** Selo "Feito com Mostra" (plano Free). */
   marca?: boolean
   /** Canal do apresentador (BroadcastChannel). */
@@ -33,24 +40,25 @@ export interface ViewerProps {
   semControles?: boolean
 }
 
-const TEMPO_OCIOSO = 2500
 const LIMIAR_SWIPE = 50
+const CHAVE_ENCAIXE = 'mostra.viewer.encaixe'
 
 export function Viewer(props: ViewerProps) {
-  const { documento, assets, nome, indiceInicial = 0, aoSair, marca, canal, semControles } = props
+  const { documento, assets, nome, indiceInicial = 0, aoSair, aoMudarTela, marca, canal, semControles } = props
   useFontesDoDocumento(documento)
   const { ref, tamanho } = useTamanho<HTMLDivElement>()
   const { reduzirMovimento, semHover } = usePreferencias()
   const mobile = tamanho.width > 0 && tamanho.width < 640
   const [runtime, setRuntime] = useState<EstadoRuntime>(() => estadoInicialRuntime(indiceInicial))
   const [anterior, setAnterior] = useState<{ cena: Cena; chave: number } | null>(null)
-  const [ocioso, setOcioso] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
   const [pronto, setPronto] = useState(false)
   const [visaoGeral, setVisaoGeral] = useState(false)
+  const [modoEncaixe, setModoEncaixe] = useState<ModoEncaixe>('ajustar')
+  const controles = useControles({ fixar: visaoGeral, zonaTopo: !!marca })
   const videos = useRef(new Map<string, HTMLVideoElement>())
-  const timerOcioso = useRef<number | undefined>(undefined)
   const bloqueadoAte = useRef(0)
+  const saiuDaTelaCheiaEm = useRef(0)
   const anuncio = useRef<HTMLDivElement>(null)
   const indiceRef = useRef(runtime.indice)
 
@@ -132,7 +140,7 @@ export function Viewer(props: ViewerProps) {
   const enviar = useCanal(canal, (m) => {
     if (m.tipo === 'ir') irParaIndice(m.indice)
     if (m.tipo === 'pedirEstado') enviar({ tipo: 'estado', indice: indiceRef.current, total })
-    if (m.tipo === 'encerrar') aoSair?.()
+    if (m.tipo === 'encerrar') aoSair?.(indiceRef.current)
   })
 
   // ---------- entrada na tela ----------
@@ -143,6 +151,7 @@ export function Viewer(props: ViewerProps) {
     if (prox) void precarregar(prox, assets)
     if (anuncio.current && cena) anuncio.current.textContent = `Tela ${runtime.indice + 1} de ${total}${cena.title ? `: ${cena.title}` : ''}`
     enviar({ tipo: 'estado', indice: runtime.indice, total })
+    aoMudarTela?.(runtime.indice)
     // avanço automático
     if (cena?.autoAdvance && modo === 'slides') {
       const t = window.setTimeout(() => navegar((s) => irPara(documento, s, s.indice + 1)), cena.autoAdvance)
@@ -176,19 +185,25 @@ export function Viewer(props: ViewerProps) {
   }, [ref])
 
   // ---------- teclado ----------
+  const ocultarControles = controles.ocultar
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
       const alvo = e.target as HTMLElement | null
       if (alvo && ['INPUT', 'TEXTAREA', 'SELECT'].includes(alvo.tagName)) return
       if (e.key === 'Escape') {
         if (visaoGeral) setVisaoGeral(false)
-        else if (document.fullscreenElement) void document.exitFullscreen()
-        else aoSair?.()
+        else if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined)
+        // o 1º Esc em tela cheia é do navegador (sai da tela cheia); só o seguinte volta
+        else if (performance.now() - saiuDaTelaCheiaEm.current > 400) aoSair?.(indiceRef.current)
         return
       }
+      if (e.key === 'Tab') return
       if (e.key === 'f' || e.key === 'F') return void alternarFullscreen()
       if (modo === 'story') return
       if (e.key === 'g' || e.key === 'G') return setVisaoGeral((v) => !v)
+      // controle focado pelo teclado (Tab): Espaço/Enter acionam o botão, não a navegação
+      // (clicar com o mouse não foca os controles, então Espaço continua avançando depois de um clique)
+      if (alvo?.closest('[data-controles]') && (e.key === ' ' || e.key === 'Enter')) return
       switch (e.key) {
         case 'ArrowRight': case 'ArrowDown': case 'PageDown': case ' ':
           e.preventDefault(); navegar((s) => irPara(documento, s, s.indice + 1)); break
@@ -196,29 +211,42 @@ export function Viewer(props: ViewerProps) {
           e.preventDefault(); navegar((s) => irPara(documento, s, s.indice - 1)); break
         case 'Home': irParaIndice(0); break
         case 'End': irParaIndice(total - 1); break
+        default: return
       }
+      ocultarControles()
     }
     window.addEventListener('keydown', tecla)
     return () => window.removeEventListener('keydown', tecla)
-  }, [documento, navegar, modo, total, aoSair, alternarFullscreen, irParaIndice, visaoGeral])
-
-  // ---------- ociosidade ----------
-  const acordar = useCallback(() => {
-    setOcioso(false)
-    window.clearTimeout(timerOcioso.current)
-    timerOcioso.current = window.setTimeout(() => setOcioso(true), TEMPO_OCIOSO)
-  }, [])
-  useEffect(() => { acordar(); return () => window.clearTimeout(timerOcioso.current) }, [acordar])
+  }, [documento, navegar, modo, total, aoSair, alternarFullscreen, irParaIndice, visaoGeral, ocultarControles])
 
   useEffect(() => {
-    const f = () => setFullscreen(!!document.fullscreenElement)
+    const f = () => {
+      const agora = !!document.fullscreenElement
+      setFullscreen((antes) => {
+        if (antes && !agora) saiuDaTelaCheiaEm.current = performance.now()
+        return agora
+      })
+    }
+    f()
     document.addEventListener('fullscreenchange', f)
     return () => document.removeEventListener('fullscreenchange', f)
   }, [])
 
+  // ---------- Ajustar / Preencher tela (lembrado por navegador) ----------
+  useEffect(() => {
+    try { if (localStorage.getItem(CHAVE_ENCAIXE) === 'preencher') setModoEncaixe('preencher') } catch { /* sem storage */ }
+  }, [])
+  const alternarEncaixe = () => {
+    setModoEncaixe((m) => {
+      const novo = m === 'preencher' ? 'ajustar' : 'preencher'
+      try { localStorage.setItem(CHAVE_ENCAIXE, novo) } catch { /* sem storage */ }
+      return novo
+    })
+  }
+
   // ---------- toque ----------
   const toque = useRef<{ x: number; y: number } | null>(null)
-  const onPointerDown = (e: React.PointerEvent) => { acordar(); if (e.pointerType === 'touch') toque.current = { x: e.clientX, y: e.clientY } }
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => { controles.raiz.onPointerDown(e); if (e.pointerType === 'touch') toque.current = { x: e.clientX, y: e.clientY } }
   const onPointerUp = (e: React.PointerEvent) => {
     if (e.pointerType !== 'touch' || !toque.current || modo !== 'slides') return
     const dx = e.clientX - toque.current.x
@@ -239,56 +267,73 @@ export function Viewer(props: ViewerProps) {
   }
 
   const registrarVideo = useCallback((id: string, el: HTMLVideoElement | null) => { if (el) videos.current.set(id, el); else videos.current.delete(id) }, [])
-  const encaixe = useMemo(() => (cena && tamanho.width ? calcularEncaixe(cena.size, tamanho) : null), [cena, tamanho])
+  const encaixe = useMemo(() => (cena && tamanho.width ? encaixar(cena.size, tamanho, modoEncaixe) : null), [cena, tamanho, modoEncaixe])
   const comum = { assets, modo: 'viewer' as const, reduzirMovimento, semHover, mobile, aoInteragir, registrarVideo }
   const ehMorph = transicao?.type === 'morph' && !!anterior
   const easing = EASING_CSS[transicao?.easing ?? 'easeInOut']
+  const duracao = transicao?.duration ?? 400
+  const ocultos = !controles.visiveis
+
+  /** Cena + fundo estendido pelas faixas (os dois entram/saem juntos na transição). */
+  const camadaDeCena = (c: Cena, e: ReturnType<typeof encaixar>, comFundo: boolean) =>
+    comFundo ? <FundoEstendido cena={c} assets={assets} escala={e.scale} x={e.offsetX} y={e.offsetY} largura={tamanho.width} altura={tamanho.height} style={{ left: -e.offsetX, top: -e.offsetY }} /> : null
 
   return (
     <div
       ref={ref}
-      className={`relative h-full w-full select-none overflow-hidden text-white ${ocioso ? 'viewer-ocioso' : ''}`}
-      onMouseMove={acordar}
+      className={`relative h-full w-full select-none overflow-hidden text-white ${ocultos ? 'viewer-sem-controles' : ''} ${controles.cursor ? '' : 'viewer-sem-cursor'}`}
+      onMouseMove={controles.raiz.onMouseMove}
+      onMouseLeave={controles.raiz.onMouseLeave}
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
       onClick={cliqueFundo}
-      style={{ background: modo === 'story' ? '#111' : cena?.background ?? '#000', transition: `background ${transicao?.duration ?? 400}ms` }}
+      style={{ background: modo === 'story' ? '#111' : cena?.background ?? '#000', transition: `background ${duracao}ms` }}
     >
       <div ref={anuncio} className="sr-only" aria-live="polite" />
 
-      {!pronto && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-fundo text-texto" role="status">
-          <Marca className="animate-pulse text-[28px]" />
-          <p className="text-sm text-texto2">Preparando apresentação…</p>
-        </div>
-      )}
+      <div
+        className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-[#111] text-white"
+        role="status"
+        aria-hidden={pronto || undefined}
+        style={{ opacity: pronto ? 0 : 1, visibility: pronto ? 'hidden' : 'visible', transition: 'opacity 300ms ease, visibility 0s linear 300ms', pointerEvents: pronto ? 'none' : undefined }}
+      >
+        <Marca className="animate-pulse text-[28px]" />
+        <p className="text-sm text-white/60">Preparando apresentação…</p>
+      </div>
 
       {modo === 'story' && <StoryView documento={documento} tamanho={tamanho} runtime={runtime} aplicar={aplicar} {...comum} />}
 
-      {modo === 'explorar' && <ExplorarView documento={documento} tamanho={tamanho} runtime={runtime} visaoGeral={visaoGeral} aoEscolher={(i) => { setVisaoGeral(false); irParaIndice(i) }} {...comum} />}
+      {modo === 'explorar' && <ExplorarView documento={documento} tamanho={tamanho} runtime={runtime} visaoGeral={visaoGeral} preencher={modoEncaixe === 'preencher'} aoEscolher={(i) => { setVisaoGeral(false); irParaIndice(i) }} {...comum} />}
 
       {modo === 'slides' && cena && encaixe && (
         <>
-          {anterior && anterior.cena.id !== cena.id && (
-            <div key={`sai-${anterior.chave}`} className="cena-saindo" style={{ position: 'absolute', left: encaixe.offsetX, top: encaixe.offsetY, zIndex: 0, ['--dur' as string]: `${transicao?.duration ?? 400}ms`, animationDelay: saidaMs ? `${saidaMs}ms` : undefined }}>
-              <SceneRenderer cena={anterior.cena} escala={calcularEncaixe(anterior.cena.size, tamanho).scale} assets={assets} modo="viewer" reduzirMovimento={reduzirMovimento} saida={saidaMs > 0} ocultar={ehMorph ? idsCasados(anterior.cena, cena) : undefined} />
-            </div>
-          )}
+          {/* no morph a tela nova é transparente sobre a antiga: o fundo estendido fica atrás das duas */}
+          {ehMorph && anterior && <FundoEstendido key={`fundo-${anterior.chave}`} cena={cena} assets={assets} escala={encaixe.scale} x={encaixe.offsetX} y={encaixe.offsetY} largura={tamanho.width} altura={tamanho.height} corInicial={anterior.cena.background} duracao={duracao} style={{ left: 0, top: 0, zIndex: 0 }} />}
+          {anterior && anterior.cena.id !== cena.id && (() => {
+            const e = encaixar(anterior.cena.size, tamanho, modoEncaixe)
+            return (
+              <div key={`sai-${anterior.chave}`} className="cena-saindo" style={{ position: 'absolute', left: e.offsetX, top: e.offsetY, zIndex: 0, ['--dur' as string]: `${duracao}ms`, animationDelay: saidaMs ? `${saidaMs}ms` : undefined }}>
+                {camadaDeCena(anterior.cena, e, !ehMorph)}
+                <SceneRenderer cena={anterior.cena} escala={e.scale} assets={assets} modo="viewer" reduzirMovimento={reduzirMovimento} saida={saidaMs > 0} ocultar={ehMorph ? idsCasados(anterior.cena, cena) : undefined} />
+              </div>
+            )
+          })()}
           <AposSaida key={`${cena.id}-${runtime.historico.length}`} ms={saidaMs}>
           <div
             className={!ehMorph && transicao && transicao.type !== 'none' && runtime.historico.length ? `cena-transicao-${transicao.type}` : undefined}
-            style={{ position: 'absolute', left: encaixe.offsetX, top: encaixe.offsetY, zIndex: 1, ['--dur' as string]: `${transicao?.duration ?? 400}ms` }}
+            style={{ position: 'absolute', left: encaixe.offsetX, top: encaixe.offsetY, zIndex: 1, ['--dur' as string]: `${duracao}ms` }}
           >
+            {camadaDeCena(cena, encaixe, !ehMorph)}
             <SceneRenderer cena={cena} escala={encaixe.scale} runtime={runtime} chaveEntrada={cena.id} morphDe={ehMorph ? anterior?.cena : undefined} morphDuracao={transicao?.duration} morphEasing={easing} style={ehMorph ? { background: 'transparent' } : undefined} {...comum} />
           </div>
           </AposSaida>
         </>
       )}
 
-      {/* controles discretos */}
+      {/* controles discretos: sobrepostos (não ocupam espaço), somem ao apresentar */}
       {!semControles && (
-        <div className="viewer-controles pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-end justify-between p-3 sm:p-4">
-          <div className="pointer-events-auto flex items-center gap-1 rounded-full bg-black/55 px-2 py-1 text-xs backdrop-blur">
+        <div className="viewer-controles pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-end justify-between p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <div {...controles.grupo} className="pointer-events-auto flex items-center gap-1 rounded-full bg-black/55 px-2 py-1 text-xs backdrop-blur">
             {modo !== 'story' ? (
               <>
                 <button aria-label="Tela anterior" onClick={(e) => { e.stopPropagation(); navegar((s) => irPara(documento, s, s.indice - 1)) }} disabled={runtime.indice === 0} className="rounded-full p-2 hover:bg-white/15 disabled:opacity-30"><ChevronLeft className="h-4 w-4" /></button>
@@ -299,19 +344,30 @@ export function Viewer(props: ViewerProps) {
               <span className="px-2 py-1.5">{nome}</span>
             )}
           </div>
-          <div className="pointer-events-auto flex items-center gap-1 rounded-full bg-black/55 px-1 py-1 backdrop-blur">
+          <div {...controles.grupo} className="pointer-events-auto flex items-center gap-1 rounded-full bg-black/55 px-1 py-1 backdrop-blur">
             {modo === 'explorar' && (
               <button aria-label="Visão geral do mapa" aria-pressed={visaoGeral} onClick={(e) => { e.stopPropagation(); setVisaoGeral((v) => !v) }} className="rounded-full p-2 hover:bg-white/15"><LayoutGrid className="h-4 w-4" /></button>
+            )}
+            {modo !== 'story' && (
+              <button
+                aria-label="Preencher tela"
+                aria-pressed={modoEncaixe === 'preencher'}
+                title={modoEncaixe === 'preencher' ? 'Preencher tela: cobre a tela cortando o mínimo das bordas. Clique para ajustar (mostrar tudo).' : 'Ajustar: mostra a tela inteira. Clique para preencher a tela.'}
+                onClick={(e) => { e.stopPropagation(); alternarEncaixe() }}
+                className={`rounded-full p-2 hover:bg-white/15 ${modoEncaixe === 'preencher' ? 'bg-white/15' : ''}`}
+              >
+                <Proportions className="h-4 w-4" />
+              </button>
             )}
             <button aria-label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'} onClick={(e) => { e.stopPropagation(); void alternarFullscreen() }} className="rounded-full p-2 hover:bg-white/15">
               {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
             </button>
-            {aoSair && <button aria-label="Sair da apresentação" onClick={(e) => { e.stopPropagation(); aoSair() }} className="rounded-full p-2 hover:bg-white/15"><X className="h-4 w-4" /></button>}
+            {aoSair && <button aria-label="Sair da apresentação" onClick={(e) => { e.stopPropagation(); aoSair(indiceRef.current) }} className="rounded-full p-2 hover:bg-white/15"><X className="h-4 w-4" /></button>}
           </div>
         </div>
       )}
       {marca && (
-        <a href="/" className="viewer-controles absolute left-3 top-3 z-10 flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-[11px] text-white/85 backdrop-blur hover:text-white">
+        <a href="/" {...controles.grupo} className="viewer-controles absolute left-3 top-3 z-10 flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-[11px] text-white/85 backdrop-blur hover:text-white">
           Feito com <Marca className="text-[13px]" />
         </a>
       )}

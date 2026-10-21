@@ -130,10 +130,10 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
   .cena-transicao-fade, .cena-transicao-slide, .cena-transicao-zoom, .cena-transicao-scale, .cena-saindo { animation-duration: 1ms !important; animation-delay: 0ms !important; }
 }
 
-/* controles do visualizador: somem após inatividade */
-.viewer-controles { transition: opacity 250ms ease; }
-.viewer-ocioso .viewer-controles { opacity: 0; pointer-events: none; }
-.viewer-ocioso { cursor: none; }
+/* controles do visualizador: somem ao apresentar (continuam no teclado e reaparecem ao passar o mouse) */
+.viewer-controles { transition: opacity 300ms ease, transform 300ms cubic-bezier(.2,.8,.2,1); }
+.viewer-sem-controles .viewer-controles { opacity: 0; transform: translateY(6px); }
+.viewer-sem-cursor, .viewer-sem-cursor * { cursor: none !important; }
 
 /* grade do editor */
 .grade-editor { background-image: linear-gradient(to right, rgb(var(--cor-acento) / .12) 1px, transparent 1px), linear-gradient(to bottom, rgb(var(--cor-acento) / .12) 1px, transparent 1px); }

@@ -12,6 +12,7 @@ import { MiniaturaCena } from '@/components/editor/MiniaturaCena'
 import { formatarRelativo, statusExibido } from './Dashboard'
 import { ModalConfirmar } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
+import { abrirApresentacao } from '@/components/viewer/retorno'
 
 export function DetalheProjeto({ id }: { id: string }) {
   const projeto = useDemo((e) => e.projetos.find((p) => p.id === id && !p.excluidoEm))
@@ -40,8 +41,8 @@ export function DetalheProjeto({ id }: { id: string }) {
           </div>
           <div className="flex flex-wrap gap-2">
             <button onClick={() => router.push(`/app/projects/${id}/edit`)} className="flex h-10 items-center gap-2 rounded-[9px] bg-grafite px-4 text-[14px] font-medium text-fundo hover:bg-[#2a2a2a]"><Pencil className="h-4 w-4" /> Editar</button>
-            <button onClick={() => router.push(`/app/projects/${id}/apresentar`)} className="flex h-10 items-center gap-2 rounded-[9px] border-[1.5px] border-bordaForte bg-superficie px-4 text-[14px] font-medium hover:border-[#D4D4D4]"><Play className="h-4 w-4" /> Apresentar</button>
-            <button onClick={() => router.push(`/app/projects/${id}/apresentador`)} className="flex h-10 items-center gap-2 rounded-[9px] border-[1.5px] border-bordaForte bg-superficie px-4 text-[14px] font-medium hover:border-[#D4D4D4]"><MonitorPlay className="h-4 w-4" /> Apresentador</button>
+            <button onClick={() => abrirApresentacao(router, id)} className="flex h-10 items-center gap-2 rounded-[9px] border-[1.5px] border-bordaForte bg-superficie px-4 text-[14px] font-medium hover:border-[#D4D4D4]"><Play className="h-4 w-4" /> Apresentar</button>
+            <button onClick={() => abrirApresentacao(router, id, { apresentador: true })} className="flex h-10 items-center gap-2 rounded-[9px] border-[1.5px] border-bordaForte bg-superficie px-4 text-[14px] font-medium hover:border-[#D4D4D4]"><MonitorPlay className="h-4 w-4" /> Apresentador</button>
             <button onClick={() => router.push(`/app/projects/${id}/share`)} className="flex h-10 items-center gap-2 rounded-[9px] bg-acento px-4 text-[14px] font-medium text-white hover:bg-[#4A55E0]"><Share2 className="h-4 w-4" /> Compartilhar</button>
           </div>
         </div>
