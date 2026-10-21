@@ -4,7 +4,8 @@ import { planoEUso } from '@/lib/api/planoServidor'
 import { paraAsset, type LinhaAsset } from '@/lib/api/midiaServidor'
 import { podeEnviarArquivo } from '@/lib/planos'
 import { detectarMime, ehMimeTexto, extensaoPorMime, MAX_BYTES_TEXTO, tipoMidia } from '@/lib/midia/mime'
-import { ErroCorpo, lerTudo, separarCabeca, validarTexto } from '@/lib/midia/upload'
+import { ErroCorpo, lerTudo, purificadorEstrito, separarCabeca, validarTexto } from '@/lib/midia/upload'
+import type { Purificador } from '@/lib/importar/svg'
 import { armazenamento, chaveOriginal } from '@/lib/armazenamento'
 import { sql } from '@/lib/db/neon'
 
@@ -12,6 +13,20 @@ export const dynamic = 'force-dynamic'
 
 /** glTF e Lottie não passam pelo sanitizador de SVG. */
 const SEM_PURIFICADOR = { sanitize: () => { throw new Error('purificador só para SVG') } }
+
+/**
+ * DOMPurify (isomorphic-dompurify, com jsdom) no Node; no Worker (workerd) o jsdom não carrega — e tentar importá-lo
+ * troca o `console` global por um polyfill que quebra a renderização do React —, então lá nem importa: vale a
+ * conferência estrita sem DOM (só passa SVG que já chega limpo; o editor sanitiza no navegador).
+ */
+const NO_WORKER = typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers'
+let purificadorSvg: Promise<Purificador> | null = null
+function obterPurificadorSvg(): Promise<Purificador> {
+  purificadorSvg ??= NO_WORKER
+    ? Promise.resolve(purificadorEstrito)
+    : import('isomorphic-dompurify').then((m) => m.default as Purificador, () => purificadorEstrito)
+  return purificadorSvg
+}
 
 /**
  * POST /api/assets/upload?[projectId=]&name=[&width=&height=&duration=] — corpo = o arquivo; Content-Type = MIME.
@@ -53,7 +68,7 @@ export const POST = rota(async (req, _ctx, requestId) => {
       const bytes = await lerTudo(req.body, Math.min(entrada.bytes, MAX_BYTES_TEXTO))
       if (bytes.byteLength !== entrada.bytes) throw new ErroCorpo('Tamanho do arquivo não corresponde ao declarado')
       // o sanitizador (DOMPurify + jsdom) é pesado: só carrega quando chega um SVG
-      const purificador = entrada.mime === 'image/svg+xml' ? (await import('isomorphic-dompurify')).default : SEM_PURIFICADOR
+      const purificador = entrada.mime === 'image/svg+xml' ? await obterPurificadorSvg() : SEM_PURIFICADOR
       const v = validarTexto(entrada.mime, new TextDecoder().decode(bytes), purificador)
       if (!v.ok) throw new ErroCorpo(v.motivo)
       const conteudo = new TextEncoder().encode(v.conteudo)

@@ -371,7 +371,13 @@ export const fonteReal: FonteDados = {
     const d = podeEnviarArquivo({ planoId: atual.workspace.planoId, estado: atual.workspace.estadoAssinatura }, atual.uso, arquivo.size)
     if (!d.ok && atual.situacao.conta.estado === 'pronto') falhar(d.motivo, 'limite_do_plano')
     // o tipo vai no Content-Type: usa o MIME reconhecido (o navegador não conhece .glb, por exemplo); o servidor confere os bytes
-    const corpo = arquivo.type === cl.mime ? arquivo : new File([arquivo], arquivo.name, { type: cl.mime })
+    let corpo = arquivo.type === cl.mime ? arquivo : new File([arquivo], arquivo.name, { type: cl.mime })
+    // SVG vai limpo (DOMPurify do navegador); o servidor confere de novo e recusa o que não estiver limpo
+    if (cl.tipo === 'svg' && texto !== undefined && opcoes.sanitizarSvg) {
+      const limpo = opcoes.sanitizarSvg(texto)
+      if (!/<svg[\s>]/i.test(limpo)) falhar('Este SVG ficou vazio depois da limpeza de segurança.')
+      corpo = new File([limpo], arquivo.name, { type: 'image/svg+xml' })
+    }
     const dims = cl.tipo === 'lottie' && texto ? lottieDims(texto) : await dimensoes(corpo, cl.tipo)
     aoProgredir({ fase: 'uploading', progresso: 0 })
     let bruto: Asset

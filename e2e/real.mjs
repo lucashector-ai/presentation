@@ -67,6 +67,8 @@ let idUsuario = ''
   await p.setContent('<body style="margin:0;background:#5965F2;display:flex;align-items:center;justify-content:center;height:100vh"><h1 style="font:600 64px sans-serif;color:#fff">imagem real</h1></body>')
   await p.screenshot({ path: `${SHOTS}/imagem.png` })
   await p.close()
+  // SVG com script embutido: o servidor sanitiza no upload e só grava a versão limpa
+  fs.writeFileSync(`${SHOTS}/vetor.svg`, '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200"><script>alert(1)</script><circle cx="100" cy="100" r="80" fill="#E4572E" onclick="alert(2)"/></svg>')
 }
 
 await passo('Sem sessão, /app/settings vai para o login com o destino guardado', async () => {
@@ -96,16 +98,25 @@ await passo('Cadastro no Neon Auth → painel com conta, plano e créditos do se
   await page.screenshot({ path: `${SHOTS}/01-painel-vazio.png` })
 })
 
-await passo('Criar projeto (POST /api/projects) abre o editor', async () => {
+await passo('Criar projeto (POST /api/projects) abre o editor; renomear grava no servidor', async () => {
   await page.getByRole('link', { name: 'Novo projeto' }).first().click()
   await page.waitForURL(/\/app\/novo/)
-  await page.getByLabel('Nome do projeto').fill(NOME_PROJETO)
+  await page.getByLabel('Nome do projeto').fill(`${NOME_PROJETO} (rascunho)`)
   await page.getByRole('button', { name: 'Criar projeto' }).click()
   await page.waitForURL(/\/app\/projects\/[0-9a-f-]{36}\/edit/, { timeout: 30000 })
   idProjeto = page.url().match(/projects\/([0-9a-f-]{36})\//)[1]
   await page.getByRole('button', { name: 'Compartilhar' }).waitFor({ timeout: 20000 })
-  if ((await page.getByLabel('Nome do projeto').inputValue()) !== NOME_PROJETO) throw new Error('nome do projeto não veio para o editor')
+  if ((await page.getByLabel('Nome do projeto').inputValue()) !== `${NOME_PROJETO} (rascunho)`) throw new Error('nome do projeto não veio para o editor')
   await esperarSalvo()
+  // renomear no cabeçalho do editor (PATCH /api/projects/:id)
+  await page.getByLabel('Nome do projeto').fill(NOME_PROJETO)
+  await page.evaluate(() => document.activeElement?.blur())
+  for (let t = 0; t < 40; t++) {
+    const nome = await page.evaluate(async (id) => (await (await fetch(`/api/projects/${id}`)).json()).data?.name, idProjeto)
+    if (nome === NOME_PROJETO) return
+    await page.waitForTimeout(250)
+  }
+  throw new Error('o novo nome não chegou ao servidor')
 })
 
 await passo('Editar e salvar uma tela (PUT /api/projects/:id/scenes com revisão)', async () => {
@@ -137,6 +148,19 @@ await passo('Enviar imagem (POST /api/assets/upload) e vê-la no canvas por /api
   await page.getByRole('tab', { name: 'Arquivos' }).click()
   await page.getByRole('complementary', { name: 'Painel esquerdo' }).getByText('imagem.png').first().waitFor()
   await page.screenshot({ path: `${SHOTS}/02-editor-imagem.png` })
+})
+
+await passo('Enviar SVG: limpo no navegador, conferido no servidor (gravado sem script) e visível no canvas', async () => {
+  await page.getByRole('complementary', { name: 'Painel esquerdo' }).locator('input[type=file]').setInputFiles([`${SHOTS}/vetor.svg`])
+  await page.getByText(/Vetor adicionad[ao] à tela/).first().waitFor({ timeout: 30000 })
+  const imgs = page.getByTestId('canvas').locator('img[src*="/api/midias/"]')
+  await imagemCarregada(imgs.nth(1))
+  const urls = await imgs.evaluateAll((els) => els.map((e) => e.getAttribute('src')))
+  const textos = await page.evaluate(async (lista) => Promise.all(lista.map(async (u) => (await fetch(u)).text())), urls)
+  const svg = textos.find((t) => t.includes('<svg'))
+  if (!svg) throw new Error('o SVG enviado não está entre as mídias do canvas')
+  if (/<script|onclick/i.test(svg)) throw new Error('o SVG gravado ainda tem script')
+  await esperarSalvo()
 })
 
 await passo('Conflito 409: outra aba salva antes → aviso claro → Recarregar traz a versão nova', async () => {

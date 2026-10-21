@@ -26,6 +26,25 @@ export function extrairSvgDeHtml(html: string): string | null {
 
 const HREF_SEGURO = /^(#|data:image\/(png|jpe?g|gif|webp);base64,)/i
 
+const ELEMENTO_PROIBIDO = /<\s*(?:[\w-]+:)?(script|foreignObject|iframe|object|embed|audio|video|animate|set|animateMotion|animateTransform|a|handler|listener|base|meta|link)\b/i
+
+/**
+ * Conferência ESTRITA, sem DOM (para ambientes onde o DOMPurify não roda, como o workerd): não limpa nada, só
+ * aceita SVG que já está limpo (o editor sanitiza no navegador antes de enviar) e recusa qualquer coisa duvidosa.
+ * Devolve o motivo da recusa, ou null se o SVG pode ser gravado como está.
+ */
+export function motivoSvgInseguro(markup: string): string | null {
+  if (/<!ENTITY|<!DOCTYPE[^>]*\[|<\?xml-stylesheet/i.test(markup)) return 'O SVG declara entidades ou folhas de estilo externas.'
+  if (ELEMENTO_PROIBIDO.test(markup)) return 'O SVG tem scripts, links ou elementos incorporados.'
+  if (/\son[a-z]+\s*=/i.test(markup)) return 'O SVG tem atributos de evento (on…).'
+  if (/javascript\s*:|vbscript\s*:|expression\s*\(|@import/i.test(markup)) return 'O SVG tem código embutido.'
+  // referências e estilos não podem esconder nada atrás de entidades numéricas
+  if (/(?:href|style|src)\s*=\s*(["'])[^"']*&#/i.test(markup)) return 'O SVG tem referências codificadas.'
+  for (const m of markup.matchAll(/\s(?:[\w-]+:)?(?:href|src)\s*=\s*(["'])(.*?)\1/gi)) if (!HREF_SEGURO.test((m[2] ?? '').trim())) return 'O SVG aponta para arquivos externos.'
+  for (const m of markup.matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/gi)) if (!/^(#|data:image\/(png|jpe?g|gif|webp);base64,)/i.test((m[2] ?? '').trim())) return 'O SVG usa imagens externas no estilo.'
+  return null
+}
+
 /**
  * Remove scripts, handlers on*, foreignObject, <use>/<image> externos, javascript:, @import e url() externos.
  * Mantém <style> (Illustrator usa classes .cls-1) com o CSS filtrado.

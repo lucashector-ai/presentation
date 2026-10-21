@@ -2,7 +2,7 @@
  * Leitura do corpo de um upload (arquivo enviado direto para a rota do app) com limite de tamanho, e
  * validação do conteúdo dos formatos de texto. Sem dependência de Node: roda no Worker e nos testes.
  */
-import { ehSvg, sanitizarSvg, type Purificador } from '@/lib/importar/svg'
+import { ehSvg, motivoSvgInseguro, sanitizarSvg, type Purificador } from '@/lib/importar/svg'
 import { ehLottie, gltfAutocontido } from '@/lib/importar/arquivos'
 
 export class ErroCorpo extends Error {}
@@ -101,4 +101,17 @@ export function validarTexto(mime: string, texto: string, purificador: Purificad
   if (mime === 'model/gltf+json' && !gltfAutocontido(json)) return { ok: false, motivo: 'O glTF precisa ser autocontido (texturas embutidas). Exporte como .glb no Blender.' }
   if (mime === 'application/json' && !ehLottie(json)) return { ok: false, motivo: 'O JSON não é uma animação Lottie' }
   return { ok: true, conteudo: texto }
+}
+
+/**
+ * "Purificador" sem DOM para o workerd (onde o DOMPurify/jsdom não carrega): não transforma, só deixa passar SVG
+ * que já chega limpo (o editor sanitiza no navegador) e recusa o resto com o motivo. O bucket continua sem SVG
+ * com script; e a entrega ainda vai com CSP sandbox.
+ */
+export const purificadorEstrito: Purificador = {
+  sanitize(dirty: string) {
+    const motivo = motivoSvgInseguro(dirty)
+    if (motivo) throw new ErroCorpo(`${motivo} Exporte o SVG de novo ou cole-o direto no editor.`)
+    return dirty
+  },
 }

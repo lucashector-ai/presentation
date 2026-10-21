@@ -64,7 +64,7 @@ Pacotes avulsos (não expiram): 500 por R$19 (≈ 8), 2.000 por R$59 (≈ 33), 1
 1. `.env.local` com as variáveis do Neon de um **branch de teste** (`neon branches create --name teste-x --parent production` e `neon env pull --branch teste-x --file .env.local`) e `.dev.vars` com as mesmas linhas, sem as `NEXT_PUBLIC_*` (o Worker local lê o `.dev.vars`).
 2. `npm run dev`. O servidor roda no workerd; se ele não resolver DNS (rede que só sai por proxy HTTP, como sessões de agente), encaminhe o fetch de saída do Worker pelo Node com o preload de desenvolvimento:
    `NODE_USE_ENV_PROXY=1 node --import ./e2e/saida-pelo-node.mjs node_modules/vite/bin/vite.js dev --port 3104`
-   (só HTTP(S); o app usa o driver HTTP do Neon. Não entra no build.)
+   (só HTTP(S); o app usa o driver HTTP do Neon. Não entra no build.) Com outras cópias do app rodando `vite dev` na mesma máquina, isole o registro de Workers do Miniflare com `MINIFLARE_REGISTRY_PATH=<pasta própria>`: todas se chamam `mostra` e o registro global é compartilhado.
 3. `E2E_BASE_URL=http://localhost:3104 node e2e/real.mjs`: cadastra um usuário novo, cria projeto, edita e salva, recarrega, envia imagem, provoca e resolve um conflito 409, publica, abre o link numa aba anônima, duplica/arquiva/usa a lixeira, envia para a biblioteca, cria com IA, sai e entra de novo. No fim imprime o usuário criado para apagar do branch.
 
 ## Como testar

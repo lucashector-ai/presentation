@@ -1,6 +1,6 @@
 import DOMPurify from 'isomorphic-dompurify'
 import { describe, expect, it } from 'vitest'
-import { ErroCorpo, lerTudo, separarCabeca, validarTexto } from './upload'
+import { ErroCorpo, lerTudo, purificadorEstrito, separarCabeca, validarTexto } from './upload'
 import { detectarMime } from './mime'
 
 /** Stream em pedaços, como chega o corpo de uma requisição. */
@@ -46,6 +46,24 @@ describe('validarTexto', () => {
       expect(r.conteudo).not.toMatch(/onload/i)
       expect(r.conteudo).toMatch(/<rect/)
     }
+  })
+  it('sem DOM (workerd): a conferência estrita aceita SVG já limpo e recusa script, handlers e refs externas', () => {
+    const limpo = String(DOMPurify.sanitize('<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 10 10"><defs><linearGradient id="g"><stop offset="0"/></linearGradient></defs><style>.a{fill:url(#g)}</style><use xlink:href="#r"/><rect id="r" class="a" width="10" height="10"/><metadata>x</metadata></svg>', { USE_PROFILES: { svg: true, svgFilters: true }, ADD_TAGS: ['style', 'use'] }))
+    expect(validarTexto('image/svg+xml', limpo, purificadorEstrito)).toMatchObject({ ok: true })
+    const ruins = [
+      '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+      '<svg xmlns="http://www.w3.org/2000/svg"><svg:script>alert(1)</svg:script></svg>',
+      '<svg xmlns="http://www.w3.org/2000/svg"><rect onload="alert(1)"/></svg>',
+      '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://exemplo.com/x.png"/></svg>',
+      '<svg xmlns="http://www.w3.org/2000/svg"><a href="#x"><rect/></a></svg>',
+      '<svg xmlns="http://www.w3.org/2000/svg"><use href="&#106;avascript:alert(1)"/></svg>',
+      '<svg xmlns="http://www.w3.org/2000/svg"><foreignObject><div/></foreignObject></svg>',
+      '<svg xmlns="http://www.w3.org/2000/svg"><style>@import url(https://x.y/a.css);</style></svg>',
+      '<!DOCTYPE svg [<!ENTITY x "y">]><svg xmlns="http://www.w3.org/2000/svg"></svg>',
+    ]
+    // recusado = ErroCorpo com o motivo (vira 400) ou { ok: false } (nem é SVG)
+    const recusado = (svg: string) => { try { return !validarTexto('image/svg+xml', svg, purificadorEstrito).ok } catch (e) { return e instanceof ErroCorpo } }
+    for (const r of ruins) expect(recusado(r), r).toBe(true)
   })
   it('recusa SVG inválido, JSON que não é Lottie e glTF com recursos externos', () => {
     expect(validarTexto('image/svg+xml', 'olá', DOMPurify).ok).toBe(false)
