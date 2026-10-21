@@ -1,0 +1,222 @@
+'use client'
+import { cloneElement, forwardRef, isValidElement, useEffect, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { Loader2, X } from 'lucide-react'
+
+export function cx(...c: Array<string | false | null | undefined>) {
+  return c.filter(Boolean).join(' ')
+}
+
+// ---------- Botão ----------
+type Variante = 'primario' | 'secundario' | 'fantasma' | 'perigo' | 'destaque'
+type TamanhoBotao = 'sm' | 'md' | 'lg'
+export interface BotaoProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variante?: Variante
+  tamanho?: TamanhoBotao
+  carregando?: boolean
+  icone?: ReactNode
+}
+const variantes: Record<Variante, string> = {
+  primario: 'bg-acao text-acaoTexto hover:opacity-90 border-transparent',
+  secundario: 'bg-superficie text-texto border-borda hover:bg-superficie2',
+  fantasma: 'bg-transparent text-texto border-transparent hover:bg-superficie2',
+  perigo: 'bg-transparent text-perigo border-borda hover:bg-perigo/10',
+  destaque: 'bg-destaque text-[#101820] border-transparent hover:opacity-90',
+}
+const tamanhos: Record<TamanhoBotao, string> = { sm: 'h-8 px-3 text-[13px] gap-1.5', md: 'h-10 px-4 text-sm gap-2', lg: 'h-12 px-5 text-base gap-2' }
+
+export const Botao = forwardRef<HTMLButtonElement, BotaoProps>(function Botao({ variante = 'primario', tamanho = 'md', carregando, icone, className, children, disabled, ...rest }, ref) {
+  return (
+    <button ref={ref} disabled={disabled || carregando} className={cx('inline-flex items-center justify-center rounded-xl border font-medium transition-colors duration-rapida disabled:cursor-not-allowed disabled:opacity-50', variantes[variante], tamanhos[tamanho], className)} {...rest}>
+      {carregando ? <Loader2 className="h-4 w-4 animate-spin" /> : icone}
+      {children}
+    </button>
+  )
+})
+
+export function BotaoIcone({ rotulo, className, children, ativo, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { rotulo: string; ativo?: boolean }) {
+  return (
+    <button aria-label={rotulo} title={rotulo} aria-pressed={ativo} className={cx('inline-flex h-9 w-9 items-center justify-center rounded-lg text-texto2 transition-colors hover:bg-superficie2 hover:text-texto disabled:opacity-40', ativo && 'bg-superficie2 text-texto', className)} {...rest}>
+      {children}
+    </button>
+  )
+}
+
+// ---------- Campos ----------
+export const Entrada = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Entrada({ className, ...rest }, ref) {
+  return <input ref={ref} className={cx('h-10 w-full rounded-xl border bg-superficie px-3 text-sm text-texto placeholder:text-texto2/70 focus:border-texto/40 disabled:opacity-50', className)} {...rest} />
+})
+
+export const AreaTexto = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function AreaTexto({ className, ...rest }, ref) {
+  return <textarea ref={ref} className={cx('w-full rounded-xl border bg-superficie px-3 py-2 text-sm text-texto placeholder:text-texto2/70 focus:border-texto/40', className)} {...rest} />
+})
+
+export function Selecao({ className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select className={cx('h-10 w-full rounded-xl border bg-superficie px-3 text-sm text-texto focus:border-texto/40', className)} {...rest}>
+      {children}
+    </select>
+  )
+}
+
+export function Campo({ rotulo, dica, erro, children, inline }: { rotulo: string; dica?: string; erro?: string; children: ReactNode; inline?: boolean }) {
+  return (
+    <label className={cx('block', inline && 'flex items-center justify-between gap-3')}>
+      <span className="mb-1.5 block text-[13px] font-medium text-texto">{rotulo}</span>
+      <div className={cx(inline && 'w-40')}>{children}</div>
+      {dica && !erro && <span className="mt-1 block text-xs text-texto2">{dica}</span>}
+      {erro && <span className="mt-1 block text-xs text-perigo" role="alert">{erro}</span>}
+    </label>
+  )
+}
+
+/** Linha do inspetor: rótulo curto à esquerda, controle compacto à direita. */
+export function CampoInspetor({ rotulo, children }: { rotulo: string; children: ReactNode }) {
+  // Controle único sem aria-label recebe o rótulo como nome acessível (evita o nome "Rótulo + valor" do <label> envolvente).
+  const filho = isValidElement<{ 'aria-label'?: string }>(children) && !children.props['aria-label'] ? cloneElement(children, { 'aria-label': rotulo }) : children
+  return (
+    <label className="flex items-center justify-between gap-2 py-1">
+      <span className="w-14 shrink-0 truncate text-xs text-texto2" title={rotulo}>{rotulo}</span>
+      <span className="flex min-w-0 flex-1 items-center justify-end gap-1">{filho}</span>
+    </label>
+  )
+}
+
+export function EntradaNumero({ value, onChange, min, max, step = 1, sufixo, rotulo }: { value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number; sufixo?: string; rotulo: string }) {
+  return (
+    <span className="relative inline-flex w-full">
+      <input
+        aria-label={rotulo}
+        type="number"
+        value={Number.isFinite(value) ? Math.round(value * 100) / 100 : 0}
+        min={min}
+        max={max}
+        step={step}
+        onChange={(e) => {
+          const v = Number(e.target.value)
+          if (Number.isFinite(v)) onChange(v)
+        }}
+        className={cx('h-8 w-full min-w-0 rounded-lg border bg-superficie px-1.5 text-right text-xs tabular-nums focus:border-texto/40', sufixo && 'pr-5')}
+      />
+      {sufixo && <span className="pointer-events-none absolute inset-y-0 right-1.5 flex items-center text-[10px] text-texto2">{sufixo}</span>}
+    </span>
+  )
+}
+
+export function Alternador({ ativo, onChange, rotulo }: { ativo: boolean; onChange: (v: boolean) => void; rotulo: string }) {
+  return (
+    <button role="switch" aria-checked={ativo} aria-label={rotulo} onClick={() => onChange(!ativo)} className={cx('relative h-6 w-10 shrink-0 rounded-full border transition-colors', ativo ? 'bg-acao border-acao' : 'bg-superficie2')}>
+      <span className={cx('absolute top-0.5 h-[18px] w-[18px] rounded-full bg-superficie shadow transition-transform', ativo ? 'translate-x-[18px]' : 'translate-x-0.5')} />
+    </button>
+  )
+}
+
+// ---------- Superfícies ----------
+export function Cartao({ className, children, ...rest }: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div className={cx('rounded-2xl border bg-superficie', className)} {...rest}>
+      {children}
+    </div>
+  )
+}
+
+export function Selo({ tom = 'neutro', children }: { tom?: 'neutro' | 'sucesso' | 'aviso' | 'perigo' | 'destaque'; children: ReactNode }) {
+  const tons = {
+    neutro: 'bg-superficie2 text-texto2',
+    sucesso: 'bg-sucesso/15 text-sucesso',
+    aviso: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+    perigo: 'bg-perigo/15 text-perigo',
+    destaque: 'bg-destaque text-[#101820]',
+  }
+  return <span className={cx('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium', tons[tom])}>{children}</span>
+}
+
+export function Abas<T extends string>({ valor, opcoes, onChange, rotulo }: { valor: T; opcoes: { id: T; rotulo: string }[]; onChange: (v: T) => void; rotulo: string }) {
+  return (
+    <div role="tablist" aria-label={rotulo} className="inline-flex rounded-xl border bg-superficie2 p-0.5">
+      {opcoes.map((o) => (
+        <button key={o.id} role="tab" aria-selected={valor === o.id} onClick={() => onChange(o.id)} className={cx('rounded-[10px] px-3 py-1.5 text-[13px] font-medium transition-colors', valor === o.id ? 'bg-superficie text-texto shadow-sm' : 'text-texto2 hover:text-texto')}>
+          {o.rotulo}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export function EstadoVazio({ icone, titulo, descricao, acao }: { icone?: ReactNode; titulo: string; descricao?: string; acao?: ReactNode }) {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed px-6 py-16 text-center">
+      {icone && <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-superficie2 text-texto2">{icone}</div>}
+      <h3 className="text-base font-semibold">{titulo}</h3>
+      {descricao && <p className="mt-1 max-w-sm text-sm text-texto2">{descricao}</p>}
+      {acao && <div className="mt-5">{acao}</div>}
+    </div>
+  )
+}
+
+// ---------- Modal ----------
+export function Modal({ aberto, aoFechar, titulo, descricao, children, rodape, largura = 'md' }: { aberto: boolean; aoFechar: () => void; titulo: string; descricao?: string; children: ReactNode; rodape?: ReactNode; largura?: 'sm' | 'md' | 'lg' }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!aberto) return
+    const anterior = document.activeElement as HTMLElement | null
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') aoFechar()
+      if (e.key === 'Tab' && ref.current) {
+        const focaveis = ref.current.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+        const primeiro = focaveis[0]
+        const ultimo = focaveis[focaveis.length - 1]
+        if (!primeiro || !ultimo) return
+        if (e.shiftKey && document.activeElement === primeiro) { e.preventDefault(); ultimo.focus() }
+        else if (!e.shiftKey && document.activeElement === ultimo) { e.preventDefault(); primeiro.focus() }
+      }
+    }
+    document.addEventListener('keydown', tecla)
+    const t = setTimeout(() => ref.current?.querySelector<HTMLElement>('input, button')?.focus(), 10)
+    return () => { document.removeEventListener('keydown', tecla); clearTimeout(t); anterior?.focus() }
+  }, [aberto, aoFechar])
+  if (!aberto) return null
+  const larguras = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl' }
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 backdrop-blur-[2px] sm:items-center" onMouseDown={(e) => e.target === e.currentTarget && aoFechar()}>
+      <div ref={ref} role="dialog" aria-modal="true" aria-labelledby="modal-titulo" className={cx('w-full rounded-2xl border bg-superficie shadow-suave', larguras[largura])}>
+        <div className="flex items-start justify-between gap-4 px-6 pt-5">
+          <div>
+            <h2 id="modal-titulo" className="text-lg font-semibold">{titulo}</h2>
+            {descricao && <p className="mt-0.5 text-sm text-texto2">{descricao}</p>}
+          </div>
+          <BotaoIcone rotulo="Fechar" onClick={aoFechar}><X className="h-4 w-4" /></BotaoIcone>
+        </div>
+        <div className="px-6 py-4">{children}</div>
+        {rodape && <div className="flex justify-end gap-2 border-t px-6 py-4">{rodape}</div>}
+      </div>
+    </div>
+  )
+}
+
+export function ModalConfirmar({ aberto, aoFechar, aoConfirmar, titulo, descricao, rotuloConfirmar = 'Confirmar', perigoso, carregando }: { aberto: boolean; aoFechar: () => void; aoConfirmar: () => void; titulo: string; descricao?: string; rotuloConfirmar?: string; perigoso?: boolean; carregando?: boolean }) {
+  return (
+    <Modal aberto={aberto} aoFechar={aoFechar} titulo={titulo} descricao={descricao} largura="sm" rodape={<>
+      <Botao variante="secundario" onClick={aoFechar}>Cancelar</Botao>
+      <Botao variante={perigoso ? 'perigo' : 'primario'} onClick={aoConfirmar} carregando={carregando}>{rotuloConfirmar}</Botao>
+    </>}>
+      <span className="sr-only">Confirme a ação</span>
+    </Modal>
+  )
+}
+
+export function Logo({ compacto }: { compacto?: boolean }) {
+  return (
+    <span className="inline-flex items-center gap-2 font-semibold tracking-tight">
+      <span className="inline-block h-5 w-5 rounded-md bg-acao" aria-hidden />
+      {!compacto && <span>Apresentações</span>}
+    </span>
+  )
+}
+
+export function Carregando({ texto = 'Carregando…' }: { texto?: string }) {
+  return (
+    <div className="flex items-center gap-2 text-sm text-texto2" role="status">
+      <Loader2 className="h-4 w-4 animate-spin" /> {texto}
+    </div>
+  )
+}

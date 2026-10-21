@@ -1,0 +1,11 @@
+node_modules/
+.next/
+out/
+*.log
+.DS_Store
+.vercel
+.env
+.env*.local
+tsconfig.tsbuildinfo
+coverage/
+e2e/capturas/

@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------- tokens (ver lib/design-tokens.ts) ---------- */
+:root {
+  --cor-fundo: 246 247 245;
+  --cor-superficie: 255 255 255;
+  --cor-superficie-2: 238 241 236;
+  --cor-borda: 226 230 223;
+  --cor-texto: 16 24 32;
+  --cor-texto-2: 91 102 112;
+  --cor-acao: 16 24 32;
+  --cor-acao-texto: 255 255 255;
+  --cor-destaque: 217 249 157;
+  --cor-perigo: 194 65 12;
+  --cor-sucesso: 21 128 61;
+  color-scheme: light;
+}
+[data-tema='escuro'] {
+  --cor-fundo: 15 22 32;
+  --cor-superficie: 23 32 43;
+  --cor-superficie-2: 31 42 54;
+  --cor-borda: 42 54 66;
+  --cor-texto: 243 245 242;
+  --cor-texto-2: 154 166 178;
+  --cor-acao: 217 249 157;
+  --cor-acao-texto: 16 24 32;
+  --cor-destaque: 181 216 194;
+  --cor-perigo: 251 146 60;
+  --cor-sucesso: 74 222 128;
+  color-scheme: dark;
+}
+
+html, body { height: 100%; }
+body { @apply bg-fundo text-texto antialiased; font-feature-settings: 'ss01', 'cv11'; }
+* { @apply border-borda; }
+:focus-visible { outline: 2px solid rgb(var(--cor-acao)); outline-offset: 2px; border-radius: 6px; }
+::selection { background: rgb(var(--cor-destaque)); color: #101820; }
+
+/* ---------- animações do catálogo (lib/scene/schema.ts TIPOS_ANIMACAO) ---------- */
+@keyframes anim-fadeIn { from { opacity: 0 } to { opacity: var(--op, 1) } }
+@keyframes anim-fadeOut { from { opacity: var(--op, 1) } to { opacity: 0 } }
+@keyframes anim-slideUp { from { opacity: 0; transform: translateY(40px) rotate(var(--rot, 0deg)) } to { opacity: var(--op, 1); transform: translateY(0) rotate(var(--rot, 0deg)) } }
+@keyframes anim-slideDown { from { opacity: 0; transform: translateY(-40px) rotate(var(--rot, 0deg)) } to { opacity: var(--op, 1); transform: translateY(0) rotate(var(--rot, 0deg)) } }
+@keyframes anim-slideLeft { from { opacity: 0; transform: translateX(40px) rotate(var(--rot, 0deg)) } to { opacity: var(--op, 1); transform: translateX(0) rotate(var(--rot, 0deg)) } }
+@keyframes anim-slideRight { from { opacity: 0; transform: translateX(-40px) rotate(var(--rot, 0deg)) } to { opacity: var(--op, 1); transform: translateX(0) rotate(var(--rot, 0deg)) } }
+@keyframes anim-scaleIn { from { opacity: 0; transform: scale(.92) rotate(var(--rot, 0deg)) } to { opacity: var(--op, 1); transform: scale(1) rotate(var(--rot, 0deg)) } }
+@keyframes anim-scaleOut { from { opacity: var(--op, 1); transform: scale(1) rotate(var(--rot, 0deg)) } to { opacity: 0; transform: scale(.92) rotate(var(--rot, 0deg)) } }
+@keyframes anim-reveal { from { clip-path: inset(0 100% 0 0) } to { clip-path: inset(0 0 0 0) } }
+
+/* transições de cena */
+@keyframes cena-fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes cena-slide { from { opacity: 0; transform: translateX(6%) } to { opacity: 1; transform: translateX(0) } }
+@keyframes cena-zoom { from { opacity: 0; transform: scale(1.04) } to { opacity: 1; transform: scale(1) } }
+
+.camada-animada { animation-fill-mode: both; will-change: transform, opacity; }
+.cena-transicao-fade { animation: cena-fade var(--dur, 350ms) ease-out both; }
+.cena-transicao-slide { animation: cena-slide var(--dur, 350ms) ease-out both; }
+.cena-transicao-zoom { animation: cena-zoom var(--dur, 350ms) ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .camada-animada, .cena-transicao-fade, .cena-transicao-slide, .cena-transicao-zoom { animation-duration: 1ms !important; animation-delay: 0ms !important; }
+}
+
+/* controles do visualizador: somem após inatividade */
+.viewer-controles { transition: opacity 250ms ease; }
+.viewer-ocioso .viewer-controles { opacity: 0; pointer-events: none; }
+.viewer-ocioso { cursor: none; }
+
+/* grade do editor */
+.grade-editor { background-image: linear-gradient(to right, rgb(var(--cor-texto) / .08) 1px, transparent 1px), linear-gradient(to bottom, rgb(var(--cor-texto) / .08) 1px, transparent 1px); }
+
+/* hotspot com dica no viewer */
+.hotspot-dica:hover, .hotspot-dica:focus-visible { box-shadow: inset 0 0 0 2px rgb(217 249 157 / .9); border-radius: 8px; }
+
+/* scrollbars discretas */
+.rolagem-fina::-webkit-scrollbar { width: 8px; height: 8px; }
+.rolagem-fina::-webkit-scrollbar-thumb { background: rgb(var(--cor-texto) / .15); border-radius: 8px; }
