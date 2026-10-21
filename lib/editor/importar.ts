@@ -1,6 +1,7 @@
 'use client'
 /**
  * Leva o conteúdo colado/solto para dentro da tela atual.
+ * Cópia normal do Figma (⌘C) vira camadas editáveis (texto, formas, vetores; ver colarFigma.ts).
  * Figma "Copiar como SVG" e Illustrator viram camadas SVG vetoriais (cores editáveis); PNG/JPG viram imagem;
  * GLB/GLTF do Blender vira 3D; JSON do After Effects (Bodymovin) vira Lottie; links do YouTube/Vimeo/Figma
  * viram incorporação; texto vira caixa de texto; camadas copiadas da Mostra são coladas com IDs novos.
@@ -13,6 +14,7 @@ import { MAX_SVG_INLINE } from '@/lib/scene/schema'
 import { enquadrarNaCena } from '@/lib/scene/transform'
 import { enviarArquivo, type ProgressoUpload } from '@/lib/demo/store'
 import type { AssetDemo } from '@/lib/demo/tipos'
+import { colarDoFigma } from './colarFigma'
 
 export type Avisar = (texto: string, tipo?: 'info' | 'sucesso' | 'erro') => void
 
@@ -98,6 +100,13 @@ export async function importarConteudo(editor: Editor, conteudo: ConteudoColado,
       return true
     case 'arquivos':
       return (await importarArquivos(editor, item.arquivos, opcoes)).length > 0
+    case 'figma':
+      try {
+        return await colarDoFigma(editor, item.mensagem, item.arquivos, opcoes)
+      } catch {
+        opcoes.avisar('Não consegui ler esta cópia do Figma. No Figma, use Copiar como > Copiar como SVG (ou PNG, ⇧⌘C) e cole de novo.', 'info')
+        return false
+      }
     case 'svg': {
       await inserirSvg(editor, item.markup, opcoes, item.origem === 'figma' ? 'figma' : item.origem === 'illustrator' ? 'illustrator' : 'vetor')
       opcoes.avisar(item.origem === 'figma' ? 'Vetor do Figma colado. Troque as cores no painel Design.' : item.origem === 'illustrator' ? 'Arte do Illustrator colada como vetor.' : 'SVG colado como vetor.', 'sucesso')
