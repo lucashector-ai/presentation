@@ -9,11 +9,12 @@
  */
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import type { Animacao, Camada, Cena, Interacao, CamadaTexto } from '@/lib/scene/schema'
-import { EASING_CSS, adaptarAnimacao, camadaVisivel, interacoesDe, type EstadoRuntime } from '@/lib/scene/motor'
+import { EASING_CSS, camadaVisivel, interacoesDe, type EstadoRuntime } from '@/lib/scene/motor'
 import { ordenarParaRender } from '@/lib/scene/order'
 import { recolorirSvg, svgParaDataUrl } from '@/lib/importar/svg'
 import { pilhaFonte } from '@/lib/design-tokens'
 import { MASCARAS, filtroCss, gradienteCss, sombraCss, transformCss } from './estilos'
+import { TextoSegmentado, planoAnimacao, usePreviaAnimacao, varsAnimacao, type PedidoPrevia } from './animacao'
 import { Forma } from './camadas/Forma'
 import { Modelo3d } from './camadas/Modelo3d'
 import { Lottie } from './camadas/Lottie'
@@ -53,7 +54,12 @@ export interface SceneRendererProps {
   interativoNoEditor?: boolean
   /** IDs a ocultar (ex.: camadas que estão sendo editadas inline). */
   ocultar?: ReadonlySet<string>
+  /** Tela saindo: as camadas tocam a animação de saída (exitAnimation). */
+  saida?: boolean
 }
+
+/** Props internas: prévia de animação pedida pelo inspetor (só no modo editor). */
+type PropsInternas = SceneRendererProps & { previa?: PedidoPrevia | null; classeTransicao?: string }
 
 /** Chave usada para casar camadas entre telas no morph. */
 export function chaveMorph(c: Camada): string {
@@ -61,7 +67,18 @@ export function chaveMorph(c: Camada): string {
 }
 
 export function SceneRenderer(props: SceneRendererProps) {
-  const { cena, assets, escala, modo, children, className, style, morphDe } = props
+  // prévia do inspetor: no editor, toca entradas/saídas/transição sem sair do modo de edição
+  const previa = usePreviaAnimacao(props.modo === 'editor')
+  const tr = previa?.transicao
+  if (previa && tr && tr.type !== 'none') {
+    const morph = tr.type === 'morph' && !!previa.morphDe
+    return <CenaRender key={`pv-${previa.nonce}`} {...props} previa={previa} morphDe={morph ? previa.morphDe : undefined} morphDuracao={tr.duration} morphEasing={EASING_CSS[tr.easing]} classeTransicao={morph ? undefined : `cena-transicao-${tr.type === 'morph' ? 'fade' : tr.type}`} />
+  }
+  return <CenaRender {...props} previa={previa} />
+}
+
+function CenaRender(props: PropsInternas) {
+  const { cena, assets, escala, modo, children, className, style, morphDe, classeTransicao } = props
   const fundo = cena.backgroundAssetId ? assets[cena.backgroundAssetId] : undefined
   const camadas = useMemo(() => ordenarParaRender(cena.layers), [cena.layers])
   const mapaMorph = useMemo(() => (morphDe ? new Map(morphDe.layers.map((l) => [chaveMorph(l), l])) : null), [morphDe])
@@ -73,7 +90,7 @@ export function SceneRenderer(props: SceneRendererProps) {
   }, [fundoCss])
 
   return (
-    <div className={className} style={{ width: cena.size.width * escala, height: cena.size.height * escala, position: 'relative', overflow: 'hidden', background: morphDe ? fundoAtual : fundoCss, transition: morphDe ? `background ${props.morphDuracao ?? 600}ms ${props.morphEasing ?? 'ease'}` : undefined, ...style }}>
+    <div className={[className, classeTransicao].filter(Boolean).join(' ') || undefined} style={{ width: cena.size.width * escala, height: cena.size.height * escala, position: 'relative', overflow: 'hidden', background: morphDe ? fundoAtual : fundoCss, transition: morphDe ? `background ${props.morphDuracao ?? 600}ms ${props.morphEasing ?? 'ease'}` : undefined, ...(classeTransicao ? { ['--dur' as string]: `${props.morphDuracao ?? 500}ms` } : {}), ...style }}>
       <div style={{ width: cena.size.width, height: cena.size.height, transform: `scale(${escala})`, transformOrigin: '0 0', position: 'absolute', left: 0, top: 0 }}>
         {fundo && <img src={modo === 'miniatura' ? fundo.thumbUrl || fundo.url : fundo.url} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: cena.backgroundFit, pointerEvents: 'none' }} />}
         {camadas.map((c) => (props.ocultar?.has(c.id) ? null : <LayerView key={c.id} camada={c} props={props} origemMorph={mapaMorph?.get(chaveMorph(c))} />))}
@@ -83,17 +100,11 @@ export function SceneRenderer(props: SceneRendererProps) {
   )
 }
 
-function estiloAnimacao(a: Animacao | undefined, reduzir: boolean): CSSProperties | undefined {
-  if (!a || a.type === 'none') return undefined
-  const ad = adaptarAnimacao(a, reduzir)
-  return { animationName: `anim-${ad.type}`, animationDuration: `${ad.duration}ms`, animationDelay: `${ad.delay}ms`, animationTimingFunction: EASING_CSS[ad.easing] }
-}
-
 function geometria(c: Camada): CSSProperties {
   return { left: c.x, top: c.y, width: c.width, height: c.height, opacity: c.opacity, transform: transformCss(c) }
 }
 
-function LayerView({ camada: c, props, origemMorph }: { camada: Camada; props: SceneRendererProps; origemMorph?: Camada }) {
+function LayerView({ camada: c, props, origemMorph }: { camada: Camada; props: PropsInternas; origemMorph?: Camada }) {
   const { modo, runtime, reduzirMovimento = false, semHover = false, mobile = false, aoInteragir, chaveEntrada, morphDe, morphDuracao = 600, morphEasing = 'ease' } = props
   const viewer = modo === 'viewer'
   const visivel = runtime ? camadaVisivel(c, runtime) : !c.hidden
@@ -113,8 +124,15 @@ function LayerView({ camada: c, props, origemMorph }: { camada: Camada; props: S
   const animRuntime = runtime?.animacoes[c.id]
   // no morph, camadas casadas não fazem animação de entrada; as novas entram com fade
   const animEntrada = morphDe ? (origemMorph ? undefined : ({ type: 'fadeIn', duration: Math.round(morphDuracao * 0.8), delay: Math.round(morphDuracao * 0.2), easing: 'easeOut' } as Animacao)) : c.enterAnimation
-  const anim = animRuntime ? animRuntime.animacao : viewer ? animEntrada : undefined
-  const chaveAnim = animRuntime ? `rt-${animRuntime.nonce}` : `in-${chaveEntrada ?? ''}`
+  // prévia no editor (inspetor): toca como no visualizador, só nas camadas pedidas
+  const previa = props.previa
+  const previaAqui = !!previa && !c.hidden && (!previa.ids || previa.ids.includes(c.id))
+  const tocar = viewer || previaAqui
+  const saindo = !animRuntime && (props.saida || (previaAqui && !!previa?.saida))
+  const entrada = previaAqui && previa?.semAtraso && animEntrada ? { ...animEntrada, delay: 0 } : animEntrada
+  const anim = animRuntime ? animRuntime.animacao : tocar ? (saindo ? c.exitAnimation : entrada) : undefined
+  const chaveAnim = animRuntime ? `rt-${animRuntime.nonce}` : previaAqui ? `pv-${previa?.nonce}` : `in-${chaveEntrada ?? ''}`
+  const plano = planoAnimacao({ entrada: saindo ? undefined : anim, saida: saindo ? anim : undefined, loop: tocar && !animRuntime ? c.loopAnimation : undefined, reduzir: reduzirMovimento, ehTexto: c.type === 'text' })
   const geoAtual = origemMorph && !morphFim ? geometria(origemMorph) : geometria(c)
   const e = c.effects
 
@@ -123,16 +141,15 @@ function LayerView({ camada: c, props, origemMorph }: { camada: Camada; props: S
     ...geoAtual,
     opacity: visivel ? geoAtual.opacity : 0.3,
     zIndex: c.z,
-    ['--op' as string]: c.opacity,
-    ['--rot' as string]: `${c.rotation}deg`,
+    ...varsAnimacao(c),
     cursor: clicavel ? 'pointer' : undefined,
     mixBlendMode: e?.blend && e.blend !== 'normal' ? e.blend : undefined,
     backdropFilter: e?.backdropBlur ? `blur(${e.backdropBlur}px)` : undefined,
     WebkitBackdropFilter: e?.backdropBlur ? `blur(${e.backdropBlur}px)` : undefined,
     transition: origemMorph ? `left ${morphDuracao}ms ${morphEasing}, top ${morphDuracao}ms ${morphEasing}, width ${morphDuracao}ms ${morphEasing}, height ${morphDuracao}ms ${morphEasing}, opacity ${morphDuracao}ms ${morphEasing}, transform ${morphDuracao}ms ${morphEasing}` : undefined,
-    ...estiloAnimacao(anim, reduzirMovimento),
+    ...plano.estilo,
   }
-  const classes = [anim && anim.type !== 'none' ? 'camada-animada' : '', c.type === 'hotspot' && viewer && c.hint ? 'hotspot-dica' : ''].filter(Boolean).join(' ')
+  const classes = [plano.classe ?? '', c.type === 'hotspot' && viewer && c.hint ? 'hotspot-dica' : ''].filter(Boolean).join(' ')
   const rotulo = c.ariaLabel || (c.type === 'text' ? c.text : undefined)
 
   const eventos =
@@ -154,18 +171,18 @@ function LayerView({ camada: c, props, origemMorph }: { camada: Camada; props: S
 
   return (
     <div key={chaveAnim} data-layer-id={c.id} className={classes || undefined} style={base} {...eventos}>
-      <Conteudo camada={c} props={props} origemMorph={morphFim ? undefined : origemMorph} morphDuracao={morphDuracao} morphEasing={morphEasing} />
+      <Conteudo camada={c} props={props} origemMorph={morphFim ? undefined : origemMorph} morphDuracao={morphDuracao} morphEasing={morphEasing} animTexto={plano.texto} />
     </div>
   )
 }
 
-function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing }: { camada: Camada; props: SceneRendererProps; origemMorph?: Camada; morphDuracao: number; morphEasing: string }) {
+function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, animTexto }: { camada: Camada; props: SceneRendererProps; origemMorph?: Camada; morphDuracao: number; morphEasing: string; animTexto?: Animacao }) {
   const { assets, modo, mobile = false, registrarVideo, interativoNoEditor } = props
   const e = c.effects
   const interativo = modo === 'viewer' || !!interativoNoEditor
   switch (c.type) {
     case 'text':
-      return <Texto c={c} origem={origemMorph?.type === 'text' ? origemMorph : undefined} modo={modo} duracao={morphDuracao} easing={morphEasing} />
+      return <Texto c={c} origem={origemMorph?.type === 'text' ? origemMorph : undefined} modo={modo} duracao={morphDuracao} easing={morphEasing} animTexto={animTexto} />
     case 'shape':
       return (
         <div style={{ width: '100%', height: '100%', filter: filtroCss(e, c.shape !== 'rect' && c.shape !== 'ellipse') }}>
@@ -243,7 +260,7 @@ function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing }: 
   }
 }
 
-function Texto({ c, origem, modo, duracao, easing }: { c: CamadaTexto; origem?: CamadaTexto; modo: ModoRender; duracao: number; easing: string }) {
+function Texto({ c, origem, modo, duracao, easing, animTexto }: { c: CamadaTexto; origem?: CamadaTexto; modo: ModoRender; duracao: number; easing: string; animTexto?: Animacao }) {
   const fonte = origem ?? c
   const gradiente = c.gradient ? gradienteCss(c.gradient) : undefined
   return (
@@ -276,7 +293,11 @@ function Texto({ c, origem, modo, duracao, easing }: { c: CamadaTexto; origem?: 
         filter: c.effects?.blur ? `blur(${c.effects.blur}px)` : undefined,
       }}
     >
-      <span style={gradiente ? { backgroundImage: gradiente, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' } : undefined}>{c.text}</span>
+      {animTexto ? (
+        <TextoSegmentado texto={c.text} animacao={animTexto} estiloParte={gradiente ? { backgroundImage: gradiente, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' } : undefined} />
+      ) : (
+        <span style={gradiente ? { backgroundImage: gradiente, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' } : undefined}>{c.text}</span>
+      )}
     </div>
   )
 }

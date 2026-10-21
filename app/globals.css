@@ -57,18 +57,61 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 :focus-visible { outline: 2px solid rgb(var(--cor-acento)); outline-offset: 2px; border-radius: 6px; }
 ::selection { background: rgb(var(--cor-acento) / .2); }
 
-/* ---------- animações do catálogo (lib/scene/schema.ts TIPOS_ANIMACAO) ---------- */
+/* ===== MOSTRA · ANIMAÇÕES DE CAMADA — início =====
+   Catálogo: lib/scene/schema.ts (TIPOS_ANIMACAO, TIPOS_LOOP) e lib/scene/animacoes.ts (presets).
+   Variáveis definidas pelo renderizador (components/renderer/animacao.ts):
+   --tf  transform base da camada (rotação/espelho), --op opacidade final, --amp intensidade do loop.
+   As listas de transform têm a mesma forma em todos os quadros para interpolar sem saltos. */
 @keyframes anim-fadeIn { from { opacity: 0 } to { opacity: var(--op, 1) } }
 @keyframes anim-fadeOut { from { opacity: var(--op, 1) } to { opacity: 0 } }
-@keyframes anim-slideUp { from { opacity: 0; transform: translateY(40px) rotate(var(--rot, 0deg)) } to { opacity: var(--op, 1); transform: translateY(0) rotate(var(--rot, 0deg)) } }
-@keyframes anim-slideDown { from { opacity: 0; transform: translateY(-40px) rotate(var(--rot, 0deg)) } to { opacity: var(--op, 1); transform: translateY(0) rotate(var(--rot, 0deg)) } }
-@keyframes anim-slideLeft { from { opacity: 0; transform: translateX(40px) rotate(var(--rot, 0deg)) } to { opacity: var(--op, 1); transform: translateX(0) rotate(var(--rot, 0deg)) } }
-@keyframes anim-slideRight { from { opacity: 0; transform: translateX(-40px) rotate(var(--rot, 0deg)) } to { opacity: var(--op, 1); transform: translateX(0) rotate(var(--rot, 0deg)) } }
-@keyframes anim-scaleIn { from { opacity: 0; transform: scale(.92) rotate(var(--rot, 0deg)) } to { opacity: var(--op, 1); transform: scale(1) rotate(var(--rot, 0deg)) } }
-@keyframes anim-scaleOut { from { opacity: var(--op, 1); transform: scale(1) rotate(var(--rot, 0deg)) } to { opacity: 0; transform: scale(.92) rotate(var(--rot, 0deg)) } }
+@keyframes anim-slideUp { from { opacity: 0; transform: translateY(40px) var(--tf, translate(0)) } to { opacity: var(--op, 1); transform: translateY(0) var(--tf, translate(0)) } }
+@keyframes anim-slideDown { from { opacity: 0; transform: translateY(-40px) var(--tf, translate(0)) } to { opacity: var(--op, 1); transform: translateY(0) var(--tf, translate(0)) } }
+@keyframes anim-slideLeft { from { opacity: 0; transform: translateX(40px) var(--tf, translate(0)) } to { opacity: var(--op, 1); transform: translateX(0) var(--tf, translate(0)) } }
+@keyframes anim-slideRight { from { opacity: 0; transform: translateX(-40px) var(--tf, translate(0)) } to { opacity: var(--op, 1); transform: translateX(0) var(--tf, translate(0)) } }
+@keyframes anim-scaleIn { from { opacity: 0; transform: scale(.92) var(--tf, translate(0)) } to { opacity: var(--op, 1); transform: scale(1) var(--tf, translate(0)) } }
+@keyframes anim-scaleOut { from { opacity: var(--op, 1); transform: scale(1) var(--tf, translate(0)) } to { opacity: 0; transform: scale(.92) var(--tf, translate(0)) } }
 @keyframes anim-reveal { from { clip-path: inset(0 100% 0 0) } to { clip-path: inset(0 0 0 0) } }
 @keyframes anim-blurIn { from { opacity: 0; filter: blur(24px) } to { opacity: var(--op, 1); filter: blur(0) } }
-@keyframes anim-rotateIn { from { opacity: 0; transform: rotate(calc(var(--rot, 0deg) - 12deg)) scale(.94) } to { opacity: var(--op, 1); transform: rotate(var(--rot, 0deg)) scale(1) } }
+@keyframes anim-rotateIn { from { opacity: 0; transform: rotate(-12deg) scale(.94) var(--tf, translate(0)) } to { opacity: var(--op, 1); transform: rotate(0deg) scale(1) var(--tf, translate(0)) } }
+@keyframes anim-pop {
+  0% { opacity: 0; transform: scale(.5) var(--tf, translate(0)) }
+  55% { opacity: var(--op, 1); transform: scale(1.08) var(--tf, translate(0)) }
+  78% { transform: scale(.97) var(--tf, translate(0)) }
+  100% { opacity: var(--op, 1); transform: scale(1) var(--tf, translate(0)) }
+}
+@keyframes anim-zoomOut { from { opacity: 0; transform: scale(1.25) var(--tf, translate(0)); filter: blur(6px) } to { opacity: var(--op, 1); transform: scale(1) var(--tf, translate(0)); filter: blur(0) } }
+@keyframes anim-elastic {
+  0% { opacity: 0; transform: scale(.4, .4) var(--tf, translate(0)) }
+  35% { opacity: var(--op, 1); transform: scale(1.14, .88) var(--tf, translate(0)) }
+  52% { transform: scale(.92, 1.08) var(--tf, translate(0)) }
+  68% { transform: scale(1.05, .96) var(--tf, translate(0)) }
+  84% { transform: scale(.99, 1.01) var(--tf, translate(0)) }
+  100% { opacity: var(--op, 1); transform: scale(1, 1) var(--tf, translate(0)) }
+}
+/* saídas */
+@keyframes anim-slideOutUp { from { opacity: var(--op, 1); transform: translateY(0) var(--tf, translate(0)) } to { opacity: 0; transform: translateY(-40px) var(--tf, translate(0)) } }
+@keyframes anim-slideOutDown { from { opacity: var(--op, 1); transform: translateY(0) var(--tf, translate(0)) } to { opacity: 0; transform: translateY(40px) var(--tf, translate(0)) } }
+@keyframes anim-blurOut { from { opacity: var(--op, 1); filter: blur(0) } to { opacity: 0; filter: blur(16px) } }
+/* texto dividido (máquina de escrever, palavra por palavra, letra por letra): cada parte é um <span class="seg-texto"> */
+@keyframes seg-typewriter { from { opacity: 0 } to { opacity: 1 } }
+@keyframes seg-words { from { opacity: 0; transform: translateY(.45em); filter: blur(8px) } to { opacity: 1; transform: translateY(0); filter: blur(0) } }
+@keyframes seg-letters { from { opacity: 0; transform: translateY(.6em) } to { opacity: 1; transform: translateY(0) } }
+.seg-texto { display: inline-block; animation-fill-mode: both; }
+.seg-texto-linha { display: inline; animation-fill-mode: both; }
+.seg-palavra { display: inline-block; white-space: nowrap; }
+/* ênfase em loop (começa quando a entrada termina) */
+@keyframes loop-float { 0%, 100% { transform: translateY(0) var(--tf, translate(0)) } 50% { transform: translateY(calc(-14px * var(--amp, 1))) var(--tf, translate(0)) } }
+@keyframes loop-pulse { 0%, 100% { transform: scale(1) var(--tf, translate(0)) } 50% { transform: scale(calc(1 + .05 * var(--amp, 1))) var(--tf, translate(0)) } }
+@keyframes loop-wiggle { 0%, 100% { transform: rotate(0deg) var(--tf, translate(0)) } 25% { transform: rotate(calc(3deg * var(--amp, 1))) var(--tf, translate(0)) } 75% { transform: rotate(calc(-3deg * var(--amp, 1))) var(--tf, translate(0)) } }
+@keyframes loop-spin { from { transform: rotate(0deg) var(--tf, translate(0)) } to { transform: rotate(360deg) var(--tf, translate(0)) } }
+.camada-animada { animation-fill-mode: both; will-change: transform, opacity; }
+/* movimento reduzido: tudo vira um fade de 150 ms, sem loops (o motor já adapta; isto é a rede de segurança) */
+@media (prefers-reduced-motion: reduce) {
+  .camada-animada { animation-name: anim-fadeIn !important; animation-duration: 150ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; animation-timing-function: linear !important; }
+  .camada-animada.camada-saida { animation-name: anim-fadeOut !important; }
+  .seg-texto, .seg-texto-linha { animation: none !important; }
+}
+/* ===== MOSTRA · ANIMAÇÕES DE CAMADA — fim ===== */
 
 /* transições de cena */
 @keyframes cena-fade { from { opacity: 0 } to { opacity: 1 } }
@@ -77,7 +120,6 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 @keyframes cena-scale { from { opacity: 0; transform: scale(.92) } to { opacity: 1; transform: scale(1) } }
 @keyframes cena-saida { from { opacity: 1 } to { opacity: 0 } }
 
-.camada-animada { animation-fill-mode: both; will-change: transform, opacity; }
 .cena-transicao-fade { animation: cena-fade var(--dur, 350ms) ease-out both; }
 .cena-transicao-slide { animation: cena-slide var(--dur, 350ms) ease-out both; }
 .cena-transicao-zoom { animation: cena-zoom var(--dur, 350ms) ease-out both; }
@@ -85,7 +127,7 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 .cena-saindo { animation: cena-saida var(--dur, 400ms) ease-out both; pointer-events: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .camada-animada, .cena-transicao-fade, .cena-transicao-slide, .cena-transicao-zoom, .cena-transicao-scale, .cena-saindo { animation-duration: 1ms !important; animation-delay: 0ms !important; }
+  .cena-transicao-fade, .cena-transicao-slide, .cena-transicao-zoom, .cena-transicao-scale, .cena-saindo { animation-duration: 1ms !important; animation-delay: 0ms !important; }
 }
 
 /* controles do visualizador: somem após inatividade */

@@ -26,10 +26,10 @@ export function Inspetor({ editor, assets }: { editor: Editor; assets: AssetDemo
       <div className="rolagem-fina min-h-0 flex-1 overflow-y-auto">
         {estado.abaDireita === 'interacoes' ? (
           <AbaInteracoes editor={editor} assets={mapa} />
-        ) : nada ? (
-          <InspetorTela editor={editor} assets={assets} />
         ) : estado.abaDireita === 'animacao' ? (
           <AbaAnimacao editor={editor} />
+        ) : nada ? (
+          <InspetorTela editor={editor} assets={assets} />
         ) : (
           <AbaDesign editor={editor} assets={assets} />
         )}

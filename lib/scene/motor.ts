@@ -154,7 +154,7 @@ export function executarTodas(doc: DocumentoProjeto, e: EstadoRuntime, camada: C
 export function adaptarAnimacao(a: Animacao, reduzirMovimento: boolean): Animacao {
   if (!reduzirMovimento) return a
   if (a.type === 'none') return a
-  const saida = a.type === 'fadeOut' || a.type === 'scaleOut'
+  const saida = a.type === 'fadeOut' || a.type === 'scaleOut' || a.type === 'slideOutUp' || a.type === 'slideOutDown' || a.type === 'blurOut'
   return { type: saida ? 'fadeOut' : 'fadeIn', duration: 150, delay: 0, easing: 'linear' }
 }
 
