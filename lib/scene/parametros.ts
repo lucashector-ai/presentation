@@ -304,12 +304,19 @@ function varsDeTexto(a: Pick<Animacao, 'type'> & Partial<Animacao>, p: Padroes):
   }
 }
 
-/** Keyframe das partes de um texto dividido. */
-export function keyframeDaParte(a: Pick<Animacao, 'type'> & Partial<Animacao>): string {
+/**
+ * Até quantas palavras "Palavras com desfoque" usa o desfoque padrão. Desfoque não roda na GPU: cada palavra é
+ * repintada a cada quadro enquanto entra, e num parágrafo isso pesava mais que todo o resto do efeito. Acima
+ * disso o padrão é só movimento + opacidade; um desfoque ajustado à mão (Ajustes finos) continua valendo.
+ */
+export const LIMITE_PALAVRAS_DESFOQUE = 12
+
+/** Keyframe das partes de um texto dividido (`partes`: quantas partes animam). */
+export function keyframeDaParte(a: Pick<Animacao, 'type'> & Partial<Animacao>, partes = 0): string {
   if (a.type === 'typewriter') return 'seg-typewriter'
   if (a.type === 'lines') return 'seg-linha'
   if (a.type === 'scramble') return 'seg-scramble'
-  const temBlur = a.blur !== undefined ? a.blur > 0 : a.type === 'words'
+  const temBlur = a.blur !== undefined ? a.blur > 0 : a.type === 'words' && partes <= LIMITE_PALAVRAS_DESFOQUE
   return temBlur ? 'seg-movBlur' : 'seg-mov'
 }
 

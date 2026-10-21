@@ -42,6 +42,65 @@ export function passosDaOrdem(posicoes: number[]): number {
   return posicoes.length ? Math.max(...posicoes) + 1 : 0
 }
 
+// ---------- máquina de escrever: cursor único ----------
+
+/** Quanto tempo o cursor pisca no fim (4 piscadas de 1 s, como antes). */
+export const PISCADAS_CURSOR = 4
+
+/**
+ * Keyframes do cursor da máquina de escrever: UM elemento que salta de letra em letra e pisca no fim. Antes
+ * cada letra tinha a sua animação de cursor (box-shadow): num parágrafo eram ~100 animações esperando o seu
+ * atraso, revisadas pelo navegador a cada quadro. `visibility` (e não opacidade) de propósito: deixa a animação
+ * do cursor na mesma thread que a das letras — na GPU, com a página ocupada, o cursor corria à frente do texto.
+ * `pontos[i]`: canto superior direito da letra i (px, no espaço do cursor); `inicios[i]`: quando a letra i
+ * aparece (ms desde o início da animação); `passo`: tempo entre letras (o cursor fica nesse tempo na letra).
+ */
+export function keyframesCursor(nome: string, pontos: { x: number; y: number }[], inicios: number[], passo: number): { css: string; duracao: number } {
+  const n = Math.min(pontos.length, inicios.length)
+  const naLetra = Math.max(16, passo)
+  const ordem = Array.from({ length: n }, (_, i) => i).sort((a, b) => inicios[a]! - inicios[b]! || a - b)
+  const ultimo = n ? inicios[ordem[n - 1]!]! : 0
+  const fimDigitacao = ultimo + naLetra
+  const duracao = Math.max(1, Math.round(fimDigitacao + PISCADAS_CURSOR * 1000))
+  const pct = (t: number) => `${Math.round((Math.min(duracao, Math.max(0, t)) / duracao) * 1e6) / 1e4}%`
+  const quadros = new Map<string, string>()
+  const quadro = (t: number, x: number, y: number, visivel: number) => quadros.set(pct(t), `transform: translate(${Math.round(x * 100) / 100}px, ${Math.round(y * 100) / 100}px); visibility: ${visivel ? 'visible' : 'hidden'}; animation-timing-function: step-end`)
+  const p0 = n ? pontos[ordem[0]!]! : { x: 0, y: 0 }
+  quadro(0, p0.x, p0.y, n && inicios[ordem[0]!]! <= 0 ? 1 : 0)
+  for (const i of ordem) quadro(inicios[i]!, pontos[i]!.x, pontos[i]!.y, 1)
+  const pf = n ? pontos[ordem[n - 1]!]! : p0
+  for (let k = 0; k < PISCADAS_CURSOR; k++) {
+    quadro(fimDigitacao + k * 1000 + 500, pf.x, pf.y, 0)
+    if (k < PISCADAS_CURSOR - 1) quadro(fimDigitacao + (k + 1) * 1000, pf.x, pf.y, 1)
+  }
+  quadro(duracao, pf.x, pf.y, 0)
+  return { css: `@keyframes ${nome} { ${[...quadros.entries()].map(([p, d]) => `${p} { ${d} }`).join(' ')} }`, duracao }
+}
+
+// ---------- letra por letra leve ----------
+
+/** Um quadro a 60 Hz, em ms. */
+export const QUADRO_MS = 1000 / 60
+/** Acima disso, letra por letra anima por palavra (cada parte animada é um elemento composto na GPU). */
+export const LIMITE_LETRAS = 150
+/** Com desfoque, o limite é menor: o desfoque não roda na GPU e é repintado a cada quadro, parte por parte. */
+export const LIMITE_LETRAS_DESFOQUE = 40
+
+/**
+ * Letra por letra (Letras, Cascata) anima por PALAVRA quando o olho não veria a diferença ou o custo não
+ * compensa — o tempo de cada palavra é o da sua primeira letra, então o ritmo do texto não muda:
+ * - várias letras começariam no mesmo quadro (intervalo < 1 quadro) e as letras só deslizam (sem giro/escala
+ *   próprios, que numa palavra inteira girariam em volta de outro centro) e a ordem não é aleatória;
+ * - o texto é longo (mais de LIMITE_LETRAS letras), em qualquer efeito;
+ * - cada letra teria desfoque e há mais de LIMITE_LETRAS_DESFOQUE letras.
+ * Máquina de escrever e Decodificar continuam por letra (não usam camadas da GPU por letra).
+ */
+export function agruparLetras({ total, passo, ordem = 'start', giraOuEscala = false, desfoque = false }: { total: number; passo: number; ordem?: OrdemPartes; giraOuEscala?: boolean; desfoque?: boolean }): boolean {
+  if (total > LIMITE_LETRAS) return true
+  if (desfoque && total > LIMITE_LETRAS_DESFOQUE) return true
+  return passo < QUADRO_MS && !giraOuEscala && ordem !== 'random' && total > 1
+}
+
 // ---------- contador ----------
 
 export interface NumeroNoTexto {

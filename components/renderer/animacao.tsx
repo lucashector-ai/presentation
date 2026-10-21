@@ -10,96 +10,14 @@
  * Prévia no editor: o inspetor chama `pedirPrevia(...)`; cada SceneRenderer em modo editor escuta o
  * evento e toca as animações pedidas uma vez, sem sair do modo de edição.
  */
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
-import type { Animacao, Camada, Cena, Loop, Transicao } from '@/lib/scene/schema'
-import { adaptarAnimacao } from '@/lib/scene/motor'
+import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import type { Animacao, Cena, Transicao } from '@/lib/scene/schema'
 import { curvaCss, dividirTexto, pontosDaCurva, tempoSegmentos } from '@/lib/scene/animacoes'
-import { cssDaAnimacao, divisao, ehTextoAnimado, keyframeDaParte, parametros } from '@/lib/scene/parametros'
-import { agruparLinhas, analisarNumero, curvaBezier, formatarNumero, ordemDasPartes, passosDaOrdem } from '@/lib/scene/texto-animado'
-import { transformCss } from './estilos'
+import { divisao, keyframeDaParte, parametros } from '@/lib/scene/parametros'
+import { agruparLetras, agruparLinhas, analisarNumero, curvaBezier, formatarNumero, keyframesCursor, ordemDasPartes, passosDaOrdem } from '@/lib/scene/texto-animado'
+import { keyframesSeparados } from './plano'
 
-/** Variáveis CSS lidas pelos keyframes. */
-export function varsAnimacao(c: Pick<Camada, 'opacity' | 'rotation' | 'flipX' | 'flipY' | 'loopAnimation'>): CSSProperties {
-  return {
-    ['--op' as string]: c.opacity,
-    ['--rot' as string]: `${c.rotation}deg`,
-    ['--tf' as string]: transformCss(c) ?? 'translate(0)',
-    ['--amp' as string]: c.loopAnimation?.intensity ?? 1,
-  }
-}
-
-export interface PlanoAnimacao {
-  estilo?: CSSProperties
-  classe?: string
-  /** Entrada de texto dividida: quem anima são as partes do texto, não a camada. */
-  texto?: Animacao
-  /** Desenhar contorno: os traços do SVG da camada animam (ver <Desenho>). */
-  desenho?: boolean
-}
-
-/**
- * Estilo de animação da camada: entrada (ou saída) + loop, já adaptados a movimento reduzido.
- * `desenhavel`: a camada tem traços SVG (formas que não são retângulo/elipse); senão "Desenhar" vira cortina.
- * `aguardar`: entrada por clique/hover — fica parada no 1º quadro até o público agir.
- */
-export function planoAnimacao({ entrada, saida, loop, reduzir, ehTexto, desenhavel = false, aguardar = false }: { entrada?: Animacao; saida?: Animacao; loop?: Loop; reduzir: boolean; ehTexto: boolean; desenhavel?: boolean; aguardar?: boolean }): PlanoAnimacao {
-  const nomes: string[] = []
-  const duracoes: string[] = []
-  const atrasos: string[] = []
-  const curvas: string[] = []
-  const repeticoes: string[] = []
-  const preenchimentos: string[] = []
-  let vars: Record<string, string | number> = {}
-  let texto: Animacao | undefined
-  let desenho = false
-  let fimEntrada = 0
-  const principal = saida ?? entrada
-  if (principal && principal.type !== 'none') {
-    let a = adaptarAnimacao(principal, reduzir)
-    if (a.type === 'draw' && !desenhavel) a = { ...a, type: 'reveal' }
-    if (ehTextoAnimado(a.type) && ehTexto) texto = a
-    const css = cssDaAnimacao(a, ehTexto)
-    vars = css.vars
-    if (css.keyframe) {
-      nomes.push(css.keyframe)
-      duracoes.push(`${a.duration}ms`)
-      atrasos.push(`${a.delay}ms`)
-      curvas.push(curvaCss(a))
-      repeticoes.push('1')
-      preenchimentos.push('both')
-    }
-    if (a.type === 'draw') {
-      desenho = true
-      vars = { ...vars, '--anim-dur': `${a.duration}ms`, '--anim-atraso': `${a.delay}ms`, '--anim-curva': curvaCss(a) }
-    }
-    fimEntrada = a.delay + a.duration
-  }
-  if (loop && !saida && !reduzir) {
-    nomes.push(`loop-${loop.type}`)
-    duracoes.push(`${loop.duration}ms`)
-    atrasos.push(`${fimEntrada}ms`)
-    curvas.push(loop.type === 'spin' ? 'linear' : 'ease-in-out')
-    repeticoes.push(loop.repeat ? String(loop.repeat) : 'infinite')
-    preenchimentos.push('none')
-  }
-  const estiloVars = vars as CSSProperties
-  if (!nomes.length) return { texto, desenho, estilo: Object.keys(vars).length ? estiloVars : undefined }
-  return {
-    texto,
-    desenho,
-    classe: [saida ? 'camada-animada camada-saida' : 'camada-animada', desenho ? 'camada-desenho' : ''].filter(Boolean).join(' '),
-    estilo: {
-      ...estiloVars,
-      animationName: nomes.join(', '),
-      animationDuration: duracoes.join(', '),
-      animationDelay: atrasos.join(', '),
-      animationTimingFunction: curvas.join(', '),
-      animationIterationCount: repeticoes.join(', '),
-      animationFillMode: preenchimentos.join(', '),
-      ...(aguardar ? { animationPlayState: 'paused' } : {}),
-    },
-  }
-}
+export { keyframesSeparados, planoAnimacao, varsAnimacao, type PlanoAnimacao } from './plano'
 
 // ---------- desenhar contorno ----------
 
@@ -144,9 +62,12 @@ function useGradienteContinuo(ref: RefObject<HTMLElement | null>, gradiente: str
     const medir = () => {
       const w = el.offsetWidth
       const h = el.offsetHeight
-      el.querySelectorAll<HTMLElement>('[data-seg]').forEach((p) => {
+      // lê tudo antes de escrever: ler offsetLeft depois de uma escrita forçava um layout por parte
+      const partes = [...el.querySelectorAll<HTMLElement>('[data-seg]')]
+      const pos = partes.map((p) => `${el.offsetLeft - p.offsetLeft}px ${el.offsetTop - p.offsetTop}px`)
+      partes.forEach((p, i) => {
         p.style.backgroundSize = `${w}px ${h}px`
-        p.style.backgroundPosition = `${el.offsetLeft - p.offsetLeft}px ${el.offsetTop - p.offsetTop}px`
+        p.style.backgroundPosition = pos[i]!
       })
     }
     medir()
@@ -158,17 +79,61 @@ function useGradienteContinuo(ref: RefObject<HTMLElement | null>, gradiente: str
   }, [gradiente, ...deps])
 }
 
+/**
+ * Solta a animação de uma parte do texto quando ela termina (`data-fim` → `animation: none` no CSS): o último
+ * quadro de toda entrada de texto é o estilo parado da parte. Sem isso, cada letra/palavra terminada com
+ * `fill-mode: both` continuava uma camada composta (300 letras = 300 camadas) e todo quadro que repinta
+ * pagava por elas. O cursor da máquina de escrever, que termina invisível, some.
+ */
+export function soltarParte(e: React.AnimationEvent) {
+  const el = e.target as HTMLElement
+  if (el.hasAttribute('data-fim') || !el.matches('[data-seg], .seg-marca, .seg-contador, .seg-cursor')) return
+  el.setAttribute('data-fim', '')
+}
+
+/**
+ * Texto dividido: as partes são soltas TODAS JUNTAS, quando a última termina. Soltar uma a uma mudava a
+ * árvore de camadas a cada quadro do escalonamento (o navegador refazia o Layerize e o Commit de tudo em
+ * quadros seguidos); de uma vez, é uma mudança só, no fim.
+ */
+function soltarPartesJuntas(e: React.AnimationEvent) {
+  const el = e.target as HTMLElement
+  if (el.classList.contains('seg-cursor')) return soltarParte(e)
+  if (!el.hasAttribute('data-seg') || el.hasAttribute('data-terminou')) return
+  el.setAttribute('data-terminou', '')
+  const raiz = e.currentTarget as HTMLElement
+  if (raiz.querySelector('[data-seg]:not([data-terminou])')) return
+  raiz.querySelectorAll('[data-seg]').forEach((p) => p.setAttribute('data-fim', ''))
+}
+
+/** Decodificar: quantas letras trocam de caractere sorteado por quadro, no máximo. */
+const SORTEIOS_POR_QUADRO = 24
+/** Decodificar: duração da animação CSS de cada letra (só marca o início; o sorteio segue o relógio do quadro). */
+const MARCA_INICIO_MS = 20
+
+/** animation-* de uma parte com uma ou mais animações (desfoque separado) no mesmo tempo. */
+const tempoDasPartes = (nomes: string[], duracao: string, atraso: string, curva: string): CSSProperties => {
+  const n = (v: string) => nomes.map(() => v).join(', ')
+  return { animationName: nomes.join(', '), animationDuration: n(duracao), animationDelay: n(atraso), animationTimingFunction: n(curva) }
+}
+
 const pinturaDe = (gradiente?: string): CSSProperties | undefined => (gradiente ? { backgroundImage: gradiente, backgroundRepeat: 'no-repeat', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', WebkitTextFillColor: 'transparent' } : undefined)
 
-/** Progresso (0–1, linear no tempo) da 1ª animação CSS de um elemento; null = sem animação (movimento reduzido). */
-function progressoCss(el: Element): number | null {
-  const a = el.getAnimations?.()[0]
-  if (!a) return null
+/**
+ * Relógio do contador e do decodificar. A animação CSS da parte continua sendo o relógio (atraso, pausa da tela
+ * de carregamento/Story/Explorar e prévia valem igual), mas ela só é CONSULTADA na montagem: `getAnimations()`,
+ * `playState` e `getComputedTiming()` forçam o recálculo de estilo da página quando há algo pendente, e
+ * consultá-los a cada quadro (intercalados com escritas no DOM) recalculava o estilo uma vez por letra —
+ * ~240 ms por quadro com 300 letras. Depois da montagem, o andamento vem dos eventos `animationstart` /
+ * `animationend` e do relógio do quadro (requestAnimationFrame).
+ */
+const animacaoCss = (el: Element): Animation | null => el.getAnimations?.()[0] ?? null
+/** Progresso (0–1, linear no tempo) de uma animação CSS; null = sem animação (movimento reduzido) ou substituída. */
+function progressoCss(a: Animation | null): number | null {
+  if (!a || a.playState === 'idle') return null
   const p = a.effect?.getComputedTiming().progress
-  return typeof p === 'number' ? p : 0
+  return typeof p === 'number' ? p : a.playState === 'finished' ? 1 : 0
 }
-/** A animação do elemento está pausada (tela de carregamento, Story fora da janela, miniatura congelada)? */
-const pausada = (el: Element) => el.getAnimations?.()[0]?.playState === 'paused'
 
 /**
  * Texto animado (camadas de texto). Divide em linhas, palavras ou letras e anima cada parte, ou desenha
@@ -231,13 +196,19 @@ function TextoDividido({ texto, animacao, gradiente, cor }: { texto: string; ani
   const posicoes = useMemo(() => ordemDasPartes(n, parametros(animacao).order, texto), [n, animacao, texto])
   const { duracaoParte, passo } = tempoSegmentos(animacao.type, passosDaOrdem(posicoes), animacao.duration, animacao.stagger)
   const curva = inline ? 'linear' : curvaCss(animacao)
-  const keyframe = keyframeDaParte(animacao)
-  const ultima = posicoes.length ? posicoes.indexOf(Math.max(...posicoes)) : -1
+  const keyframe = keyframeDaParte(animacao, n)
 
-  // kerning (só letra por letra): pares dentro da mesma palavra, com a fonte já carregada
-  useEffect(() => {
+  // letra por letra leve: com muitas letras por quadro, texto longo ou desfoque, as partes viram palavras (ver
+  // agruparLetras); o tempo de cada palavra é o da sua primeira letra
+  const ajustes = parametros(animacao)
+  const agrupado = porLetra && agruparLetras({ total, passo, ordem: ajustes.order, giraOuEscala: ajustes.rotate !== 0 || ajustes.scale !== 1, desfoque: keyframe === 'seg-movBlur' })
+  const letraALetra = porLetra && !agrupado
+
+  // kerning (só letra por letra): pares dentro da mesma palavra. Com a fonte já carregada (o visualizador espera
+  // as fontes), mede antes de pintar: o 2º render não cai no meio da entrada, com centenas de partes animando.
+  useEfeitoLayout(() => {
     const el = ref.current
-    if (!porLetra || !el) return setKerns({})
+    if (!letraALetra || !el) return setKerns((k) => (Object.keys(k).length ? {} : k))
     let ativo = true
     const cs = getComputedStyle(el)
     const fonte = `${cs.fontStyle} ${cs.fontWeight} 100px ${cs.fontFamily}`
@@ -251,72 +222,111 @@ function TextoDividido({ texto, animacao, gradiente, cor }: { texto: string; ani
       }
       setKerns(k)
     }
-    if (document.fonts?.load) void document.fonts.load(fonte).then(calcular, calcular)
-    else calcular()
+    if (!document.fonts?.load || document.fonts.check(fonte)) calcular()
+    else void document.fonts.load(fonte).then(calcular, calcular)
     return () => { ativo = false }
-  }, [porLetra, palavras])
+  }, [letraALetra, palavras])
 
-  // decodificar: sorteia caracteres enquanto a parte está ativa (relógio = animação CSS da própria parte)
-  useEffect(() => {
+  // decodificar: sorteia caracteres enquanto a parte está ativa. Quem diz "ativa" são os eventos da animação CSS
+  // da própria parte (começa depois do atraso e não corre pausada); por quadro só há escritas, nenhuma leitura.
+  useEfeitoLayout(() => {
     const el = ref.current
     if (!embaralhar || !el) return
-    const spans = [...el.querySelectorAll<HTMLElement>('[data-scr]')]
-    let raf = 0
-    let espera = 0
-    let quadro = 0
-    const sorteio = (ch: string) => {
+    const sortear = (s: HTMLElement) => {
       // sorteia entre caracteres de largura parecida (sem m/w/j/q…): o sorteado fica por cima da letra real
       // e não invade as vizinhas
+      const ch = s.dataset.scr ?? 'A'
       const base = /\d/.test(ch) ? '0123456789' : ch === ch.toLowerCase() && ch !== ch.toUpperCase() ? 'aceonsuvxz' : 'ABCDEHKNPRSUVXYZ#*+='
-      return base[Math.floor(Math.random() * base.length)]!
+      const glifo = s.lastElementChild as HTMLElement | null
+      if (glifo) glifo.textContent = base[Math.floor(Math.random() * base.length)]!
+      if (!s.hasAttribute('data-g')) s.setAttribute('data-g', '')
     }
-    const quadroScr = () => {
-      quadro++
-      let pendentes = 0
-      let algumaAtiva = false
-      for (const s of spans) {
-        const p = progressoCss(s)
-        if (p === null || p >= 1) { if (s.hasAttribute('data-g')) s.removeAttribute('data-g'); continue }
-        pendentes++
-        if (p > 0 && !pausada(s)) {
-          algumaAtiva = true
-          if (quadro % 3 === 0 || !s.hasAttribute('data-g')) s.setAttribute('data-g', sorteio(s.dataset.scr ?? 'A'))
-        } else if (!s.hasAttribute('data-g')) s.setAttribute('data-g', sorteio(s.dataset.scr ?? 'A'))
+    const limpar = (s: HTMLElement) => { s.removeAttribute('data-g'); const g = s.lastElementChild; if (g) g.textContent = '' }
+    // letra ativa → quando o sorteio dela termina (relógio do quadro)
+    const ativas = new Map<HTMLElement, number>()
+    let raf = 0
+    let vez = 0
+    let quadro = 0
+    const tique = (agora: number) => {
+      ativas.forEach((fim, s) => { if (agora >= fim) { ativas.delete(s); limpar(s) } })
+      // cada letra troca a cada 3 quadros (~20 por segundo), um terço das letras por quadro (custo igual em todo
+      // quadro, sem picos), no máximo SORTEIOS_POR_QUADRO: cada troca refaz o layout da linha, e num parágrafo
+      // longo as letras de trás passam a trocar mais devagar em vez de travar a animação inteira
+      const lista = [...ativas.keys()]
+      // muitas letras ao mesmo tempo (parágrafo): troca em quadros alternados — cada troca refaz o layout do
+      // parágrafo inteiro, então o que pesa é quantas vezes por segundo, não quantas letras
+      if (lista.length <= SORTEIOS_POR_QUADRO || ++quadro % 2 === 0) {
+        const k = Math.min(lista.length, Math.max(1, Math.ceil(lista.length / 3)), SORTEIOS_POR_QUADRO)
+        for (let i = 0; i < k; i++) sortear(lista[(vez + i) % lista.length]!)
+        vez = lista.length ? (vez + k) % lista.length : 0
       }
-      if (!pendentes) return
-      // tudo esperando (pausado/atraso): checa de vez em quando em vez de a cada quadro
-      if (algumaAtiva) raf = requestAnimationFrame(quadroScr)
-      else espera = window.setTimeout(() => { raf = requestAnimationFrame(quadroScr) }, 100)
+      raf = ativas.size ? requestAnimationFrame(tique) : 0
     }
-    raf = requestAnimationFrame(quadroScr)
-    return () => { cancelAnimationFrame(raf); window.clearTimeout(espera) }
-  }, [embaralhar, palavras, animacao])
+    const tocar = () => { if (!raf && ativas.size) raf = requestAnimationFrame(tique) }
+    // na montagem, as partes que vão animar já ficam com um caractere sorteado (invisível até a parte aparecer; a
+    // miniatura congelada da galeria mostra o sorteio). UMA consulta para o bloco inteiro: getAnimations() por
+    // parte recalculava o estilo da página a cada chamada (as animações recém-criadas sujam o estilo de novo).
+    const comAnimacao = new Set((el.getAnimations?.({ subtree: true }) ?? []).map((a) => (a.effect as KeyframeEffect | null)?.target))
+    el.querySelectorAll<HTMLElement>('[data-scr]').forEach((s) => { if (comAnimacao.has(s) && !s.hasAttribute('data-fim')) sortear(s) })
+    const comecou = (e: AnimationEvent) => {
+      const s = e.target as HTMLElement
+      if (!s.dataset?.scr) return
+      if (!s.hasAttribute('data-g')) sortear(s)
+      // miniatura congelada da galeria (pausada num instante): o sorteio fica parado, como o resto dela
+      if (s.closest('[data-congelada]')) return
+      ativas.set(s, e.timeStamp + Number(s.dataset.dur ?? 0))
+      tocar()
+    }
+    const cancelou = (e: AnimationEvent) => { const s = e.target as HTMLElement; if (!s.dataset?.scr) return; ativas.delete(s); limpar(s) }
+    el.addEventListener('animationstart', comecou)
+    el.addEventListener('animationcancel', cancelou)
+    return () => {
+      cancelAnimationFrame(raf)
+      el.removeEventListener('animationstart', comecou)
+      el.removeEventListener('animationcancel', cancelou)
+    }
+  }, [embaralhar, palavras])
+
+  // máquina de escrever: UM cursor que salta de letra em letra. Mede o canto de cada letra antes de pintar (e de
+  // novo se a caixa mudar de largura ou a fonte chegar) e gera os keyframes dele.
+  const idCursor = `cursor-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
+  const [cantos, setCantos] = useState<{ x: number; y: number; h: number }[] | null>(null)
+  useEfeitoLayout(() => {
+    const el = ref.current
+    if (!maquina || !el) return
+    const medir = () => {
+      const novos = [...el.querySelectorAll<HTMLElement>('[data-seg]')].map((p) => ({ x: p.offsetLeft + p.offsetWidth, y: p.offsetTop, h: p.offsetHeight }))
+      setCantos((atual) => (atual && atual.length === novos.length && atual.every((c, i) => c.x === novos[i]!.x && c.y === novos[i]!.y && c.h === novos[i]!.h) ? atual : novos))
+    }
+    medir()
+    // partes inline não têm caixa própria para o ResizeObserver: observa o bloco do texto
+    const bloco = el.parentElement
+    const ro = bloco && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(medir) : null
+    if (bloco) ro?.observe(bloco)
+    if (document.fonts?.status === 'loading') void document.fonts.ready.then(medir)
+    return () => ro?.disconnect()
+  }, [maquina, palavras])
+  // o cursor existe desde o 1º render (com a posição medida logo depois, antes de pintar): quem congela as
+  // animações na montagem (miniaturas da galeria) congela o cursor junto com as letras
+  const cursor = maquina && posicoes.length ? keyframesCursor(idCursor, cantos ?? posicoes.map(() => ({ x: 0, y: 0 })), posicoes.map((p) => p * passo), passo) : null
 
   useGradienteContinuo(ref, gradiente, [palavras, kerns, linhas])
 
   const pintura = pinturaDe(gradiente)
-  const estiloParte = (indice: number): CSSProperties => {
-    const t = Math.round(animacao.delay + (posicoes[indice] ?? indice) * passo)
+  const estiloParte = (indice: number, posicao = posicoes[indice] ?? indice): CSSProperties => {
+    const t = Math.round(animacao.delay + posicao * passo)
     const dp = Math.round(duracaoParte)
-    if (maquina) {
-      // cursor: aparece na letra atual e pisca algumas vezes na última
-      const fim = indice === ultima
-      return {
-        ...pintura,
-        ['--cursor-cor' as string]: cor,
-        animationName: `seg-typewriter, seg-cursor${fim ? ', seg-cursor-piscar' : ''}`,
-        animationDuration: `${dp}ms, ${Math.max(16, Math.round(passo))}ms${fim ? ', 1000ms' : ''}`,
-        animationDelay: `${t}ms, ${t}ms${fim ? `, ${t + Math.round(passo)}ms` : ''}`,
-        animationTimingFunction: `linear, linear${fim ? ', linear' : ''}`,
-        animationIterationCount: `1, 1${fim ? ', 4' : ''}`,
-        animationFillMode: `both, none${fim ? ', none' : ''}`,
-      }
-    }
-    return { ...pintura, ...(embaralhar ? { ['--scr-cor' as string]: cor } : {}), marginRight: kerns[indice] ? `${kerns[indice]}em` : undefined, animationName: keyframe, animationDuration: `${dp}ms`, animationDelay: `${t}ms`, animationTimingFunction: curva }
+    // máquina de escrever: a letra só aparece (o cursor é um elemento só, ver keyframesCursor)
+    if (maquina) return { ...pintura, animationName: 'seg-typewriter', animationDuration: `${dp}ms`, animationDelay: `${t}ms`, animationTimingFunction: 'linear', animationFillMode: 'both' }
+    // decodificar: a animação CSS só marca o início (a letra aparece); o sorteio dura `data-dur` a partir dele.
+    // Uma animação ativa recalcula o estilo da letra a cada quadro, e as letras do decodificar se sobrepõem
+    // quase inteiras: com a duração toda, um parágrafo recalculava 300 letras por quadro.
+    return { ...pintura, ...(embaralhar ? { ['--scr-cor' as string]: cor } : {}), marginRight: kerns[indice] ? `${kerns[indice]}em` : undefined, ...tempoDasPartes(keyframesSeparados(keyframe), `${embaralhar ? Math.min(dp, MARCA_INICIO_MS) : dp}ms`, `${t}ms`, curva) }
   }
   const parte = (s: { texto: string; indice: number }) => (
-    <span key={s.indice} data-seg="" data-scr={embaralhar ? s.texto : undefined} className={inline ? `seg-texto-linha${embaralhar ? ' seg-scramble' : ''}` : 'seg-texto'} style={estiloParte(s.indice)}>
+    <span key={s.indice} data-seg="" data-scr={embaralhar ? s.texto : undefined} data-dur={embaralhar ? Math.round(duracaoParte) : undefined} className={inline ? `seg-texto-linha${embaralhar ? ' seg-scramble' : ''}` : 'seg-texto'} style={estiloParte(s.indice)}>
       {s.texto}
+      {embaralhar && <span className="seg-glifo" />}
     </span>
   )
 
@@ -329,10 +339,22 @@ function TextoDividido({ texto, animacao, gradiente, cor }: { texto: string; ani
             <span data-seg="" className="seg-texto" style={estiloParte(i)}>{l || ' '}</span>
           </span>
         ))
+  } else if (agrupado) {
+    // uma parte por palavra, no tempo da primeira letra dela
+    conteudo = palavras.map((p, i) => (
+      <Fragment key={i}>
+        {p.partes.length > 0 && (
+          <span data-seg="" className="seg-texto" style={estiloParte(p.partes[0]!.indice, Math.min(...p.partes.map((s) => posicoes[s.indice] ?? s.indice)))}>
+            {p.partes.map((s) => s.texto).join('')}
+          </span>
+        )}
+        {p.separador}
+      </Fragment>
+    ))
   } else {
     conteudo = palavras.map((p, i) => (
       <Fragment key={i}>
-        {porLetra ? <span className="seg-palavra">{p.partes.map(parte)}</span> : p.partes.map(parte)}
+        {letraALetra ? <span className="seg-palavra">{p.partes.map(parte)}</span> : p.partes.map(parte)}
         {p.separador}
       </Fragment>
     ))
@@ -340,7 +362,15 @@ function TextoDividido({ texto, animacao, gradiente, cor }: { texto: string; ani
   return (
     <>
       <span className="texto-acessivel" data-texto={texto} />
-      <span ref={ref} aria-hidden>{conteudo}</span>
+      <span ref={ref} aria-hidden onAnimationEnd={soltarPartesJuntas}>
+        {conteudo}
+        {cursor && (
+          <>
+            <style>{cursor.css}</style>
+            <span className="seg-cursor" style={{ height: cantos?.[0]?.h ?? 0, ['--cursor-cor' as string]: cor, animationName: idCursor, animationDuration: `${cursor.duracao}ms`, animationDelay: `${animacao.delay}ms` }} />
+          </>
+        )}
+      </span>
     </>
   )
 }
@@ -354,24 +384,47 @@ function TextoContador({ texto, animacao, gradiente }: { texto: string; animacao
   const info = useMemo(() => analisarNumero(texto), [texto])
   const ref = useRef<HTMLSpanElement>(null)
   const numero = useRef<HTMLSpanElement>(null)
-  useEffect(() => {
+  const curva = curvaCss(animacao)
+  const duracao = animacao.duration
+  // o número acompanha o relógio (animação CSS do contêiner): começa no `animationstart` (depois do atraso, e só
+  // quando a tela deixa de esperar) e segue o tempo do quadro; nenhuma consulta ao estilo por quadro
+  useEfeitoLayout(() => {
     const el = ref.current
     const alvo = numero.current
     if (!el || !alvo || !info) return
     const pontos = pontosDaCurva(animacao)
     const semPrefixo = { ...info, prefixo: '', sufixo: '' }
     let raf = 0
-    let espera = 0
-    const passo = () => {
-      const p = progressoCss(el)
-      if (p === null || p >= 1) { alvo.textContent = formatarNumero(semPrefixo, info.valor); return }
-      alvo.textContent = formatarNumero(semPrefixo, info.valor * curvaBezier(p, pontos))
-      if (p > 0 && !pausada(el)) raf = requestAnimationFrame(passo)
-      else espera = window.setTimeout(() => { raf = requestAnimationFrame(passo) }, 100)
+    let inicio = 0
+    let ultimo = alvo.textContent ?? ''
+    const escrever = (p: number) => {
+      const texto = formatarNumero(semPrefixo, p >= 1 ? info.valor : info.valor * curvaBezier(p, pontos))
+      // só escreve quando o número muda (o mesmo texto ainda invalidaria o layout da linha)
+      if (texto !== ultimo) { alvo.textContent = texto; ultimo = texto }
     }
-    raf = requestAnimationFrame(passo)
-    return () => { cancelAnimationFrame(raf); window.clearTimeout(espera) }
-  }, [info, animacao])
+    const tique = (t: number) => {
+      const p = Math.min(1, Math.max(0, (t - inicio) / duracao))
+      escrever(p)
+      raf = p < 1 ? requestAnimationFrame(tique) : 0
+    }
+    const correr = (desde: number) => { inicio = desde; cancelAnimationFrame(raf); raf = requestAnimationFrame(tique) }
+    // estado na montagem (uma leitura): sem animação (movimento reduzido) = valor final; congelada (miniatura da
+    // galeria) = o número daquele instante; remontagem no meio da contagem = continua de onde está
+    const relogio = animacaoCss(el)
+    const p0 = progressoCss(relogio)
+    escrever(p0 ?? 1)
+    if (p0 !== null && p0 > 0 && p0 < 1 && relogio?.playState === 'running') correr(performance.now() - p0 * duracao)
+    const comecou = (e: AnimationEvent) => { if (e.target === el) correr(e.timeStamp - e.elapsedTime * 1000) }
+    const acabou = (e: AnimationEvent) => { if (e.target !== el) return; cancelAnimationFrame(raf); raf = 0; escrever(1) }
+    el.addEventListener('animationstart', comecou)
+    el.addEventListener('animationend', acabou)
+    return () => {
+      cancelAnimationFrame(raf)
+      el.removeEventListener('animationstart', comecou)
+      el.removeEventListener('animationend', acabou)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [info, duracao, curva])
   useGradienteContinuo(ref, gradiente, [info])
   const pintura = pinturaDe(gradiente)
   const relogio: CSSProperties = { animationName: 'seg-contador', animationDuration: `${animacao.duration}ms`, animationDelay: `${animacao.delay}ms`, animationTimingFunction: 'linear' }
@@ -380,7 +433,7 @@ function TextoContador({ texto, animacao, gradiente }: { texto: string; animacao
   return (
     <>
       <span className="texto-acessivel" data-texto={texto} />
-      <span ref={ref} aria-hidden className="seg-contador" style={relogio}>
+      <span ref={ref} aria-hidden className="seg-contador" style={relogio} onAnimationEnd={soltarParte}>
         {info ? (
           <>
             {info.prefixo && <span data-seg="" style={{ ...extra, ...pintura }}>{info.prefixo}</span>}
@@ -428,7 +481,7 @@ function TextoMarcado({ texto, animacao, gradiente, cor }: { texto: string; anim
   return (
     <>
       <span className="texto-acessivel" data-texto={texto} />
-      <span ref={ref} aria-hidden>
+      <span ref={ref} aria-hidden onAnimationEnd={soltarParte}>
         {antes}
         <span className="seg-marca" style={marca}>{dentro}</span>
         {depois}

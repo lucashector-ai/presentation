@@ -156,7 +156,7 @@ export function MiniPrevia({ tipo: tipoProp, preset, loop, saida, texto, tocando
   const chave = `${ativo ? 'a' : 'p'}-${ciclo}`
   const amostra = tipo === 'counter' ? '38%' : tipo === 'lines' ? 'Olá\nmundo' : 'Olá mundo'
   return (
-    <span ref={ref} aria-hidden className="absolute left-1/2 top-1/2" style={{ width: 288, height: 160, marginLeft: -144, marginTop: -80, transform: `scale(${ESCALA})` }}>
+    <span ref={ref} aria-hidden data-congelada={ativo ? undefined : ''} className="absolute left-1/2 top-1/2" style={{ width: 288, height: 160, marginLeft: -144, marginTop: -80, transform: `scale(${ESCALA})` }}>
       {texto ? (
         <span key={chave} className={plano.classe} style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize: 46, lineHeight: 1.05, fontWeight: 600, letterSpacing: -1.5, color: 'rgb(var(--cor-texto))', whiteSpace: 'pre-wrap', ...vars, ...plano.estilo }}>
           <span>{plano.texto ? <TextoSegmentado texto={amostra} animacao={plano.texto} cor="#5965F2" /> : amostra}</span>

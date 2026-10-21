@@ -177,6 +177,8 @@ function LayerView({ camada: c, props, origemMorph, heranca, gatilhos, mascara }
   const viewer = modo === 'viewer'
   const visivel = (runtime ? camadaVisivel(c, runtime) : !c.hidden) && !heranca?.oculta
   const [morphFim, setMorphFim] = useState(!origemMorph)
+  // entrada terminada (por chave de animação): sai do estilo para a camada deixar de ser composta
+  const [concluida, setConcluida] = useState<string | null>(null)
   useEffect(() => {
     if (!origemMorph) return
     const r = requestAnimationFrame(() => requestAnimationFrame(() => setMorphFim(true)))
@@ -212,7 +214,7 @@ function LayerView({ camada: c, props, origemMorph, heranca, gatilhos, mascara }
   const chaveAnim = animRuntime ? `rt-${animRuntime.nonce}` : previaAqui ? `pv-${previa?.nonce}` : `in-${chaveEntrada ?? ''}`
   // entrada por clique/hover: parada no 1º quadro até o público agir (a prévia do editor toca direto)
   const aguardar = viewer && !animRuntime && !saindo && !previaAqui && esperaGatilho(c.enterAnimation)
-  const plano = planoAnimacao({ entrada: saindo ? undefined : anim, saida: saindo ? anim : undefined, loop: tocar && !animRuntime ? c.loopAnimation : undefined, reduzir: reduzirMovimento, ehTexto: c.type === 'text', desenhavel: c.type === 'shape' && c.shape !== 'rect' && c.shape !== 'ellipse', aguardar })
+  const plano = planoAnimacao({ entrada: saindo ? undefined : anim, saida: saindo ? anim : undefined, loop: tocar && !animRuntime ? c.loopAnimation : undefined, reduzir: reduzirMovimento, ehTexto: c.type === 'text', desenhavel: c.type === 'shape' && c.shape !== 'rect' && c.shape !== 'ellipse', aguardar, concluida: concluida === chaveAnim })
   const geoAtual = origemMorph && !morphFim ? geometria(origemMorph) : geometria(c)
   const e = c.effects
 
@@ -224,6 +226,9 @@ function LayerView({ camada: c, props, origemMorph, heranca, gatilhos, mascara }
     ['--clip-final' as string]: heranca?.clip ?? 'none',
     zIndex: c.z,
     ...varsAnimacao(c),
+    // a entrada termina na opacidade parada da camada (com a dos frames pais): ao soltar a animação no fim,
+    // nada muda de lugar nem de opacidade
+    ['--op' as string]: (visivel ? c.opacity : 0.3) * (heranca?.opacidade ?? 1),
     cursor: clicavel ? 'pointer' : undefined,
     mixBlendMode: e?.blend && e.blend !== 'normal' ? e.blend : undefined,
     backdropFilter: vidroDe(e) ? `blur(${vidroDe(e)}px)` : undefined,
@@ -253,7 +258,7 @@ function LayerView({ camada: c, props, origemMorph, heranca, gatilhos, mascara }
         : {}
 
   return (
-    <div key={chaveAnim} data-layer-id={c.id} className={classes || undefined} style={base} {...eventos}>
+    <div key={chaveAnim} data-layer-id={c.id} className={classes || undefined} style={base} onAnimationEnd={plano.soltavel ? (ev) => { if (ev.target === ev.currentTarget && !ev.animationName.startsWith('loop-')) setConcluida(chaveAnim) } : undefined} {...eventos}>
       <Conteudo camada={c} props={props} origemMorph={morphFim ? undefined : origemMorph} morphDuracao={morphDuracao} morphEasing={morphEasing} animTexto={plano.texto} desenhar={plano.desenho} />
       {c.strokes && !(c.type === 'shape' && c.isMask) && <Tracos camada={c} />}
     </div>

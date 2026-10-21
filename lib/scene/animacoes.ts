@@ -573,6 +573,17 @@ export function linhaDoTempo(cena: Cena): { linhas: LinhaTempo[]; total: number 
 }
 
 /** Duração para tocar a prévia da tela inteira (entradas + 2 ciclos de loop, no máximo 12 s). */
+/** Quando a última entrada da tela termina (ms; sem loops nem entradas por clique/hover). */
+export function fimDasEntradas(camadas: Camada[]): number {
+  const efetivos = atrasosEfetivos(camadas)
+  let fim = 0
+  for (const c of camadas) {
+    const a = c.enterAnimation
+    if (a && a.type !== 'none' && !esperaGatilho(a)) fim = Math.max(fim, (efetivos.get(c.id) ?? a.delay) + a.duration)
+  }
+  return fim
+}
+
 export function duracaoPrevia(camadas: Camada[], semAtraso = false): number {
   let fim = 0
   const efetivos = atrasosEfetivos(camadas)
