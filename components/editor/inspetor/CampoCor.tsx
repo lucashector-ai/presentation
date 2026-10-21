@@ -4,6 +4,8 @@
  * `LinhaPintura` aceita sólido, gradiente e imagem; `CampoCor` é o atalho para uma cor sólida (opcional).
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Link2Off } from 'lucide-react'
+import type { EstiloCor } from '@/lib/scene/schema'
 import { alfaDe, comAlfa, hex6, lerCor, rgbaParaHex } from '@/lib/editor/cor'
 import { cx } from '@/components/ui'
 import { CampoNum } from './campos'
@@ -12,7 +14,7 @@ import { SeletorCor, XADREZ, cssPintura, type Pintura, type TipoPintura } from '
 
 const NOME_GRADIENTE: Record<string, string> = { linear: 'Linear', radial: 'Radial' }
 
-export function LinhaPintura({ rotulo, valor, aoMudar, tipos = ['solido'], acoes, vazio, placeholder, aoLimpar }: {
+export function LinhaPintura({ rotulo, valor, aoMudar, tipos = ['solido'], acoes, vazio, placeholder, aoLimpar, estiloId, aoEstilo }: {
   rotulo: string
   valor: Pintura
   aoMudar: (p: Pintura) => void
@@ -24,8 +26,12 @@ export function LinhaPintura({ rotulo, valor, aoMudar, tipos = ['solido'], acoes
   placeholder?: string
   /** Apagar o texto remove a cor (campos opcionais). */
   aoLimpar?: () => void
+  /** Estilo de cor ligado (mostra o nome no lugar do hex, com "Desvincular"). */
+  estiloId?: string
+  aoEstilo?: (e: EstiloCor) => void
 }) {
-  const { imagens } = useInspetor()
+  const { imagens, estilos } = useInspetor()
+  const estilo = estiloId ? estilos?.lista.find((e) => e.id === estiloId) : undefined
   const [aberto, setAberto] = useState(false)
   const caixa = useRef<HTMLDivElement>(null)
   const imagem = valor.tipo === 'imagem' ? imagens.find((i) => i.id === valor.assetId) : undefined
@@ -44,7 +50,12 @@ export function LinhaPintura({ rotulo, valor, aoMudar, tipos = ['solido'], acoes
           className="ml-1.5 h-5 w-5 shrink-0 rounded-[4px] shadow-[inset_0_0_0_1px_rgba(0,0,0,.12)] outline-none focus-visible:ring-2 focus-visible:ring-acento"
           style={{ background: !css ? XADREZ : transparente ? `linear-gradient(90deg, ${comAlfa(solido!, 1)} 50%, transparent 50%), linear-gradient(${solido}, ${solido}), ${XADREZ}` : css }}
         />
-        {valor.tipo === 'solido' ? (
+        {estilo && valor.tipo === 'solido' ? (
+          <>
+            <button type="button" title={`Estilo de cor: ${estilo.name}`} onClick={() => setAberto((v) => !v)} className="h-full min-w-0 flex-1 truncate pl-2 text-left text-[12px] text-texto">{estilo.name}</button>
+            <button type="button" aria-label="Desvincular estilo" title="Desvincular estilo (mantém a cor)" onClick={() => aoMudar({ tipo: 'solido', cor: valor.cor })} className="mr-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px] text-texto2 hover:bg-hover hover:text-texto"><Link2Off className="h-3.5 w-3.5" /></button>
+          </>
+        ) : valor.tipo === 'solido' ? (
           <>
             <CampoHexLinha rotulo={rotulo} cor={vazio ? undefined : valor.cor} placeholder={placeholder} aoLimpar={aoLimpar} aoMudar={(cor) => aoMudar({ tipo: 'solido', cor })} />
             {!vazio && (
@@ -61,7 +72,7 @@ export function LinhaPintura({ rotulo, valor, aoMudar, tipos = ['solido'], acoes
         )}
       </div>
       {acoes}
-      {aberto && <SeletorCor ancora={caixa.current} titulo={rotulo} valor={vazio && valor.tipo === 'solido' ? { tipo: 'solido', cor: '#FFFFFF' } : valor} tipos={tipos} aoMudar={aoMudar} aoFechar={() => setAberto(false)} />}
+      {aberto && <SeletorCor ancora={caixa.current} titulo={rotulo} valor={vazio && valor.tipo === 'solido' ? { tipo: 'solido', cor: '#FFFFFF' } : valor} tipos={tipos} aoMudar={aoMudar} aoFechar={() => setAberto(false)} estiloId={estilo?.id} aoEstilo={aoEstilo} />}
     </div>
   )
 }

@@ -1,7 +1,7 @@
 /** Formas vetoriais. Retângulo e elipse em CSS (borda arredondada, gradiente, padrão); as demais em SVG. */
 import type { CSSProperties } from 'react'
 import type { CamadaForma } from '@/lib/scene/schema'
-import { PADROES, gradienteCss, sombraCss } from '../estilos'
+import { PADROES, gradienteCss, raioCss, sombraCss } from '../estilos'
 
 export function Forma({ camada: c }: { camada: CamadaForma }) {
   const preenchimento = c.gradient ? gradienteCss(c.gradient) : c.fill
@@ -10,7 +10,7 @@ export function Forma({ camada: c }: { camada: CamadaForma }) {
       width: '100%',
       height: '100%',
       background: preenchimento,
-      borderRadius: c.shape === 'ellipse' ? '50%' : c.radius,
+      borderRadius: c.shape === 'ellipse' ? '50%' : raioCss(c),
       border: c.stroke && c.strokeWidth ? `${c.strokeWidth}px ${c.dash ? 'dashed' : 'solid'} ${c.stroke}` : undefined,
       boxShadow: sombraCss(c.effects),
       ...(c.pattern !== 'none' ? PADROES[c.pattern] : {}),

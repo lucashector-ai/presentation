@@ -2,9 +2,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronDown, ChevronLeft, ChevronRight, CloudOff, Crosshair, Eye, Hand, Image as ImageIcon, Keyboard, Loader2, MonitorPlay, MousePointer2, Play, Redo2, Square, Type, Undo2, TriangleAlert, Grid3X3, Magnet, Box } from 'lucide-react'
-import { useEditor, type Ferramenta } from '@/lib/editor/useEditor'
+import { ChevronDown, ChevronLeft, ChevronRight, CloudOff, Eye, Keyboard, Loader2, MonitorPlay, PanelLeft, Play, Redo2, SlidersHorizontal, Undo2, TriangleAlert, Grid3X3, Magnet, Box } from 'lucide-react'
+import { useEditor } from '@/lib/editor/useEditor'
 import { deslocarComGrade } from '@/lib/editor/guias'
+import { atalhoFigma, opacidadePorDigito, type MemoriaDigito } from '@/lib/editor/atalhos'
 import { envolvente } from '@/lib/scene/transform'
 import { importarArquivos, importarConteudo, type Avisar } from '@/lib/editor/importar'
 import { lerDataTransfer, serializarCamadas } from '@/lib/importar/clipboard'
@@ -16,6 +17,9 @@ import { PainelEsquerdo } from './PainelEsquerdo'
 import { Canvas } from './Canvas'
 import { Inspetor } from './inspetor/Inspetor'
 import { MenuContexto } from './MenuContexto'
+import { BarraFerramentas } from './BarraFerramentas'
+import { MenuEditor } from './MenuEditor'
+import { Gaveta } from './Gaveta'
 import { Viewer } from '@/components/viewer/Viewer'
 import { consumirTela, marcarOrigem, pedirTelaCheia, urlApresentar } from '@/components/viewer/retorno'
 import { Compartilhar } from '@/components/compartilhar/Compartilhar'
@@ -23,7 +27,9 @@ import { Botao, BotaoIcone, Modal, Simbolo, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 
 const ATALHOS: [string, string][] = [
-  ['V', 'Mover / selecionar'], ['T', 'Texto'], ['R', 'Forma'], ['H', 'Hotspot'], ['Espaço + arrastar', 'Mão (pan)'],
+  ['V', 'Mover / selecionar'], ['F', 'Frame (arraste para desenhar)'], ['R', 'Retângulo'], ['O', 'Elipse'], ['L', 'Linha'], ['Shift + L', 'Seta'], ['T', 'Texto'], ['S', 'Hotspot (área clicável)'], ['H', 'Mão'], ['Espaço + arrastar', 'Mão temporária (pan)'],
+  ['Alt + A / D', 'Alinhar à esquerda / direita'], ['Alt + W / S', 'Alinhar ao topo / à base'], ['Alt + H / V', 'Centralizar na horizontal / vertical'], ['Shift + H / V', 'Espelhar na horizontal / vertical'],
+  ['1 … 9 / 0', 'Opacidade 10–90% / 100% (dois dígitos: 5 5 = 55%)'], ['Alt + arrastar', 'Duplicar e arrastar a cópia'],
   ['Ctrl/⌘ + roda', 'Zoom no cursor'], ['Shift + 1', 'Ajustar à tela'], ['Ctrl/⌘ + 0', 'Zoom 100%'], ['+ / −', 'Zoom'],
   ['Ctrl/⌘ + C / X / V', 'Copiar, recortar, colar (também do Figma e Illustrator)'], ['Ctrl/⌘ + D', 'Duplicar'], ['Delete', 'Excluir'],
   ['Ctrl/⌘ + G', 'Agrupar'], ['Ctrl/⌘ + Shift + G', 'Desagrupar / desfazer frame'], ['Ctrl/⌘ + Alt + G', 'Envolver em frame'], ['Shift + A', 'Adicionar auto layout'], ['Shift + Alt + A', 'Remover auto layout'],
@@ -50,12 +56,15 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
   const [publicando, setPublicando] = useState(false)
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
   const [menuApresentar, setMenuApresentar] = useState(false)
+  const [gaveta, setGaveta] = useState<'esquerda' | 'direita' | null>(null)
+  const usuario = useDemo((e) => e.usuario)
   const [embed, setEmbed] = useState<{ ponto?: { x: number; y: number } } | null>(null)
   const [interagir3d, setInteragir3d] = useState(false)
   const [escala, setEscala] = useState(1)
   const arquivoRef = useRef<HTMLInputElement>(null)
   const pontoArquivo = useRef<{ x: number; y: number } | undefined>(undefined)
   const sel = estado.selecao
+  const digitoAnterior = useRef<MemoriaDigito | null>(null)
 
   // ---------- pré-visualizar / apresentar (ida e volta) ----------
   // A pré-visualização entra no histórico: Esc, X ou o Voltar do navegador fecham e voltam ao editor na tela
@@ -239,9 +248,20 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
         window.dispatchEvent(new Event('mostra:empurrou'))
         return
       }
-      const ferr: Record<string, Ferramenta> = { v: 'mover', t: 'texto', r: 'forma', h: 'hotspot' }
-      if (ferr[k]) { acoes.setFerramenta(ferr[k]!); return }
-      if (k === 'p') abrirPreview()
+      if (k === 'p' && !e.shiftKey && !e.altKey) { abrirPreview(); return }
+      // atalhos do Figma: ⌥A/D/W/S/H/V alinham, ⇧H/⇧V espelham, 0–9 opacidade, V F R O L ⇧L T S H ferramentas
+      const at = atalhoFigma(e)
+      if (!at) return
+      if (at.tipo === 'ferramenta') { acoes.setFerramenta(at.ferramenta); return }
+      if (!sel.length) return
+      e.preventDefault()
+      if (at.tipo === 'alinhar') acoes.alinhar(sel, at.modo)
+      else if (at.tipo === 'espelhar') acoes.inverter(sel, at.eixo)
+      else {
+        const r = opacidadePorDigito(at.digito, Date.now(), digitoAnterior.current)
+        digitoAnterior.current = r.memoria
+        acoes.atualizarCamadas(sel, { opacity: r.opacidade }, !!r.memoria)
+      }
     }
     window.addEventListener('keydown', tecla)
     return () => window.removeEventListener('keydown', tecla)
@@ -267,38 +287,30 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
   }
   const total = estado.documento.scenes.length
   const naoPublicado = projeto.revisaoPublicada == null || projeto.revisaoPublicada < estado.revisao || estado.salvamento !== 'salvo'
-  const ferramentas: { id: Ferramenta | 'imagem'; rotulo: string; icone: JSX.Element }[] = [
-    { id: 'mover', rotulo: 'Mover (V)', icone: <MousePointer2 className="h-4 w-4" /> },
-    { id: 'texto', rotulo: 'Texto (T)', icone: <Type className="h-4 w-4" /> },
-    { id: 'forma', rotulo: 'Forma (R)', icone: <Square className="h-4 w-4" /> },
-    { id: 'imagem', rotulo: 'Imagem, vídeo, SVG ou 3D', icone: <ImageIcon className="h-4 w-4" /> },
-    { id: 'hotspot', rotulo: 'Hotspot (H)', icone: <Crosshair className="h-4 w-4" /> },
-    { id: 'mao', rotulo: 'Mão (Espaço)', icone: <Hand className="h-4 w-4" /> },
-  ]
 
   return (
     <div className="flex h-dvh flex-col bg-fundo">
       <input ref={arquivoRef} type="file" multiple accept={EXTENSOES_ACEITAS} className="hidden" onChange={(e) => { const fs = Array.from(e.target.files ?? []); e.target.value = ''; if (arquivoRef.current) arquivoRef.current.accept = EXTENSOES_ACEITAS; void importarArquivos(editor, fs, { avisar, ponto: pontoArquivo.current }); pontoArquivo.current = undefined }} />
 
       {/* barra superior */}
-      <header className="flex h-[52px] shrink-0 items-center gap-2 border-b border-borda bg-superficie px-3">
-        <Link href={`/app/projects/${projetoId}`} onClick={() => acoes.salvarAgora()} aria-label="Voltar ao projeto"><Simbolo tamanho={26} /></Link>
-        <span className="text-[#D4D4D4]">/</span>
-        <input aria-label="Nome do projeto" defaultValue={projeto.nome} onBlur={(e) => e.target.value.trim() && e.target.value !== projeto.nome && atualizarProjeto(projetoId, { nome: e.target.value.trim() })} className="h-8 w-44 truncate rounded-md bg-transparent px-1.5 text-[14px] font-medium outline-none hover:bg-hover focus:bg-hover lg:w-64" />
+      <header className="flex h-[52px] shrink-0 items-center gap-1.5 border-b border-borda bg-superficie px-2 sm:gap-2 sm:px-3">
+        <Link href="/app" onClick={() => acoes.salvarAgora()} aria-label="Início" title="Voltar ao Início" className="shrink-0 rounded-md p-0.5 hover:bg-hover"><Simbolo tamanho={26} /></Link>
+        <Link href="/app" onClick={() => acoes.salvarAgora()} className="hidden shrink-0 text-[13px] text-texto2 hover:text-texto lg:inline">Início</Link>
+        <span className="hidden text-[#D4D4D4] sm:inline">/</span>
+        <input aria-label="Nome do projeto" defaultValue={projeto.nome} onBlur={(e) => e.target.value.trim() && e.target.value !== projeto.nome && atualizarProjeto(projetoId, { nome: e.target.value.trim() })} className="h-8 w-0 min-w-0 flex-1 truncate rounded-md bg-transparent px-1.5 text-[14px] font-medium outline-none hover:bg-hover focus:bg-hover md:w-44 md:flex-none lg:w-64" />
         <EstadoSalvo editor={editor} />
-        <span className="flex-1" />
-        <BotaoIcone rotulo="Desfazer (Ctrl+Z)" disabled={!estado.passado.length} onClick={acoes.desfazer}><Undo2 className="h-4 w-4" /></BotaoIcone>
-        <BotaoIcone rotulo="Refazer (Ctrl+Shift+Z)" disabled={!estado.futuro.length} onClick={acoes.refazer}><Redo2 className="h-4 w-4" /></BotaoIcone>
-        <span className="mx-1 h-5 w-px bg-borda" />
-        <div className="hidden items-center gap-0.5 md:flex" role="toolbar" aria-label="Ferramentas">
-          {ferramentas.map((f) => (
-            <BotaoIcone key={f.id} rotulo={f.rotulo} ativo={f.id !== 'imagem' && estado.ferramenta === f.id} onClick={() => (f.id === 'imagem' ? arquivoRef.current?.click() : acoes.setFerramenta(f.id))}>{f.icone}</BotaoIcone>
-          ))}
-        </div>
-        <span className="flex-1" />
-        <span title="Você está editando (colaboração em tempo real chega na Fase 2)" className="hidden h-7 w-7 items-center justify-center rounded-full bg-salvia text-[11px] font-semibold text-musgo lg:flex">MD</span>
-        <Botao tamanho="sm" variante="fantasma" icone={<Eye className="h-4 w-4" />} onClick={abrirPreview}>Pré-visualizar</Botao>
-        <div className="relative hidden md:block">
+        <span className="hidden flex-1 md:block" />
+        <BotaoIcone rotulo="Desfazer (Ctrl+Z)" className="hidden md:inline-flex" disabled={!estado.passado.length} onClick={acoes.desfazer}><Undo2 className="h-4 w-4" /></BotaoIcone>
+        <BotaoIcone rotulo="Refazer (Ctrl+Shift+Z)" className="hidden md:inline-flex" disabled={!estado.futuro.length} onClick={acoes.refazer}><Redo2 className="h-4 w-4" /></BotaoIcone>
+        <span className="mx-1 hidden h-5 w-px bg-borda lg:block" />
+        <BarraFerramentas className="hidden lg:flex" ferramenta={estado.ferramenta} aoFerramenta={acoes.setFerramenta} aoMidia={() => arquivoRef.current?.click()} />
+        <span className="hidden flex-1 md:block" />
+        <span title={`${usuario.nome} — você está editando (colaboração em tempo real chega na Fase 2)`} className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-full bg-salvia text-[11px] font-semibold text-musgo lg:flex">{iniciaisDe(usuario.nome)}</span>
+        <Botao tamanho="sm" variante="fantasma" className="hidden lg:inline-flex" icone={<Eye className="h-4 w-4" />} onClick={abrirPreview}>Pré-visualizar</Botao>
+        <BotaoIcone rotulo="Pré-visualizar (P)" className="hidden md:inline-flex lg:hidden" onClick={abrirPreview}><Eye className="h-4 w-4" /></BotaoIcone>
+        <MenuEditor editor={editor} projetoId={projetoId} nomeProjeto={projeto.nome} aoPreview={abrirPreview} aoApresentar={apresentar} aoAtalhos={() => setAtalhos(true)} />
+        <BotaoIcone rotulo="Apresentar" className="shrink-0 lg:hidden" onClick={() => apresentar({ telaCheia: true })}><Play className="h-4 w-4 fill-current" /></BotaoIcone>
+        <div className="relative hidden lg:block">
           <div className="flex">
             <Botao tamanho="sm" variante="secundario" className="rounded-r-none border-r-0" icone={<Play className="h-3.5 w-3.5 fill-current" />} data-apresentar onClick={() => apresentar({ telaCheia: true })}>Apresentar</Botao>
             <Botao tamanho="sm" variante="secundario" className="rounded-l-none px-1.5" aria-label="Mais opções de apresentação" aria-expanded={menuApresentar} onClick={() => setMenuApresentar((v) => !v)}><ChevronDown className="h-3.5 w-3.5" /></Botao>
@@ -311,21 +323,32 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
             </div>
           )}
         </div>
-        <Botao tamanho="sm" variante="acento" onClick={() => setCompartilhar(true)}>Compartilhar</Botao>
+        <Botao tamanho="sm" variante="acento" className="shrink-0" onClick={() => setCompartilhar(true)}>Compartilhar</Botao>
       </header>
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center md:hidden">
-        <p className="text-sm text-texto2">No celular você pode pré-visualizar e apresentar. Para editar, use um computador ou tablet.</p>
-        <Botao onClick={abrirPreview} icone={<Eye className="h-4 w-4" />}>Pré-visualizar</Botao>
-      </div>
-
-      <div className="hidden min-h-0 flex-1 md:flex">
-        <div className="w-[248px] shrink-0"><PainelEsquerdo editor={editor} assets={assetsLista} avisar={avisar} aoBloco={(id) => inserirBloco(id)} /></div>
+      <div className="relative flex min-h-0 flex-1">
+        <div className="hidden w-[248px] shrink-0 md:block"><PainelEsquerdo editor={editor} assets={assetsLista} avisar={avisar} aoBloco={(id) => inserirBloco(id)} /></div>
         <main className="relative min-w-0 flex-1">
           <Canvas editor={editor} assets={assets} avisar={avisar} interagir3d={interagir3d} aoEscala={setEscala} />
+          {/* celular/tablet: ferramentas e painéis em gavetas */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center px-3 lg:hidden">
+            <div className="pointer-events-auto flex max-w-full items-center gap-0.5 rounded-xl border border-borda bg-superficie p-1 shadow-painel">
+              <BotaoIcone rotulo="Telas e camadas" className="md:hidden" onClick={() => setGaveta('esquerda')}><PanelLeft className="h-4 w-4" /></BotaoIcone>
+              <span className="mx-0.5 h-5 w-px bg-borda md:hidden" />
+              <BarraFerramentas className="flex lg:hidden" menuAcima ferramenta={estado.ferramenta} aoFerramenta={acoes.setFerramenta} aoMidia={() => arquivoRef.current?.click()} />
+              <span className="mx-0.5 h-5 w-px bg-borda" />
+              <BotaoIcone rotulo="Propriedades" ativo={gaveta === 'direita'} onClick={() => setGaveta('direita')}><SlidersHorizontal className="h-4 w-4" /></BotaoIcone>
+            </div>
+          </div>
         </main>
-        <div className="w-[288px] shrink-0"><Inspetor editor={editor} assets={assetsLista} /></div>
+        <div className="hidden w-[288px] shrink-0 lg:block"><Inspetor editor={editor} assets={assetsLista} /></div>
       </div>
+      <Gaveta lado="esquerda" aberta={gaveta === 'esquerda'} aoFechar={() => setGaveta(null)} rotulo="Telas e camadas">
+        <PainelEsquerdo editor={editor} assets={assetsLista} avisar={avisar} aoBloco={(id) => { inserirBloco(id); setGaveta(null) }} />
+      </Gaveta>
+      <Gaveta lado="direita" aberta={gaveta === 'direita'} aoFechar={() => setGaveta(null)} rotulo="Propriedades">
+        <Inspetor editor={editor} assets={assetsLista} />
+      </Gaveta>
 
       {/* barra inferior */}
       <footer className="hidden h-9 shrink-0 items-center gap-1 border-t border-borda bg-superficie px-3 text-[12px] text-texto2 md:flex">
@@ -349,7 +372,7 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
         <button aria-label="Próxima tela" className="rounded p-1 hover:bg-hover disabled:opacity-30" disabled={editor.indiceCena >= total - 1} onClick={() => acoes.irParaCena(estado.documento.scenes[editor.indiceCena + 1]!.id)}><ChevronRight className="h-3.5 w-3.5" /></button>
         <span className="flex-1" />
         {!validacao.ok && <button className="mr-2 flex items-center gap-1 text-perigo hover:underline" onClick={() => { acoes.selecionarExato([]); acoes.ui({ abaDireita: 'design' }) }}><TriangleAlert className="h-3.5 w-3.5" /> {validacao.erros.length} erro(s)</button>}
-        <span className="hidden gap-3 xl:flex"><span><b className="font-medium text-texto">V</b> Mover</span><span><b className="font-medium text-texto">T</b> Texto</span><span><b className="font-medium text-texto">H</b> Hotspot</span><span><b className="font-medium text-texto">⌘V</b> Colar do Figma</span><span><b className="font-medium text-texto">⌘Z</b> Desfazer</span></span>
+        <span className="hidden gap-3 xl:flex"><span><b className="font-medium text-texto">V</b> Mover</span><span><b className="font-medium text-texto">T</b> Texto</span><span><b className="font-medium text-texto">S</b> Hotspot</span><span><b className="font-medium text-texto">H</b> Mão</span><span><b className="font-medium text-texto">⌘V</b> Colar do Figma</span><span><b className="font-medium text-texto">⌘Z</b> Desfazer</span></span>
         <BotaoIcone rotulo="Atalhos de teclado (?)" className="ml-2 h-6 w-6" onClick={() => setAtalhos(true)}><Keyboard className="h-3.5 w-3.5" /></BotaoIcone>
       </footer>
 
@@ -419,4 +442,9 @@ function EstadoSalvo({ editor }: { editor: ReturnType<typeof useEditor> }) {
       {s === 'falha' && <button className="underline" onClick={acoes.salvarAgora}>Tentar novamente</button>}
     </span>
   )
+}
+
+/** "Maria Duarte" → "MD" (avatar do editor). */
+export function iniciaisDe(nome: string): string {
+  return nome.trim().split(/\s+/).filter(Boolean).map((p) => p[0]!).slice(0, 2).join('').toUpperCase() || '?'
 }

@@ -16,7 +16,8 @@ import { ErroDemo, salvarDocumento, obterProjeto, mapaAssets } from '@/lib/demo/
 import type { AssetDemo } from '@/lib/demo/tipos'
 
 export type EstadoSalvamento = 'salvo' | 'alterado' | 'salvando' | 'offline' | 'falha' | 'conflito'
-export type Ferramenta = 'mover' | 'mao' | 'texto' | 'forma' | 'hotspot'
+import type { Ferramenta } from './atalhos'
+export type { Ferramenta } from './atalhos'
 export type AbaEsquerda = 'telas' | 'camadas' | 'arquivos' | 'blocos'
 export type AbaDireita = 'design' | 'animacao' | 'interacoes'
 
@@ -359,6 +360,8 @@ export function useEditor(projetoId: string) {
       moverCena: (de: number, para: number) => aplicar((d) => ({ ...d, scenes: moverCena(d.scenes, de, para) })),
       atualizarCena: (patch: Partial<Cena>, historico = true) => atualizarCenaAtual((c) => ({ ...c, ...patch }), historico),
       atualizarDocumento: (patch: Partial<Pick<DocumentoProjeto, 'theme' | 'mode'>>) => aplicar((d) => ({ ...d, ...patch })),
+      /** Transformação do documento inteiro (ex.: estilos de cor que atualizam camadas de várias telas). */
+      transformarDocumento: (fn: (d: DocumentoProjeto) => DocumentoProjeto, historico = true) => aplicar(fn, historico),
       /** Uma tela por mídia (importação em lote). */
       cenasDeAssets: (assets: AssetDemo[]) =>
         aplicar((d) => {
@@ -401,6 +404,19 @@ export function useEditor(projetoId: string) {
         const copias = clonarCamadas(originais, c.layers, 24)
         atualizarCenaAtual((cc) => ({ ...cc, layers: normalizarZ([...cc.layers, ...copias]) }))
         dispatch({ tipo: 'selecionar', ids: originais.map((l, i) => (raizes.includes(l.id) ? copias[i]!.id : '')).filter(Boolean) })
+      },
+      /**
+       * ⌥+arrastar: insere cópias (sem histórico — o gesto registra um único desfazer ao soltar) no mesmo lugar
+       * e devolve o mapa id original → id da cópia. `ids` deve incluir os descendentes dos frames.
+       */
+      duplicarParaArrastar: (ids: string[]): Map<string, string> | null => {
+        const c = cenaAtualRef()
+        if (!c) return null
+        const originais = c.layers.filter((l) => ids.includes(l.id))
+        if (!originais.length) return null
+        const copias = clonarCamadas(originais, c.layers, 0)
+        atualizarCenaAtual((cc) => ({ ...cc, layers: normalizarZ([...cc.layers, ...copias]) }), false)
+        return new Map(originais.map((l, i) => [l.id, copias[i]!.id]))
       },
       ordem: (id: string, op: 'frente' | 'tras' | 'avancar' | 'recuar') =>
         atualizarCenaAtual((c) => ({ ...c, layers: op === 'frente' ? trazerParaFrente(c.layers, id) : op === 'tras' ? enviarParaTras(c.layers, id) : op === 'avancar' ? avancarUm(c.layers, id) : recuarUm(c.layers, id) })),

@@ -13,6 +13,7 @@ import { LinhaPintura } from './CampoCor'
 import type { Pintura } from './SeletorCor'
 import { IconeEspessura, IconeTracejado } from './icones'
 import { comum, useCamadas, type PropsSecao } from './selecao'
+import { desligarEstilo, gravarCor, ligarEstilo, type PropCor } from '@/lib/editor/estilosCor'
 
 /** Opacidade anterior de cores escondidas pelo olho (para restaurar), e linhas mantidas visíveis na sessão. */
 const alfaAnterior = new Map<string, number>()
@@ -21,10 +22,12 @@ const mantidas = new Set<string>()
 type ComPreenchimento = CamadaForma | CamadaTexto
 const corBase = (c: ComPreenchimento) => (c.type === 'shape' ? c.fill : c.color)
 const pinturaDe = (c: ComPreenchimento): Pintura => (c.gradient ? { tipo: 'gradiente', gradiente: c.gradient } : { tipo: 'solido', cor: corBase(c) })
+const propCor = (c: Camada): PropCor => (c.type === 'shape' ? 'fill' : 'color')
+/** Editar a cor direto solta o estilo ligado (como no Figma); gradiente também. */
 const comPintura = (c: Camada, p: Pintura): Camada => {
   if (c.type !== 'shape' && c.type !== 'text') return c
-  if (p.tipo === 'gradiente') return { ...c, gradient: p.gradiente }
-  if (p.tipo === 'solido') return c.type === 'shape' ? { ...c, fill: p.cor, gradient: undefined } : { ...c, color: p.cor, gradient: undefined }
+  if (p.tipo === 'gradiente') return desligarEstilo({ ...c, gradient: p.gradiente }, propCor(c))
+  if (p.tipo === 'solido') return gravarCor({ ...c, gradient: undefined } as Camada, propCor(c), p.cor)
   return c
 }
 const comCor = (c: Camada, f: (cor: string) => string): Camada => (c.type === 'shape' ? { ...c, fill: f(c.fill) } : c.type === 'text' ? { ...c, color: f(c.color) } : c)
@@ -60,6 +63,8 @@ export function SecaoPreenchimento({ editor }: PropsSecao) {
           valor={pintura}
           tipos={['solido', 'linear', 'radial']}
           aoMudar={(p) => setFn((c) => comPintura(c, p))}
+          estiloId={pintura.tipo === 'solido' ? (comum(camadas, (c) => c.colorStyleIds?.[propCor(c)]) as string | undefined) : undefined}
+          aoEstilo={(e) => setFn((c) => ligarEstilo(c, propCor(c), e))}
           acoes={
             <>
               {pintura.tipo === 'solido' && <BotaoMini rotulo={oculta ? 'Mostrar preenchimento' : 'Ocultar preenchimento'} onClick={alternarOlho}>{oculta ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}</BotaoMini>}
@@ -110,7 +115,9 @@ export function SecaoTraco({ editor }: PropsSecao) {
         <LinhaPintura
           rotulo="Cor do contorno"
           valor={{ tipo: 'solido', cor }}
-          aoMudar={(p) => p.tipo === 'solido' && s(() => ({ stroke: p.cor }))}
+          aoMudar={(p) => p.tipo === 'solido' && setFn((c) => gravarCor(c, 'stroke', p.cor))}
+          estiloId={comum(formas, (c) => c.colorStyleIds?.stroke) as string | undefined}
+          aoEstilo={(e) => setFn((c) => ligarEstilo(c, 'stroke', e))}
           acoes={
             <>
               <BotaoMini rotulo={oculta ? 'Mostrar traço' : 'Ocultar traço'} onClick={() => {

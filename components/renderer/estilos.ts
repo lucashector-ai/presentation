@@ -21,6 +21,12 @@ export function filtroCss(e: Efeitos | undefined, comDropShadow: boolean, extra 
   return partes.length ? partes.join(' ') : undefined
 }
 
+/** border-radius: cantos independentes (`radii`) ou o raio único. */
+export function raioCss(c: { radius?: number; radii?: readonly [number, number, number, number] }): number | string | undefined {
+  if (c.radii) return c.radii.map((r) => `${r}px`).join(' ')
+  return c.radius
+}
+
 export function transformCss(c: Pick<Camada, 'rotation' | 'flipX' | 'flipY'>): string | undefined {
   const p: string[] = []
   if (c.rotation) p.push(`rotate(${c.rotation}deg)`)

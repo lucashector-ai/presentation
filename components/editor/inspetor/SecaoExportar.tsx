@@ -1,7 +1,10 @@
 'use client'
-/** Exportar (recolhida com "+"): copiar CSS da camada, baixar o vetor ou o arquivo original. */
+/** Exportar (recolhida com "+"): PNG/JPG da seleção em 1×–3×, copiar CSS, baixar o vetor ou o arquivo original. */
 import { useState } from 'react'
-import { Clipboard, Download } from 'lucide-react'
+import { Clipboard, Download, Loader2 } from 'lucide-react'
+import { ESCALAS, type FormatoImagem } from '@/lib/exportar/medidas'
+import { useExportar } from '../useExportar'
+import { SeletorLista } from './controles'
 import type { Camada } from '@/lib/scene/schema'
 import { gradienteCss, sombraCss } from '@/components/renderer/estilos'
 import { pilhaFonte } from '@/lib/design-tokens'
@@ -16,7 +19,8 @@ export function cssDaCamada(c: Camada): string {
   const linhas: string[] = [`width: ${Math.round(c.width)}px;`, `height: ${Math.round(c.height)}px;`]
   if (c.rotation) linhas.push(`transform: rotate(${c.rotation}deg);`)
   if (c.opacity < 1) linhas.push(`opacity: ${Math.round(c.opacity * 100) / 100};`)
-  if ('radius' in c && c.radius) linhas.push(`border-radius: ${c.radius}px;`)
+  if ('radii' in c && c.radii) linhas.push(`border-radius: ${c.radii.map((r) => `${r}px`).join(' ')};`)
+  else if ('radius' in c && c.radius) linhas.push(`border-radius: ${c.radius}px;`)
   if (c.type === 'shape') {
     linhas.push(c.gradient ? `background: ${gradienteCss(c.gradient)};` : `background: ${c.fill};`)
     if (c.stroke && c.strokeWidth) linhas.push(`border: ${c.strokeWidth}px ${c.dash ? 'dashed' : 'solid'} ${c.stroke};`)
@@ -57,6 +61,9 @@ export function SecaoExportar({ editor, assets = [] }: PropsSecao) {
   const { mostrar } = useToast()
   const chave = sel.map((c) => c.id).join(',')
   const [, forcar] = useState(0)
+  const [formato, setFormato] = useState<FormatoImagem>('png')
+  const [escala, setEscala] = useState(2)
+  const exp = useExportar(editor)
   const aberta = abertas.has(chave)
   const l = sel[0]
   if (!l) return null
@@ -68,6 +75,13 @@ export function SecaoExportar({ editor, assets = [] }: PropsSecao) {
   return (
     <Secao titulo="Exportar" vazia={!aberta} aoAdicionar={!aberta ? () => abrir(true) : undefined} rotuloAdicionar="Adicionar exportação" aoRemover={aberta ? () => abrir(false) : undefined} rotuloRemover="Fechar exportação">
       <div className="grid grid-cols-2 gap-2">
+        <SeletorLista rotulo="Escala da exportação" valor={String(escala)} aoMudar={(v) => setEscala(Number(v))} opcoes={ESCALAS.map((e) => ({ id: String(e), rotulo: `${e}×` }))} />
+        <SeletorLista rotulo="Formato da exportação" valor={formato} aoMudar={(v) => setFormato(v as FormatoImagem)} opcoes={[{ id: 'png', rotulo: 'PNG' }, { id: 'jpg', rotulo: 'JPG' }]} />
+      </div>
+      <button type="button" disabled={!!exp.ocupado} onClick={() => void exp.exportarSelecao(formato, escala)} className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-superficie2 text-[12px] font-medium hover:bg-hover disabled:opacity-50">
+        {exp.ocupado ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5 text-texto2" />} Exportar {sel.length === 1 ? (l.name || 'camada') : `${sel.length} camadas`}
+      </button>
+      <div className="grid grid-cols-2 gap-2">
         <button type="button" onClick={() => void copiar()} className="flex h-8 items-center justify-center gap-1.5 rounded-md bg-superficie2 text-[12px] hover:bg-hover"><Clipboard className="h-3.5 w-3.5 text-texto2" /> Copiar CSS</button>
         {!sel[1] && l.type === 'svg' && l.markup ? (
           <button type="button" onClick={() => baixar(`${l.name || l.id}.svg`, URL.createObjectURL(new Blob([l.markup ?? ''], { type: 'image/svg+xml' })))} className="flex h-8 items-center justify-center gap-1.5 rounded-md bg-superficie2 text-[12px] hover:bg-hover"><Download className="h-3.5 w-3.5 text-texto2" /> Baixar SVG</button>
@@ -75,7 +89,7 @@ export function SecaoExportar({ editor, assets = [] }: PropsSecao) {
           <button type="button" onClick={() => baixar(asset.nome, asset.url)} className="flex h-8 items-center justify-center gap-1.5 rounded-md bg-superficie2 text-[12px] hover:bg-hover"><Download className="h-3.5 w-3.5 text-texto2" /> Baixar original</button>
         ) : <span />}
       </div>
-      <p className="text-[11px] text-texto3">Exportar PNG, JPG e PDF da camada chega em breve.</p>
+      <p className="text-[11px] text-texto3">A tela inteira e o PDF da apresentação ficam no menu ⋯ da barra superior.</p>
     </Secao>
   )
 }
