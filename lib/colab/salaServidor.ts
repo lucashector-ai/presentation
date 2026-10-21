@@ -4,10 +4,9 @@ import 'server-only'
  * da verdade: a sala carrega o rascunho dele, consolida as edições e grava com a revisão (save_project_scenes).
  */
 import { sql } from '@/lib/db/neon'
-import { SCHEMA_VERSION, type Cena, type DocumentoProjeto, type ModoProjeto } from '@/lib/scene/schema'
+import { SCHEMA_VERSION, assetsDaCamada, type Cena, type DocumentoProjeto, type ModoProjeto } from '@/lib/scene/schema'
 import { parseDocumento } from '@/lib/scene/migrar'
 import { validarDocumento } from '@/lib/scene/validate'
-import { idsDeAssets } from '@/lib/api/projetosServidor'
 import type { Papel } from './protocolo'
 
 const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -55,7 +54,7 @@ export type ResultadoGravacao =
 /** Grava o documento consolidado da sala com a revisão base (mesmas regras do PUT /api/projects/:id/scenes). */
 export async function gravarDocumento(projetoId: string, workspaceId: string, base: number, doc: DocumentoProjeto): Promise<ResultadoGravacao> {
   // ids fora do formato uuid não existem no banco (e quebrariam o cast): a validação acusa "mídia inexistente"
-  const ids = idsDeAssets(doc).filter((id) => RE_UUID.test(id))
+  const ids = [...new Set(doc.scenes.flatMap((c) => [...(c.backgroundAssetId ? [c.backgroundAssetId] : []), ...c.layers.flatMap(assetsDaCamada)]))].filter((id) => RE_UUID.test(id))
   const assets = ids.length ? await sql()`select id from public.assets where workspace_id = ${workspaceId} and deleted_at is null and id = any(${ids}::uuid[])` : []
   const v = validarDocumento(doc, { assetsExistentes: new Set(assets.map((a) => String(a.id))) })
   if (!v.ok || !v.documento) return { ok: false, motivo: 'invalido', mensagem: v.erros[0]?.mensagem ?? 'Documento inválido' }
