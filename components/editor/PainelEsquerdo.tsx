@@ -5,9 +5,7 @@ import { IconeAutoLayout, IconeMascara } from './inspetor/icones'
 import type { Camada } from '@/lib/scene/schema'
 import { mapaDe, paiDe } from '@/lib/scene/arvore'
 import type { Editor, AbaEsquerda } from '@/lib/editor/useEditor'
-import type { AssetDemo } from '@/lib/demo/tipos'
-import type { ProgressoUpload } from '@/lib/demo/store'
-import { excluirAsset, projetosQueUsam } from '@/lib/demo/store'
+import { dados, ehErroDados, mensagemDeErro, type AssetDemo, type ProgressoUpload } from '@/lib/dados'
 import { formatarBytes } from '@/lib/planos'
 import { EXTENSOES_ACEITAS } from '@/lib/importar/arquivos'
 import { importarArquivos, type Avisar } from '@/lib/editor/importar'
@@ -198,7 +196,24 @@ type Filtro = 'tudo' | 'image' | 'svg' | 'model3d' | 'video' | 'lottie'
 function Arquivos({ editor, assets, avisar }: { editor: Editor; assets: AssetDemo[]; avisar: Avisar }) {
   const [filtro, setFiltro] = useState<Filtro>('tudo')
   const [enviando, setEnviando] = useState<Record<string, ProgressoUpload>>({})
-  const [excluindo, setExcluindo] = useState<AssetDemo | null>(null)
+  const [excluindo, setExcluindo] = useState<{ asset: AssetDemo; usos: string[] | null } | null>(null)
+  const [apagando, setApagando] = useState(false)
+  const apagar = async () => {
+    if (!excluindo) return
+    setApagando(true)
+    try {
+      // sem a lista de usos (modo real), o servidor recusa mídia em uso e devolve os projetos: pergunta de novo
+      await dados.excluirAsset(excluindo.asset.id, excluindo.usos != null)
+      setExcluindo(null)
+      avisar('Arquivo excluído.')
+    } catch (e) {
+      const usos = ehErroDados(e, 'entrada_invalida') ? (e.details as { projetos?: string[] } | undefined)?.projetos : undefined
+      if (usos?.length) setExcluindo({ asset: excluindo.asset, usos })
+      else { setExcluindo(null); avisar(mensagemDeErro(e, 'Não foi possível excluir.'), 'erro') }
+    } finally {
+      setApagando(false)
+    }
+  }
   const [arrastando, setArrastando] = useState(false)
   const entrada = useRef<HTMLInputElement>(null)
   const lista = assets.filter((a) => filtro === 'tudo' || a.tipo === filtro || (filtro === 'image' && a.tipo === 'gif'))
@@ -236,7 +251,7 @@ function Arquivos({ editor, assets, avisar }: { editor: Editor; assets: AssetDem
               <span className="mt-1 block truncate text-[11px]">{a.nome}</span>
               <span className="block text-[10px] text-texto3">{{ image: 'Imagem', gif: 'GIF', svg: 'Vetor', model3d: '3D · GLB', video: 'Vídeo', lottie: 'Lottie' }[a.tipo]} · {formatarBytes(a.bytes)}</span>
             </button>
-            <BotaoIcone rotulo={`Excluir ${a.nome}`} className="absolute right-1 top-1 hidden h-6 w-6 bg-superficie/95 group-hover:inline-flex" onClick={() => setExcluindo(a)}><Trash2 className="h-3 w-3" /></BotaoIcone>
+            <BotaoIcone rotulo={`Excluir ${a.nome}`} className="absolute right-1 top-1 hidden h-6 w-6 bg-superficie/95 group-hover:inline-flex" onClick={() => setExcluindo({ asset: a, usos: dados.projetosQueUsam(a.id)?.map((p) => p.nome) ?? null })}><Trash2 className="h-3 w-3" /></BotaoIcone>
           </li>
         ))}
       </ul>
@@ -245,8 +260,8 @@ function Arquivos({ editor, assets, avisar }: { editor: Editor; assets: AssetDem
         <button type="button" onClick={() => editor.acoes.cenasDeAssets(lista.filter((a) => a.tipo === 'image' || a.tipo === 'svg').slice(0, 30))} className="mt-4 h-8 w-full rounded-md border border-borda text-[12px] hover:border-[#D4D4D4]">Uma tela por imagem ({lista.filter((a) => a.tipo === 'image' || a.tipo === 'svg').length})</button>
       )}
       {excluindo && (
-        <Modal aberto aoFechar={() => setExcluindo(null)} titulo="Excluir arquivo?" largura="sm" descricao={excluindo.nome} rodape={<><Botao variante="secundario" onClick={() => setExcluindo(null)}>Cancelar</Botao><Botao variante="perigo" onClick={() => { excluirAsset(excluindo.id, true); setExcluindo(null); avisar('Arquivo excluído.') }}>Excluir mesmo assim</Botao></>}>
-          {(() => { const uso = projetosQueUsam(excluindo.id); return uso.length ? <p className="text-sm text-perigo">Usado em: {uso.map((p) => p.nome).join(', ')}. As telas mostrarão “mídia indisponível”.</p> : <p className="text-sm text-texto2">Nenhum projeto usa este arquivo.</p> })()}
+        <Modal aberto aoFechar={() => setExcluindo(null)} titulo="Excluir arquivo?" largura="sm" descricao={excluindo.asset.nome} rodape={<><Botao variante="secundario" onClick={() => setExcluindo(null)}>Cancelar</Botao><Botao variante="perigo" carregando={apagando} onClick={() => void apagar()}>{excluindo.usos == null || excluindo.usos.length ? 'Excluir mesmo assim' : 'Excluir'}</Botao></>}>
+          {excluindo.usos == null ? <p className="text-sm text-texto2">Se algum projeto usar este arquivo, avisamos antes de excluir.</p> : excluindo.usos.length ? <p className="text-sm text-perigo">Usado em: {excluindo.usos.join(', ')}. As telas mostrarão “mídia indisponível”.</p> : <p className="text-sm text-texto2">Nenhum projeto usa este arquivo.</p>}
         </Modal>
       )}
     </div>

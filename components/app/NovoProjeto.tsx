@@ -3,13 +3,12 @@ import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Plus, Upload, X } from 'lucide-react'
-import { criarProjeto, enviarArquivo, ErroDemo } from '@/lib/demo/store'
+import { dados, ehErroDados, mensagemDeErro, type AssetDemo } from '@/lib/dados'
 import { TEMPLATES, montarDocumento } from '@/lib/ia/roteiro'
 import { EXTENSOES_ACEITAS } from '@/lib/importar/arquivos'
 import { sanitizarSvgNavegador } from '@/lib/editor/importar'
 import { FORMATOS, novaCena, parseCamada, SCHEMA_VERSION, type ModoProjeto } from '@/lib/scene/schema'
 import { enquadrarNaCena } from '@/lib/scene/transform'
-import type { AssetDemo } from '@/lib/demo/tipos'
 import { CapaProjeto } from './CapaProjeto'
 import { cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
@@ -72,7 +71,7 @@ export function NovoProjeto() {
       if (arquivos.length) {
         const prontos: AssetDemo[] = []
         for (const f of arquivos) {
-          try { prontos.push(await enviarArquivo(f, () => undefined, { sanitizarSvg: sanitizarSvgNavegador })) } catch (e) { mostrar(e instanceof Error ? e.message : `Não foi possível importar ${f.name}`, 'erro') }
+          try { prontos.push(await dados.enviarArquivo(f, () => undefined, { sanitizarSvg: sanitizarSvgNavegador })) } catch (e) { mostrar(mensagemDeErro(e, `Não foi possível importar ${f.name}`), 'erro') }
         }
         const size = modo === 'story' ? FORMATOS.story : FORMATOS.slides169
         const telas = prontos.map((a, i) => {
@@ -82,11 +81,11 @@ export function NovoProjeto() {
         })
         if (telas.length) documento = { schemaVersion: SCHEMA_VERSION, mode: modo, scenes: documento ? [...documento.scenes, ...telas] : telas }
       }
-      const p = criarProjeto({ nome, modo, cliente, descricao, documento })
+      const p = await dados.criarProjeto({ nome, modo, cliente, descricao, documento })
       router.push(`/app/projects/${p.id}/edit`)
     } catch (e) {
-      setErro(e instanceof ErroDemo ? e.message : 'Não foi possível criar o projeto.')
-      if (e instanceof ErroDemo && e.code === 'limite_do_plano') mostrar(e.message, 'erro', { rotulo: 'Ver planos', aoClicar: () => router.push('/app/settings#plano') })
+      setErro(mensagemDeErro(e, 'Não foi possível criar o projeto.'))
+      if (ehErroDados(e, 'limite_do_plano')) mostrar(e.message, 'erro', { rotulo: 'Ver planos', aoClicar: () => router.push('/app/settings#plano') })
       setCriando(false)
     }
   }

@@ -43,6 +43,12 @@ export interface Projeto {
   revisaoAtual: number
   revisaoPublicada: number | null
   documento: DocumentoProjeto
+  /**
+   * Modo real (lib/dados): a listagem traz só a primeira tela (capa). `documentoParcial` marca esse caso e
+   * `totalTelas` guarda a contagem real; as telas que precisam do documento inteiro o pedem a `dados.abrirProjeto`.
+   */
+  documentoParcial?: boolean
+  totalTelas?: number
   criadoEm: string
   atualizadoEm: string
   excluidoEm: string | null

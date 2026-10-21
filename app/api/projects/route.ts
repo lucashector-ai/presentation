@@ -3,12 +3,12 @@ import { auditar, autenticar, lerJson, lerQuery, responder, rota, ErroHttp, urls
 import { planoEUso } from '@/lib/api/planoServidor'
 import { gerarSlug, resumo, type LinhaProjeto } from '@/lib/api/projetosServidor'
 import { podeCriarProjeto } from '@/lib/planos'
-import { FORMATOS } from '@/lib/scene/schema'
+import { FORMATOS, type Cena } from '@/lib/scene/schema'
 import { sql } from '@/lib/db/neon'
 
 export const dynamic = 'force-dynamic'
 
-/** GET /api/projects — lista só projetos do workspace; busca e paginação por offset. */
+/** GET /api/projects — lista só projetos do workspace (com a primeira tela, para a capa); busca e paginação por offset; ?status=trash lista a lixeira. */
 export const GET = rota(async (req, _ctx, requestId) => {
   const ctx = await autenticar(req, requestId)
   const q = lerQuery(req, ListarProjetosQuery)
@@ -20,12 +20,13 @@ export const GET = rota(async (req, _ctx, requestId) => {
            count(*) over () as total,
            (select count(*) from public.project_scenes s where s.project_id = p.id) as scene_count,
            (select count(*) from public.share_links l where l.project_id = p.id and l.revoked_at is null and (l.expires_at is null or l.expires_at > now())) as active_links,
+           (select s.content_json from public.project_scenes s where s.project_id = p.id order by s.order_index limit 1) as cover_scene,
            a.metadata_json as cover_metadata
     from public.projects p
     left join public.assets a on a.id = p.cover_asset_id and a.workspace_id = p.workspace_id and a.deleted_at is null and a.status = 'ready'
     where p.workspace_id = ${ctx.workspaceId}
-      and p.deleted_at is null
-      and (case when ${q.status}::text = 'all' then p.status <> 'archived' else p.status::text = ${q.status}::text end)
+      and (case when ${q.status}::text = 'trash' then p.deleted_at is not null else p.deleted_at is null end)
+      and (case when ${q.status}::text = 'all' then p.status <> 'archived' when ${q.status}::text = 'trash' then true else p.status::text = ${q.status}::text end)
       and (${busca}::text is null or p.name ilike ${busca}::text)
     order by p.updated_at desc
     limit ${q.limit} offset ${offset}`
@@ -34,7 +35,7 @@ export const GET = rota(async (req, _ctx, requestId) => {
   const lista = linhas.map((l) => {
     const p = l as unknown as LinhaProjeto
     const capa = p.cover_asset_id ? capas[p.cover_asset_id] : undefined
-    return resumo(p, { sceneCount: Number(l.scene_count), activeLinks: Number(l.active_links), coverUrl: capa ? capa.thumbUrl ?? capa.url : null })
+    return resumo(p, { sceneCount: Number(l.scene_count), activeLinks: Number(l.active_links), coverUrl: capa ? capa.thumbUrl ?? capa.url : null, coverScene: (l.cover_scene as Cena | null) ?? null })
   })
   const proximo = offset + q.limit < total ? String(offset + q.limit) : null
   return responder({ items: lista, nextCursor: proximo, total: linhas.length ? total : 0 }, requestId)

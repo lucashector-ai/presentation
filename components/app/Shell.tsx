@@ -3,11 +3,11 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { Home, Library, LogOut, Menu, Moon, Search, Send, Settings2, Sparkles, Trash2, X } from 'lucide-react'
-import { alternarTema, MODO_DEMO, sair, sessaoAtiva, verificarSessao } from '@/lib/sessao'
-import { useDemo } from '@/lib/demo/useDemo'
+import { alternarTema, MODO_DEMO, sessaoAtiva, verificarSessao } from '@/lib/sessao'
+import { dados, mensagemDeErro, useCarregar, useDados } from '@/lib/dados'
 import { PLANOS, formatarBytes, percentualUso, textoApresentacoes } from '@/lib/planos'
 import { estadoDoLink } from '@/lib/share/token'
-import { Marca, cx } from '@/components/ui'
+import { Atrasado, Carregando, Marca, cx } from '@/components/ui'
 import { CreditosProvider, useCreditos } from './Creditos'
 import { BuscaRapida } from './BuscaRapida'
 
@@ -18,6 +18,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const caminho = usePathname()
   const [pronto, setPronto] = useState(false)
+  const [falha, setFalha] = useState<string | null>(null)
+  const [tentativa, setTentativa] = useState(0)
 
   useEffect(() => {
     // guarda o destino (ex.: um projeto ou /app/criar?prompt=…) para voltar depois de entrar
@@ -26,13 +28,34 @@ export function Shell({ children }: { children: React.ReactNode }) {
       if (sessaoAtiva()) return setPronto(true)
       return negar()
     }
-    // modo real: sessão do Neon Auth (também conclui o retorno do login com Google, que chega com ?neon_auth_session_verifier)
+    // modo real: sessão do Neon Auth (também conclui o retorno do login com Google, que chega com ?neon_auth_session_verifier);
+    // depois carrega a conta (nome, plano, créditos) antes de mostrar o app
     let vivo = true
-    verificarSessao().then((ok) => { if (vivo) (ok ? setPronto(true) : negar()) })
+    setFalha(null)
+    verificarSessao()
+      .then(async (ok) => {
+        if (!vivo) return
+        if (!ok) return negar()
+        await dados.iniciarSessao()
+        if (vivo) setPronto(true)
+      })
+      .catch((e) => { if (vivo) setFalha(mensagemDeErro(e, 'Não foi possível abrir sua conta agora.')) })
     return () => { vivo = false }
-  }, [router])
+  }, [router, tentativa])
 
-  if (!pronto) return <div className={cx('min-h-dvh', /\/apresentar$|\/apresentador$/.test(caminho) ? 'bg-[#111]' : 'bg-fundo')} />
+  if (falha) {
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-fundo p-6 text-center" role="alert">
+        <Marca />
+        <p className="max-w-sm text-[15px] text-texto2">{falha}</p>
+        <button type="button" onClick={() => setTentativa((n) => n + 1)} className="rounded-[9px] bg-grafite px-4 py-2.5 text-[14px] font-medium text-fundo">Tentar de novo</button>
+      </div>
+    )
+  }
+  if (!pronto) {
+    const escuro = /\/apresentar$|\/apresentador$/.test(caminho)
+    return <div className={cx('flex min-h-dvh items-center justify-center', escuro ? 'bg-[#111] text-white/60' : 'bg-fundo')} aria-busy="true">{!MODO_DEMO && <Atrasado ms={600}><Carregando texto="Abrindo sua conta…" /></Atrasado>}</div>
+  }
   return <CreditosProvider>{SEM_CHROME.test(caminho) ? children : <Moldura caminho={caminho}>{children}</Moldura>}</CreditosProvider>
 }
 
@@ -42,13 +65,15 @@ function Moldura({ caminho, children }: { caminho: string; children: React.React
   const [menuUsuario, setMenuUsuario] = useState(false)
   const [busca, setBusca] = useState(false)
   const { abrirCompra } = useCreditos()
-  const usuario = useDemo((e) => e.usuario)
-  const ws = useDemo((e) => e.workspace)
-  const saldo = useDemo((e) => e.creditos.saldo)
-  const contagem = useDemo((e) => {
+  const usuario = useDados((e) => e.usuario)
+  const ws = useDados((e) => e.workspace)
+  const saldo = useDados((e) => e.creditos.saldo)
+  // contagens da barra lateral (no modo real chegam em segundo plano; o cache serve às outras telas)
+  useCarregar(['projetos', 'links', 'lixeira'])
+  const contagem = useDados((e) => {
     const vivos = e.projetos.filter((p) => !p.excluidoEm)
     const comLink = new Set(e.links.filter((l) => estadoDoLink({ expiresAt: l.expiraEm, revokedAt: l.revogadoEm }) === 'ativo').map((l) => l.projectId))
-    return { enviados: vivos.filter((p) => comLink.has(p.id)).length, lixeira: e.projetos.length - vivos.length, armazenamento: e.assets.reduce((s, a) => s + a.bytes, 0) }
+    return { enviados: vivos.filter((p) => comLink.has(p.id)).length, lixeira: e.projetos.length - vivos.length, armazenamento: e.uso.armazenamentoBytes }
   })
   const fecharBusca = useCallback(() => setBusca(false), [])
 
@@ -68,13 +93,14 @@ function Moldura({ caminho, children }: { caminho: string; children: React.React
     { href: '/app/lixeira', rotulo: 'Lixeira', icone: Trash2, contagem: contagem.lixeira || undefined, ativo: caminho === '/app/lixeira' },
     { href: '/app/settings', rotulo: 'Plano e conta', icone: Settings2, ativo: caminho === '/app/settings' },
   ]
-  const iniciais = usuario.nome.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()
+  const nomeExibido = usuario.nome.trim() || usuario.email.split('@')[0] || 'Você'
+  const iniciais = nomeExibido.split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase()
 
   const lateral = (
     <aside className="flex h-full flex-col gap-5 px-3 py-[18px]">
       <Link href="/app" className="px-2 text-[20px] text-texto" aria-label="Mostra — início"><Marca /></Link>
       <Link href="/app/settings#plano" className="flex items-center gap-2.5 rounded-[9px] border border-borda bg-superficie p-2 text-left hover:border-[#D4D4D4]">
-        <span className="flex h-7 w-7 items-center justify-center rounded-[7px] bg-carvao text-[12px] font-semibold text-argila">{ws.nome[0]}</span>
+        <span className="flex h-7 w-7 items-center justify-center rounded-[7px] bg-carvao text-[12px] font-semibold text-argila">{ws.nome[0] ?? 'M'}</span>
         <span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-medium">{ws.nome}</span><span className="block text-[11px] text-texto3">Plano {plano.nome} · {ws.membros} {ws.membros === 1 ? 'membro' : 'membros'}</span></span>
       </Link>
       <button type="button" onClick={() => { setMenuMovel(false); setBusca(true) }} className="flex h-9 items-center gap-2 rounded-[9px] border border-borda bg-superficie px-2.5 text-[13px] text-texto3 hover:border-[#D4D4D4] hover:text-texto2">
@@ -106,14 +132,14 @@ function Moldura({ caminho, children }: { caminho: string; children: React.React
         <div className="relative border-t border-borda pt-3.5">
           <button type="button" aria-label="Menu do usuário" aria-expanded={menuUsuario} onClick={() => setMenuUsuario((v) => !v)} className="flex w-full items-center gap-2.5 rounded-[7px] px-2.5 py-1.5 text-left hover:bg-hover">
             <span className="flex h-[26px] w-[26px] items-center justify-center rounded-full bg-salvia text-[11px] font-semibold text-musgo">{iniciais}</span>
-            <span className="truncate text-[13px]">{usuario.nome}</span>
+            <span className="truncate text-[13px]">{nomeExibido}</span>
           </button>
           {menuUsuario && (
             <div role="menu" className="absolute bottom-12 left-0 right-0 rounded-lg border border-borda bg-superficie p-1 shadow-painel" onMouseLeave={() => setMenuUsuario(false)}>
               <div className="truncate px-3 py-2 text-[12px] text-texto2">{usuario.email}</div>
               <button role="menuitem" onClick={() => router.push('/app/settings')} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-[13px] hover:bg-hover"><Settings2 className="h-4 w-4" /> Plano e conta</button>
               <button role="menuitem" onClick={() => alternarTema()} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-[13px] hover:bg-hover"><Moon className="h-4 w-4" /> Alternar tema</button>
-              <button role="menuitem" onClick={async () => { await sair(); router.push('/login') }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-[13px] hover:bg-hover"><LogOut className="h-4 w-4" /> Sair</button>
+              <button role="menuitem" onClick={async () => { await dados.sair(); router.push('/login') }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-[13px] hover:bg-hover"><LogOut className="h-4 w-4" /> Sair</button>
             </div>
           )}
         </div>

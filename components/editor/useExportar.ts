@@ -4,13 +4,13 @@ import { useCallback, useMemo, useState } from 'react'
 import type { Editor } from '@/lib/editor/useEditor'
 import type { AssetsResolvidos } from '@/components/renderer/SceneRenderer'
 import { cenaDaSelecao, nomeArquivo, type FormatoImagem } from '@/lib/exportar/medidas'
-import { useDemo } from '@/lib/demo/useDemo'
+import { useDados } from '@/lib/dados'
 import { useToast } from '@/components/ui/toast'
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
 export function useExportar(editor: Editor, nomeProjeto?: string) {
-  const lista = useDemo((e) => e.assets)
+  const lista = useDados((e) => e.assets)
   const assets: AssetsResolvidos = useMemo(() => Object.fromEntries(lista.map((a) => [a.id, { url: a.url, thumbUrl: a.thumbUrl, posterUrl: a.posterUrl }])), [lista])
   const { mostrar } = useToast()
   const [ocupado, setOcupado] = useState<string | null>(null)

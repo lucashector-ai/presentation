@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronDown, ChevronLeft, ChevronRight, CloudOff, Eye, Keyboard, Loader2, MonitorPlay, PanelLeft, Play, Redo2, SlidersHorizontal, Undo2, TriangleAlert, Grid3X3, Magnet, Box, Columns3, Ratio } from 'lucide-react'
-import { useEditor } from '@/lib/editor/useEditor'
+import { useEditor, type AberturaEditor } from '@/lib/editor/useEditor'
 import { deslocarComGrade } from '@/lib/editor/guias'
 import { atalhoFigma, opacidadePorDigito, type MemoriaDigito } from '@/lib/editor/atalhos'
 import { envolvente } from '@/lib/scene/transform'
@@ -12,8 +12,7 @@ import { moverNoFluxo, passoDaSeta } from '@/lib/editor/autolayout'
 import { importarArquivos, importarConteudo, type Avisar } from '@/lib/editor/importar'
 import { lerDataTransfer, serializarCamadas } from '@/lib/importar/clipboard'
 import { EXTENSOES_ACEITAS } from '@/lib/importar/arquivos'
-import { atualizarProjeto, ErroDemo, publicar } from '@/lib/demo/store'
-import { useDemo } from '@/lib/demo/useDemo'
+import { dados, mensagemDeErro, useCarregar, useDados } from '@/lib/dados'
 import { useFontesDoDocumento } from '@/components/renderer/fontes'
 import { PainelEsquerdo } from './PainelEsquerdo'
 import { Canvas } from './Canvas'
@@ -28,7 +27,7 @@ import { atalhoPreencher } from '@/lib/editor/preencher'
 import { Viewer } from '@/components/viewer/Viewer'
 import { consumirTela, marcarOrigem, pedirTelaCheia, urlApresentar } from '@/components/viewer/retorno'
 import { Compartilhar } from '@/components/compartilhar/Compartilhar'
-import { Botao, BotaoIcone, Modal, Simbolo, cx } from '@/components/ui'
+import { Atrasado, Botao, BotaoIcone, Carregando, Modal, Simbolo, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 
 const ATALHOS: [string, string][] = [
@@ -46,12 +45,43 @@ const ATALHOS: [string, string][] = [
   ["Shift + '", 'Grade (encaixe na grade)'], ['T + clique', 'Texto com largura automática (arraste = largura fixa)'], ['← →', 'Telas (sem seleção)'], ['Ctrl/⌘ + Enter', 'Pré-visualizar'], ['?', 'Esta lista'],
 ]
 
+/**
+ * Abre o projeto pela camada de dados (no modo real, GET /api/projects/:id com a revisão atual) e só então monta o
+ * editor; mídias e conta carregam em paralelo. Estados: abrindo, não encontrado e erro (com tentar de novo).
+ */
 export function EditorShell({ projetoId }: { projetoId: string }) {
-  const editor = useEditor(projetoId)
+  const [abertura, setAbertura] = useState<{ id: string; estado: 'abrindo' } | { id: string; estado: 'pronto'; inicial: AberturaEditor } | { id: string; estado: 'ausente' } | { id: string; estado: 'erro'; mensagem: string }>({ id: projetoId, estado: 'abrindo' })
+  const [tentativa, setTentativa] = useState(0)
+  useCarregar(['assets', 'conta'])
+  useEffect(() => {
+    let vivo = true
+    setAbertura({ id: projetoId, estado: 'abrindo' })
+    dados.abrirProjeto(projetoId, { forcar: true }).then(
+      (p) => { if (vivo) setAbertura(p ? { id: projetoId, estado: 'pronto', inicial: { documento: p.documento, revisao: p.revisaoAtual } } : { id: projetoId, estado: 'ausente' }) },
+      (e) => { if (vivo) setAbertura({ id: projetoId, estado: 'erro', mensagem: mensagemDeErro(e, 'Não foi possível abrir o projeto.') }) }
+    )
+    return () => { vivo = false }
+  }, [projetoId, tentativa])
+
+  if (abertura.id !== projetoId || abertura.estado === 'abrindo') return <div className="flex h-dvh items-center justify-center bg-fundo" aria-busy="true"><Atrasado><Carregando texto="Abrindo o editor…" /></Atrasado></div>
+  if (abertura.estado === 'ausente') return <div className="flex h-dvh items-center justify-center p-6 text-center text-sm text-texto2">Projeto não encontrado. <Link className="ml-1 underline" href="/app">Voltar ao painel</Link></div>
+  if (abertura.estado === 'erro') {
+    return (
+      <div className="flex h-dvh flex-col items-center justify-center gap-3 bg-fundo p-6 text-center text-sm text-texto2" role="alert">
+        <p className="max-w-sm">{abertura.mensagem}</p>
+        <div className="flex gap-2"><Botao variante="secundario" onClick={() => setTentativa((n) => n + 1)}>Tentar de novo</Botao><Link href="/app" className="inline-flex h-10 items-center rounded-lg px-4 underline">Voltar ao painel</Link></div>
+      </div>
+    )
+  }
+  return <Editor key={projetoId} projetoId={projetoId} inicial={abertura.inicial} />
+}
+
+function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEditor }) {
+  const editor = useEditor(projetoId, inicial)
   const { estado, cena, acoes, validacao, camadasSelecionadas } = editor
   useFontesDoDocumento(estado.documento)
-  const projeto = useDemo((e) => e.projetos.find((p) => p.id === projetoId))
-  const assetsLista = useDemo((e) => e.assets)
+  const projeto = useDados((e) => e.projetos.find((p) => p.id === projetoId))
+  const assetsLista = useDados((e) => e.assets)
   const assets = useMemo(() => Object.fromEntries(assetsLista.map((a) => [a.id, a])), [assetsLista])
   const router = useRouter()
   const { mostrar } = useToast()
@@ -65,7 +95,7 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
   const fecharPreencher = useCallback(() => setPreencher(null), [])
   const [menuApresentar, setMenuApresentar] = useState(false)
   const [gaveta, setGaveta] = useState<'esquerda' | 'direita' | null>(null)
-  const usuario = useDemo((e) => e.usuario)
+  const usuario = useDados((e) => e.usuario)
   const [embed, setEmbed] = useState<{ ponto?: { x: number; y: number } } | null>(null)
   const [interagir3d, setInteragir3d] = useState(false)
   const [escala, setEscala] = useState(1)
@@ -207,7 +237,11 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
       if (mod && (k === 'z' || k === 'y') && preview) return // na pré-visualização não mexe no documento
       if (mod && k === 'z') { if (digitando) return; e.preventDefault(); if (e.shiftKey) acoes.refazer(); else acoes.desfazer(); return }
       if (mod && k === 'y') { if (digitando) return; e.preventDefault(); acoes.refazer(); return }
-      if (mod && k === 's') { e.preventDefault(); acoes.salvarAgora(); mostrar('Todas as alterações foram salvas.', 'sucesso'); return }
+      if (mod && k === 's') {
+        e.preventDefault()
+        void acoes.salvarAgora().then((ok) => mostrar(ok ? 'Todas as alterações foram salvas.' : typeof navigator !== 'undefined' && !navigator.onLine ? 'Sem conexão: salvaremos assim que voltar.' : 'Não foi possível salvar agora. Veja o aviso no topo.', ok ? 'sucesso' : 'erro'))
+        return
+      }
       if (digitando || preview) return
       // ⌃⌥ + tecla: preencher metade/terço/quarto (como o Rectangle no macOS)
       const pre = sel.length ? atalhoPreencher(e) : null
@@ -306,18 +340,22 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
   }
 
   const publicarAgora = async () => {
-    acoes.salvarAgora()
     if (!validacao.ok) { mostrar(`Corrija ${validacao.erros.length} erro(s) antes de publicar. Veja “Verificação” no painel da tela.`, 'erro'); acoes.selecionarExato([]); acoes.ui({ abaDireita: 'design' }); return }
+    if (estado.salvamento === 'conflito') { mostrar('Há uma versão mais recente deste projeto. Recarregue ou mantenha a sua antes de publicar.', 'erro'); return }
     setPublicando(true)
     try {
-      await new Promise((r) => setTimeout(r, 250))
-      const r = publicar(projetoId, editor.estado.revisao)
+      // publica exatamente o que está na tela: grava antes (fila do autosave) e usa a revisão devolvida
+      if (!(await acoes.salvarAgora())) { mostrar('Não foi possível salvar as últimas mudanças, então nada foi publicado. Veja o aviso no topo.', 'erro'); return }
+      const r = await dados.publicar(projetoId, acoes.revisaoAtual())
       mostrar(`Revisão ${r.publishedRevision} publicada. Quem tem o link já vê a versão nova.`, 'sucesso')
     } catch (e) {
-      mostrar(e instanceof ErroDemo ? e.message : 'Não foi possível publicar.', 'erro')
+      mostrar(mensagemDeErro(e, 'Não foi possível publicar.'), 'erro')
     } finally {
       setPublicando(false)
     }
+  }
+  const renomear = (nome: string) => {
+    void dados.atualizarProjeto(projetoId, { nome }).catch((e) => mostrar(mensagemDeErro(e, 'Não foi possível renomear o projeto.'), 'erro'))
   }
   const total = estado.documento.scenes.length
   const naoPublicado = projeto.revisaoPublicada == null || projeto.revisaoPublicada < estado.revisao || estado.salvamento !== 'salvo'
@@ -331,7 +369,7 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
         <Link href="/app" onClick={() => acoes.salvarAgora()} aria-label="Início" title="Voltar ao Início" className="shrink-0 rounded-md p-0.5 hover:bg-hover"><Simbolo tamanho={26} /></Link>
         <Link href="/app" onClick={() => acoes.salvarAgora()} className="hidden shrink-0 text-[13px] text-texto2 hover:text-texto lg:inline">Início</Link>
         <span className="hidden text-[#D4D4D4] sm:inline">/</span>
-        <input aria-label="Nome do projeto" defaultValue={projeto.nome} onBlur={(e) => e.target.value.trim() && e.target.value !== projeto.nome && atualizarProjeto(projetoId, { nome: e.target.value.trim() })} className="h-8 w-0 min-w-0 flex-1 truncate rounded-md bg-transparent px-1.5 text-[14px] font-medium outline-none hover:bg-hover focus:bg-hover md:w-44 md:flex-none lg:w-64" />
+        <input aria-label="Nome do projeto" defaultValue={projeto.nome} onBlur={(e) => { if (e.target.value.trim() && e.target.value !== projeto.nome) renomear(e.target.value.trim()) }} className="h-8 w-0 min-w-0 flex-1 truncate rounded-md bg-transparent px-1.5 text-[14px] font-medium outline-none hover:bg-hover focus:bg-hover md:w-44 md:flex-none lg:w-64" />
         <EstadoSalvo editor={editor} />
         <span className="hidden flex-1 md:block" />
         <BotaoIcone rotulo="Desfazer (Ctrl+Z)" className="hidden md:inline-flex" disabled={!estado.passado.length} onClick={acoes.desfazer}><Undo2 className="h-4 w-4" /></BotaoIcone>
@@ -360,6 +398,7 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
         </div>
         <Botao tamanho="sm" variante="acento" className="shrink-0" onClick={() => setCompartilhar(true)}>Compartilhar</Botao>
       </header>
+      {estado.salvamento === 'conflito' && <AvisoConflito editor={editor} />}
 
       <div className="relative flex min-h-0 flex-1">
         <div className="hidden w-[248px] shrink-0 md:block"><PainelEsquerdo editor={editor} assets={assetsLista} avisar={avisar} aoBloco={(id) => inserirBloco(id)} /></div>
@@ -458,10 +497,8 @@ function EstadoSalvo({ editor }: { editor: ReturnType<typeof useEditor> }) {
   const s = estado.salvamento
   if (s === 'conflito')
     return (
-      <span className="ml-2 flex items-center gap-2 rounded-md bg-aviso/25 px-2 py-1 text-[12px] text-[#7a5a12]" role="alert">
-        Há uma versão mais recente. Suas mudanças continuam seguras nesta sessão.
-        <button className="underline" onClick={acoes.recarregarDoServidor}>Recarregar</button>
-        <button className="underline" onClick={acoes.manterMinhaVersao}>Manter a minha</button>
+      <span className="ml-2 hidden items-center gap-1.5 text-[12px] text-[#7a5a12] sm:flex" role="status" aria-live="polite">
+        <TriangleAlert className="h-3 w-3" /> Não salvo: versão mais recente
       </span>
     )
   const mapa = {
@@ -479,6 +516,37 @@ function EstadoSalvo({ editor }: { editor: ReturnType<typeof useEditor> }) {
       <span className="sr-only">{s === 'salvo' ? 'Todas as alterações foram salvas.' : ''}</span>
       {s === 'falha' && <button className="underline" onClick={acoes.salvarAgora}>Tentar novamente</button>}
     </span>
+  )
+}
+
+/** 409: alguém salvou este projeto em outra aba/dispositivo. Nada se perde até a pessoa escolher. */
+function AvisoConflito({ editor }: { editor: ReturnType<typeof useEditor> }) {
+  const { estado, acoes } = editor
+  const { mostrar } = useToast()
+  const [recarregando, setRecarregando] = useState(false)
+  const recarregar = async () => {
+    setRecarregando(true)
+    try {
+      if (await acoes.recarregarDoServidor()) mostrar('Versão mais recente aberta.', 'sucesso')
+      else mostrar('Este projeto não existe mais (pode ter ido para a lixeira).', 'erro')
+    } catch (e) {
+      mostrar(mensagemDeErro(e, 'Não foi possível recarregar agora. Tente de novo.'), 'erro')
+    } finally {
+      setRecarregando(false)
+    }
+  }
+  return (
+    <div role="alert" className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-aviso/40 bg-aviso/15 px-4 py-2 text-[13px] text-texto">
+      <TriangleAlert className="h-4 w-4 shrink-0 text-[#B7791F]" />
+      <span className="min-w-0 flex-1">
+        <strong className="font-medium">Este projeto mudou em outra aba ou dispositivo.</strong>{' '}
+        <span className="text-texto2">Suas mudanças desta sessão não foram salvas, mas continuam aqui{estado.conflito ? ` (o servidor está na revisão ${estado.conflito.currentRevision})` : ''}. Recarregue para ver a versão mais recente ou mantenha a sua por cima dela.</span>
+      </span>
+      <span className="flex shrink-0 gap-2">
+        <Botao tamanho="sm" carregando={recarregando} onClick={() => void recarregar()}>Recarregar</Botao>
+        <Botao tamanho="sm" variante="secundario" onClick={acoes.manterMinhaVersao}>Manter a minha</Botao>
+      </span>
+    </div>
   )
 }
 

@@ -2,11 +2,10 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { ArrowRight, Check, Copy, Link2, Lock, ShieldOff } from 'lucide-react'
-import { criarLink, ErroDemo, listarLinks, obterProjeto, revogarLink } from '@/lib/demo/store'
-import { useDemo } from '@/lib/demo/useDemo'
+import { dados, mensagemDeErro, useCarregar, useDados } from '@/lib/dados'
 import { PLANOS } from '@/lib/planos'
 import { estadoDoLink, senhaDeLinkValida, urlDoLink } from '@/lib/share/token'
-import { Alternador, Botao, Campo, Entrada, ModalConfirmar, Selecao, Selo } from '@/components/ui'
+import { Alternador, Botao, Campo, Carregando, Entrada, EstadoErro, ModalConfirmar, Selecao, Selo } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 
 const BASE = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '')
@@ -19,9 +18,11 @@ const plural = (n: number, um: string, varios: string) => `${n.toLocaleString('p
  * rascunho não se repetem aqui.
  */
 export function Compartilhar({ projetoId, publicarFora = false }: { projetoId: string; publicarFora?: boolean }) {
-  const projeto = useDemo((e) => e.projetos.find((p) => p.id === projetoId))
-  const links = useDemo(() => listarLinks(projetoId))
-  const planoId = useDemo((e) => e.workspace.planoId)
+  const { carregando, erro, tentarDeNovo } = useCarregar(['projetos', 'links'])
+  const projeto = useDados((e) => e.projetos.find((p) => p.id === projetoId))
+  const links = useDados((e) => e.links.filter((l) => l.projectId === projetoId).sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)))
+  const planoId = useDados((e) => e.workspace.planoId)
+  const [revogandoAgora, setRevogandoAgora] = useState(false)
   const [comSenha, setComSenha] = useState(false)
   const [senha, setSenha] = useState('')
   const [validade, setValidade] = useState<'0' | '7' | '30' | '90'>('0')
@@ -33,7 +34,11 @@ export function Compartilhar({ projetoId, publicarFora = false }: { projetoId: s
   const podeSenha = PLANOS[planoId].capacidades.senhaNoLink
   const ativos = useMemo(() => links.filter((l) => estadoDoLink({ expiresAt: l.expiraEm, revokedAt: l.revogadoEm }) === 'ativo'), [links])
 
-  if (!projeto) return null
+  if (!projeto) {
+    if (erro) return <EstadoErro titulo="Não foi possível carregar os links" mensagem={erro} aoTentar={tentarDeNovo} />
+    if (carregando) return <Carregando texto="Carregando links…" />
+    return <p className="text-sm text-texto2">Projeto não encontrado.</p>
+  }
   const publicado = projeto.revisaoPublicada != null
   const desatualizado = publicado && projeto.revisaoPublicada !== projeto.revisaoAtual
 
@@ -42,12 +47,12 @@ export function Compartilhar({ projetoId, publicarFora = false }: { projetoId: s
     setCriando(true)
     try {
       const expiraEm = validade === '0' ? null : new Date(Date.now() + Number(validade) * 86400000).toISOString()
-      const { token } = await criarLink(projetoId, { senha: comSenha ? senha : undefined, expiraEm })
+      const { token } = await dados.criarLink(projetoId, { senha: comSenha ? senha : undefined, expiraEm })
       setNovoToken(token)
       setSenha('')
       mostrar('Link criado. Copie agora: por segurança ele não será exibido de novo.', 'sucesso')
     } catch (e) {
-      mostrar(e instanceof ErroDemo ? e.message : 'Não foi possível criar o link.', 'erro')
+      mostrar(mensagemDeErro(e, 'Não foi possível criar o link.'), 'erro')
     } finally {
       setCriando(false)
     }
@@ -93,7 +98,11 @@ export function Compartilhar({ projetoId, publicarFora = false }: { projetoId: s
 
       <section>
         <h3 className="rotulo-mono mb-2">Links criados · {plural(ativos.length, 'ativo', 'ativos')}</h3>
-        {links.length === 0 ? (
+        {erro && !links.length ? (
+          <EstadoErro titulo="Não foi possível carregar os links" mensagem={erro} aoTentar={tentarDeNovo} />
+        ) : carregando && !links.length ? (
+          <Carregando texto="Carregando links…" />
+        ) : links.length === 0 ? (
           <p className="text-sm text-texto2">Nenhum link ainda.</p>
         ) : (
           <ul className="divide-y divide-borda rounded-[12px] border border-borda bg-superficie">
@@ -117,12 +126,20 @@ export function Compartilhar({ projetoId, publicarFora = false }: { projetoId: s
         <p className="mt-2 text-xs text-texto2">Limitação honesta: nenhuma solução web impede prints ou gravações de tela feitas por convidados autorizados.</p>
       </section>
 
-      <ModalConfirmar aberto={!!revogando} aoFechar={() => setRevogando(null)} titulo="Revogar este link?" descricao="Quem tiver o link deixa de ver a apresentação imediatamente. Esta ação não pode ser desfeita." rotuloConfirmar="Revogar" perigoso
-        aoConfirmar={() => { if (revogando) revogarLink(revogando); setRevogando(null); mostrar('Link revogado.') }} />
+      <ModalConfirmar aberto={!!revogando} aoFechar={() => setRevogando(null)} titulo="Revogar este link?" descricao="Quem tiver o link deixa de ver a apresentação imediatamente. Esta ação não pode ser desfeita." rotuloConfirmar="Revogar" perigoso carregando={revogandoAgora}
+        aoConfirmar={async () => {
+          if (!revogando) return
+          setRevogandoAgora(true)
+          try {
+            await dados.revogarLink(revogando)
+            mostrar('Link revogado.')
+          } catch (e) {
+            mostrar(mensagemDeErro(e, 'Não foi possível revogar o link.'), 'erro')
+          } finally {
+            setRevogandoAgora(false)
+            setRevogando(null)
+          }
+        }} />
     </div>
   )
-}
-
-export function usarProjeto(id: string) {
-  return obterProjeto(id)
 }

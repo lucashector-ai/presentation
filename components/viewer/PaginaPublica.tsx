@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Lock } from 'lucide-react'
-import { desbloquear, ErroDemo, resolverToken, type ResolucaoLink } from '@/lib/demo/store'
+import { dados, mensagemDeErro, type ResolucaoLink } from '@/lib/dados'
 import { tokenValido } from '@/lib/share/token'
 import { Botao, Entrada, Logo } from '@/components/ui'
 import { Viewer } from './Viewer'
@@ -11,15 +11,36 @@ export function PaginaPublica({ token }: { token: string }) {
   const [res, setRes] = useState<ResolucaoLink | null>(null)
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState<string | null>(null)
+  const [falhaRede, setFalhaRede] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
-  const [liberados, setLiberados] = useState<Set<string>>(new Set())
+  // muda depois de desbloquear (o acesso fica no cookie/grant) ou ao tentar de novo: resolve o link outra vez
+  const [tentativa, setTentativa] = useState(0)
 
   useEffect(() => {
     let ativo = true
     if (!tokenValido(token) && !token.startsWith('demo_')) { setRes({ state: 'unavailable' }); return }
-    resolverToken(token, liberados).then((r) => ativo && setRes(r)).catch(() => ativo && setRes({ state: 'unavailable' }))
+    setFalhaRede(null)
+    dados.resolverToken(token).then(
+      (r) => ativo && setRes(r),
+      (e) => {
+        if (!ativo) return
+        // sem conexão/erro do servidor: não dizer que o link "não existe"; oferece tentar de novo
+        if ((e as { code?: string } | null)?.code === 'sem_conexao' || (e as { code?: string } | null)?.code === 'erro_interno') setFalhaRede(mensagemDeErro(e, 'Não foi possível abrir a apresentação agora.'))
+        else setRes({ state: 'unavailable' })
+      }
+    )
     return () => { ativo = false }
-  }, [token, liberados])
+  }, [token, tentativa])
+
+  if (falhaRede && !res) {
+    return (
+      <main className="flex h-dvh flex-col items-center justify-center gap-4 bg-fundo p-6 text-center" role="alert">
+        <Logo />
+        <p className="max-w-sm text-[15px] leading-normal text-texto2">{falhaRede}</p>
+        <Botao onClick={() => setTentativa((n) => n + 1)}>Tentar de novo</Botao>
+      </main>
+    )
+  }
 
   if (!res) return <div className="flex h-dvh items-center justify-center bg-[#111] text-sm text-white/60" role="status">Carregando…</div>
 
@@ -40,11 +61,11 @@ export function PaginaPublica({ token }: { token: string }) {
       setEnviando(true)
       setErro(null)
       try {
-        const r = await desbloquear(token, senha)
-        if (r.ok) setLiberados(new Set([...liberados, r.linkId]))
+        const r = await dados.desbloquear(token, senha)
+        if (r.ok) setTentativa((n) => n + 1)
         else setErro(r.bloqueado ? 'Muitas tentativas. Aguarde alguns minutos.' : `Senha incorreta. Tente novamente.${r.restantes <= 2 ? ` (${r.restantes} tentativa(s) restante(s))` : ''}`)
       } catch (err) {
-        setErro(err instanceof ErroDemo ? err.message : 'Não foi possível verificar.')
+        setErro(mensagemDeErro(err, 'Não foi possível verificar.'))
       } finally {
         setEnviando(false)
       }

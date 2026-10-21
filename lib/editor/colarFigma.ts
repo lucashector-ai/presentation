@@ -10,15 +10,15 @@ import { sanitizarSvgNavegador } from './importar'
 import { converterMensagem, type CamadaConvertida } from '@/lib/importar/figma/converter'
 import type { MensagemFigma } from '@/lib/importar/figma/tipos'
 import { MAX_SVG_INLINE, parseCamada, type Camada } from '@/lib/scene/schema'
-import { enviarArquivo } from '@/lib/demo/store'
+import { dados } from '@/lib/dados'
 
 const MAX_CAMADAS_CENA = 400
 
 export const AVISO_IMAGENS_FIGMA = 'As imagens do Figma não vêm na cópia: deixei marcadores listrados no lugar. Arraste os arquivos para cá ou, no Figma, use Exportar (PNG/JPG) e solte sobre o marcador.'
 
-async function enviar(bytes: Uint8Array | Blob, nome: string, tipo: string, opcoes: OpcoesImportacao): Promise<string> {
+async function enviar(bytes: Uint8Array | Blob, nome: string, tipo: string, opcoes: OpcoesImportacao, projetoId?: string): Promise<string> {
   const arquivo = bytes instanceof Blob ? new File([bytes], nome, { type: tipo }) : new File([bytes as BlobPart], nome, { type: tipo })
-  const a = await enviarArquivo(arquivo, (p) => opcoes.aoProgredir?.(arquivo.name, p), { sanitizarSvg: (t) => t })
+  const a = await dados.enviarArquivo(arquivo, (p) => opcoes.aoProgredir?.(arquivo.name, p), { sanitizarSvg: (t) => t, projetoId })
   return a.id
 }
 
@@ -45,7 +45,7 @@ export async function colarDoFigma(editor: Editor, mensagem: MensagemFigma, arqu
     try {
       const c = marcadores[0]!
       const { shape, fill: _f, pattern: _p, ...resto } = c.camada
-      c.camada = { ...resto, type: 'image', assetId: await enviar(png, png.name || 'figma.png', png.type, opcoes), fit: 'cover', mask: shape === 'ellipse' ? 'ellipse' : 'none' }
+      c.camada = { ...resto, type: 'image', assetId: await enviar(png, png.name || 'figma.png', png.type, opcoes, editor.projetoId), fit: 'cover', mask: shape === 'ellipse' ? 'ellipse' : 'none' }
       c.imagemFaltando = false
       faltando = 0
     } catch {
@@ -58,13 +58,13 @@ export async function colarDoFigma(editor: Editor, mensagem: MensagemFigma, arqu
   for (const item of r.camadas as CamadaConvertida[]) {
     try {
       const c = { ...item.camada }
-      if (item.imagem) c.assetId = await enviar(item.imagem.bytes, `${String(c.name ?? 'figma').slice(0, 40) || 'figma'}.${item.imagem.mime.split('/')[1]}`, item.imagem.mime, opcoes)
+      if (item.imagem) c.assetId = await enviar(item.imagem.bytes, `${String(c.name ?? 'figma').slice(0, 40) || 'figma'}.${item.imagem.mime.split('/')[1]}`, item.imagem.mime, opcoes, editor.projetoId)
       if (c.type === 'svg' && typeof c.markup === 'string') {
         const markup = sanitizarSvgNavegador(c.markup)
         if (!/<svg/i.test(markup)) throw new Error('svg vazio')
         if (markup.length > MAX_SVG_INLINE) {
           delete c.markup
-          c.assetId = await enviar(new Blob([markup], { type: 'image/svg+xml' }), `${String(c.name ?? 'figma').slice(0, 40) || 'figma'}.svg`, 'image/svg+xml', opcoes)
+          c.assetId = await enviar(new Blob([markup], { type: 'image/svg+xml' }), `${String(c.name ?? 'figma').slice(0, 40) || 'figma'}.svg`, 'image/svg+xml', opcoes, editor.projetoId)
         } else c.markup = markup
       }
       prontas.push(parseCamada(c))

@@ -3,7 +3,7 @@ import { useId, useState, type FormEvent, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { carregarAuth, entrar, MODO_DEMO } from '@/lib/sessao'
-import { definirUsuario } from '@/lib/demo/store'
+import { dados } from '@/lib/dados'
 import { PLANOS, textoApresentacoes } from '@/lib/planos'
 import { Botao, Campo, Entrada, cx } from '@/components/ui'
 import { Marca } from '@/components/ui/Logo'
@@ -102,7 +102,7 @@ export function FormAuth({ modo }: { modo: 'login' | 'signup' }) {
         <p className="m-0 rounded-lg bg-acentoSuave px-3.5 py-3 text-[13px] leading-normal text-[#525252]">
           Modo demonstração: nenhum e-mail é enviado. Clique abaixo para continuar como se tivesse confirmado.
         </p>
-        <Botao className="h-[46px] w-full" onClick={() => { entrar(email); if (!recuperar) definirUsuario({ nome, email }); router.push(destino) }}>Continuar para o painel</Botao>
+        <Botao className="h-[46px] w-full" onClick={() => { entrar(email); if (!recuperar) void dados.atualizarPerfil({ nome, email }); router.push(destino) }}>Continuar para o painel</Botao>
       </div>
     )
   }

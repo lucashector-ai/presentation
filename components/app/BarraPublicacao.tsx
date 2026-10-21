@@ -1,7 +1,7 @@
 'use client'
+import { useState } from 'react'
 import { CheckCircle2, UploadCloud } from 'lucide-react'
-import { ErroDemo, publicar } from '@/lib/demo/store'
-import { useDemo } from '@/lib/demo/useDemo'
+import { dados, mensagemDeErro, useDados } from '@/lib/dados'
 import { Botao, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 
@@ -10,17 +10,21 @@ import { useToast } from '@/components/ui/toast'
  * em vez de mandar a pessoa de volta ao editor só para apertar "Publicar".
  */
 export function BarraPublicacao({ projetoId, className }: { projetoId: string; className?: string }) {
-  const projeto = useDemo((e) => e.projetos.find((p) => p.id === projetoId && !p.excluidoEm))
+  const projeto = useDados((e) => e.projetos.find((p) => p.id === projetoId && !p.excluidoEm))
   const { mostrar } = useToast()
+  const [publicando, setPublicando] = useState(false)
   if (!projeto) return null
   const nunca = projeto.revisaoPublicada == null
   const pendente = !nunca && projeto.revisaoAtual > (projeto.revisaoPublicada ?? 0)
-  const publicarAgora = () => {
+  const publicarAgora = async () => {
+    setPublicando(true)
     try {
-      const r = publicar(projeto.id, projeto.revisaoAtual)
+      const r = await dados.publicar(projeto.id, projeto.revisaoAtual)
       mostrar(nunca ? `Revisão ${r.publishedRevision} publicada. Agora gere o link para o cliente.` : `Revisão ${r.publishedRevision} publicada. Quem tem o link já vê a versão nova.`, 'sucesso')
     } catch (e) {
-      mostrar(e instanceof ErroDemo ? e.message : 'Não foi possível publicar.', 'erro')
+      mostrar(mensagemDeErro(e, 'Não foi possível publicar.'), 'erro')
+    } finally {
+      setPublicando(false)
     }
   }
   return (
@@ -29,7 +33,7 @@ export function BarraPublicacao({ projetoId, className }: { projetoId: string; c
       <span className="min-w-0 flex-1">
         {nunca ? 'Ainda não publicado. Publique para congelar uma revisão e poder gerar links.' : pendente ? `O cliente vê a revisão ${projeto.revisaoPublicada}; o rascunho está na ${projeto.revisaoAtual}.` : `Revisão ${projeto.revisaoPublicada} publicada e atualizada.`}
       </span>
-      {(nunca || pendente) && <Botao tamanho="sm" onClick={publicarAgora}>{nunca ? 'Publicar agora' : 'Publicar ajustes'}</Botao>}
+      {(nunca || pendente) && <Botao tamanho="sm" carregando={publicando} onClick={() => void publicarAgora()}>{nunca ? 'Publicar agora' : 'Publicar ajustes'}</Botao>}
     </div>
   )
 }

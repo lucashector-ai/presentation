@@ -2,8 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Check, Sparkles } from 'lucide-react'
-import { comprarPacote, trocarPlano, uso } from '@/lib/demo/store'
-import { useDemo } from '@/lib/demo/useDemo'
+import { dados, mensagemDeErro, useDados } from '@/lib/dados'
 import { PACOTES_AVULSOS, PLANOS, TELAS_REFERENCIA, apresentacoesCom, custoApresentacao, precoComCiclo, textoApresentacoes, type PlanoId } from '@/lib/planos'
 import { Botao, Modal, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
@@ -12,7 +11,8 @@ const fmt = (n: number) => n.toLocaleString('pt-BR')
 
 /**
  * Créditos e plano em qualquer tela do app: `abrirCompra()` abre os pacotes avulsos e `abrirPlano(id)`
- * a troca de plano. No modo demonstração nada é cobrado; no produto real os dois viram checkout.
+ * a troca de plano. No modo demonstração nada é cobrado; no modo real ainda não há checkout (a fonte de dados
+ * recusa com uma mensagem clara) e saldo, plano e extrato vêm do servidor.
  */
 const Ctx = createContext<{ abrirCompra: (motivo?: string) => void; abrirPlano: (id: PlanoId, ciclo?: 'mensal' | 'anual') => void } | null>(null)
 
@@ -48,7 +48,7 @@ function marcarAviso() {
  * um toast com "Comprar" — antes de a pessoa dar de cara com o botão bloqueado.
  */
 function AvisoSaldoBaixo({ abrirCompra }: { abrirCompra: (motivo?: string) => void }) {
-  const saldo = useDemo((e) => e.creditos.saldo)
+  const saldo = useDados((e) => e.creditos.saldo)
   const anterior = useRef<number | null>(null)
   const { mostrar } = useToast()
   useEffect(() => {
@@ -74,13 +74,18 @@ export function useCreditos() {
 
 function ModalComprarCreditos({ aberto, aoFechar, motivo }: { aberto: boolean; aoFechar: () => void; motivo?: string }) {
   const [sel, setSel] = useState(1)
-  const saldo = useDemo((e) => e.creditos.saldo)
+  const saldo = useDados((e) => e.creditos.saldo)
   const { mostrar } = useToast()
   const pacote = PACOTES_AVULSOS[sel] ?? PACOTES_AVULSOS[1]
-  const comprar = () => {
-    comprarPacote(pacote.creditos)
-    mostrar(`${fmt(pacote.creditos)} créditos adicionados · ${textoApresentacoes(pacote.creditos)} a mais (demonstração, sem cobrança).`, 'sucesso')
-    aoFechar()
+  const simulada = dados.capacidades.compraSimulada
+  const comprar = async () => {
+    try {
+      await dados.comprarPacote(pacote.creditos)
+      mostrar(`${fmt(pacote.creditos)} créditos adicionados · ${textoApresentacoes(pacote.creditos)} a mais (demonstração, sem cobrança).`, 'sucesso')
+      aoFechar()
+    } catch (e) {
+      mostrar(mensagemDeErro(e), 'info')
+    }
   }
   return (
     <Modal
@@ -90,7 +95,7 @@ function ModalComprarCreditos({ aberto, aoFechar, motivo }: { aberto: boolean; a
       descricao={motivo ?? `Créditos avulsos não expiram e valem em qualquer plano. Saldo atual: ${fmt(saldo)} (${textoApresentacoes(saldo)}).`}
       rodape={<>
         <Botao variante="secundario" onClick={aoFechar}>Cancelar</Botao>
-        <Botao onClick={comprar}>Comprar {fmt(pacote.creditos)} créditos · R${pacote.precoBRL}</Botao>
+        <Botao onClick={() => void comprar()}>Comprar {fmt(pacote.creditos)} créditos · R${pacote.precoBRL}</Botao>
       </>}
     >
       <div role="radiogroup" aria-label="Pacotes de créditos" className="grid gap-2.5 sm:grid-cols-3">
@@ -104,14 +109,14 @@ function ModalComprarCreditos({ aberto, aoFechar, motivo }: { aberto: boolean; a
           </button>
         ))}
       </div>
-      <p className="mt-4 text-[12px] leading-relaxed text-texto2">Conta feita com apresentações de {TELAS_REFERENCIA} telas ({custoApresentacao(TELAS_REFERENCIA)} créditos cada). Modo demonstração: nenhuma cobrança é feita.</p>
+      <p className="mt-4 text-[12px] leading-relaxed text-texto2">Conta feita com apresentações de {TELAS_REFERENCIA} telas ({custoApresentacao(TELAS_REFERENCIA)} créditos cada). {simulada ? 'Modo demonstração: nenhuma cobrança é feita.' : 'O pagamento on-line ainda está chegando: por enquanto, fale com a gente para recarregar.'}</p>
     </Modal>
   )
 }
 
 function ModalTrocarPlano({ alvo, aoFechar }: { alvo: { id: PlanoId; ciclo: 'mensal' | 'anual' } | null; aoFechar: () => void }) {
-  const atual = useDemo((e) => PLANOS[e.workspace.planoId])
-  const u = useDemo((e) => uso(e))
+  const atual = useDados((e) => PLANOS[e.workspace.planoId])
+  const u = useDados((e) => e.uso)
   const { mostrar } = useToast()
   if (!alvo) return null
   const novo = PLANOS[alvo.id]
@@ -119,10 +124,14 @@ function ModalTrocarPlano({ alvo, aoFechar }: { alvo: { id: PlanoId; ciclo: 'men
   const upgrade = ordem.indexOf(novo.id) > ordem.indexOf(atual.id)
   const excede = u.projetosAtivos > novo.limites.projetos
   const preco = precoComCiclo(novo, alvo.ciclo)
-  const confirmar = () => {
-    trocarPlano(novo.id)
-    mostrar(`Plano ${novo.nome} ativado${upgrade && novo.creditos.recorrencia === 'mensal' ? ` · +${fmt(novo.creditos.quantidade)} créditos` : ''} (demonstração, sem cobrança).`, 'sucesso')
-    aoFechar()
+  const confirmar = async () => {
+    try {
+      await dados.trocarPlano(novo.id)
+      mostrar(`Plano ${novo.nome} ativado${upgrade && novo.creditos.recorrencia === 'mensal' ? ` · +${fmt(novo.creditos.quantidade)} créditos` : ''} (demonstração, sem cobrança).`, 'sucesso')
+      aoFechar()
+    } catch (e) {
+      mostrar(mensagemDeErro(e), 'info')
+    }
   }
   return (
     <Modal
@@ -132,7 +141,7 @@ function ModalTrocarPlano({ alvo, aoFechar }: { alvo: { id: PlanoId; ciclo: 'men
       descricao={preco ? `R$${preco} por ${novo.porMembro ? 'membro por ' : ''}mês${alvo.ciclo === 'anual' ? ', cobrado anualmente' : ''}.` : 'Grátis, para sempre.'}
       rodape={<>
         <Botao variante="secundario" onClick={aoFechar}>Cancelar</Botao>
-        <Botao onClick={confirmar}>{upgrade ? `Assinar ${novo.nome}` : `Mudar para ${novo.nome}`}</Botao>
+        <Botao onClick={() => void confirmar()}>{upgrade ? `Assinar ${novo.nome}` : `Mudar para ${novo.nome}`}</Botao>
       </>}
     >
       <ul className="space-y-2 text-[13px]">
@@ -142,7 +151,7 @@ function ModalTrocarPlano({ alvo, aoFechar }: { alvo: { id: PlanoId; ciclo: 'men
         {!novo.capacidades.marcaDaPlataforma && <Linha>Sem a marca Mostra nas apresentações</Linha>}
       </ul>
       {!upgrade && excede && <p className="mt-4 rounded-lg bg-aviso/15 px-3 py-2.5 text-[12px] leading-relaxed text-texto">Você tem {u.projetosAtivos} projetos ativos e o {novo.nome} permite {novo.limites.projetos}. Nada é apagado: os projetos continuam abertos e os links funcionando, mas novos projetos ficam bloqueados.</p>}
-      <p className="mt-4 text-[12px] text-texto3">Modo demonstração: a troca é imediata e nenhuma cobrança é feita.</p>
+      <p className="mt-4 text-[12px] text-texto3">{dados.capacidades.compraSimulada ? 'Modo demonstração: a troca é imediata e nenhuma cobrança é feita.' : 'A assinatura on-line ainda está chegando: por enquanto, a troca de plano é feita pela equipe da Mostra.'}</p>
     </Modal>
   )
 }
@@ -153,8 +162,8 @@ function Linha({ children }: { children: React.ReactNode }) {
 
 /** Cartão de créditos do painel: saldo em créditos e em apresentações, plano e próximos passos. */
 export function CartaoCreditos({ className }: { className?: string }) {
-  const saldo = useDemo((e) => e.creditos.saldo)
-  const ws = useDemo((e) => e.workspace)
+  const saldo = useDados((e) => e.creditos.saldo)
+  const ws = useDados((e) => e.workspace)
   const plano = PLANOS[ws.planoId]
   const { abrirCompra } = useCreditos()
   const n = apresentacoesCom(saldo)
