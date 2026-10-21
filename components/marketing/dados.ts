@@ -110,7 +110,7 @@ export const RECURSOS: { icone: IconeRecurso; titulo: string; texto: string }[] 
   { icone: 'quadrado', titulo: 'Animações e transições', texto: 'Fade, slide, scale e morph entre telas, com duração e easing ajustáveis e prévia instantânea.' },
   { icone: 'triangulo', titulo: 'Vídeo e mídia em alta', texto: 'MP4, GIF e Lottie rodando no projeto, imagens sem compressão destrutiva e carregamento progressivo.' },
   { icone: 'semicirculo', titulo: 'Links privados', texto: 'Senha, expiração, domínio próprio e permissão de comentários — você controla quem vê e por quanto tempo.' },
-  { icone: 'pontos', titulo: 'Métricas de visualização', texto: 'Saiba quem abriu, quanto tempo ficou em cada tela e onde clicou. Ideal para acompanhar propostas.' },
+  { icone: 'pontos', titulo: 'Acompanhe o cliente', texto: 'Veja quantas vezes cada link foi aberto, publique ajustes no mesmo link e revogue quando quiser — tudo em Enviados. Tempo por tela chega em breve.' },
   { icone: 'avatares', titulo: 'Colaboração em tempo real', texto: 'Edite com o estúdio ao mesmo tempo, deixe comentários no canvas e mantenha uma biblioteca compartilhada.' },
   { icone: 'cubo', titulo: '3D e arquivos de design', texto: 'Cole direto do Figma e do Illustrator, solte SVG, fotos, vídeos e modelos 3D do Blender (GLB).' },
 ]
@@ -121,7 +121,7 @@ export const COMPARACAO = [
   { rotulo: 'Vídeo dentro do projeto', pdf: 'Não', mostra: 'Sim' },
   { rotulo: 'Interações clicáveis', pdf: 'Limitado', mostra: 'Sem código' },
   { rotulo: 'Atualizar depois de enviar', pdf: 'Reenviar arquivo', mostra: 'Mesmo link' },
-  { rotulo: 'Saber se o cliente abriu', pdf: 'Não', mostra: 'Métricas por tela' },
+  { rotulo: 'Saber se o cliente abriu', pdf: 'Não', mostra: 'Visualizações por link' },
   { rotulo: 'Tamanho do envio', pdf: 'Anexos pesados', mostra: 'Um link' },
 ] as const
 

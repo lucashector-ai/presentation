@@ -448,11 +448,12 @@ export function CriarComIA() {
                   {!pronto && <span aria-hidden className="h-3 w-3 animate-spin rounded-full border-2 border-[#E7E5E4] border-t-violeta" />}
                   {pronto ? `Pronto · ${total} telas` : `Desenhando tela ${Math.min(desenhadas + 1, total)} de ${total}`}
                 </div>
-                <h1 className="mt-2 text-[clamp(28px,4vw,40px)] font-semibold tracking-[-0.045em]">{roteiro?.titulo}</h1>
+                <h2 className="mt-2 text-[clamp(28px,4vw,40px)] font-semibold tracking-[-0.045em]">{roteiro?.titulo}</h2>
               </div>
               <div className={cx('flex flex-wrap gap-2.5 transition-opacity', !pronto && 'pointer-events-none opacity-35')}>
                 <button type="button" onClick={() => setPasso(2)} className="flex h-11 items-center rounded-full px-4 text-[14px] text-texto3 hover:text-texto">← Ajustar roteiro</button>
                 {projetoId && <Link href={`/app/projects/${projetoId}/apresentar`} className="flex h-11 items-center rounded-full border-[1.5px] border-[#E2E1DE] bg-white px-[18px] text-[14px] font-medium hover:border-grafite">Apresentar</Link>}
+                {projetoId && <Link href={`/app/projects/${projetoId}/share`} className="flex h-11 items-center rounded-full border-[1.5px] border-[#E2E1DE] bg-white px-[18px] text-[14px] font-medium hover:border-grafite">Publicar e enviar</Link>}
                 {projetoId && <button type="button" onClick={() => router.push(`/app/projects/${projetoId}/edit`)} className="flex h-11 items-center rounded-full border-2 border-grafite bg-violeta px-[18px] text-[14px] font-semibold text-white hover:bg-[#4A55E0]">Abrir no editor →</button>}
               </div>
             </div>
