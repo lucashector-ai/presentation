@@ -4,6 +4,7 @@
  *
  * Ordem de prioridade:
  *  1. Camadas copiadas da própria Mostra (marcador JSON)
+ *  1b. Cópia normal do Figma (⌘C): buffer fig-kiwi no HTML, decodificado em lib/importar/figma
  *  2. Arquivos (PNG do "Copiar como PNG" do Figma, imagens do sistema, arquivos soltos)
  *  3. SVG em texto (Figma "Copiar como SVG", Illustrator com Clipboard SVG)
  *  4. HTML com <svg> ou <img>
@@ -11,6 +12,8 @@
  */
 import { ehSvg, extrairSvgDeHtml } from './svg'
 import { HOSTS_EMBED } from '@/lib/scene/schema'
+import { decodificarFigma, ehHtmlFigma } from './figma/decodificar'
+import type { MensagemFigma } from './figma/tipos'
 
 export const MARCADOR_MOSTRA = 'mostra/camadas@1'
 
@@ -23,12 +26,16 @@ export interface ConteudoColado {
 export type ItemImportado =
   | { tipo: 'camadas'; camadas: unknown[] }
   | { tipo: 'arquivos'; arquivos: File[] }
+  /** Cópia normal do Figma já decodificada; `arquivos` é um PNG que às vezes vem junto. */
+  | { tipo: 'figma'; mensagem: MensagemFigma; arquivos: File[] }
   | { tipo: 'svg'; markup: string; origem: 'figma' | 'illustrator' | 'svg' }
   | { tipo: 'imagemUrl'; url: string }
   | { tipo: 'embed'; url: string }
   | { tipo: 'texto'; texto: string }
   | { tipo: 'aviso'; mensagem: string }
   | { tipo: 'vazio' }
+
+const AVISO_FIGMA = 'Não consegui ler esta cópia do Figma. No Figma, clique com o botão direito > Copiar como > Copiar como SVG (ou PNG, ⇧⌘C) e cole de novo.'
 
 export function serializarCamadas(camadas: unknown[]): string {
   return JSON.stringify({ [MARCADOR_MOSTRA]: true, camadas })
@@ -84,13 +91,19 @@ export function interpretar(c: ConteudoColado): ItemImportado {
   const texto = c.texto.trim()
   const camadas = lerCamadasMostra(texto)
   if (camadas) return { tipo: 'camadas', camadas }
+  if (c.html && ehHtmlFigma(c.html)) {
+    try {
+      return { tipo: 'figma', mensagem: decodificarFigma(c.html).mensagem, arquivos: c.arquivos }
+    } catch {
+      // formato mudou ou cópia corrompida: cai no aviso antigo (ou no PNG, se veio junto)
+      if (!c.arquivos.length) return { tipo: 'aviso', mensagem: AVISO_FIGMA }
+    }
+  }
   if (c.arquivos.length) return { tipo: 'arquivos', arquivos: c.arquivos }
   if (texto && ehSvg(texto)) return { tipo: 'svg', markup: texto, origem: origemSvg(texto) }
   if (c.html) {
-    // cópia normal do Figma: buffer proprietário que o navegador não consegue ler
-    if (c.html.includes('(figmeta)') || c.html.includes('data-metadata="<!--(figma')) {
-      return { tipo: 'aviso', mensagem: 'O Figma copia num formato fechado. No Figma, clique com o botão direito > Copiar como > Copiar como SVG (ou PNG, ⇧⌘C) e cole de novo.' }
-    }
+    // cópia do Figma que não deu para decodificar (o PNG que veio junto também falhou ou não existe)
+    if (ehHtmlFigma(c.html)) return { tipo: 'aviso', mensagem: AVISO_FIGMA }
     const svg = extrairSvgDeHtml(c.html)
     if (svg) return { tipo: 'svg', markup: svg, origem: origemSvg(svg) }
     const img = c.html.match(/<img[^>]+src\s*=\s*["']([^"']+)["']/i)?.[1]
