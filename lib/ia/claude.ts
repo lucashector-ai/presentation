@@ -12,7 +12,13 @@ import type { Roteiro } from './roteiro'
 import { INSTRUCOES_TEXTO, mensagemTexto, normalizarTextos, TextosModeloSchema, type PedidoTexto, type TextoReescrito } from './texto'
 import { INSTRUCOES_TELA, mensagemTela, normalizarTela, TelaModeloSchema, type ConteudoTela, type PedidoTela } from './tela'
 
-export const MODELO_ROTEIRO = 'claude-opus-5-5'
+import { MODELO_POR_ETAPA, type ModeloIA } from './modelos'
+
+/** @deprecated use MODELO_POR_ETAPA (lib/ia/modelos.ts) */
+export const MODELO_ROTEIRO = MODELO_POR_ETAPA.roteiro.id
+
+/** Reserva no servidor (se o modelo recusar por política, a API tenta o recomendado na mesma chamada). */
+const reserva = (m: ModeloIA) => (m.aceitaReserva ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {})
 
 export class RecusaModelo extends Error {}
 
@@ -23,11 +29,9 @@ export async function gerarRoteiroClaude(p: PedidoRoteiro, sinal?: AbortSignal):
   cliente ??= new Anthropic({ maxRetries: 2, timeout: 120_000 })
   const resposta = await cliente.beta.messages.parse(
     {
-      model: MODELO_ROTEIRO,
+      model: MODELO_POR_ETAPA.roteiro.id,
       max_tokens: 16000,
-      // se o modelo recusar por política, a API tenta o modelo reserva recomendado na mesma chamada
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
+      ...reserva(MODELO_POR_ETAPA.roteiro),
       system: INSTRUCOES_SISTEMA,
       messages: [{ role: 'user', content: mensagemUsuario(p) }],
       output_config: { format: betaZodOutputFormat(RoteiroModeloSchema), effort: 'medium' },
@@ -44,10 +48,9 @@ export async function reescreverTextoClaude(p: PedidoTexto, sinal?: AbortSignal)
   cliente ??= new Anthropic({ maxRetries: 2, timeout: 120_000 })
   const resposta = await cliente.beta.messages.parse(
     {
-      model: MODELO_ROTEIRO,
+      model: MODELO_POR_ETAPA.texto.id,
       max_tokens: 8000,
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
+      ...reserva(MODELO_POR_ETAPA.texto),
       system: INSTRUCOES_TEXTO,
       messages: [{ role: 'user', content: mensagemTexto(p) }],
       output_config: { format: betaZodOutputFormat(TextosModeloSchema), effort: 'low' },
@@ -64,10 +67,9 @@ export async function refazerTelaClaude(p: PedidoTela, sinal?: AbortSignal): Pro
   cliente ??= new Anthropic({ maxRetries: 2, timeout: 120_000 })
   const resposta = await cliente.beta.messages.parse(
     {
-      model: MODELO_ROTEIRO,
+      model: MODELO_POR_ETAPA.tela.id,
       max_tokens: 4000,
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
+      ...reserva(MODELO_POR_ETAPA.tela),
       system: INSTRUCOES_TELA,
       messages: [{ role: 'user', content: mensagemTela(p) }],
       output_config: { format: betaZodOutputFormat(TelaModeloSchema), effort: 'medium' },
