@@ -112,7 +112,7 @@ describe('sessaoDaRequisicao', () => {
     relogioFalso()
     neonAuth.mockImplementation(async () => new Response('{}', { status: 503 }))
     const p = sessaoDaRequisicao(pedido(`${TOKEN}=${COOKIE_TOKEN}`)).catch((e) => e)
-    await avancar(10_000)
+    await avancar(12_000)
     expect(await p).toBeInstanceOf(AuthIndisponivel)
     // a falha não fica em cache: o próximo pedido consulta de novo
     neonAuth.mockImplementation(async () => Response.json(sessao('tok123')))
@@ -136,11 +136,11 @@ describe('encaminharAuth: get-session respondido no app', () => {
 
   it('Neon Auth indisponível: 503 com Retry-After (o navegador não conclui "deslogado")', async () => {
     relogioFalso()
-    neonAuth.mockImplementation(async () => new Response('{}', { status: 429, headers: { 'x-retry-after': '9' } }))
+    neonAuth.mockImplementation(async () => new Response('{}', { status: 429, headers: { 'x-retry-after': '12' } }))
     const p = encaminharAuth(pedido(`${TOKEN}=${COOKIE_TOKEN}`, '/api/auth/get-session'), 'get-session')
-    await avancar(10_000)
+    await avancar(12_000)
     const r = await p
     expect(r.status).toBe(503)
-    expect(r.headers.get('retry-after')).toBe('9')
+    expect(r.headers.get('retry-after')).toBe('12')
   }, 20_000)
 })

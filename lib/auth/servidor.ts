@@ -43,8 +43,11 @@ const origemDe = (req: Request) => req.headers.get('origin') || new URL(req.url)
 
 /** Validade do cookie `session_data` (a mesma do toolkit). */
 const TTL_DADOS_S = 300
-/** Quanto tempo um pedido espera o Neon Auth voltar (429/5xx/rede) antes de responder "indisponível". */
-const PRAZO_VERIFICAR_MS = 6000
+/**
+ * Quanto tempo um pedido espera o Neon Auth voltar (429/5xx/rede) antes de responder "indisponível". O limitador
+ * do Better Auth bloqueia por até 10 s (X-Retry-After): o prazo cobre uma espera inteira e mais uma tentativa.
+ */
+const PRAZO_VERIFICAR_MS = 11_000
 /** Resultado bom de uma verificação vale por este tempo neste isolate (pedidos em rajada da mesma sessão). */
 const CACHE_VERIFICACAO_MS = 30_000
 
