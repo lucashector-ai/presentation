@@ -6,6 +6,7 @@
  */
 import type { z } from 'zod'
 import type { AceitarConviteRes, Asset, ContaRes, ConviteInfoRes, CriarConviteRes, CriarProjetoReq, CriarShareLinkReq, DetalheProjetoRes, Envelope, EquipeRes, KitMarca, NovoKitMarca, ProjetoResumo, ResolverShareRes, SalvarCenasRes, ShareLink, WorkspaceItem } from './contratos'
+import { MOTIVO_SESSAO_INDISPONIVEL } from './contratos'
 import type { DocumentoProjeto } from '@/lib/scene/schema'
 import type { PedidoRoteiro, RespostaRoteiro } from '@/lib/ia/pedido'
 import type { RespostaPdf } from '@/lib/ia/pdf'
@@ -27,16 +28,41 @@ function lerEnvelope<T>(status: number, env: Envelope<T> | null): T {
 /** Falha de rede (sem resposta do servidor): a UI trata como "sem conexão" e tenta de novo depois. */
 export const SEM_CONEXAO = 'sem_conexao'
 
+/**
+ * O servidor não conseguiu conferir a sessão (o Neon Auth não respondeu, ex.: limite de taxa) e a rota não rodou:
+ * quantos segundos esperar para repetir o pedido, ou null se não é esse o caso.
+ */
+export function esperaSessaoIndisponivel(status: number, env: Envelope<unknown> | null): number | null {
+  const det = env?.error?.details as { motivo?: unknown; tenteEmS?: unknown } | undefined
+  if (status !== 503 || env?.error?.code !== 'indisponivel' || det?.motivo !== MOTIVO_SESSAO_INDISPONIVEL) return null
+  const s = typeof det.tenteEmS === 'number' && Number.isFinite(det.tenteEmS) ? det.tenteEmS : 2
+  return Math.min(10, Math.max(1, s))
+}
+const REPETICOES_SESSAO = 3
+const aguardar = (s: number, sinal?: AbortSignal | null) =>
+  new Promise<void>((resolve) => {
+    const t = setTimeout(resolve, s * 1000)
+    sinal?.addEventListener('abort', () => { clearTimeout(t); resolve() }, { once: true })
+  })
+
 async function chamar<T>(caminho: string, init: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = { 'content-type': 'application/json', ...(init.headers as Record<string, string>) }
-  let resp: Response
-  try {
-    resp = await fetch(caminho, { ...init, headers, credentials: 'same-origin' })
-  } catch (e) {
-    if ((e as { name?: string } | null)?.name === 'AbortError') throw e
-    throw new ErroApiCliente(SEM_CONEXAO, 'Sem conexão com o servidor. Verifique a internet e tente de novo.')
+  for (let tentativa = 0; ; tentativa++) {
+    let resp: Response
+    try {
+      resp = await fetch(caminho, { ...init, headers, credentials: 'same-origin' })
+    } catch (e) {
+      if ((e as { name?: string } | null)?.name === 'AbortError') throw e
+      throw new ErroApiCliente(SEM_CONEXAO, 'Sem conexão com o servidor. Verifique a internet e tente de novo.')
+    }
+    const env = (await resp.json().catch(() => null)) as Envelope<T> | null
+    const espera = esperaSessaoIndisponivel(resp.status, env)
+    if (espera != null && tentativa < REPETICOES_SESSAO && !init.signal?.aborted) {
+      await aguardar(espera, init.signal)
+      continue
+    }
+    return lerEnvelope(resp.status, env)
   }
-  return lerEnvelope(resp.status, (await resp.json().catch(() => null)) as Envelope<T> | null)
 }
 
 export const api = {
@@ -82,7 +108,7 @@ export const api = {
     enviar: async (projectId: string | null, arquivo: File, aoProgredir?: (p: number) => void, dims?: { width?: number; height?: number; duration?: number }): Promise<Asset> => {
       const q = new URLSearchParams({ ...(projectId ? { projectId } : {}), name: arquivo.name })
       for (const [k, v] of Object.entries(dims ?? {})) if (v != null) q.set(k, String(v))
-      const asset = await new Promise<Asset>((resolve, reject) => {
+      const enviarUmaVez = () => new Promise<{ status: number; env: Envelope<Asset> | null }>((resolve, reject) => {
         const xhr = new XMLHttpRequest()
         xhr.open('POST', `/api/assets/upload?${q}`)
         xhr.withCredentials = true
@@ -92,12 +118,17 @@ export const api = {
         xhr.onload = () => {
           let env: Envelope<Asset> | null = null
           try { env = JSON.parse(xhr.responseText) as Envelope<Asset> } catch { /* resposta não JSON */ }
-          try { resolve(lerEnvelope(xhr.status, env)) } catch (e) { reject(e) }
+          resolve({ status: xhr.status, env })
         }
         xhr.onerror = () => reject(new ErroApiCliente(SEM_CONEXAO, 'Falha de rede no envio. Tente novamente.'))
         xhr.send(arquivo)
       })
-      return asset
+      for (let tentativa = 0; ; tentativa++) {
+        const { status, env } = await enviarUmaVez()
+        const espera = esperaSessaoIndisponivel(status, env)
+        if (espera != null && tentativa < REPETICOES_SESSAO) { await aguardar(espera); continue }
+        return lerEnvelope(status, env)
+      }
     },
   },
   conta: {
