@@ -9,6 +9,7 @@ import type { AceitarConviteRes, Asset, ContaRes, ConviteInfoRes, CriarConviteRe
 import { MOTIVO_SESSAO_INDISPONIVEL } from './contratos'
 import type { DocumentoProjeto } from '@/lib/scene/schema'
 import type { PedidoRoteiro, RespostaRoteiro } from '@/lib/ia/pedido'
+import type { PedidoDesignSchema, RespostaDesign } from '@/lib/ia/design'
 import type { RespostaPdf } from '@/lib/ia/pdf'
 import type { PedidoTextoSchema, RespostaTexto } from '@/lib/ia/texto'
 import type { PedidoTelaSchema, RespostaTela } from '@/lib/ia/tela'
@@ -71,6 +72,8 @@ export const api = {
     roteiro: (b: Partial<PedidoRoteiro>, sinal?: AbortSignal) => chamar<RespostaRoteiro>('/api/ai/roteiro', { method: 'POST', body: JSON.stringify(b), signal: sinal }),
     /** Reescrever o texto de uma tela (editor). */
     texto: (b: z.input<typeof PedidoTextoSchema>, sinal?: AbortSignal) => chamar<RespostaTexto>('/api/ai/texto', { method: 'POST', body: JSON.stringify(b), signal: sinal }),
+    /** Desenhar telas do roteiro (etapa de design do Criar com IA). */
+    design: (b: z.input<typeof PedidoDesignSchema>, sinal?: AbortSignal) => chamar<RespostaDesign>('/api/ai/design', { method: 'POST', body: JSON.stringify(b), signal: sinal }),
     /** Refazer uma tela (editor). */
     tela: (b: z.input<typeof PedidoTelaSchema>, sinal?: AbortSignal) => chamar<RespostaTela>('/api/ai/tela', { method: 'POST', body: JSON.stringify(b), signal: sinal }),
     /** IA lê páginas escaneadas: corpo = PDF montado no navegador só com elas; `paginas` = números no original. */
