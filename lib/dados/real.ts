@@ -33,6 +33,16 @@ const ouvintes = new Set<() => void>()
 const emCurso = new Map<Recurso, Promise<void>>()
 /** Muda a cada sessão/limpeza: respostas atrasadas de uma sessão anterior são descartadas. */
 let geracao = 0
+/**
+ * Quando cada item (projeto, link, mídia) mudou por uma ação local. Uma listagem que saiu ANTES dessa mudança e
+ * chegou depois traz o estado velho: para esses ids vale o cache (ex.: publicar com a lista do modal a caminho).
+ */
+const tocadoEm = new Map<string, number>()
+const agora = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
+const tocar = (...ids: string[]) => { const t = agora(); for (const id of ids) tocadoEm.set(id, t) }
+/** Itens apagados localmente: uma listagem antiga não pode trazê-los de volta. */
+const removidoEm = new Map<string, number>()
+const remover = (id: string) => removidoEm.set(id, agora())
 
 function definir(fn: (e: EstadoDados) => EstadoDados) {
   const novo = fn(atual)
@@ -41,7 +51,23 @@ function definir(fn: (e: EstadoDados) => EstadoDados) {
   ouvintes.forEach((f) => f())
 }
 const agoraIso = () => new Date().toISOString()
-const trocarProjeto = (id: string, fn: (p: Projeto) => Projeto) => definir((e) => ({ ...e, projetos: e.projetos.map((p) => (p.id === id ? fn(p) : p)) }))
+const trocarProjeto = (id: string, fn: (p: Projeto) => Projeto) => { tocar(id); definir((e) => ({ ...e, projetos: e.projetos.map((p) => (p.id === id ? fn(p) : p)) })) }
+
+/** Junta a resposta de uma listagem com o cache, preservando o que mudou localmente depois que ela saiu. */
+function juntar<T extends { id: string }, R extends { id: string }>(resposta: R[], cache: T[], t0: number, converter: (r: R, anterior?: T) => T, manterFora: (item: T) => boolean): T[] {
+  const recente = (id: string) => (tocadoEm.get(id) ?? -1) > t0
+  const antes = new Map(cache.map((x) => [x.id, x]))
+  const vistos = new Set<string>()
+  const lista: T[] = []
+  for (const r of resposta) {
+    vistos.add(r.id)
+    if ((removidoEm.get(r.id) ?? -1) > t0) continue
+    const a = antes.get(r.id)
+    lista.push(a && recente(r.id) ? a : converter(r, a))
+  }
+  for (const x of cache) if (!vistos.has(x.id) && (manterFora(x) || recente(x.id))) lista.push(x)
+  return lista
+}
 const situar = (r: Recurso, s: Situacao) => definir((e) => ({ ...e, situacao: { ...e.situacao, [r]: s } }))
 
 /** Sessão expirada no meio do uso: volta ao login e retorna para a mesma tela depois. */
@@ -118,6 +144,7 @@ async function listarProjetos(status: 'all' | 'archived' | 'trash'): Promise<Pro
 
 async function buscar(recurso: Recurso): Promise<void> {
   const g = geracao
+  const t0 = agora()
   const aplicar = (fn: (e: EstadoDados) => EstadoDados) => { if (g === geracao) definir(fn) }
   switch (recurso) {
     case 'conta': {
@@ -126,26 +153,20 @@ async function buscar(recurso: Recurso): Promise<void> {
     }
     case 'projetos': {
       const [ativos, arquivados] = await Promise.all([listarProjetos('all'), listarProjetos('archived')])
-      return aplicar((e) => {
-        const antes = new Map(e.projetos.map((p) => [p.id, p]))
-        return { ...e, projetos: [...[...ativos, ...arquivados].map((r) => deResumo(r, antes.get(r.id))), ...e.projetos.filter((p) => p.excluidoEm)] }
-      })
+      // os da lixeira vêm de outra listagem: ficam como estão
+      return aplicar((e) => ({ ...e, projetos: juntar([...ativos, ...arquivados], e.projetos, t0, deResumo, (p) => !!p.excluidoEm) }))
     }
     case 'lixeira': {
       const lixo = await listarProjetos('trash')
-      return aplicar((e) => {
-        const antes = new Map(e.projetos.map((p) => [p.id, p]))
-        const ids = new Set(lixo.map((r) => r.id))
-        return { ...e, projetos: [...e.projetos.filter((p) => !p.excluidoEm && !ids.has(p.id)), ...lixo.map((r) => deResumo(r, antes.get(r.id)))] }
-      })
+      return aplicar((e) => ({ ...e, projetos: juntar(lixo, e.projetos, t0, deResumo, (p) => !p.excluidoEm) }))
     }
     case 'assets': {
       const lista = await api.assets.listar()
-      return aplicar((e) => ({ ...e, assets: lista.map(deAsset) }))
+      return aplicar((e) => ({ ...e, assets: juntar(lista, e.assets, t0, (a) => deAsset(a), () => false) }))
     }
     case 'links': {
       const lista = await api.links.listarTodos()
-      return aplicar((e) => ({ ...e, links: lista.map(deLink) }))
+      return aplicar((e) => ({ ...e, links: juntar(lista, e.links, t0, (l) => deLink(l), () => false) }))
     }
   }
 }
@@ -174,6 +195,8 @@ const recarregar = (...recursos: Recurso[]) => { for (const r of recursos) if (a
 
 function limpar() {
   geracao++
+  tocadoEm.clear()
+  removidoEm.clear()
   emCurso.clear()
   definir(() => vazio())
 }
@@ -235,6 +258,7 @@ export const fonteReal: FonteDados = {
     let atualizadoEm = r.updatedAt
     const descricao = entrada.descricao?.trim() ?? ''
     let projeto: Projeto = { ...deResumo(r), descricao, cliente: entrada.cliente?.trim() || undefined, documento, documentoParcial: false, totalTelas: documento.scenes.length }
+    tocar(r.id)
     definir((e) => ({ ...e, projetos: [projeto, ...e.projetos] }))
     const salvo = await chamar(() => api.projetos.salvarCenas(r.id, documento, revisao))
     revisao = salvo.revision
@@ -284,8 +308,9 @@ export const fonteReal: FonteDados = {
   },
   async excluirProjeto(id) {
     await chamar(() => api.projetos.excluir(id))
-    const agora = agoraIso()
-    definir((e) => ({ ...e, projetos: e.projetos.map((p) => (p.id === id ? { ...p, excluidoEm: agora } : p)), links: e.links.map((l) => (l.projectId === id && !l.revogadoEm ? { ...l, revogadoEm: agora } : l)) }))
+    const quando = agoraIso()
+    tocar(id, ...atual.links.filter((l) => l.projectId === id).map((l) => l.id))
+    definir((e) => ({ ...e, projetos: e.projetos.map((p) => (p.id === id ? { ...p, excluidoEm: quando } : p)), links: e.links.map((l) => (l.projectId === id && !l.revogadoEm ? { ...l, revogadoEm: quando } : l)) }))
     recarregar('conta')
   },
   async restaurarProjeto(id) {
@@ -295,6 +320,7 @@ export const fonteReal: FonteDados = {
   },
   async excluirDefinitivo(id) {
     await chamar(() => api.projetos.excluirDefinitivo(id))
+    remover(id)
     definir((e) => ({ ...e, projetos: e.projetos.filter((p) => p.id !== id), links: e.links.filter((l) => l.projectId !== id) }))
   },
   async abrirProjeto(id, opcoes = {}) {
@@ -309,6 +335,7 @@ export const fonteReal: FonteDados = {
     }
     const documento = documentoSeguro({ schemaVersion: SCHEMA_VERSION, mode: d.mode, scenes: d.scenes })
     const projeto: Projeto = { ...deResumo(d, cache), descricao: d.description, documento, documentoParcial: false, totalTelas: documento.scenes.length, cliente: cache?.cliente }
+    tocar(id)
     definir((e) => ({ ...e, projetos: e.projetos.some((p) => p.id === id) ? e.projetos.map((p) => (p.id === id ? projeto : p)) : [projeto, ...e.projetos] }))
     return projeto
   },
@@ -356,6 +383,7 @@ export const fonteReal: FonteDados = {
     }
     aoProgredir({ fase: 'processing', progresso: 100 })
     const asset: AssetDemo = { ...deAsset(bruto), erro: cl.dica }
+    tocar(asset.id)
     definir((e) => ({ ...e, assets: [asset, ...e.assets.filter((a) => a.id !== asset.id)], uso: { ...e.uso, armazenamentoBytes: e.uso.armazenamentoBytes + asset.bytes } }))
     await espera(0)
     aoProgredir({ fase: 'ready', progresso: 100, asset })
@@ -363,6 +391,7 @@ export const fonteReal: FonteDados = {
   },
   async excluirAsset(id, forcar = false) {
     await chamar(() => api.assets.excluir(id, forcar))
+    remover(id)
     definir((e) => ({ ...e, assets: e.assets.filter((a) => a.id !== id) }))
     recarregar('conta')
   },
@@ -377,13 +406,15 @@ export const fonteReal: FonteDados = {
   async criarLink(projetoId, opcoes) {
     const r = await chamar(() => api.links.criar(projetoId, { ...(opcoes.senha ? { password: opcoes.senha } : {}), expiresAt: opcoes.expiraEm ?? null }))
     const link = deLink(r)
+    tocar(link.id)
     definir((e) => ({ ...e, links: [link, ...e.links] }))
     return { link, token: r.token }
   },
   async revogarLink(id) {
     await chamar(() => api.links.revogar(id))
-    const agora = agoraIso()
-    definir((e) => ({ ...e, links: e.links.map((l) => (l.id === id && !l.revogadoEm ? { ...l, revogadoEm: agora } : l)) }))
+    const quando = agoraIso()
+    tocar(id)
+    definir((e) => ({ ...e, links: e.links.map((l) => (l.id === id && !l.revogadoEm ? { ...l, revogadoEm: quando } : l)) }))
   },
   async resolverToken(token) {
     const r = await chamar(() => api.share.resolver(token))

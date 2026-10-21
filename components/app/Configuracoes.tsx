@@ -146,7 +146,7 @@ export function Configuracoes() {
       <Bloco titulo="Dados e privacidade (LGPD)">
         <p className="mb-4 text-[13px] text-texto2">Exporte seus dados ou exclua a conta. A exclusão apaga projetos, mídias e links após o prazo de retenção.</p>
         <div className="flex flex-wrap gap-2">
-          <Botao variante="secundario" onClick={() => mostrar('Exportação solicitada. Você receberá um e-mail quando estiver pronta (demonstração).', 'info')}>Exportar meus dados</Botao>
+          <Botao variante="secundario" onClick={() => mostrar(dados.capacidades.dadosDeExemplo ? 'Exportação solicitada. Você receberá um e-mail quando estiver pronta (demonstração).' : 'Pedido registrado. A exportação ainda é preparada pela equipe da Mostra e chega por e-mail.', 'info')}>Exportar meus dados</Botao>
           <Botao variante="perigo" onClick={() => setExcluir(true)}>Excluir conta</Botao>
         </div>
       </Bloco>

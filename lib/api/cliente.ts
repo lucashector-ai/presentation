@@ -1,8 +1,8 @@
 'use client'
 /**
- * Cliente HTTP tipado para as rotas /api (modo real). Espelha as funções de lib/demo/store.ts para que a UI
- * troque de fonte de dados sem mudar componentes. A sessão vai no cookie HttpOnly do Neon Auth (mesma origem):
- * o cliente não lê nem guarda token nenhum.
+ * Cliente HTTP tipado para as rotas /api (modo real). As telas não o chamam direto: passam por lib/dados
+ * (lib/dados/real.ts), que tem o mesmo contrato do store demo. A sessão vai no cookie HttpOnly do Neon Auth
+ * (mesma origem): o cliente não lê nem guarda token nenhum.
  */
 import type { z } from 'zod'
 import type { Asset, ContaRes, CriarProjetoReq, CriarShareLinkReq, DetalheProjetoRes, Envelope, ProjetoResumo, ResolverShareRes, SalvarCenasRes, ShareLink } from './contratos'

@@ -380,6 +380,7 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
         </div>
         <Botao tamanho="sm" variante="acento" className="shrink-0" onClick={() => setCompartilhar(true)}>Compartilhar</Botao>
       </header>
+      {estado.salvamento === 'conflito' && <AvisoConflito editor={editor} />}
 
       <div className="relative flex min-h-0 flex-1">
         <div className="hidden w-[248px] shrink-0 md:block"><PainelEsquerdo editor={editor} assets={assetsLista} avisar={avisar} aoBloco={(id) => inserirBloco(id)} /></div>
@@ -478,10 +479,8 @@ function EstadoSalvo({ editor }: { editor: ReturnType<typeof useEditor> }) {
   const s = estado.salvamento
   if (s === 'conflito')
     return (
-      <span className="ml-2 flex items-center gap-2 rounded-md bg-aviso/25 px-2 py-1 text-[12px] text-[#7a5a12]" role="alert">
-        <span title={estado.conflito ? `O servidor está na revisão ${estado.conflito.currentRevision}; esta sessão partiu da ${estado.revisao}.` : undefined}>Este projeto mudou em outra aba ou dispositivo. Suas mudanças continuam seguras nesta sessão.</span>
-        <button className="underline" title="Descarta as mudanças desta sessão e abre a versão mais recente" onClick={() => { void acoes.recarregarDoServidor() }}>Recarregar</button>
-        <button className="underline" title="Grava esta versão por cima da mais recente" onClick={acoes.manterMinhaVersao}>Manter a minha</button>
+      <span className="ml-2 hidden items-center gap-1.5 text-[12px] text-[#7a5a12] sm:flex" role="status" aria-live="polite">
+        <TriangleAlert className="h-3 w-3" /> Não salvo: versão mais recente
       </span>
     )
   const mapa = {
@@ -499,6 +498,37 @@ function EstadoSalvo({ editor }: { editor: ReturnType<typeof useEditor> }) {
       <span className="sr-only">{s === 'salvo' ? 'Todas as alterações foram salvas.' : ''}</span>
       {s === 'falha' && <button className="underline" onClick={acoes.salvarAgora}>Tentar novamente</button>}
     </span>
+  )
+}
+
+/** 409: alguém salvou este projeto em outra aba/dispositivo. Nada se perde até a pessoa escolher. */
+function AvisoConflito({ editor }: { editor: ReturnType<typeof useEditor> }) {
+  const { estado, acoes } = editor
+  const { mostrar } = useToast()
+  const [recarregando, setRecarregando] = useState(false)
+  const recarregar = async () => {
+    setRecarregando(true)
+    try {
+      if (await acoes.recarregarDoServidor()) mostrar('Versão mais recente aberta.', 'sucesso')
+      else mostrar('Este projeto não existe mais (pode ter ido para a lixeira).', 'erro')
+    } catch (e) {
+      mostrar(mensagemDeErro(e, 'Não foi possível recarregar agora. Tente de novo.'), 'erro')
+    } finally {
+      setRecarregando(false)
+    }
+  }
+  return (
+    <div role="alert" className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-aviso/40 bg-aviso/15 px-4 py-2 text-[13px] text-texto">
+      <TriangleAlert className="h-4 w-4 shrink-0 text-[#B7791F]" />
+      <span className="min-w-0 flex-1">
+        <strong className="font-medium">Este projeto mudou em outra aba ou dispositivo.</strong>{' '}
+        <span className="text-texto2">Suas mudanças desta sessão não foram salvas, mas continuam aqui{estado.conflito ? ` (o servidor está na revisão ${estado.conflito.currentRevision})` : ''}. Recarregue para ver a versão mais recente ou mantenha a sua por cima dela.</span>
+      </span>
+      <span className="flex shrink-0 gap-2">
+        <Botao tamanho="sm" carregando={recarregando} onClick={() => void recarregar()}>Recarregar</Botao>
+        <Botao tamanho="sm" variante="secundario" onClick={acoes.manterMinhaVersao}>Manter a minha</Botao>
+      </span>
+    </div>
   )
 }
 

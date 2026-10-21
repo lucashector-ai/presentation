@@ -17,10 +17,13 @@ SaaS privado para designers, diretores de arte e estúdios: cole artes do Figma 
 | Publicação (snapshot imutável) e links (token hash, senha, validade, revogação, limite de tentativas) | ✅ no modo demonstração |
 | Painel como centro do app (criar, continuar, enviados e visualizações, créditos e compra, primeiros passos, busca ⌘K), detalhes, compartilhamento, conta/planos, marketing, login/cadastro | ✅ ver `docs/ux/DIRECAO.md` |
 | Banco (Neon Postgres, `db/migrations`), login (Neon Auth: e-mail/senha + Google), mídias (Cloudflare R2) e rotas `/api` | ✅ exercitados de ponta a ponta contra o Neon (cadastro, login, projeto, cenas, upload, publicação, link de convidado, créditos, isolamento entre usuários) — ver ADR 0010 |
-| UI ligada ao backend real (hoje usa `lib/demo/store.ts` no navegador) | ⏳ Sprint 1: trocar o módulo de dados por `lib/api/cliente.ts` |
+| UI ligada ao backend real: camada de dados única (`lib/dados`) com duas implementações — demo (`lib/demo/store.ts`, `NEXT_PUBLIC_DEMO=1`) e real (rotas `/api`, sessão por cookie) | ✅ painel, editor (autosave com revisão, 409, offline), mídias, publicação, links, página pública, lixeira, créditos/plano e IA — provado por `e2e/real.mjs` |
 | Worker de thumbnails/transcodificação, billing (Stripe), e-mail transacional | ⏳ não iniciados |
 
-A UI roda em **modo demonstração** (`NEXT_PUBLIC_DEMO=1`): um "backend" no navegador (`lib/demo/store.ts`) implementa os mesmos contratos das rotas reais, com dados fictícios persistidos em `localStorage`. Isso permite validar a experiência completa (AC-01 a AC-14) antes de ligar o banco.
+As telas só falam com `dados` (`lib/dados/index.ts`) e leem o estado com `useDados`/`useCarregar`/`useProjetoCompleto`; nenhuma decide sozinha se está no modo demo. O build escolhe a implementação:
+
+- **modo demonstração** (`NEXT_PUBLIC_DEMO=1`): um "backend" no navegador (`lib/demo/store.ts`) implementa os mesmos contratos das rotas reais, com dados fictícios persistidos em `localStorage` (`mostra.demo.v2`).
+- **modo real** (sem a variável): `lib/dados/real.ts` chama as rotas `/api` (`lib/api/cliente.ts`) e mantém um cache reativo no mesmo formato; o servidor continua sendo a fonte da verdade (revisão/409, limites do plano, débito de créditos, autorização). Sem sessão, `/app/*` manda para `/login?proximo=…` e volta depois de entrar; uma sessão que expira no meio do uso faz o mesmo.
 
 ## Como rodar
 
@@ -55,6 +58,14 @@ Fonte única: `lib/planos.ts` (servidor, painel e landing leem os mesmos número
 | Studio | R$119 / R$149 por membro | 20.000 por mês, compartilhados | 333 |
 
 Pacotes avulsos (não expiram): 500 por R$19 (≈ 8), 2.000 por R$59 (≈ 33), 10.000 por R$229 (≈ 166). Editar, apresentar, compartilhar e acompanhar o cliente nunca consomem créditos. Decisões e justificativas (inclusive a saída do "vídeo curto") em `docs/ux/DIRECAO.md`.
+
+### Modo real local (banco de verdade)
+
+1. `.env.local` com as variáveis do Neon de um **branch de teste** (`neon branches create --name teste-x --parent production` e `neon env pull --branch teste-x --file .env.local`) e `.dev.vars` com as mesmas linhas, sem as `NEXT_PUBLIC_*` (o Worker local lê o `.dev.vars`).
+2. `npm run dev`. O servidor roda no workerd; se ele não resolver DNS (rede que só sai por proxy HTTP, como sessões de agente), encaminhe o fetch de saída do Worker pelo Node com o preload de desenvolvimento:
+   `NODE_USE_ENV_PROXY=1 node --import ./e2e/saida-pelo-node.mjs node_modules/vite/bin/vite.js dev --port 3104`
+   (só HTTP(S); o app usa o driver HTTP do Neon. Não entra no build.)
+3. `E2E_BASE_URL=http://localhost:3104 node e2e/real.mjs`: cadastra um usuário novo, cria projeto, edita e salva, recarrega, envia imagem, provoca e resolve um conflito 409, publica, abre o link numa aba anônima, duplica/arquiva/usa a lixeira, envia para a biblioteca, cria com IA, sai e entra de novo. No fim imprime o usuário criado para apagar do branch.
 
 ## Como testar
 
@@ -106,6 +117,7 @@ lib/
   auth/                   Neon Auth: servidor.ts (proxy /api/auth + sessão), cliente.ts (navegador)
   armazenamento.ts        mídias no R2 (binding MIDIAS via lib/cf/ambiente.ts) ou disco/memória em dev
   db/                     conexão Neon (sql() HTTP, novoPool() WebSocket)
+  dados/                  camada de dados das telas: contrato (tipos.ts), demo.ts (store local) e real.ts (rotas /api + cache)
   demo/                   backend de demonstração no navegador + dados fictícios
   editor/                 useEditor (undo/redo, autosave, revisão, conflito), guias, importação
   importar/               SVG (sanitização, cores), arquivos (GLB/glTF/Lottie), área de transferência
@@ -116,7 +128,7 @@ lib/
   design-tokens.ts        tokens (espelham app/globals.css)
 db/migrations/            schema relacional e funções transacionais (Neon); db/migrar.mjs aplica
 docs/                     ARQUITETURA.md, CRITERIOS-ACEITE.md, adr/
-e2e/                      fluxo ponta a ponta com Playwright
+e2e/                      fluxos ponta a ponta com Playwright: fluxo.mjs (demo) e real.mjs (Neon de verdade)
 ```
 
 ## Decisões registradas

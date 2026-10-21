@@ -14,8 +14,8 @@ export const dynamic = 'force-dynamic'
 const SEM_PURIFICADOR = { sanitize: () => { throw new Error('purificador só para SVG') } }
 
 /**
- * POST /api/assets/upload?projectId=&name=[&width=&height=&duration=] — corpo = o arquivo; Content-Type = MIME.
- * Valida sessão, projeto do workspace, cota/tamanho do plano (antes de ler o corpo), MIME REAL (bytes mágicos)
+ * POST /api/assets/upload?[projectId=]&name=[&width=&height=&duration=] — corpo = o arquivo; Content-Type = MIME.
+ * Valida sessão, projeto do workspace (quando informado; a biblioteca envia sem), cota/tamanho do plano (antes de ler o corpo), MIME REAL (bytes mágicos)
  * e, nos formatos de texto, o conteúdo inteiro (SVG é sanitizado e só a versão limpa é gravada). Grava no
  * armazenamento privado em {workspace}/{asset}/original.ext e devolve o Asset pronto.
  */
