@@ -10,6 +10,7 @@ import { SeletorLista } from './controles'
 import type { Camada } from '@/lib/scene/schema'
 import { gradienteCss, sombraCss } from '@/components/renderer/estilos'
 import { pilhaFonte } from '@/lib/design-tokens'
+import { caixaCss, decoracaoCss, linhasVisiveis } from '@/lib/scene/tipografia'
 import { useToast } from '@/components/ui/toast'
 import { Secao } from './controles'
 import { useCamadas, type PropsSecao } from './selecao'
@@ -39,8 +40,11 @@ export function cssDaCamada(c: Camada): string {
     linhas.push(`font-family: ${pilhaFonte(c.fontFamily).replace(/var\(--font-geist-sans\)/, 'Geist').replace(/var\(--font-geist-mono\)/, '"Geist Mono"')};`, `font-size: ${c.fontSize}px;`, `font-weight: ${c.fontWeight};`, `line-height: ${c.lineHeight};`)
     if (c.letterSpacing) linhas.push(`letter-spacing: ${c.letterSpacing}px;`)
     if (c.italic) linhas.push('font-style: italic;')
-    if (c.underline) linhas.push('text-decoration: underline;')
-    if (c.transform !== 'none') linhas.push(`text-transform: ${c.transform};`)
+    // decoração, caixa, corte vertical, quebra e recursos da fonte: as mesmas regras do renderizador
+    const css = { ...decoracaoCss(c), ...caixaCss(c.transform), ...(c.textWrap && c.textWrap !== 'auto' ? { textWrap: c.textWrap } : {}), ...(c.tabularNums ? { fontVariantNumeric: 'tabular-nums' } : {}), ...(c.ligatures === false ? { fontVariantLigatures: 'none' } : {}) }
+    for (const [k, v] of Object.entries(css)) if (v !== undefined) linhas.push(`${k.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`)}: ${typeof v === 'number' ? `${v}px` : v};`)
+    if (c.leadingTrim === 'cap') linhas.push('text-box: trim-both cap alphabetic;')
+    if (c.truncate) { const n = linhasVisiveis(c); if (n) linhas.push('display: -webkit-box;', '-webkit-box-orient: vertical;', `-webkit-line-clamp: ${n};`, 'overflow: hidden;') }
     linhas.push(`text-align: ${c.align};`)
     if (c.gradient) linhas.push(`background: ${gradienteCss(c.gradient)};`, 'background-clip: text;', 'color: transparent;')
     else linhas.push(`color: ${c.color};`)

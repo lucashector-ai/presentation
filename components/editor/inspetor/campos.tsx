@@ -49,9 +49,10 @@ export function BotaoCampo({ rotulo, ativo, children, className, ...rest }: Reac
  * - Enter/Tab confirmam, Esc desfaz a digitação;
  * - seleção múltipla com valores diferentes mostra "Misto" (↑/↓ e arraste somam em cada um, via `aoDelta`).
  */
-export function CampoNum({ prefixo, valor, aoMudar, aoDelta, min, max, passo = 1, sufixo, rotulo, casas = 0, titulo, className, desativado, compacto }: {
+export function CampoNum({ prefixo, valor: valorBruto, aoMudar, aoDelta, min, max, passo = 1, sufixo, rotulo, casas = 0, titulo, className, desativado, compacto, vazio, base = 0, aoLimpar }: {
   prefixo?: ReactNode
-  valor: number | Misto
+  /** `null` = valor automático (campo vazio com o texto de `vazio`, ex.: "Auto"). */
+  valor: number | Misto | null
   aoMudar: (v: number) => void
   aoDelta?: (d: number) => void
   min?: number
@@ -65,8 +66,16 @@ export function CampoNum({ prefixo, valor, aoMudar, aoDelta, min, max, passo = 1
   desativado?: boolean
   /** 28 px (dentro do seletor de cor). */
   compacto?: boolean
+  /** Texto do campo vazio quando `valor` é null (ex.: "Auto"). */
+  vazio?: string
+  /** Ponto de partida de ↑/↓ e do arraste quando o valor é automático. */
+  base?: number
+  /** Apagar o número volta ao automático. */
+  aoLimpar?: () => void
 }) {
   const { gesto } = useInspetor()
+  const auto = valorBruto === null
+  const valor: number | Misto = auto ? MISTO : valorBruto
   const misto = valor === MISTO
   const [texto, setTexto] = useState(misto ? '' : fmt(valor, casas))
   const focado = useRef(false)
@@ -74,6 +83,7 @@ export function CampoNum({ prefixo, valor, aoMudar, aoDelta, min, max, passo = 1
   useEffect(() => { if (!focado.current) setTexto(valor === MISTO ? '' : fmt(valor, casas)) }, [valor, casas])
   const limitar = (v: number) => Math.max(min ?? -Infinity, Math.min(max ?? Infinity, v))
   const somar = (d: number) => {
+    if (auto) { const v = limitar(Math.round((base + d) * 1000) / 1000); aoMudar(v); setTexto(fmt(v, casas)); return }
     if (valor === MISTO) { aoDelta?.(d); return }
     const v = limitar(Math.round((valor + d) * 1000) / 1000)
     aoMudar(v)
@@ -81,6 +91,7 @@ export function CampoNum({ prefixo, valor, aoMudar, aoDelta, min, max, passo = 1
   }
   const confirmar = () => {
     if (cancelar.current) { cancelar.current = false; setTexto(valor === MISTO ? '' : fmt(valor, casas)); return }
+    if (texto.trim() === '' && aoLimpar && !auto) { aoLimpar(); return }
     if (misto && texto.trim() === '') return
     const v = avaliar(texto)
     if (v === null) setTexto(valor === MISTO ? '' : fmt(valor, casas))
@@ -90,14 +101,14 @@ export function CampoNum({ prefixo, valor, aoMudar, aoDelta, min, max, passo = 1
     if (desativado || e.button !== 0) return
     e.preventDefault()
     const x0 = e.clientX
-    const v0 = valor === MISTO ? 0 : valor
+    const v0 = auto ? base : valor === MISTO ? 0 : valor
     let aplicado = 0
     gesto?.iniciar()
     document.body.style.cursor = 'ew-resize'
     const mover = (ev: PointerEvent) => {
       const passos = Math.round((ev.clientX - x0) / 2) * (ev.shiftKey ? 10 : 1)
       const d = passos * passo
-      if (valor === MISTO) { if (d !== aplicado) { aoDelta?.(d - aplicado); aplicado = d } return }
+      if (valor === MISTO && !auto) { if (d !== aplicado) { aoDelta?.(d - aplicado); aplicado = d } return }
       const v = limitar(Math.round((v0 + d) / passo) * passo)
       if (v !== aplicado + v0) { aplicado = v - v0; aoMudar(Math.round(v * 1000) / 1000) }
     }
@@ -121,7 +132,7 @@ export function CampoNum({ prefixo, valor, aoMudar, aoDelta, min, max, passo = 1
         aria-label={rotulo}
         value={texto}
         disabled={desativado}
-        placeholder={misto ? 'Misto' : undefined}
+        placeholder={auto ? vazio ?? 'Auto' : misto ? 'Misto' : undefined}
         inputMode="decimal"
         spellCheck={false}
         onFocus={(e) => { focado.current = true; e.currentTarget.select() }}

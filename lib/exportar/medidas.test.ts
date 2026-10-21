@@ -44,6 +44,12 @@ describe('exportar seleção', () => {
     expect(sub.layers).toHaveLength(1)
     expect(sub.layers[0]).toMatchObject({ x: 0, y: 0, parentId: undefined })
   })
+  it('texto com corte vertical exporta a linha inteira (acentos e descendentes não são cortados)', () => {
+    const t = parseCamada({ id: 't', type: 'text', x: 100, y: 100, width: 400, height: 71, text: 'Hgj', fontFamily: 'Geist', fontSize: 100, lineHeight: 1.2, leadingTrim: 'cap' })
+    const sub = cenaDaSelecao(novaCena({ id: 's', size: { width: 1920, height: 1080 }, layers: [t] }), ['t'])!
+    expect(sub.size.height).toBeGreaterThanOrEqual(120)
+    expect(sub.layers[0]!.y).toBeGreaterThan(0)
+  })
   it('várias camadas: caixa que envolve todas; ocultas não contam', () => {
     expect(cenaDaSelecao(cena, ['c', 'o'])!.size).toEqual({ width: 980, height: 780 })
     const oculta = { ...cena, layers: cena.layers.map((l) => (l.id === 'o' ? { ...l, hidden: true } : l)) }

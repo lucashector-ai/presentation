@@ -411,6 +411,14 @@ interface EstiloTexto {
   caso: string
   espacamento?: Numero
   alturaLinha?: Numero
+  estiloLinha?: string
+  espessuraLinha?: Numero
+  deslocamentoLinha?: Numero
+  pularDescendentes?: boolean
+  corLinha?: Paint[]
+  versalete?: string
+  tabular: boolean
+  ligaduras: boolean
 }
 
 const PESOS: [RegExp, number][] = [
@@ -445,10 +453,28 @@ function resolverEstilo(base: NodeChange, ov: NodeChange | undefined, dados: Dad
     caso: n.textCase ?? 'ORIGINAL',
     espacamento: n.letterSpacing,
     alturaLinha: n.lineHeight,
+    estiloLinha: n.textDecorationStyle,
+    espessuraLinha: n.textDecorationThickness,
+    deslocamentoLinha: n.textUnderlineOffset,
+    pularDescendentes: n.textDecorationSkipInk,
+    corLinha: n.textDecorationFillPaints,
+    versalete: n.fontVariantCaps,
+    tabular: n.fontVariantNumericSpacing === 'TABULAR',
+    ligaduras: n.fontVariantCommonLigatures !== false,
   }
 }
 
-const chaveEstilo = (e: EstiloTexto) => JSON.stringify([e.familia, e.estilo, e.tamanho, e.decoracao, e.caso, e.espacamento, e.pinturas.map((p) => [p.type, p.color, p.opacity, p.stops])])
+/** Medida do Figma (px ou % do tamanho da fonte) em px; AUTO/ausente = undefined. */
+function pxDe(v: Numero | undefined, tamanho: number): number | undefined {
+  if (!v || v.value === undefined) return undefined
+  if (v.units === 'PIXELS') return v.value
+  if (v.units === 'PERCENT') return (v.value / 100) * tamanho
+  return undefined
+}
+
+const CAIXA_FIGMA: Record<string, string> = { UPPER: 'uppercase', LOWER: 'lowercase', TITLE: 'capitalize', SMALL_CAPS: 'smallCaps', SMALL_CAPS_FORCED: 'allSmallCaps' }
+
+const chaveEstilo = (e: EstiloTexto) => JSON.stringify([e.familia, e.estilo, e.tamanho, e.decoracao, e.caso, e.espacamento, e.versalete, e.estiloLinha, e.pinturas.map((p) => [p.type, p.color, p.opacity, p.stops])])
 
 function alturaLinhaRelativa(e: EstiloTexto, linhas: Baseline[] | undefined, fontLineHeight?: number): number {
   const l = linhas?.[0]?.lineHeight
@@ -468,11 +494,24 @@ function propsDeEstilo(e: EstiloTexto, w: number, h: number, ctx: Contexto, font
     fontWeight: e.peso,
     italic: e.italico,
     underline: e.decoracao === 'UNDERLINE',
-    transform: e.caso === 'UPPER' ? 'uppercase' : e.caso === 'LOWER' ? 'lowercase' : 'none',
+    transform: CAIXA_FIGMA[e.caso] ?? (e.versalete === 'SMALL' ? 'smallCaps' : e.versalete === 'ALL_SMALL' ? 'allSmallCaps' : 'none'),
     letterSpacing: limitar(e.espacamento?.units === 'PIXELS' ? (e.espacamento.value ?? 0) : ((e.espacamento?.value ?? 0) / 100) * e.tamanho, -100, 100),
   }
-  if (e.decoracao === 'STRIKETHROUGH') ctx.avisos.add('Texto riscado não existe na Mostra e ficou sem o risco.')
-  if (e.caso === 'TITLE' || e.caso.startsWith('SMALL_CAPS')) ctx.avisos.add('Caixa de título e versalete do Figma ficaram como o texto original.')
+  // decoração: tachado e as opções da linha (estilo, espessura, deslocamento, pular descendentes, cor)
+  if (e.decoracao === 'STRIKETHROUGH') props.strikethrough = true
+  if (e.decoracao === 'UNDERLINE' || e.decoracao === 'STRIKETHROUGH') {
+    if (e.estiloLinha === 'DOTTED') props.decorationStyle = 'dotted'
+    else if (e.estiloLinha === 'WAVY') props.decorationStyle = 'wavy'
+    const esp = pxDe(e.espessuraLinha, e.tamanho)
+    if (esp !== undefined && esp > 0) props.decorationThickness = limitar(Math.round(esp * 10) / 10, 0.5, 100)
+    const desl = pxDe(e.deslocamentoLinha, e.tamanho)
+    if (desl !== undefined && e.decoracao === 'UNDERLINE') props.decorationOffset = limitar(Math.round(desl * 10) / 10, -100, 100)
+    if (e.pularDescendentes === false) props.decorationSkipInk = false
+    const cor = pinturasVisiveis(e.corLinha).filter((p) => p.type === 'SOLID').pop()
+    if (cor) props.decorationColor = corHex(cor.color, cor.opacity ?? 1)
+  }
+  if (e.tabular) props.tabularNums = true
+  if (!e.ligaduras) props.ligatures = false
   if (!(FONTES_APRESENTACAO as readonly string[]).includes(e.familia)) fontes.add(e.familia)
   const p = e.pinturas[e.pinturas.length - 1]
   if (!p) props.color = '#00000000'
@@ -517,6 +556,17 @@ function textoParaPedacos(nc: NodeChange, ctx: Contexto, fontes: Set<string>): P
   const alinhamento = ({ CENTER: 'center', RIGHT: 'right', JUSTIFIED: 'justify' } as Record<string, string>)[nc.textAlignHorizontal ?? ''] ?? 'left'
   const vertical = ({ CENTER: 'middle', BOTTOM: 'bottom' } as Record<string, string>)[nc.textAlignVertical ?? ''] ?? 'top'
   const autoLargura = nc.textAutoResize === 'WIDTH_AND_HEIGHT'
+  // opções do nó inteiro ("Type settings"): corte vertical, truncar, espaço entre parágrafos e lista
+  const corte = nc.leadingTrim === 'CAP_HEIGHT'
+  const opcoesNo: Record<string, unknown> = {}
+  if (corte) opcoesNo.leadingTrim = 'cap'
+  if (nc.textTruncation === 'ENDING') {
+    opcoesNo.truncate = true
+    if (nc.maxLines && nc.maxLines > 0) opcoesNo.maxLines = Math.min(999, Math.round(nc.maxLines))
+  }
+  if (nc.paragraphSpacing && nc.paragraphSpacing > 0) opcoesNo.paragraphSpacing = limitar(nc.paragraphSpacing, 0, 1000)
+  const lista = tipoDeLista(dados, chars, ctx)
+  if (lista) opcoesNo.listStyle = lista
 
   // trechos de mesmo estilo
   const runs: { a: number; b: number; e: EstiloTexto }[] = []
@@ -533,7 +583,8 @@ function textoParaPedacos(nc: NodeChange, ctx: Contexto, fontes: Set<string>): P
   const pedacoInteiro = (e: EstiloTexto): PedacoTexto => {
     const caixa: Caixa = { x: 0, y: 0, w, h }
     let valign = vertical
-    if (linhas) {
+    // com corte vertical a caixa do Figma já é a das letras (maiúsculas à linha de base): a Mostra corta igual
+    if (linhas && !corte) {
       // usa as linhas como o Figma as posicionou: com "corte de entrelinha" (leading trim) ou texto que transborda,
       // a caixa do nó é menor que as linhas e a Mostra cortaria/deslocaria o texto
       const y0 = Math.min(...linhas.map((l) => l.lineY ?? 0))
@@ -550,8 +601,8 @@ function textoParaPedacos(nc: NodeChange, ctx: Contexto, fontes: Set<string>): P
       if (alinhamento === 'center') caixa.x -= f / 2
       else if (alinhamento === 'right') caixa.x -= f
     }
-    if (nc.textAutoResize === 'HEIGHT' || autoLargura) caixa.h += Math.max(2, e.tamanho * 0.1)
-    return { texto: chars, caixa, props: { ...propsDeEstilo(e, w, h, ctx, fontes), align: alinhamento, valign, lineHeight: alturaLinhaRelativa(e, linhas, metaLinha) } }
+    if (!corte && (nc.textAutoResize === 'HEIGHT' || autoLargura)) caixa.h += Math.max(2, e.tamanho * 0.1)
+    return { texto: chars, caixa, props: { ...propsDeEstilo(e, w, h, ctx, fontes), align: alinhamento, valign, lineHeight: alturaLinhaRelativa(e, linhas, metaLinha), ...opcoesNo } }
   }
 
   if (uniforme) return [pedacoInteiro(visiveis[0]?.e ?? estiloBase)]
@@ -635,6 +686,20 @@ function textoParaPedacos(nc: NodeChange, ctx: Contexto, fontes: Set<string>): P
   const dominante = [...contagem.values()].sort((a, b) => b.n - a.n)[0]?.e ?? estiloBase
   ctx.avisos.add('Partes de texto com estilo diferente ficaram com o estilo principal.')
   return [pedacoInteiro(dominante)]
+}
+
+/** Lista do Figma (um tipo de linha por parágrafo): só vira lista quando todos os parágrafos com texto são do mesmo tipo. */
+function tipoDeLista(dados: DadosTexto | undefined, chars: string, ctx: Contexto): 'bullet' | 'number' | undefined {
+  const ls = dados?.lines
+  if (!ls?.length) return undefined
+  const pars = chars.split('\n')
+  const tipos = new Set(ls.map((l, i) => ((pars[i] ?? '').trim() ? l.lineType ?? 'PLAIN' : '')).filter(Boolean))
+  const temLista = tipos.has('UNORDERED_LIST') || tipos.has('ORDERED_LIST')
+  if (tipos.size !== 1) {
+    if (temLista) ctx.avisos.add('Listas misturadas com parágrafos comuns ficaram sem marcadores.')
+    return undefined
+  }
+  return tipos.has('UNORDERED_LIST') ? 'bullet' : tipos.has('ORDERED_LIST') ? 'number' : undefined
 }
 
 // ---------- conversão ----------
@@ -771,7 +836,8 @@ class Conversor {
       // O Figma não corta letras que passam da entrelinha (ascendentes/descendentes com entrelinha curta);
       // a caixa de texto da Mostra corta. Um respiro (padding) em volta mantém a posição do texto e evita o corte.
       const fs = p.props.fontSize as number
-      const respiro = limitar(Math.ceil(Math.max(2, (1.4 * fs - (p.props.lineHeight as number) * fs) / 2)), 0, 200)
+      // com corte vertical as letras já passam da caixa sem cortar (como no Figma): sem respiro
+      const respiro = p.props.leadingTrim === 'cap' ? 0 : limitar(Math.ceil(Math.max(2, (1.4 * fs - (p.props.lineHeight as number) * fs) / 2)), 0, 200)
       const caixa = expandir(p.caixa, respiro)
       const g = colocar(W, caixa)
       const d = decompor(W)
