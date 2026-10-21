@@ -8,6 +8,8 @@ import type { EstadoDemo } from '@/lib/demo/tipos'
 import { api } from '@/lib/api/cliente'
 import { sair as sairDaSessao } from '@/lib/sessao'
 import { paraErroDados } from './comum'
+import { PLANOS } from '@/lib/planos'
+import { ErroDados } from './tipos'
 import type { EstadoDados, FonteDados, Recurso, Situacao } from './tipos'
 
 const PRONTO: Record<Recurso, Situacao> = { conta: { estado: 'pronto' }, projetos: { estado: 'pronto' }, lixeira: { estado: 'pronto' }, assets: { estado: 'pronto' }, links: { estado: 'pronto' } }
@@ -31,6 +33,8 @@ async function envolver<T>(fn: () => T | Promise<T>): Promise<T> {
     throw paraErroDados(e)
   }
 }
+
+const SEM_EQUIPE = new ErroDados('indisponivel', 'No modo demonstração não há equipe nem edição em tempo real: elas usam o servidor. Crie uma conta para convidar pessoas.')
 
 /** Links com senha já liberados nesta aba (o "grant" do modo demo). */
 const liberados = new Set<string>()
@@ -84,6 +88,35 @@ export const fonteDemo: FonteDados = {
     if (gerador === 'claude' || houveResultado) {
       try { store.gastarCreditos(custo, motivo) } catch { /* saldo conferido antes da chamada */ }
     }
+  },
+
+  // sem servidor não há colaboração: a equipe é só você
+  equipe: {
+    obter: async () => {
+      const e = store.estado()
+      return {
+        workspace: { id: e.workspace.id, nome: e.workspace.nome },
+        meuPapel: 'owner',
+        limite: PLANOS[e.workspace.planoId].limites.membros,
+        membros: [{ userId: e.usuario.id, nome: e.usuario.nome, email: e.usuario.email, papel: 'owner', desde: new Date(0).toISOString(), voce: true }],
+        convites: [],
+      }
+    },
+    convidar: async () => { throw SEM_EQUIPE },
+    revogarConvite: async () => { throw SEM_EQUIPE },
+    alterarPapel: async () => { throw SEM_EQUIPE },
+    remover: async () => { throw SEM_EQUIPE },
+  },
+  convites: {
+    obter: async () => ({ estado: 'invalido' }),
+    aceitar: async () => { throw SEM_EQUIPE },
+  },
+  espacos: {
+    listar: async () => {
+      const e = store.estado()
+      return [{ id: e.workspace.id, nome: e.workspace.nome, dono: e.usuario.nome, papel: 'owner', proprio: true, ativo: true }]
+    },
+    ativar: async () => {},
   },
 
   comprarPacote: (creditos) => envolver(() => { store.comprarPacote(creditos) }),

@@ -5,7 +5,8 @@
   "name": "mostra",
   "compatibility_date": "2026-10-15",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "vinext/server/fetch-handler",
+  // worker/index.ts delega ao vinext e exporta a classe do Durable Object da sala de colaboração
+  "main": "./worker/index.ts",
   "assets": {
     "directory": "dist/client",
     "html_handling": "none",
@@ -15,5 +16,8 @@
   },
   // Mídias dos projetos (originais + variantes). Acesso só por lib/cf/ambiente.ts. No local, o Wrangler simula o bucket.
   "r2_buckets": [{ "binding": "MIDIAS", "bucket_name": "mostra-midias", "preview_bucket_name": "mostra-midias" }],
+  // Sala de colaboração: um Durable Object (SQLite) por projeto, com WebSockets em hibernação (lib/colab/sala.ts).
+  "durable_objects": { "bindings": [{ "name": "SALAS", "class_name": "SalaProjeto" }] },
+  "exports": { "SalaProjeto": { "type": "durable-object", "storage": "sqlite" } },
   "observability": { "enabled": true }
 }

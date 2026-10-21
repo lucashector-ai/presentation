@@ -450,6 +450,38 @@ export const fonteReal: FonteDados = {
   },
   registrarUsoIa: () => recarregar('conta'),
 
+  // ---------- equipe ----------
+  equipe: {
+    obter: () => chamar(() => api.equipe.obter()),
+    async convidar(entrada) {
+      const r = await chamar(() => api.equipe.convidar(entrada))
+      const { url, ...convite } = r
+      return { convite, url }
+    },
+    async revogarConvite(id) { await chamar(() => api.equipe.revogarConvite(id)) },
+    async alterarPapel(userId, papel) { await chamar(() => api.equipe.alterarPapel(userId, papel)) },
+    async remover(userId) {
+      await chamar(() => api.equipe.remover(userId))
+      recarregar('conta')
+    },
+  },
+  convites: {
+    obter: (token) => chamar(() => api.convites.obter(token)),
+    async aceitar(token) {
+      const r = await chamar(() => api.convites.aceitar(token))
+      // o espaço ativo mudou: o cache é de outro workspace
+      limpar()
+      return r
+    },
+  },
+  espacos: {
+    listar: () => chamar(() => api.workspaces.listar()),
+    async ativar(id) {
+      await chamar(() => api.workspaces.ativar(id))
+      limpar()
+    },
+  },
+
   // ---------- conta ----------
   async comprarPacote() {
     throw new ErroDados('indisponivel', 'A compra de créditos ainda não está disponível nesta versão. Fale com a gente para recarregar o saldo.')

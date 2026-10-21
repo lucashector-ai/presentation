@@ -2,9 +2,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Home, Library, LogOut, Menu, Moon, Search, Send, Settings2, Sparkles, Trash2, X } from 'lucide-react'
+import { ArrowLeftRight, Home, Library, LogOut, Menu, Moon, Search, Send, Settings2, Sparkles, Trash2, X } from 'lucide-react'
 import { alternarTema, MODO_DEMO, sessaoAtiva, verificarSessao } from '@/lib/sessao'
-import { dados, mensagemDeErro, useCarregar, useDados } from '@/lib/dados'
+import { dados, mensagemDeErro, useCarregar, useDados, type EspacoDeTrabalho } from '@/lib/dados'
 import { PLANOS, formatarBytes, percentualUso, textoApresentacoes } from '@/lib/planos'
 import { estadoDoLink } from '@/lib/share/token'
 import { Atrasado, Carregando, Marca, cx } from '@/components/ui'
@@ -101,8 +101,9 @@ function Moldura({ caminho, children }: { caminho: string; children: React.React
       <Link href="/app" className="px-2 text-[20px] text-texto" aria-label="Mostra — início"><Marca /></Link>
       <Link href="/app/settings#plano" className="flex items-center gap-2.5 rounded-[9px] border border-borda bg-superficie p-2 text-left hover:border-[#D4D4D4]">
         <span className="flex h-7 w-7 items-center justify-center rounded-[7px] bg-carvao text-[12px] font-semibold text-argila">{ws.nome[0] ?? 'M'}</span>
-        <span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-medium">{ws.nome}</span><span className="block text-[11px] text-texto3">Plano {plano.nome} · {ws.membros} {ws.membros === 1 ? 'membro' : 'membros'}</span></span>
+        <span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-medium">{ws.nome}</span><span className="block text-[11px] text-texto3">Plano {plano.nome} · {ws.membros} {ws.membros === 1 ? 'membro' : 'membros'}{ws.papel === 'viewer' ? ' · só ver' : ''}</span></span>
       </Link>
+      <SeletorEspaco />
       <button type="button" onClick={() => { setMenuMovel(false); setBusca(true) }} className="flex h-9 items-center gap-2 rounded-[9px] border border-borda bg-superficie px-2.5 text-[13px] text-texto3 hover:border-[#D4D4D4] hover:text-texto2">
         <Search className="h-[15px] w-[15px]" strokeWidth={1.75} />Buscar
         <kbd className="mono ml-auto rounded border border-borda px-1.5 text-[10px]">⌘K</kbd>
@@ -168,6 +169,33 @@ function Moldura({ caminho, children }: { caminho: string; children: React.React
       )}
       <main className="min-w-0 px-4 pb-20 pt-7 sm:px-[clamp(24px,4vw,56px)] sm:pt-10">{children}</main>
       <BuscaRapida aberta={busca} aoFechar={fecharBusca} />
+    </div>
+  )
+}
+
+/** Trocar de espaço (o próprio e os aceitos por convite). Só aparece quando há mais de um. */
+function SeletorEspaco() {
+  const [espacos, setEspacos] = useState<EspacoDeTrabalho[]>([])
+  const [aberto, setAberto] = useState(false)
+  useEffect(() => {
+    let vivo = true
+    dados.espacos.listar().then((l) => { if (vivo) setEspacos(l) }, () => {})
+    return () => { vivo = false }
+  }, [])
+  if (espacos.length < 2) return null
+  return (
+    <div className="relative -mt-3">
+      <button type="button" aria-expanded={aberto} onClick={() => setAberto((v) => !v)} className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-[12px] text-texto2 hover:bg-hover hover:text-texto"><ArrowLeftRight className="h-3.5 w-3.5" /> Trocar de espaço</button>
+      {aberto && (
+        <div role="menu" aria-label="Espaços" className="absolute left-0 right-0 z-40 mt-1 rounded-lg border border-borda bg-superficie p-1 shadow-painel" onMouseLeave={() => setAberto(false)}>
+          {espacos.map((e) => (
+            <button key={e.id} role="menuitemradio" aria-checked={e.ativo} disabled={e.ativo} onClick={async () => { await dados.espacos.ativar(e.id); window.location.assign('/app') }} className={cx('flex w-full flex-col rounded-md px-3 py-2 text-left text-[13px] hover:bg-hover', e.ativo && 'bg-hover font-medium')}>
+              <span className="truncate">{e.nome}</span>
+              <span className="text-[11px] font-normal text-texto3">{e.proprio ? 'seu espaço' : e.papel === 'viewer' ? 'você pode ver' : 'você pode editar'}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

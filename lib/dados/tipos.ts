@@ -14,8 +14,10 @@ import type { RespostaPdf } from '@/lib/ia/pdf'
 import type { PedidoTextoSchema, RespostaTexto } from '@/lib/ia/texto'
 import type { PedidoTelaSchema, RespostaTela } from '@/lib/ia/tela'
 import type { z } from 'zod'
+import type { Convite, ConviteInfoRes, EquipeRes, Membro, WorkspaceItem } from '@/lib/api/contratos'
 
 export type { AssetDemo as Midia, AssetDemo, LinkCompartilhado, MovimentoCredito, Projeto, Usuario, Workspace }
+export type { Convite, ConviteInfoRes as InfoConvite, EquipeRes as Equipe, Membro, WorkspaceItem as EspacoDeTrabalho }
 
 /** Partes do estado que o modo real busca no servidor (no demo estão sempre prontas). */
 export type Recurso = 'conta' | 'projetos' | 'lixeira' | 'assets' | 'links'
@@ -116,6 +118,27 @@ export interface FonteDados {
   }
   /** Depois de uma resposta da IA: demo debita o saldo fictício; real relê o saldo que a rota já debitou. */
   registrarUsoIa(uso: { custo: number; motivo: string; gerador: 'claude' | 'local'; houveResultado: boolean }): void
+
+  // equipe (modo real; no demo não há colaboração e as ações respondem 'indisponivel')
+  equipe: {
+    obter(): Promise<EquipeRes>
+    /** Com e-mail: só aquela conta aceita (uma vez). Sem e-mail: link para quem tiver. A URL vem uma única vez. */
+    convidar(entrada: { email?: string; papel: 'editor' | 'viewer'; projetoId?: string }): Promise<{ convite: Convite; url: string }>
+    revogarConvite(id: string): Promise<void>
+    alterarPapel(userId: string, papel: 'editor' | 'viewer'): Promise<void>
+    /** Remove alguém (quem administra) ou sai do espaço (o próprio id). */
+    remover(userId: string): Promise<void>
+  }
+  convites: {
+    obter(token: string): Promise<ConviteInfoRes>
+    aceitar(token: string): Promise<{ workspaceId: string; papel: 'owner' | 'editor' | 'viewer'; projetoId: string | null }>
+  }
+  /** Espaços de trabalho de que a pessoa participa (o próprio e os aceitos por convite) e qual está ativo. */
+  espacos: {
+    listar(): Promise<WorkspaceItem[]>
+    /** Troca o espaço ativo; o app recarrega os dados depois. */
+    ativar(id: string): Promise<void>
+  }
 
   // conta, plano e créditos
   comprarPacote(creditos: number): Promise<void>

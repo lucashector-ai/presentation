@@ -58,7 +58,7 @@ infrastructure
 
 ## 4. Modelo de dados
 
-Schema em `db/migrations/0000_base.sql` (seção 11.1): `users`, `workspaces`, `workspace_members` (Fase 2), `projects` (soft delete, `current_revision`, `published_revision`), `project_scenes` (rascunho, `content_json` validado, `order_index` único *deferrable* para reordenação transacional), `project_snapshots` (publicação imutável), `assets` (`storage_key` em bucket privado, status `queued|processing|ready|failed`), `share_links` (`token_hash`, `password_hash`, `expires_at`, `revoked_at`), `share_link_attempts`, `billing_accounts`, `audit_events`.
+Schema em `db/migrations/0000_base.sql` (seção 11.1): `users`, `workspaces`, `workspace_members` (dono, editores e visualizadores; convites em `workspace_invites`, migração 0004 — ver ADR 0011), `projects` (soft delete, `current_revision`, `published_revision`), `project_scenes` (rascunho, `content_json` validado, `order_index` único *deferrable* para reordenação transacional), `project_snapshots` (publicação imutável), `assets` (`storage_key` em bucket privado, status `queued|processing|ready|failed`), `share_links` (`token_hash`, `password_hash`, `expires_at`, `revoked_at`), `share_link_attempts`, `billing_accounts`, `audit_events`.
 
 Integridade: toda consulta filtra por `workspace_id` no servidor **e** RLS no banco (defesa em profundidade). Funções `save_project_scenes` e `publish_project` (`0001_funcoes_transacionais.sql`) fazem o lock da linha do projeto, comparam `base_revision` e falham com `REVISION_CONFLICT:n` → HTTP 409 com `currentRevision`.
 

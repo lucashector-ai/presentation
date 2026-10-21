@@ -191,6 +191,22 @@ export function podeEnviarArquivo(ctx: ContextoPlano, uso: UsoWorkspace, bytes: 
   return { ok: true }
 }
 
+/**
+ * Convidar alguém para o workspace: membros atuais + convites por e-mail pendentes não passam do limite do plano.
+ * (Convites por link são conferidos na hora do aceite, no banco, com o workspace travado.)
+ */
+export function podeConvidarMembro(ctx: ContextoPlano, ocupados: number): Decisao {
+  if (somenteLeitura(ctx)) return { ok: false, motivo: 'Sua assinatura está pausada. Reative para convidar pessoas.' }
+  const plano = PLANOS[ctx.planoId]
+  if (ocupados >= plano.limites.membros) {
+    const com = (Object.values(PLANOS) as Plano[]).find((p) => p.limites.membros > 1)
+    return plano.limites.membros <= 1
+      ? { ok: false, motivo: `O plano ${plano.nome} é individual. Para editar em equipe, mude para o plano ${com?.nome ?? 'Studio'}.`, upgradePara: com?.id }
+      : { ok: false, motivo: `O plano ${plano.nome} permite até ${plano.limites.membros} membros (contando convites pendentes).`, upgradePara: proximoPlano(ctx.planoId) }
+  }
+  return { ok: true }
+}
+
 export function podeUsarSenhaNoLink(ctx: ContextoPlano): Decisao {
   if (PLANOS[ctx.planoId].capacidades.senhaNoLink) return { ok: true }
   return { ok: false, motivo: 'Links com senha estão disponíveis a partir do plano Pro.', upgradePara: 'pro' }

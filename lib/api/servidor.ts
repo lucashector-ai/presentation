@@ -19,10 +19,16 @@ export class ErroHttp extends Error {
   }
 }
 
+export type PapelWorkspace = 'owner' | 'editor' | 'viewer'
+
 export interface Contexto {
   requestId: string
   userId: string
   workspaceId: string
+  /** Papel do usuário no workspace ativo (visualizador só lê). */
+  papel: PapelWorkspace
+  /** Workspace próprio do usuário (o primeiro, criado no cadastro). */
+  workspacePadrao: string
 }
 
 export function novoRequestId(): string {
@@ -109,15 +115,52 @@ export function verificarOrigem(req: Request) {
   }
 }
 
-/** Autentica pelo cookie de sessão do Neon Auth e resolve (criando no primeiro acesso) o workspace do usuário. */
-export async function autenticar(req: Request, requestId: string): Promise<Contexto> {
+/**
+ * Workspace ativo: cookie HttpOnly com o id (não é segredo). A pessoa pode ser membro de mais de um workspace
+ * (o próprio + os que aceitou por convite); o servidor confere a participação em TODA requisição e, se ela não
+ * vale mais (removida do workspace), volta para o workspace próprio.
+ */
+export const COOKIE_WORKSPACE = 'mostra_ws'
+
+export function cookieWorkspace(workspaceId: string | null): string {
+  const seguro = process.env.NODE_ENV === 'production' ? '; Secure' : ''
+  return workspaceId
+    ? `${COOKIE_WORKSPACE}=${workspaceId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000${seguro}`
+    : `${COOKIE_WORKSPACE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${seguro}`
+}
+
+function workspaceDoCookie(req: Request): string | null {
+  const m = (req.headers.get('cookie') ?? '').match(new RegExp(`(?:^|;\\s*)${COOKIE_WORKSPACE}=([^;]+)`))
+  const v = m ? decodeURIComponent(m[1] as string) : null
+  return v && ehUuid(v) ? v : null
+}
+
+const PAPEIS = new Set<PapelWorkspace>(['owner', 'editor', 'viewer'])
+
+/**
+ * Autentica pelo cookie de sessão do Neon Auth e resolve (criando no primeiro acesso) o workspace do usuário.
+ * Com o cookie de workspace ativo, usa aquele workspace se o usuário for membro dele. Visualizadores só podem
+ * fazer requisições de leitura, salvo nas rotas que pedem `permitirVisualizador` (aceitar convite, trocar de
+ * workspace, sair da equipe).
+ */
+export async function autenticar(req: Request, requestId: string, opcoes: { permitirVisualizador?: boolean } = {}): Promise<Contexto> {
   verificarOrigem(req)
   const usuario = await sessaoDaRequisicao(req, cookiesDaRequisicao.get(req))
   if (!usuario) throw new ErroHttp('nao_autenticado', 'Faça login para continuar')
-  const [linha] = await sql()`select public.garantir_conta(${usuario.id}::uuid, ${usuario.email}, ${usuario.nome}) as workspace_id`
-  const workspaceId = linha?.workspace_id as string | undefined
-  if (!workspaceId) throw new ErroHttp('sem_permissao', 'Usuário sem workspace')
-  return { requestId, userId: usuario.id, workspaceId }
+  const ativo = workspaceDoCookie(req)
+  const linhas = await sql()`
+    select c.ws as padrao, m.workspace_id, m.role
+    from (select public.garantir_conta(${usuario.id}::uuid, ${usuario.email}, ${usuario.nome}) as ws) c
+    left join public.workspace_members m on m.user_id = ${usuario.id}::uuid and m.workspace_id in (c.ws, ${ativo}::uuid)`
+  const padrao = linhas[0]?.padrao as string | undefined
+  if (!padrao) throw new ErroHttp('sem_permissao', 'Usuário sem workspace')
+  const escolhida = linhas.find((l) => l.workspace_id === ativo) ?? linhas.find((l) => l.workspace_id === padrao)
+  const papel = (PAPEIS.has(escolhida?.role as PapelWorkspace) ? escolhida!.role : 'owner') as PapelWorkspace
+  const workspaceId = (escolhida?.workspace_id as string | undefined) ?? padrao
+  if (papel === 'viewer' && !METODOS_SEGUROS.has(req.method) && !opcoes.permitirVisualizador) {
+    throw new ErroHttp('sem_permissao', 'Você tem acesso só para ver neste espaço. Peça a quem administra para mudar seu papel para editor.')
+  }
+  return { requestId, userId: usuario.id, workspaceId, papel, workspacePadrao: padrao }
 }
 
 /** Carrega um projeto garantindo que pertence ao workspace do usuário (404 sem vazar existência). */
