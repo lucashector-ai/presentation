@@ -84,9 +84,9 @@ export const PLANOS: Record<PlanoId, Plano> = {
  * Custo em créditos de cada ação de IA (1 crédito cobre até US$ 0,002 de IA; conta completa, margem e câmbio
  * em docs/economia-ia.md, verificados por lib/ia/economia.test.ts). O Mostra gera APRESENTAÇÕES: a ação
  * principal é "Gerar uma apresentação" = roteiro (Claude Sonnet) + o desenho de cada tela (Claude Opus).
- * Ex.: 10 telas = 20 + 10 × 7 = 90 créditos (ver `custoApresentacao`), cobrados em duas etapas:
- * o roteiro (20 + 2 por tela) quando a IA escreve, e o desenho (5 por tela) quando ela desenha. A parte fixa do
- * roteiro também paga a gravação do cache do design (custo fixo por apresentação quando a plataforma está ociosa).
+ * Ex.: 10 telas = 4 + 10 × 8 = 84 créditos (ver `custoApresentacao`), cobrados em duas etapas:
+ * o roteiro (4 + 2 por tela) quando a IA escreve, e o desenho (6 por tela) quando ela desenha. As instruções
+ * ficam no cache de 1 hora, então o preço segue o custo medido (com folga), sem cobrar pelo cache frio.
  * Recalibrado em 21/10/2026 com o uso medido de uma geração real de 10 telas (US$ 0,084 na API).
  * As demais ações acontecem dentro de uma apresentação que já existe.
  * Vídeo foi retirado da tabela: não serve ao ciclo apresentação → link → cliente e distorcia
@@ -94,9 +94,9 @@ export const PLANOS: Record<PlanoId, Plano> = {
  */
 export const CUSTO_CREDITOS = {
   /** Parte fixa do roteiro (estrutura, títulos, textos, notas). Cobrada a cada roteiro gerado. */
-  roteiro: 20,
+  roteiro: 4,
   /** Cada tela da apresentação: a parte dela no roteiro + o desenho (ver DIVISAO_TELA). */
-  tela: 7,
+  tela: 8,
   /** Refazer uma tela de uma apresentação existente (novo texto no mesmo layout; rota /api/ai/tela). */
   refazerTela: 8,
   /** Reescrever ou traduzir o texto de uma tela (rota /api/ai/texto). */
@@ -107,7 +107,7 @@ export const CUSTO_CREDITOS = {
 export type RecursoIa = keyof typeof CUSTO_CREDITOS
 
 /** Como os créditos de cada tela se dividem entre as duas etapas. */
-export const DIVISAO_TELA = { roteiro: 2, desenho: 5 } as const satisfies Record<string, number>
+export const DIVISAO_TELA = { roteiro: 2, desenho: 6 } as const satisfies Record<string, number>
 /** Material colado/importado longo: 1 crédito a cada 2.500 caracteres (entrada do roteiro). */
 export const MATERIAL_CREDITOS = { caracteres: 2500, creditos: 1 } as const
 

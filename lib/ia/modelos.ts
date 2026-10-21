@@ -12,20 +12,21 @@ export type Esforco = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 export interface ModeloIA {
   id: string
   nome: string
-  /** USD por milhão de tokens de entrada / saída / leitura de cache / escrita de cache (5 min). */
+  /** USD por milhão de tokens de entrada / saída / leitura de cache / escrita de cache (5 min: 1,25×; 1 hora: 2×). */
   precoEntrada: number
   precoSaida: number
   precoCacheLeitura: number
   precoCacheEscrita: number
+  precoCacheEscrita1h: number
   /** Reserva automática no servidor quando o modelo recusa por política (beta server-side-fallback). */
   aceitaReserva: boolean
 }
 
 export const MODELOS = {
-  opus: { id: 'claude-opus-5-5', nome: 'Claude Opus 5.5', precoEntrada: 4, precoSaida: 20, precoCacheLeitura: 0.2, precoCacheEscrita: 5, aceitaReserva: true },
-  sonnet: { id: 'claude-sonnet-5-5', nome: 'Claude Sonnet 5.5', precoEntrada: 2, precoSaida: 10, precoCacheLeitura: 0.2, precoCacheEscrita: 2.5, aceitaReserva: true },
+  opus: { id: 'claude-opus-5-5', nome: 'Claude Opus 5.5', precoEntrada: 4, precoSaida: 20, precoCacheLeitura: 0.2, precoCacheEscrita: 5, precoCacheEscrita1h: 8, aceitaReserva: true },
+  sonnet: { id: 'claude-sonnet-5-5', nome: 'Claude Sonnet 5.5', precoEntrada: 2, precoSaida: 10, precoCacheLeitura: 0.2, precoCacheEscrita: 2.5, precoCacheEscrita1h: 4, aceitaReserva: true },
   // Haiku 5.5: US$ 0,10 / 0,50 até 100K tokens de prompt (US$ 0,50 / 2,50 acima); sem reserva no servidor
-  haiku: { id: 'claude-haiku-5-5', nome: 'Claude Haiku 5.5', precoEntrada: 0.1, precoSaida: 0.5, precoCacheLeitura: 0.01, precoCacheEscrita: 0.125, aceitaReserva: false },
+  haiku: { id: 'claude-haiku-5-5', nome: 'Claude Haiku 5.5', precoEntrada: 0.1, precoSaida: 0.5, precoCacheLeitura: 0.01, precoCacheEscrita: 0.125, precoCacheEscrita1h: 0.2, aceitaReserva: false },
 } as const satisfies Record<string, ModeloIA>
 
 /**
@@ -54,11 +55,13 @@ export const CONFIG_ETAPA: Record<EtapaIA, { esforco: Esforco; maxTokens: number
   pdf: { esforco: 'low', maxTokens: 64000 },
 }
 
-export interface UsoTokens { entrada: number; saida: number; cacheLeitura?: number; cacheEscrita?: number }
+/** `cacheEscrita` é o total gravado no cache; `cacheEscrita1h` é a parte dele gravada com TTL de 1 hora (preço 2×). */
+export interface UsoTokens { entrada: number; saida: number; cacheLeitura?: number; cacheEscrita?: number; cacheEscrita1h?: number }
 
 /** Custo estimado em USD de uma chamada, a partir do uso (tokens) e do preço do modelo. */
 export function custoUsd(modelo: ModeloIA, uso: UsoTokens): number {
-  return (uso.entrada * modelo.precoEntrada + uso.saida * modelo.precoSaida + (uso.cacheLeitura ?? 0) * modelo.precoCacheLeitura + (uso.cacheEscrita ?? 0) * modelo.precoCacheEscrita) / 1_000_000
+  const escrita1h = Math.min(uso.cacheEscrita1h ?? 0, uso.cacheEscrita ?? 0)
+  return (uso.entrada * modelo.precoEntrada + uso.saida * modelo.precoSaida + (uso.cacheLeitura ?? 0) * modelo.precoCacheLeitura + ((uso.cacheEscrita ?? 0) - escrita1h) * modelo.precoCacheEscrita + escrita1h * modelo.precoCacheEscrita1h) / 1_000_000
 }
 
 /** Modelo pelo id devolvido pela API (com ou sem sufixo); desconhecido = o mais caro (estimativa conservadora). */
@@ -67,12 +70,14 @@ export function modeloPorId(id: string | null | undefined): ModeloIA {
   return m ?? MODELOS.opus
 }
 
+interface PorTtlApi { ephemeral_5m_input_tokens?: number | null; ephemeral_1h_input_tokens?: number | null }
 interface UsoApi {
   input_tokens: number
   output_tokens: number
   cache_read_input_tokens?: number | null
   cache_creation_input_tokens?: number | null
-  iterations?: ({ type: string; model?: string | null; input_tokens: number; output_tokens: number; cache_read_input_tokens?: number | null; cache_creation_input_tokens?: number | null } | { type: string })[] | null
+  cache_creation?: PorTtlApi | null
+  iterations?: ({ type: string; model?: string | null; input_tokens: number; output_tokens: number; cache_read_input_tokens?: number | null; cache_creation_input_tokens?: number | null; cache_creation?: PorTtlApi | null } | { type: string })[] | null
 }
 
 /**
@@ -80,9 +85,9 @@ interface UsoApi {
  * modelo que a rodou; sem iterações, usa o total no preço do modelo pedido.
  */
 export function custoDaResposta(usage: UsoApi, modeloPedido: ModeloIA): { usd: number; uso: Required<UsoTokens> } {
-  const total = { entrada: usage.input_tokens, saida: usage.output_tokens, cacheLeitura: usage.cache_read_input_tokens ?? 0, cacheEscrita: usage.cache_creation_input_tokens ?? 0 }
+  const total = { entrada: usage.input_tokens, saida: usage.output_tokens, cacheLeitura: usage.cache_read_input_tokens ?? 0, cacheEscrita: usage.cache_creation_input_tokens ?? 0, cacheEscrita1h: usage.cache_creation?.ephemeral_1h_input_tokens ?? 0 }
   const iter = (usage.iterations ?? []).filter((i): i is Extract<NonNullable<UsoApi['iterations']>[number], { input_tokens: number }> => 'input_tokens' in i && (i.type === 'message' || i.type === 'fallback_message'))
   if (!iter.length) return { usd: custoUsd(modeloPedido, total), uso: total }
-  const usd = iter.reduce((s, i) => s + custoUsd(i.model ? modeloPorId(i.model) : modeloPedido, { entrada: i.input_tokens, saida: i.output_tokens, cacheLeitura: i.cache_read_input_tokens ?? 0, cacheEscrita: i.cache_creation_input_tokens ?? 0 }), 0)
+  const usd = iter.reduce((s, i) => s + custoUsd(i.model ? modeloPorId(i.model) : modeloPedido, { entrada: i.input_tokens, saida: i.output_tokens, cacheLeitura: i.cache_read_input_tokens ?? 0, cacheEscrita: i.cache_creation_input_tokens ?? 0, cacheEscrita1h: i.cache_creation?.ephemeral_1h_input_tokens ?? 0 }), 0)
   return { usd, uso: total }
 }

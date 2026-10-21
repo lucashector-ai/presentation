@@ -33,7 +33,7 @@ export class RecusaModelo extends Error {}
 
 /** Custo de uma ou mais chamadas: USD estimado (uso × preço) e o uso somado. */
 export interface CustoIa { usd: number; uso: Required<UsoTokens>; modelo: string }
-const somar = (a: CustoIa | null, b: CustoIa): CustoIa => (a ? { usd: a.usd + b.usd, modelo: b.modelo, uso: { entrada: a.uso.entrada + b.uso.entrada, saida: a.uso.saida + b.uso.saida, cacheLeitura: a.uso.cacheLeitura + b.uso.cacheLeitura, cacheEscrita: a.uso.cacheEscrita + b.uso.cacheEscrita } } : b)
+const somar = (a: CustoIa | null, b: CustoIa): CustoIa => (a ? { usd: a.usd + b.usd, modelo: b.modelo, uso: { entrada: a.uso.entrada + b.uso.entrada, saida: a.uso.saida + b.uso.saida, cacheLeitura: a.uso.cacheLeitura + b.uso.cacheLeitura, cacheEscrita: a.uso.cacheEscrita + b.uso.cacheEscrita, cacheEscrita1h: a.uso.cacheEscrita1h + b.uso.cacheEscrita1h } } : b)
 
 let cliente: Anthropic | null = null
 const obterCliente = () => (cliente ??= new Anthropic({ maxRetries: 2, timeout: 180_000 }))
@@ -50,7 +50,8 @@ export async function gerarRoteiroClaude(p: PedidoRoteiro, sinal?: AbortSignal):
       max_tokens: CONFIG_ETAPA.roteiro.maxTokens,
       ...reserva(m),
       // system fixo (catálogo, arcos, temas): igual para todos os pedidos, então vai em cache
-      system: [{ type: 'text', text: INSTRUCOES_SISTEMA, cache_control: { type: 'ephemeral' } }],
+      // instruções iguais para todos os pedidos: cache de 1 hora (gravação 2×), assim não esfriam entre usos espaçados
+      system: [{ type: 'text', text: INSTRUCOES_SISTEMA, cache_control: { type: 'ephemeral', ttl: '1h' } }],
       messages: [{ role: 'user', content: mensagemUsuario(p) }],
       output_config: { format: betaZodOutputFormat(RoteiroModeloSchema), effort: CONFIG_ETAPA.roteiro.esforco },
     },
@@ -73,7 +74,8 @@ export interface ResultadoDesenho { indice: number; desenho: TelaDesenhada | nul
 export async function desenharTelasClaude(p: PedidoDesign, sinal?: AbortSignal, paralelo = 4): Promise<{ telas: ResultadoDesenho[]; modelo: string; custo: CustoIa | null }> {
   const m = MODELO_POR_ETAPA.design
   const story = p.formato === 'story'
-  const sistema = [{ type: 'text' as const, text: INSTRUCOES_DESIGN, cache_control: { type: 'ephemeral' as const } }]
+  // catálogo igual para todos os decks: cache de 1 hora; o roteiro do deck (na mensagem) fica no de 5 minutos
+  const sistema = [{ type: 'text' as const, text: INSTRUCOES_DESIGN, cache_control: { type: 'ephemeral' as const, ttl: '1h' as const } }]
   const deck = mensagemDeck(p)
   const abrir = (indice: number) =>
     obterCliente().beta.messages.stream(

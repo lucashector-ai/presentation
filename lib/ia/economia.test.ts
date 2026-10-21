@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CUSTO_CREDITOS, DIVISAO_TELA, LEITURA_PDF_CREDITOS, PACOTES_AVULSOS, PLANOS, custoDesenho, custoLeituraPdf, custoRoteiro, podeImportarPaginasPdf, podeLerPdfComIa, type PlanoId } from '@/lib/planos'
+import { CUSTO_CREDITOS, apresentacoesCom, DIVISAO_TELA, LEITURA_PDF_CREDITOS, PACOTES_AVULSOS, PLANOS, custoDesenho, custoLeituraPdf, custoRoteiro, podeImportarPaginasPdf, podeLerPdfComIa, type PlanoId } from '@/lib/planos'
 import { INSTRUCOES_DESIGN } from './design'
 import { ESTIMATIVA, TETO_IA_SOBRE_RECEITA, USD_POR_CREDITO, coberturaUsd, creditosNecessarios, custoDesenhoUsd, custoLeituraPdfUsd, custoRefazerTelaUsd, custoReescreverUsd, custoRoteiroUsd, margemDoPacote, margemDoPlano, tabelaAcoes } from './economia'
 import { INSTRUCOES_PDF, LEITURA_PDF } from './pdf'
@@ -42,7 +42,8 @@ describe('estimativas de tokens', () => {
     const uma = custoDesenhoUsd(1, 10).usd
     const dez = custoDesenhoUsd(10, 10).usd
     expect(dez).toBeLessThan(uma * 10)
-    expect(custoDesenhoUsd(1, 10, { sistemaQuente: true }).usd).toBeLessThan(uma)
+    // com a plataforma parada há mais de 1 hora, o catálogo é gravado de novo no cache de 1 hora (2×)
+    expect(uma).toBeLessThan(custoDesenhoUsd(1, 10, { sistemaFrio: true }).usd)
   })
 })
 
@@ -57,7 +58,7 @@ describe('preço em créditos cobre o custo com folga', () => {
   it('redesenhar uma tela (system em cache), refazer tela e reescrever texto', () => {
     // custo de uma tela a mais num deck com cache quente; o redesenho avulso com o cache do deck frio fica até ~3 créditos
     // abaixo (gravação do deck), coberto pela sobra da geração (docs/economia-ia.md)
-    const marginal = custoDesenhoUsd(10, 10, { sistemaQuente: true }).usd - custoDesenhoUsd(9, 10, { sistemaQuente: true }).usd
+    const marginal = custoDesenhoUsd(10, 10).usd - custoDesenhoUsd(9, 10).usd
     expect(DIVISAO_TELA.desenho).toBeGreaterThanOrEqual(creditosNecessarios(marginal))
     expect(CUSTO_CREDITOS.refazerTela).toBeGreaterThanOrEqual(creditosNecessarios(custoRefazerTelaUsd().usd))
     expect(CUSTO_CREDITOS.reescrever).toBeGreaterThanOrEqual(creditosNecessarios(custoReescreverUsd().usd))
@@ -104,7 +105,7 @@ describe('planos e pacotes com margem', () => {
     }
   })
   it('free: custo de aquisição limitado (≈ 5 apresentações de 10 telas, no máximo R$ 6 de IA)', () => {
-    expect(PLANOS.free.creditos.quantidade).toBeLessThanOrEqual(5 * (CUSTO_CREDITOS.roteiro + 10 * CUSTO_CREDITOS.tela))
+    expect(apresentacoesCom(PLANOS.free.creditos.quantidade)).toBeLessThanOrEqual(5)
     expect(margemDoPlano('free', 'mensal').custoIaMaxBRL).toBeLessThan(6)
   })
   it('pacotes avulsos: margem mínima e preço por crédito decrescente', () => {

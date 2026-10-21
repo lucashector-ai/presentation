@@ -37,7 +37,7 @@ export const POST = rota(async (req, _ctx, requestId) => {
   if (!DEMO) {
     const ctx = await autenticar(req, requestId)
     if (iaConfigurada()) {
-      cobranca = await cobrarIaComUso(ctx, custo, { debito: `Design com IA · ${n} ${n === 1 ? 'tela' : 'telas'}`, estorno: 'Estorno: design com IA não gerado', semSaldo: 'Créditos insuficientes para desenhar estas telas.' }, { acao: 'design', modelo: MODELO_POR_ETAPA.design.id, custoUsd: custoDesenhoUsd(n, pedido.roteiro.telas.length, { sistemaQuente: true }).usd })
+      cobranca = await cobrarIaComUso(ctx, custo, { debito: `Design com IA · ${n} ${n === 1 ? 'tela' : 'telas'}`, estorno: 'Estorno: design com IA não gerado', semSaldo: 'Créditos insuficientes para desenhar estas telas.' }, { acao: 'design', modelo: MODELO_POR_ETAPA.design.id, custoUsd: custoDesenhoUsd(n, pedido.roteiro.telas.length).usd })
     }
   }
 

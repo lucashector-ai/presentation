@@ -18,6 +18,8 @@ A primeira geração real em produção (10 telas, conta do dono) registrou o us
 
 A estimativa de projeto era US$ 0,252: a saída do design foi 4× menor que o previsto (100–236 tokens por tela contra 850) e a do roteiro, metade. Com a tabela antiga, 210 créditos cobriam até US$ 0,42, cinco vezes o custo real. As estimativas foram recalibradas (seção 2) e o preço caiu para **20 + 7 por tela (10 telas = 90 créditos)**, que ainda cobre o pior caso com o cache frio (US$ 0,131 para 10 telas) com a folga de 25%. Os créditos dos planos não mudaram: cada plano passa a render ≈ 2,3× mais apresentações (Free ≈ 5, Plus ≈ 8, Pro ≈ 22, Studio ≈ 44 por membro), e a margem mínima de cada plano continua a mesma, porque ela é calculada pelo teto de US$ 0,002 por crédito. Uma amostra só: acompanhar `ai_margem_diaria` e reajustar quando houver volume.
 
+**Segunda revisão (mesmo dia): roteiro mais barato.** O roteiro custava 20 + 2 por tela (40 créditos em 10 telas) para um custo real de US$ 0,025 (R$ 0,15). A parte fixa existia para cobrir o cache das instruções esfriando a cada 5 minutos. As instruções do roteiro e do design passaram para o **cache de 1 hora** (gravação a 2×, leitura igual), o que tira esse pior caso do dia a dia, e o preço passou a seguir o custo medido com folga: **4 + 8 por tela** (roteiro 4 + 2 por tela, design 6 por tela). 10 telas = **84 créditos** (roteiro 24 + design 60); gerar outro roteiro de 10 telas custa 24 em vez de 40. Lucro sobre a receita líquida com o custo real: ≈ 75% no crédito mais barato (Pro anual) e ≈ 80% no pacote pequeno. O custo da gravação de 1 hora é medido por `usage.cache_creation.ephemeral_1h_input_tokens` e entra no registro de cada débito.
+
 ## 1. Pipeline e modelo de cada etapa
 
 | Etapa | Modelo | Preço (US$/milhão de tokens: entrada · saída · leitura de cache · escrita de cache 5 min) | Esforço | Chamada |
@@ -40,7 +42,7 @@ Os systems são medidos do texto real dos prompts (3,3 caracteres por token, con
 
 | Etapa | Entrada | Saída (pensamento + JSON) | Cache |
 |---|---|---|---|
-| Roteiro | 350 (pedido) + material colado ÷ 3,3 | 600 + 250 por tela (medido: 2.170 no total para 10 telas) | system 2.325 escrito (pior caso; na prática vem do cache) |
+| Roteiro | 1.300 (pedido; medido 1.292) + material colado ÷ 3,3 | 300 + 200 por tela (medido: 2.170 no total para 10 telas) | system 2.325 escrito (pior caso; na prática vem do cache) |
 | Design, por tela | 60 (pedido da tela) | 300 (medido: 100–236 por tela) | prefixo = 2.952 + 300 + 130 por tela do deck: escrito na 1ª tela, lido nas demais |
 | Refazer tela | 298 (system) + 700 | 900 | — |
 | Reescrever texto | 353 (system) + 600 | 600 | — |
@@ -54,14 +56,15 @@ Premissas: **1 crédito cobre até US$ 0,002 de IA** (teto de custo do crédito)
 
 | Ação | Custo estimado (roteiro + design) | Em reais | Créditos necessários (com folga) | **Créditos cobrados** (roteiro + design) | Cobertura |
 |---|---|---|---|---|---|
-| Gerar apresentação de 6 telas | US$ 0,0275 + 0,0616 = **0,0891** | R$ 0,53 | 56 | **62** (32 + 30) | 1,39× |
-| Gerar apresentação de 8 telas | US$ 0,0325 + 0,0774 = **0,1099** | R$ 0,66 | 69 | **76** (36 + 40) | 1,38× |
-| Gerar apresentação de 10 telas | US$ 0,0375 + 0,0934 = **0,1309** | R$ 0,79 | 82 | **90** (40 + 50) | 1,38× |
-| Gerar apresentação de 12 telas | US$ 0,0425 + 0,1095 = **0,1520** | R$ 0,91 | 96 | **104** (44 + 60) | 1,37× |
-| Gerar apresentação de 20 telas | US$ 0,0625 + 0,1763 = **0,2388** | R$ 1,43 | 150 | **160** (60 + 100) | 1,34× |
+| Gerar apresentação de 6 telas | US$ 0,0181 + 0,0475 = **0,0655** | R$ 0,39 | 41 | **52** (16 + 36) | 1,59× |
+| Gerar apresentação de 8 telas | US$ 0,0221 + 0,0632 = **0,0853** | R$ 0,51 | 54 | **68** (20 + 48) | 1,59× |
+| Gerar apresentação de 10 telas | US$ 0,0261 + 0,0792 = **0,1052** | R$ 0,63 | 66 | **84** (24 + 60) | 1,60× |
+| Gerar apresentação de 12 telas | US$ 0,0301 + 0,0954 = **0,1254** | R$ 0,75 | 79 | **100** (28 + 72) | 1,59× |
+| Gerar apresentação de 20 telas | US$ 0,0461 + 0,1621 = **0,2082** | R$ 1,25 | 131 | **164** (44 + 120) | 1,58× |
 | Material colado de 60 mil caracteres (a mais no roteiro) | US$ 0,0364 | R$ 0,22 | 23 | **24** | 1,32× |
-| Redesenhar 1 tela de um deck de 10 (cache quente) | US$ 0,0072 | R$ 0,04 | 5 | **5** | 1,40× |
-| Redesenhar 1 tela com a plataforma ociosa (cache todo frio) | US$ 0,0290 | R$ 0,17 | 19 | **5** | 0,34× |
+| Redesenhar 1 tela de um deck de 10 (roteiro do deck ainda no cache) | US$ 0,0072 | R$ 0,04 | 5 | **6** | 1,68× |
+| Redesenhar 1 tela depois de 5 minutos (grava o roteiro do deck de novo) | US$ 0,0148 | R$ 0,09 | 10 | **6** | 0,81× |
+| Redesenhar 1 tela com a plataforma parada há mais de 1 hora (cache todo frio) | US$ 0,0379 | R$ 0,23 | 24 | **6** | 0,32× |
 | Refazer uma tela (editor) | US$ 0,0110 | R$ 0,07 | 7 | **8** | 1,46× |
 | Reescrever o texto de uma tela (editor) | US$ 0,0004 | R$ 0,002 | 1 | **1** (mínimo) | 5,06× |
 | Ler 1 página escaneada de PDF | US$ 0,0268 | R$ 0,16 | 17 | **19** (4 + 15) | 1,42× |
@@ -74,14 +77,15 @@ Premissas: **1 crédito cobre até US$ 0,002 de IA** (teto de custo do crédito)
 
 **Tabela de preços em créditos** (`CUSTO_CREDITOS` e `DIVISAO_TELA` em `lib/planos.ts`):
 
-- Gerar uma apresentação: **20 créditos + 7 por tela**, em duas etapas — o roteiro (20 + 2 por tela, + 1 a cada 2.500 caracteres de material colado) quando a IA escreve, e o design (5 por tela) quando ela desenha. 10 telas = **90 créditos**. A parte fixa do roteiro também paga a gravação do cache do design (custo fixo por apresentação quando a plataforma está ociosa), por isso o teste confere a apresentação inteira.
-- Gerar outro roteiro: só a parte do roteiro (10 telas = 40).
-- Trocar tema, estilo ou reordenar: grátis (o design de cada tela é guardado pelo conteúdo; o tema é aplicado na montagem). Só telas novas ou alteradas são redesenhadas, a 5 créditos cada.
+- Gerar uma apresentação: **4 créditos + 8 por tela**, em duas etapas — o roteiro (4 + 2 por tela, + 1 a cada 2.500 caracteres de material colado) quando a IA escreve, e o design (6 por tela) quando ela desenha. 10 telas = **84 créditos**. As instruções do roteiro e do design ficam no cache de 1 hora, então o preço segue o custo medido com folga, sem uma parte fixa para o cache frio.
+- Gerar outro roteiro: só a parte do roteiro (10 telas = 24).
+- Trocar tema, estilo ou reordenar: grátis (o design de cada tela é guardado pelo conteúdo; o tema é aplicado na montagem). Só telas novas ou alteradas são redesenhadas, a 6 créditos cada.
 - Refazer uma tela: **8**. Reescrever o texto de uma tela: **1**. Imagem: 20 (indisponível; preço a confirmar com o fornecedor).
 - Ler PDF escaneado (`LEITURA_PDF_CREDITOS` e `custoLeituraPdf`): **4 + 15 por página** lida pela IA (≈ US$ 0,024 de custo por página, 0,030 de cobertura). Páginas com texto, páginas em branco e .docx não pagam leitura. O valor aparece no botão ("Ler 3 páginas com a IA · 49 créditos") antes de qualquer cobrança; se a leitura falhar, estorna. Limite por leitura: Free 10 páginas, Plus 25, Pro e Studio 40 (`paginasPdfIa`). Importar PDF como apresentação não usa IA (Free 30 páginas, Plus 150, Pro e Studio 300: `paginasPdfImportar`).
 
 Casos de borda conhecidos (prejuízo pequeno, coberto pela sobra da geração do mesmo deck):
-- Redesenhar 1 tela com a plataforma ociosa há mais de 5 minutos (cache todo frio): US$ 0,029 = 19 créditos com a folga contra 5 cobrados (≈ US$ 0,02 de prejuízo por ocorrência). Na prática o redesenho vem logo depois da geração, com o cache quente (US$ 0,007). Se virar frequente, o próximo passo é o cache de 1 hora no system do design.
+- Redesenhar 1 tela mais de 5 minutos depois da geração (o roteiro do deck sai do cache de 5 minutos e é gravado de novo): US$ 0,015 = 10 créditos com a folga contra 6 cobrados. Com a plataforma parada há mais de 1 hora (catálogo também frio): US$ 0,038. São casos de centavos, cobertos pela sobra da geração do mesmo deck.
+- A primeira geração depois de 1 hora sem uso grava as instruções no cache de 1 hora (≈ US$ 0,06 a mais, uma vez por hora parada).
 - Reescrever com seleção muito grande (até 40 textos de 5 mil caracteres): até ≈ US$ 0,01 (Haiku) contra 1 crédito.
 
 ## 4. Créditos de cada plano e margem
@@ -91,12 +95,12 @@ Regra: no **pior caso** (todos os créditos do mês usados, cada crédito custan
 | Plano | Preço/mês | Receita líquida | **Créditos/mês** | ≈ apresentações de 10 telas | IA no pior caso | Peso na receita líquida | Margem bruta mínima |
 |---|---|---|---|---|---|---|---|
 | Free (no cadastro) | R$ 0 | — | **450** | 5 | R$ 5,40 por cadastro (custo de aquisição) | — | — |
-| Plus mensal | R$ 29 | R$ 24,07 | **800** | 8 | R$ 9,60 | 40% | 60% |
-| Plus anual | R$ 24 | R$ 19,92 | 800 | 8 | R$ 9,60 | 48% | 52% |
-| Pro mensal | R$ 74 | R$ 61,42 | **2.000** | 22 | R$ 24,00 | 39% | 61% |
-| Pro anual | R$ 59 | R$ 48,97 | 2.000 | 22 | R$ 24,00 | 49% | 51% |
-| Studio mensal (por membro) | R$ 149 | R$ 123,67 | **4.000 por membro**, somados no saldo da equipe | 44 por membro | R$ 48,00 | 39% | 61% |
-| Studio anual (por membro) | R$ 119 | R$ 98,77 | 4.000 por membro | 44 por membro | R$ 48,00 | 49% | 51% |
+| Plus mensal | R$ 29 | R$ 24,07 | **800** | 9 | R$ 9,60 | 40% | 60% |
+| Plus anual | R$ 24 | R$ 19,92 | 800 | 9 | R$ 9,60 | 48% | 52% |
+| Pro mensal | R$ 74 | R$ 61,42 | **2.000** | 23 | R$ 24,00 | 39% | 61% |
+| Pro anual | R$ 59 | R$ 48,97 | 2.000 | 23 | R$ 24,00 | 49% | 51% |
+| Studio mensal (por membro) | R$ 149 | R$ 123,67 | **4.000 por membro**, somados no saldo da equipe | 47 por membro | R$ 48,00 | 39% | 61% |
+| Studio anual (por membro) | R$ 119 | R$ 98,77 | 4.000 por membro | 47 por membro | R$ 48,00 | 49% | 51% |
 
 Pacotes avulsos (não expiram), com preço por crédito decrescente:
 

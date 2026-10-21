@@ -73,13 +73,13 @@ describe('pipeline com o Claude (API simulada)', () => {
     const p = pedidos[0]!
     expect(p.beta).toBe(true)
     expect(p.corpo).toMatchObject({ model: MODELOS.sonnet.id, stream: true, fallbacks: 'default', output_config: { effort: 'medium', format: { type: 'json_schema' } } })
-    expect((p.corpo.system as { cache_control?: unknown }[])[0]!.cache_control).toEqual({ type: 'ephemeral' })
+    expect((p.corpo.system as { cache_control?: unknown }[])[0]!.cache_control).toEqual({ type: 'ephemeral', ttl: '1h' })
     expect(r.tema).toBe('grafite')
     expect(r.roteiro.telas).toHaveLength(6)
     expect(r.roteiro.telas[0]!.titulo).toBe(roteiro.telas[0]!.titulo)
     // 60 entrada + 3000 escrita de cache + 800 saída, no preço do Sonnet
     expect(r.custo.usd).toBeCloseTo((60 * 2 + 3000 * 2.5 + 800 * 10) / 1e6, 6)
-    expect(r.custo.uso).toEqual({ entrada: 60, saida: 800, cacheLeitura: 0, cacheEscrita: 3000 })
+    expect(r.custo.uso).toEqual({ entrada: 60, saida: 800, cacheLeitura: 0, cacheEscrita: 3000, cacheEscrita1h: 0 })
   })
 
   it('design: Opus, uma chamada por tela; a primeira sozinha (escreve o cache) e as outras depois; deck em cache', async () => {
@@ -102,6 +102,7 @@ describe('pipeline com o Claude (API simulada)', () => {
     for (const x of pedidos.slice(1)) expect(x.chegada).toBeGreaterThanOrEqual(primeira.chegada)
     // system com o catálogo e primeiro bloco (roteiro do deck) com cache; segundo bloco varia por tela
     const blocos = (primeira.corpo.messages as { content: { text: string; cache_control?: unknown }[] }[])[0]!.content
+    expect((primeira.corpo.system as { cache_control?: unknown }[])[0]!.cache_control).toEqual({ type: 'ephemeral', ttl: '1h' })
     expect(blocos[0]!.cache_control).toEqual({ type: 'ephemeral' })
     expect(blocos[1]!.cache_control).toBeUndefined()
     const primeirosBlocos = pedidos.map((x) => JSON.stringify((x.corpo.messages as { content: unknown[] }[])[0]!.content[0]))
@@ -113,7 +114,7 @@ describe('pipeline com o Claude (API simulada)', () => {
     expect(r.telas[1]!.desenho!.variante.startsWith(`${roteiro.telas[1]!.tipo}.`)).toBe(true)
     expect(r.telas[3]!.desenho).toBeNull()
     // custo: 1 escrita de cache + 3 leituras, 4 × 800 de saída, no preço do Opus
-    expect(r.custo!.uso).toEqual({ entrada: 240, saida: 3200, cacheLeitura: 9000, cacheEscrita: 3000 })
+    expect(r.custo!.uso).toEqual({ entrada: 240, saida: 3200, cacheLeitura: 9000, cacheEscrita: 3000, cacheEscrita1h: 0 })
     expect(r.custo!.usd).toBeCloseTo((240 * 4 + 3200 * 20 + 9000 * 0.2 + 3000 * 5) / 1e6, 6)
   })
 

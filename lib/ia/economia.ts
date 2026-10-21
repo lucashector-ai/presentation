@@ -33,12 +33,12 @@ const tokens = (texto: string | number) => Math.ceil((typeof texto === 'number' 
 export const ESTIMATIVA = {
   roteiro: {
     sistema: tokens(INSTRUCOES_SISTEMA),
-    /** Pedido, tipo, tom, público, marca. */
-    pedido: 350,
+    /** Pedido, tipo, tom, público, marca + instruções do formato de saída. Medido: 1.292. */
+    pedido: 1300,
     /** Pensamento (esforço médio) e estrutura do JSON. Medido: 2.170 tokens no total para 10 telas. */
-    saidaBase: 600,
+    saidaBase: 300,
     /** Título, rótulo, texto, itens e notas de cada tela. */
-    saidaPorTela: 250,
+    saidaPorTela: 200,
   },
   design: {
     sistema: tokens(INSTRUCOES_DESIGN),
@@ -66,50 +66,53 @@ export const ESTIMATIVA = {
 export interface CustoEtapa { etapa: string; modelo: string; uso: Required<UsoTokens>; usd: number }
 
 /**
- * Roteiro: pior caso com o system escrito no cache (1,25×) — na prática ele é igual para todos os pedidos e
- * costuma vir do cache. O material colado entra como entrada normal.
+ * Roteiro: o system é igual para todos os pedidos e fica no cache de 1 hora, então vem do cache. Com
+ * `sistemaFrio` (plataforma parada há mais de 1 hora), ele é gravado no cache de 1 hora (2×). O material
+ * colado entra como entrada normal.
  */
-export function custoRoteiroUsd(telas: number, caracteresMaterial = 0): CustoEtapa {
+export function custoRoteiroUsd(telas: number, caracteresMaterial = 0, opcoes: { sistemaFrio?: boolean } = {}): CustoEtapa {
   const e = ESTIMATIVA.roteiro
-  const uso = { entrada: e.pedido + tokens(caracteresMaterial), saida: e.saidaBase + e.saidaPorTela * telas, cacheLeitura: 0, cacheEscrita: e.sistema }
+  const frio = !!opcoes.sistemaFrio
+  const uso = { entrada: e.pedido + tokens(caracteresMaterial), saida: e.saidaBase + e.saidaPorTela * telas, cacheLeitura: frio ? 0 : e.sistema, cacheEscrita: frio ? e.sistema : 0, cacheEscrita1h: frio ? e.sistema : 0 }
   return { etapa: 'roteiro', modelo: MODELO_POR_ETAPA.roteiro.id, uso, usd: custoUsd(MODELO_POR_ETAPA.roteiro, uso) }
 }
 
 /**
- * Design de `telas` telas de um deck de `totalDeck` telas: a primeira chamada escreve o cache (system +
- * roteiro do deck); as demais leem. Por padrão o system também é escrito (pior caso: plataforma ociosa há
- * mais de 5 minutos); com `sistemaQuente`, ele vem do cache, que é o mesmo para todos os pedidos.
+ * Design de `telas` telas de um deck de `totalDeck` telas: a primeira chamada grava o roteiro do deck no
+ * cache de 5 minutos; as demais leem. O system (catálogo, igual para todos os decks) fica no cache de 1 hora
+ * e vem do cache; com `sistemaFrio` (plataforma parada há mais de 1 hora), ele é gravado no de 1 hora (2×).
  */
-export function custoDesenhoUsd(telas: number, totalDeck = telas, opcoes: { sistemaQuente?: boolean } = {}): CustoEtapa {
+export function custoDesenhoUsd(telas: number, totalDeck = telas, opcoes: { sistemaFrio?: boolean } = {}): CustoEtapa {
   const e = ESTIMATIVA.design
   const deck = e.deckBase + e.deckPorTela * totalDeck
   const prefixo = e.sistema + deck
-  const escrita = telas > 0 ? (opcoes.sistemaQuente ? deck : prefixo) : 0
+  const frio = !!opcoes.sistemaFrio && telas > 0
   const uso = {
     entrada: e.sufixo * telas,
     saida: e.saida * telas,
-    cacheEscrita: escrita,
-    cacheLeitura: prefixo * Math.max(0, telas - 1) + (opcoes.sistemaQuente && telas > 0 ? e.sistema : 0),
+    cacheEscrita: telas > 0 ? deck + (frio ? e.sistema : 0) : 0,
+    cacheEscrita1h: frio ? e.sistema : 0,
+    cacheLeitura: prefixo * Math.max(0, telas - 1) + (telas > 0 && !frio ? e.sistema : 0),
   }
   return { etapa: 'design', modelo: MODELO_POR_ETAPA.design.id, uso, usd: custoUsd(MODELO_POR_ETAPA.design, uso) }
 }
 
 export function custoRefazerTelaUsd(): CustoEtapa {
   const e = ESTIMATIVA.tela
-  const uso = { entrada: e.sistema + e.entrada, saida: e.saida, cacheLeitura: 0, cacheEscrita: 0 }
+  const uso = { entrada: e.sistema + e.entrada, saida: e.saida, cacheLeitura: 0, cacheEscrita: 0, cacheEscrita1h: 0 }
   return { etapa: 'tela', modelo: MODELO_POR_ETAPA.tela.id, uso, usd: custoUsd(MODELO_POR_ETAPA.tela, uso) }
 }
 
 export function custoReescreverUsd(): CustoEtapa {
   const e = ESTIMATIVA.texto
-  const uso = { entrada: e.sistema + e.entrada, saida: e.saida, cacheLeitura: 0, cacheEscrita: 0 }
+  const uso = { entrada: e.sistema + e.entrada, saida: e.saida, cacheLeitura: 0, cacheEscrita: 0, cacheEscrita1h: 0 }
   return { etapa: 'texto', modelo: MODELO_POR_ETAPA.texto.id, uso, usd: custoUsd(MODELO_POR_ETAPA.texto, uso) }
 }
 
 /** Leitura de N páginas escaneadas pelo Claude (documento PDF na mensagem; sem cache: cada PDF é lido uma vez). */
 export function custoLeituraPdfUsd(paginas: number): CustoEtapa {
   const e = ESTIMATIVA.pdf
-  const uso = { entrada: e.sistema + e.pedido + (e.imagemPorPagina + e.textoPorPagina) * paginas, saida: e.saidaBase + e.saidaPorPagina * paginas, cacheLeitura: 0, cacheEscrita: 0 }
+  const uso = { entrada: e.sistema + e.pedido + (e.imagemPorPagina + e.textoPorPagina) * paginas, saida: e.saidaBase + e.saidaPorPagina * paginas, cacheLeitura: 0, cacheEscrita: 0, cacheEscrita1h: 0 }
   return { etapa: 'pdf', modelo: MODELO_POR_ETAPA.pdf.id, uso, usd: custoUsd(MODELO_POR_ETAPA.pdf, uso) }
 }
 
@@ -163,12 +166,13 @@ export function tabelaAcoes(telasLista = [6, 8, 10, 12, 20]) {
   })
   const material = custoRoteiroUsd(10, 60000).usd - custoRoteiroUsd(10).usd
   // uma tela a mais num deck de 10 com o cache quente (o redesenho avulso com o cache frio está em redesenhar1Frio)
-  const marginal = custoDesenhoUsd(10, 10, { sistemaQuente: true }).usd - custoDesenhoUsd(9, 10, { sistemaQuente: true }).usd
+  const marginal = custoDesenhoUsd(10, 10).usd - custoDesenhoUsd(9, 10).usd
   return {
     apresentacoes: linhas,
     material: { acao: 'Material colado (60 mil caracteres)', usd: material, creditos: custoRoteiro(10, 60000) - custoRoteiro(10), necessarios: creditosNecessarios(material) },
-    redesenhar1: { acao: 'Redesenhar 1 tela de um deck de 10 (cache quente)', usd: marginal, creditos: DIVISAO_TELA.desenho, necessarios: creditosNecessarios(marginal) },
-    redesenhar1Frio: { acao: 'Redesenhar 1 tela com a plataforma ociosa (cache todo frio)', usd: custoDesenhoUsd(1, 10).usd, creditos: DIVISAO_TELA.desenho, necessarios: creditosNecessarios(custoDesenhoUsd(1, 10).usd) },
+    redesenhar1: { acao: 'Redesenhar 1 tela de um deck de 10 (roteiro do deck ainda no cache)', usd: marginal, creditos: DIVISAO_TELA.desenho, necessarios: creditosNecessarios(marginal) },
+    redesenhar1Deck: { acao: 'Redesenhar 1 tela depois de 5 minutos (grava o roteiro do deck de novo)', usd: custoDesenhoUsd(1, 10).usd, creditos: DIVISAO_TELA.desenho, necessarios: creditosNecessarios(custoDesenhoUsd(1, 10).usd) },
+    redesenhar1Frio: { acao: 'Redesenhar 1 tela com a plataforma parada há mais de 1 hora (cache todo frio)', usd: custoDesenhoUsd(1, 10, { sistemaFrio: true }).usd, creditos: DIVISAO_TELA.desenho, necessarios: creditosNecessarios(custoDesenhoUsd(1, 10, { sistemaFrio: true }).usd) },
     refazer: { acao: 'Refazer uma tela', usd: custoRefazerTelaUsd().usd, creditos: CUSTO_CREDITOS.refazerTela, necessarios: creditosNecessarios(custoRefazerTelaUsd().usd) },
     reescrever: { acao: 'Reescrever o texto de uma tela', usd: custoReescreverUsd().usd, creditos: CUSTO_CREDITOS.reescrever, necessarios: creditosNecessarios(custoReescreverUsd().usd) },
     leituraPdf: [1, 5, 10, 20, 40].map((n) => ({ acao: `Ler ${n} ${n === 1 ? 'página escaneada' : 'páginas escaneadas'} de PDF`, usd: custoLeituraPdfUsd(n).usd, creditos: custoLeituraPdf(n), necessarios: creditosNecessarios(custoLeituraPdfUsd(n).usd) })),
