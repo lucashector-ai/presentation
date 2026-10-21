@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronDown, ChevronLeft, ChevronRight, CloudOff, Eye, Keyboard, Loader2, MonitorPlay, PanelLeft, Play, Redo2, SlidersHorizontal, Undo2, TriangleAlert, Grid3X3, Magnet, Box, Columns3, Ratio } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, CloudOff, Eye, Keyboard, Loader2, MonitorPlay, PanelLeft, Play, Redo2, SlidersHorizontal, Undo2, TriangleAlert, Grid3X3, Magnet, Box, Columns3, Ratio, UserPlus } from 'lucide-react'
 import { useEditor, type AberturaEditor } from '@/lib/editor/useEditor'
 import { deslocarComGrade } from '@/lib/editor/guias'
 import { atalhoFigma, opacidadePorDigito, type MemoriaDigito } from '@/lib/editor/atalhos'
@@ -27,6 +27,8 @@ import { atalhoPreencher } from '@/lib/editor/preencher'
 import { Viewer } from '@/components/viewer/Viewer'
 import { consumirTela, marcarOrigem, pedirTelaCheia, urlApresentar } from '@/components/viewer/retorno'
 import { Compartilhar } from '@/components/compartilhar/Compartilhar'
+import { PainelEquipe } from '@/components/app/Equipe'
+import { PresencaCabecalho } from './Presenca'
 import { Atrasado, Botao, BotaoIcone, Carregando, Modal, Simbolo, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 
@@ -88,6 +90,7 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
   const avisar: Avisar = useCallback((t, tipo) => mostrar(t, tipo ?? 'info'), [mostrar])
   const [preview, setPreview] = useState(false)
   const [compartilhar, setCompartilhar] = useState(false)
+  const [convidar, setConvidar] = useState(false)
   const [atalhos, setAtalhos] = useState(false)
   const [publicando, setPublicando] = useState(false)
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
@@ -153,6 +156,13 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
       window.setTimeout(() => document.querySelector<HTMLElement>('[data-apresentar]')?.focus({ preventScroll: true }), 0)
     }
   }, [editor.existe, editor.estado.documento.scenes, projetoId, acoes])
+
+  // avisos da sala de colaboração (lote recusado, acesso mudou, sala encerrada)
+  useEffect(() => {
+    const f = (ev: Event) => { const d = (ev as CustomEvent<{ texto: string; tipo: 'info' | 'erro' }>).detail; mostrar(d.texto, d.tipo) }
+    window.addEventListener('mostra:aviso-sala', f)
+    return () => window.removeEventListener('mostra:aviso-sala', f)
+  }, [mostrar])
 
   // ---------- blocos ----------
   const inserirBloco = useCallback((id: string, ponto?: { x: number; y: number }) => {
@@ -378,7 +388,8 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
         <BarraFerramentas className="hidden lg:flex" ferramenta={estado.ferramenta} aoFerramenta={acoes.setFerramenta} aoMidia={() => arquivoRef.current?.click()} />
         <span className="hidden flex-1 md:block" />
         <BotaoIA editor={editor} nomeProjeto={projeto.nome} />
-        <span title={`${usuario.nome} — você está editando (colaboração em tempo real chega na Fase 2)`} className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-full bg-salvia text-[11px] font-semibold text-musgo lg:flex">{iniciaisDe(usuario.nome)}</span>
+        <div className="hidden lg:block"><PresencaCabecalho sala={editor.sala} documento={estado.documento} eu={{ nome: usuario.nome || usuario.email || 'Você' }} aoIrParaCena={acoes.irParaCena} /></div>
+        <BotaoIcone rotulo="Convidar pessoas para editar" className="hidden md:inline-flex" onClick={() => setConvidar(true)}><UserPlus className="h-4 w-4" /></BotaoIcone>
         <Botao tamanho="sm" variante="fantasma" className="hidden lg:inline-flex" icone={<Eye className="h-4 w-4" />} onClick={abrirPreview}>Pré-visualizar</Botao>
         <BotaoIcone rotulo="Pré-visualizar (Ctrl/⌘ + Enter)" className="hidden md:inline-flex lg:hidden" onClick={abrirPreview}><Eye className="h-4 w-4" /></BotaoIcone>
         <MenuEditor editor={editor} projetoId={projetoId} nomeProjeto={projeto.nome} aoPreview={abrirPreview} aoApresentar={apresentar} aoAtalhos={() => setAtalhos(true)} />
@@ -399,6 +410,11 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
         <Botao tamanho="sm" variante="acento" className="shrink-0" onClick={() => setCompartilhar(true)}>Compartilhar</Botao>
       </header>
       {estado.salvamento === 'conflito' && <AvisoConflito editor={editor} />}
+      {estado.somenteLeitura && (
+        <div role="status" className="flex shrink-0 items-center gap-2 border-b border-borda bg-superficie2 px-4 py-1.5 text-[13px] text-texto2">
+          <Eye className="h-4 w-4 shrink-0" /> Você pode ver este projeto e acompanhar quem está editando, mas não pode alterá-lo.
+        </div>
+      )}
 
       <div className="relative flex min-h-0 flex-1">
         <div className="hidden w-[248px] shrink-0 md:block"><PainelEsquerdo editor={editor} assets={assetsLista} avisar={avisar} aoBloco={(id) => inserirBloco(id)} /></div>
@@ -472,6 +488,10 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
         <Compartilhar projetoId={projetoId} publicarFora />
       </Modal>
 
+      <Modal aberto={convidar} aoFechar={() => setConvidar(false)} titulo="Convidar para editar" descricao="Quem entra no espaço edita este projeto com você em tempo real (e os outros projetos do espaço)." largura="lg">
+        {convidar && <PainelEquipe projetoId={projetoId} aoSair={() => setConvidar(false)} />}
+      </Modal>
+
       <Modal aberto={atalhos} aoFechar={() => setAtalhos(false)} titulo="Atalhos de teclado" largura="lg">
         <dl className="grid grid-cols-1 gap-x-8 gap-y-1.5 text-[13px] sm:grid-cols-2">
           {ATALHOS.map(([k, d]) => <div key={k} className="flex justify-between gap-4 border-b border-borda py-1.5"><dt className="text-texto2">{d}</dt><dd className="mono whitespace-nowrap text-[12px]">{k}</dd></div>)}
@@ -505,12 +525,12 @@ function EstadoSalvo({ editor }: { editor: ReturnType<typeof useEditor> }) {
     salvo: { cor: 'bg-sucesso', texto: 'Salvo' },
     alterado: { cor: 'bg-aviso', texto: 'Salvando…' },
     salvando: { cor: 'bg-aviso', texto: 'Salvando…' },
-    offline: { cor: 'bg-perigo', texto: 'Sem conexão — salvaremos ao reconectar' },
+    offline: { cor: 'bg-perigo', texto: estado.conexao ? 'Sincroniza ao voltar' : 'Sem conexão — salvaremos ao reconectar' },
     falha: { cor: 'bg-perigo', texto: 'Falha ao salvar' },
   } as const
   const m = mapa[s]
   return (
-    <span className="ml-2 hidden items-center gap-1.5 text-[12px] text-texto3 sm:flex" role="status" aria-live="polite" title={s === 'salvo' ? 'Todas as alterações foram salvas.' : undefined}>
+    <span className="ml-2 hidden items-center gap-1.5 whitespace-nowrap text-[12px] text-texto3 sm:flex" role="status" aria-live="polite" data-salvamento={s} title={s === 'salvo' ? 'Todas as alterações foram salvas.' : s === 'falha' && estado.falhaSala ? estado.falhaSala : undefined}>
       {s === 'salvando' ? <Loader2 className="h-3 w-3 animate-spin" /> : s === 'offline' ? <CloudOff className="h-3 w-3 text-perigo" /> : <span className={cx('h-1.5 w-1.5 rounded-full', m.cor)} />}
       {m.texto}
       <span className="sr-only">{s === 'salvo' ? 'Todas as alterações foram salvas.' : ''}</span>

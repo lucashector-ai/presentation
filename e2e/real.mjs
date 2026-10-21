@@ -3,7 +3,7 @@ import fs from 'node:fs'
 
 /**
  * Fluxo ponta a ponta no MODO REAL (sem NEXT_PUBLIC_DEMO): Neon Auth, Neon Postgres e armazenamento de mídias de verdade.
- * cadastro → painel → projeto → editar e salvar → recarregar → enviar imagem → conflito 409 → publicar → link →
+ * cadastro → painel → projeto → editar e salvar → recarregar → enviar imagem → duas abas em tempo real → publicar → link →
  * convidado em aba anônima → sair → login volta ao destino.
  *
  * Rodar contra um BRANCH de teste do Neon (nunca o production): o teste cria um usuário novo a cada execução.
@@ -15,9 +15,6 @@ const BASE = process.env.E2E_BASE_URL || 'http://localhost:3104'
 const SHOTS = new URL('./capturas/real/', import.meta.url).pathname
 fs.mkdirSync(SHOTS, { recursive: true })
 const erros = []
-/** O navegador registra no console toda resposta HTTP de erro: o 409 do passo de conflito é esperado (é o que se testa). */
-const esperados = []
-let aceitar409 = false
 const passos = []
 const ok = (nome) => { passos.push(`✔ ${nome}`); console.log('✔', nome) }
 const falha = (nome, e) => { passos.push(`✘ ${nome}: ${e?.message ?? e}`); console.log('✘', nome, e?.message ?? e) }
@@ -27,8 +24,7 @@ const vigiar = (p) => {
   p.on('pageerror', (e) => erros.push(`pageerror (${p.url()}): ${e.message}`))
   p.on('console', (m) => {
     if (m.type() !== 'error' || m.text().startsWith('Failed to fetch RSC payload')) return
-    if (aceitar409 && m.text().includes('status of 409')) esperados.push(`console (${p.url()}): ${m.text()}`)
-    else erros.push(`console (${p.url()}): ${m.text()}`)
+    erros.push(`console (${p.url()}): ${m.text()}`)
   })
 }
 const novoContexto = async (opcoes = {}) => {
@@ -163,7 +159,7 @@ await passo('Enviar SVG: limpo no navegador, conferido no servidor (gravado sem 
   await esperarSalvo()
 })
 
-await passo('Conflito 409: outra aba salva antes → aviso claro → Recarregar traz a versão nova', async () => {
+await passo('Duas abas: a edição de uma aparece na outra em tempo real (sala de colaboração, sem 409)', async () => {
   const outra = await ctx.newPage()
   await outra.goto(`${BASE}/app/projects/${idProjeto}/edit`)
   await outra.getByTestId('canvas').getByText('Olá do banco real').waitFor({ timeout: 30000 })
@@ -171,19 +167,15 @@ await passo('Conflito 409: outra aba salva antes → aviso claro → Recarregar 
   await outra.getByRole('tree', { name: 'Camadas da tela' }).getByRole('treeitem', { name: /Olá do banco real/ }).click()
   await outra.getByLabel('Conteúdo do texto').fill('Versão da outra aba')
   await outra.evaluate(() => document.activeElement?.blur())
+  // a primeira aba vê na hora, sem recarregar nem escolher versão
+  await page.getByTestId('canvas').getByText('Versão da outra aba').waitFor({ timeout: 15000 })
   await esperarSalvo(outra)
   await outra.close()
-  // esta aba ainda está na revisão anterior: a próxima gravação recebe 409
-  aceitar409 = true
+  // e continua gravando normalmente: a sala grava com a revisão certa (nenhum 409)
   await page.getByRole('tab', { name: 'Blocos' }).click()
   await page.getByRole('button', { name: 'Forma', exact: true }).click()
-  const aviso = page.getByRole('alert').filter({ hasText: 'Este projeto mudou em outra aba' })
-  await aviso.getByText('Este projeto mudou em outra aba ou dispositivo.', { exact: false }).waitFor({ timeout: 15000 })
-  await page.screenshot({ path: `${SHOTS}/03-conflito.png` })
-  await aviso.getByRole('button', { name: 'Recarregar' }).click()
-  await page.getByTestId('canvas').getByText('Versão da outra aba').waitFor({ timeout: 15000 })
-  await page.locator('header [role=status]', { hasText: 'Todas as alterações foram salvas.' }).waitFor()
-  aceitar409 = false
+  await esperarSalvo(page)
+  await page.screenshot({ path: `${SHOTS}/03-duas-abas.png` })
 })
 
 let urlLink = ''
@@ -310,7 +302,7 @@ await passo('Sair e voltar: login leva de volta ao destino (/app/projects/:id)',
 
 await browser.close()
 console.log('\n' + passos.join('\n'))
-console.log(`\nErros de console/página: ${erros.length}${esperados.length ? ` (fora ${esperados.length} esperado(s): 409 do teste de conflito)` : ''}`)
+console.log(`\nErros de console/página: ${erros.length}`)
 for (const e of erros.slice(0, 20)) console.log('  ', e)
 console.log(`\nUsuário de teste criado: ${EMAIL} (id ${idUsuario || '?'}) — apague no branch de teste.`)
 process.exit(passos.some((p) => p.startsWith('✘')) ? 1 : 0)

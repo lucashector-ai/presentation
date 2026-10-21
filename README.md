@@ -18,6 +18,7 @@ SaaS privado para designers, diretores de arte e estúdios: cole artes do Figma 
 | Painel como centro do app (criar, continuar, enviados e visualizações, créditos e compra, primeiros passos, busca ⌘K), detalhes, compartilhamento, conta/planos, marketing, login/cadastro | ✅ ver `docs/ux/DIRECAO.md` |
 | Banco (Neon Postgres, `db/migrations`), login (Neon Auth: e-mail/senha + Google), mídias (Cloudflare R2) e rotas `/api` | ✅ exercitados de ponta a ponta contra o Neon (cadastro, login, projeto, cenas, upload, publicação, link de convidado, créditos, isolamento entre usuários) — ver ADR 0010 |
 | UI ligada ao backend real: camada de dados única (`lib/dados`) com duas implementações — demo (`lib/demo/store.ts`, `NEXT_PUBLIC_DEMO=1`) e real (rotas `/api`, sessão por cookie) | ✅ painel, editor (autosave com revisão, 409, offline), mídias, publicação, links, página pública, lixeira, créditos/plano e IA — provado por `e2e/real.mjs` |
+| Colaboração em tempo real: sala por projeto (Durable Object + WebSocket em hibernação), presença (avatares, cursores com nome, seleções, tela de cada um), edição simultânea com LWW por propriedade, desfazer por pessoa, offline com sincronização ao voltar; equipe (convite por e-mail ou link, editor/visualizador, remover) | ✅ ver ADR 0011 — provado por `e2e/colaboracao.mjs` (dois navegadores, duas contas) |
 | Worker de thumbnails/transcodificação, billing (Stripe), e-mail transacional | ⏳ não iniciados |
 
 As telas só falam com `dados` (`lib/dados/index.ts`) e leem o estado com `useDados`/`useCarregar`/`useProjetoCompleto`; nenhuma decide sozinha se está no modo demo. O build escolhe a implementação:
@@ -65,7 +66,8 @@ Pacotes avulsos (não expiram): 500 por R$19 (≈ 8), 2.000 por R$59 (≈ 33), 1
 2. `npm run dev`. O servidor roda no workerd; se ele não resolver DNS (rede que só sai por proxy HTTP, como sessões de agente), encaminhe o fetch de saída do Worker pelo Node com o preload de desenvolvimento:
    `NODE_USE_ENV_PROXY=1 node --import ./e2e/saida-pelo-node.mjs node_modules/vite/bin/vite.js dev --port 3104`
    (só HTTP(S); o app usa o driver HTTP do Neon. Não entra no build.) Com outras cópias do app rodando `vite dev` na mesma máquina, isole o registro de Workers do Miniflare com `MINIFLARE_REGISTRY_PATH=<pasta própria>`: todas se chamam `mostra` e o registro global é compartilhado.
-3. `E2E_BASE_URL=http://localhost:3104 node e2e/real.mjs`: cadastra um usuário novo, cria projeto, edita e salva, recarrega, envia imagem, provoca e resolve um conflito 409, publica, abre o link numa aba anônima, duplica/arquiva/usa a lixeira, envia para a biblioteca, cria com IA, sai e entra de novo. No fim imprime o usuário criado para apagar do branch.
+3. `E2E_BASE_URL=http://localhost:3104 node e2e/real.mjs`: cadastra um usuário novo, cria projeto, edita e salva, recarrega, envia imagem, edita em duas abas ao mesmo tempo (sala de colaboração, sem 409), publica, abre o link numa aba anônima, duplica/arquiva/usa a lixeira, envia para a biblioteca, cria com IA, sai e entra de novo. No fim imprime o usuário criado para apagar do branch.
+4. `NODE_USE_ENV_PROXY=1 E2E_BASE_URL=http://localhost:3104 node e2e/colaboracao.mjs`: duas contas em dois navegadores — convite (o Free recusa; o teste põe o workspace no Studio direto no branch), aceite, presença, cursores, edição vista pelo outro (latência medida), edições simultâneas, desfazer por pessoa, queda de rede e volta, recarregar e conferir no banco, e a sala recusando quem não tem sessão, vem de outro site ou saiu da equipe. Lê `DATABASE_URL`/`NEON_BRANCH` do `.env.local` e recusa rodar no `production`.
 
 ## Como testar
 
@@ -91,12 +93,13 @@ Novas mudanças de schema: arquivo `000N_descricao.sql` sequencial; nunca editar
 ## Como publicar e reverter
 
 - **Cloudflare Workers** (Worker `mostra`, config em `wrangler.jsonc`, bucket R2 `mostra-midias` no binding `MIDIAS`): `npx wrangler login` uma vez, segredos com `npx wrangler secret put DATABASE_URL` (e os demais do servidor), depois `npm run deploy` (build + `wrangler deploy`). Variáveis `NEXT_PUBLIC_*` entram no build, então precisam estar no ambiente de quem roda o deploy. Reverter = `npx wrangler rollback` (versão anterior, instantâneo) ou `git revert` + deploy.
-- Bindings do Cloudflare só por `lib/cf/ambiente.ts` (fora do Worker, como no Vitest, devolve null).
+- Bindings do Cloudflare só por `lib/cf/ambiente.ts` (fora do Worker, como no Vitest, devolve null). Exceção: o Durable Object da sala de colaboração (`SALAS` → classe `SalaProjeto`), que o Worker (`worker/index.ts`, o `main` do wrangler) recebe no `env` e exporta junto do vinext.
 - Migrations são aditivas; para reverter uma, escreva a migration inversa (não apague a anterior).
 
 ## Estrutura
 
 ```
+worker/index.ts           entrada do Worker: sala de colaboração (WebSocket) + vinext para o resto
 app/                      rotas (App Router)
   page.tsx                marketing
   login/ signup/          autenticação
@@ -119,7 +122,8 @@ lib/
   db/                     conexão Neon (sql() HTTP, novoPool() WebSocket)
   dados/                  camada de dados das telas: contrato (tipos.ts), demo.ts (store local) e real.ts (rotas /api + cache)
   demo/                   backend de demonstração no navegador + dados fictícios
-  editor/                 useEditor (undo/redo, autosave, revisão, conflito), guias, importação
+  editor/                 useEditor (undo/redo por pessoa, sala ou autosave, revisão, conflito), guias, importação
+  colab/                  colaboração: ops.ts (diferença/aplicar/compactar), motor.ts (reconciliação no cliente), protocolo.ts (Zod, limites), cliente.ts (WebSocket), sala.ts (Durable Object), entrada.ts (handshake autenticado)
   importar/               SVG (sanitização, cores), arquivos (GLB/glTF/Lottie), área de transferência
   ia/                     roteiro + motor de layout, gerador local, prompt e chamada ao Claude
   share/                  tokens, hash de senha (PBKDF2), estado do link, limite de tentativas
@@ -133,4 +137,4 @@ e2e/                      fluxos ponta a ponta com Playwright: fluxo.mjs (demo) 
 
 ## Decisões registradas
 
-Ver `docs/adr/`: stack (0001), autenticação (0002), entrega de mídia (0003), renderizador de cena (0004), modelo de revisões (0005), importação e área de transferência (0006), 3D/Lottie/embeds (0007), IA e créditos (0008), IA no editor (0009), Neon + R2 no lugar do Supabase (0010). Visão geral, mapa de telas e plano P0 em `docs/ARQUITETURA.md`. Critérios de aceite e como cada um é verificado em `docs/CRITERIOS-ACEITE.md`.
+Ver `docs/adr/`: stack (0001), autenticação (0002), entrega de mídia (0003), renderizador de cena (0004), modelo de revisões (0005), importação e área de transferência (0006), 3D/Lottie/embeds (0007), IA e créditos (0008), IA no editor (0009), Neon + R2 no lugar do Supabase (0010), colaboração em tempo real e equipe (0011). Visão geral, mapa de telas e plano P0 em `docs/ARQUITETURA.md`. Critérios de aceite e como cada um é verificado em `docs/CRITERIOS-ACEITE.md`.

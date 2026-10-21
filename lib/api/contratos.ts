@@ -174,11 +174,58 @@ export const EnviarMidiaRes = AssetSchema
 
 export const ContaRes = z.object({
   usuario: z.object({ id: z.string(), nome: z.string(), email: z.string() }),
-  workspace: z.object({ id: z.string(), nome: z.string(), planoId: z.enum(['free', 'plus', 'pro', 'studio']), estadoAssinatura: z.enum(['trial', 'ativa', 'inadimplente', 'cancelada']), membros: z.number().int() }),
+  workspace: z.object({ id: z.string(), nome: z.string(), planoId: z.enum(['free', 'plus', 'pro', 'studio']), estadoAssinatura: z.enum(['trial', 'ativa', 'inadimplente', 'cancelada']), membros: z.number().int(), papel: z.enum(['owner', 'editor', 'viewer']), proprio: z.boolean() }),
   creditos: z.object({ saldo: z.number().int(), movimentos: z.array(z.object({ id: z.string(), quantidade: z.number().int(), motivo: z.string(), criadoEm: z.string() })) }),
   uso: z.object({ projetosAtivos: z.number().int(), armazenamentoBytes: z.number(), bandaMesBytes: z.number() }),
 })
 export type ContaRes = z.infer<typeof ContaRes>
+
+// ---------- equipe (membros do workspace e convites) ----------
+
+export const PapelSchema = z.enum(['owner', 'editor', 'viewer'])
+export type Papel = z.infer<typeof PapelSchema>
+/** Papéis que um convite pode dar (dono há um só, o do cadastro). */
+export const PapelConviteSchema = z.enum(['editor', 'viewer'])
+
+const EmailSchema = z.string().trim().toLowerCase().max(320).regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'E-mail inválido')
+
+/** POST /api/equipe/convites — com e-mail: só essa conta aceita, uma vez. Sem e-mail: link para quem tiver. */
+export const CriarConviteReq = z.object({
+  email: EmailSchema.optional(),
+  papel: PapelConviteSchema.default('editor'),
+  projetoId: z.string().optional(),
+})
+export const AlterarPapelReq = z.object({ papel: PapelConviteSchema })
+export const AtivarWorkspaceReq = z.object({ workspaceId: z.string() })
+
+export const MembroSchema = z.object({ userId: z.string(), nome: z.string(), email: z.string(), papel: PapelSchema, desde: z.string(), voce: z.boolean() })
+export type Membro = z.infer<typeof MembroSchema>
+export const ConviteSchema = z.object({ id: z.string(), email: z.string().nullable(), papel: PapelConviteSchema, criadoEm: z.string(), expiraEm: z.string(), projetoId: z.string().nullable() })
+export type Convite = z.infer<typeof ConviteSchema>
+export const EquipeRes = z.object({
+  workspace: z.object({ id: z.string(), nome: z.string() }),
+  meuPapel: PapelSchema,
+  /** Limite de membros do plano (lib/planos.ts). */
+  limite: z.number().int(),
+  membros: z.array(MembroSchema),
+  /** Convites pendentes (só para quem administra). */
+  convites: z.array(ConviteSchema),
+})
+export type EquipeRes = z.infer<typeof EquipeRes>
+/** O token do convite é devolvido UMA vez, na criação, já como URL. */
+export const CriarConviteRes = ConviteSchema.extend({ url: z.string() })
+
+/** GET /api/convites/:token — o que a pessoa logada está prestes a aceitar. */
+export const ConviteInfoRes = z.discriminatedUnion('estado', [
+  z.object({ estado: z.literal('invalido') }),
+  z.object({ estado: z.literal('outro_email'), emailConvidado: z.string() }),
+  z.object({ estado: z.literal('valido'), workspaceNome: z.string(), convidadoPor: z.string(), papel: PapelConviteSchema, jaMembro: z.boolean() }),
+])
+export type ConviteInfoRes = z.infer<typeof ConviteInfoRes>
+export const AceitarConviteRes = z.object({ workspaceId: z.string(), papel: PapelSchema, projetoId: z.string().nullable() })
+
+export const WorkspaceItemSchema = z.object({ id: z.string(), nome: z.string(), dono: z.string(), papel: PapelSchema, proprio: z.boolean(), ativo: z.boolean() })
+export type WorkspaceItem = z.infer<typeof WorkspaceItemSchema>
 
 // ---------- compartilhamento ----------
 
@@ -218,5 +265,10 @@ export const TIPOS_EVENTO_AUDITORIA = [
   'share_link.unlock_failed',
   'asset.deleted',
   'subscription.changed',
+  'workspace.invite_created',
+  'workspace.invite_revoked',
+  'workspace.member_added',
+  'workspace.member_removed',
+  'workspace.member_role_changed',
 ] as const
 export type TipoEventoAuditoria = (typeof TIPOS_EVENTO_AUDITORIA)[number]

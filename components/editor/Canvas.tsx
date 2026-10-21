@@ -30,6 +30,7 @@ import { SceneRenderer, type AssetsResolvidos } from '@/components/renderer/Scen
 import { useTamanho } from '@/components/renderer/useTamanho'
 import { MiniaturaCena } from './MiniaturaCena'
 import { ColunasCanvas, GuiasCanvas, LinhaInsercao, PreviaRegiao, SEM_SOBREPOSICAO, type Sobreposicao } from './GuiasCanvas'
+import { CamadaPresenca } from './Presenca'
 import { alvosDeFracao, colunasDaGrade, gradeLayoutPadrao } from '@/lib/editor/preencher'
 import { EVENTO_PREVIA } from './PreencherGrade'
 import { EditorVetor, type FerramentaVetor } from './vetor/EditorVetor'
@@ -129,6 +130,22 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
   }, [ref])
   const paraCena = useCallback((p: { x: number; y: number }) => (vp ? { x: (p.x - vp.ox) / vp.s, y: (p.y - vp.oy) / vp.s } : p), [vp])
   const paraTela = useCallback((r: Retangulo) => (vp ? { x: vp.ox + r.x * vp.s, y: vp.oy + r.y * vp.s, width: r.width * vp.s, height: r.height * vp.s } : r), [vp])
+
+  // presença: o cursor desta pessoa (em coordenadas da tela) vai para a sala, para as outras verem
+  const sala = editor.sala
+  useEffect(() => {
+    const el = ref.current
+    if (!el || !sala) return
+    const mover = (ev: PointerEvent) => {
+      if (ev.pointerType === 'touch') return
+      const p = paraCena(local(ev))
+      sala.presenca({ cursor: { x: Math.round(p.x), y: Math.round(p.y) } })
+    }
+    const sair = () => sala.presenca({ cursor: null })
+    el.addEventListener('pointermove', mover)
+    el.addEventListener('pointerleave', sair)
+    return () => { el.removeEventListener('pointermove', mover); el.removeEventListener('pointerleave', sair) }
+  }, [ref, sala, paraCena, local])
 
   const zoomEm = useCallback(
     (novo: number, p: { x: number; y: number }) => {
@@ -751,6 +768,9 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
 
       {/* guias inteligentes, vãos iguais e medidas */}
       <GuiasCanvas s={sobreposicao} paraTela={paraTela} />
+
+      {/* colaboração: seleções e cursores das outras pessoas nesta tela */}
+      <CamadaPresenca sala={sala} cenaId={cena.id} camadas={cena.layers} paraTela={paraTela} />
 
       {/* editar vetor (nós, alças, barra própria) */}
       {vetorAtivo && !editandoTexto && (

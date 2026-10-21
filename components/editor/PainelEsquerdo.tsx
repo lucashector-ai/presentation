@@ -10,6 +10,7 @@ import { formatarBytes } from '@/lib/planos'
 import { EXTENSOES_ACEITAS } from '@/lib/importar/arquivos'
 import { importarArquivos, type Avisar } from '@/lib/editor/importar'
 import { MiniaturaCena } from './MiniaturaCena'
+import { QuemEstaNaTela } from './Presenca'
 import { ICONE_TIPO } from './inspetor/AbaDesign'
 import { Botao, BotaoIcone, Modal, cx } from '@/components/ui'
 
@@ -68,8 +69,9 @@ function Telas({ editor, assets }: { editor: Editor; assets: AssetDemo[] }) {
               {sobre === i && arrastando !== null && arrastando !== i && <span className="absolute -top-2 left-6 right-0 h-0.5 rounded bg-acento" />}
               <span className="mono w-4 pt-1 text-[10px] text-texto3">{String(i + 1).padStart(2, '0')}</span>
               <div className="min-w-0 flex-1">
-                <div className={cx('overflow-hidden rounded-[7px] outline outline-[1.5px] outline-offset-2', ativa ? 'outline-acento' : 'outline-transparent group-hover:outline-borda')}>
+                <div className={cx('relative overflow-hidden rounded-[7px] outline outline-[1.5px] outline-offset-2', ativa ? 'outline-acento' : 'outline-transparent group-hover:outline-borda')}>
                   <MiniaturaCena cena={c} assets={mapa} largura={186} className="rounded-[6px] border-0" />
+                  <QuemEstaNaTela sala={editor.sala} cenaId={c.id} />
                 </div>
                 <div className="mt-1.5 flex items-center justify-between">
                   <span className="truncate text-[13px]">{c.title || 'Sem título'}</span>

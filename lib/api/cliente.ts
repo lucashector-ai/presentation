@@ -5,7 +5,7 @@
  * (mesma origem): o cliente não lê nem guarda token nenhum.
  */
 import type { z } from 'zod'
-import type { Asset, ContaRes, CriarProjetoReq, CriarShareLinkReq, DetalheProjetoRes, Envelope, ProjetoResumo, ResolverShareRes, SalvarCenasRes, ShareLink } from './contratos'
+import type { AceitarConviteRes, Asset, ContaRes, ConviteInfoRes, CriarConviteRes, CriarProjetoReq, CriarShareLinkReq, DetalheProjetoRes, Envelope, EquipeRes, ProjetoResumo, ResolverShareRes, SalvarCenasRes, ShareLink, WorkspaceItem } from './contratos'
 import type { DocumentoProjeto } from '@/lib/scene/schema'
 import type { PedidoRoteiro, RespostaRoteiro } from '@/lib/ia/pedido'
 import type { PedidoTextoSchema, RespostaTexto } from '@/lib/ia/texto'
@@ -98,6 +98,21 @@ export const api = {
   },
   conta: {
     obter: () => chamar<ContaRes>('/api/conta'),
+  },
+  equipe: {
+    obter: () => chamar<EquipeRes>('/api/equipe'),
+    convidar: (b: { email?: string; papel: 'editor' | 'viewer'; projetoId?: string }) => chamar<z.infer<typeof CriarConviteRes>>('/api/equipe/convites', { method: 'POST', body: JSON.stringify(b) }),
+    revogarConvite: (id: string) => chamar<{ revoked: true }>(`/api/equipe/convites/${id}`, { method: 'DELETE' }),
+    alterarPapel: (userId: string, papel: 'editor' | 'viewer') => chamar<{ papel: string }>(`/api/equipe/membros/${userId}`, { method: 'PATCH', body: JSON.stringify({ papel }) }),
+    remover: (userId: string) => chamar<{ removed: true }>(`/api/equipe/membros/${userId}`, { method: 'DELETE' }),
+  },
+  convites: {
+    obter: (token: string) => chamar<ConviteInfoRes>(`/api/convites/${encodeURIComponent(token)}`),
+    aceitar: (token: string) => chamar<z.infer<typeof AceitarConviteRes>>(`/api/convites/${encodeURIComponent(token)}/aceitar`, { method: 'POST', body: '{}' }),
+  },
+  workspaces: {
+    listar: () => chamar<WorkspaceItem[]>('/api/workspaces'),
+    ativar: (workspaceId: string) => chamar<{ workspaceId: string }>('/api/workspaces/ativo', { method: 'POST', body: JSON.stringify({ workspaceId }) }),
   },
   share: {
     resolver: (token: string) => chamar<z.infer<typeof ResolverShareRes>>(`/api/share/${token}`),

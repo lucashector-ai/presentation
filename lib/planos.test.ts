@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ACOES_IA, CUSTO_CREDITOS, DIVISAO_TELA, custoDesenho, custoRoteiro, resumoCobranca, PACOTES_AVULSOS, PLANOS, apresentacoesCom, custoApresentacao, custoDe, formatarBytes, podeCriarProjeto, podeEnviarArquivo, podeGastarCreditos, podeGerarTelas, podeUsarSenhaNoLink, precoComCiclo, somenteLeitura, textoApresentacoes } from './planos'
+import { ACOES_IA, CUSTO_CREDITOS, DIVISAO_TELA, custoDesenho, custoRoteiro, resumoCobranca, PACOTES_AVULSOS, PLANOS, apresentacoesCom, custoApresentacao, custoDe, formatarBytes, podeConvidarMembro, podeCriarProjeto, podeEnviarArquivo, podeGastarCreditos, podeGerarTelas, podeUsarSenhaNoLink, precoComCiclo, somenteLeitura, textoApresentacoes } from './planos'
 
 describe('planos', () => {
   const uso = { projetosAtivos: 0, armazenamentoBytes: 0, bandaMesBytes: 0 }
@@ -81,5 +81,15 @@ describe('planos', () => {
   it('formata bytes', () => {
     expect(formatarBytes(500 * 1024 * 1024)).toBe('500 MB')
     expect(formatarBytes(20 * 1024 ** 3)).toBe('20 GB')
+  })
+
+  it('convidar membros respeita o limite do plano (Free/Plus/Pro são individuais)', () => {
+    const free = podeConvidarMembro({ planoId: 'free', estado: 'ativa' }, 1)
+    expect(free.ok).toBe(false)
+    expect(!free.ok && free.upgradePara).toBe('studio')
+    expect(podeConvidarMembro({ planoId: 'pro', estado: 'ativa' }, 1).ok).toBe(false)
+    expect(podeConvidarMembro({ planoId: 'studio', estado: 'ativa' }, 1).ok).toBe(true)
+    expect(podeConvidarMembro({ planoId: 'studio', estado: 'ativa' }, PLANOS.studio.limites.membros).ok).toBe(false)
+    expect(podeConvidarMembro({ planoId: 'studio', estado: 'cancelada' }, 1).ok).toBe(false)
   })
 })

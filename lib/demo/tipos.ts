@@ -17,6 +17,10 @@ export interface Workspace {
   planoId: PlanoId
   estadoAssinatura: EstadoAssinatura
   membros: number
+  /** Papel de quem está logado neste workspace (modo real; no demo é sempre o dono). */
+  papel?: 'owner' | 'editor' | 'viewer'
+  /** É o workspace próprio (do cadastro) ou um aceito por convite. */
+  proprio?: boolean
 }
 
 export interface MovimentoCredito {

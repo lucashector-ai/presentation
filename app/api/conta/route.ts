@@ -2,6 +2,7 @@ import type { ContaRes } from '@/lib/api/contratos'
 import { autenticar, iso, responder, rota } from '@/lib/api/servidor'
 import { planoEUso } from '@/lib/api/planoServidor'
 import { sql } from '@/lib/db/neon'
+import { nomeDoWorkspace } from '@/lib/api/equipeServidor'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +16,8 @@ export const GET = rota(async (req, _ctx, requestId) => {
   const [[linha], movimentos, { plano, uso }] = await Promise.all([
     db`
       select coalesce(nu.name, u.name, '') as nome, coalesce(nu.email, u.email, '') as email, w.name as ws_nome,
+             w.owner_user_id = u.id as proprio,
+             (select coalesce(nullif(o.name, ''), split_part(o.email, '@', 1)) from public.users o where o.id = w.owner_user_id) as dono,
              (select count(*) from public.workspace_members m where m.workspace_id = w.id) as membros,
              coalesce((select b.balance from public.credit_balances b where b.workspace_id = w.id), 0) as saldo
       from public.workspaces w
@@ -26,7 +29,7 @@ export const GET = rota(async (req, _ctx, requestId) => {
   ])
   const conta: ContaRes = {
     usuario: { id: ctx.userId, nome: String(linha?.nome ?? ''), email: String(linha?.email ?? '') },
-    workspace: { id: ctx.workspaceId, nome: String(linha?.ws_nome ?? 'Meu espaço'), planoId: plano.planoId, estadoAssinatura: plano.estado, membros: Number(linha?.membros ?? 1) },
+    workspace: { id: ctx.workspaceId, nome: nomeDoWorkspace(String(linha?.ws_nome ?? 'Meu espaço'), String(linha?.dono ?? ''), linha?.proprio !== false), planoId: plano.planoId, estadoAssinatura: plano.estado, membros: Number(linha?.membros ?? 1), papel: ctx.papel, proprio: linha?.proprio !== false },
     creditos: { saldo: Number(linha?.saldo ?? 0), movimentos: movimentos.map((m) => ({ id: String(m.id), quantidade: Number(m.amount), motivo: String(m.reason ?? ''), criadoEm: iso(m.created_at as Date) ?? '' })) },
     uso,
   }

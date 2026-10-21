@@ -8,6 +8,7 @@ import { alternarTema } from '@/lib/sessao'
 import { Botao, Campo, Entrada, ModalConfirmar, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 import { useCreditos } from './Creditos'
+import { PainelEquipe } from './Equipe'
 
 const fmt = (n: number) => n.toLocaleString('pt-BR')
 
@@ -139,6 +140,11 @@ export function Configuracoes() {
             setSalvando(false)
           }
         }}>Salvar</Botao>
+      </Bloco>
+
+      <Bloco id="equipe" titulo="Equipe">
+        <p className="mb-4 text-[13px] text-texto2">Convide pessoas para editar os projetos deste espaço com você, em tempo real. Quem pode ver acompanha, mas não altera.</p>
+        <PainelEquipe />
       </Bloco>
 
       <Bloco titulo="Aparência"><Botao variante="secundario" onClick={() => alternarTema()}>Alternar tema claro/escuro</Botao></Bloco>

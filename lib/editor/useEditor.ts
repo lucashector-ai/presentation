@@ -1,12 +1,19 @@
 'use client'
 /**
- * Estado do editor: documento + seleção + histórico (desfazer/refazer) + autosave com revisão + ferramentas.
- * Regras: autosave com debounce de 800 ms e ao sair; cada gravação leva baseRevision; 409 preserva mudanças
- * locais e mostra conflito; desfazer/refazer por comandos na sessão (gestos contínuos viram uma entrada).
- * A gravação vai pela camada de dados (lib/dados: store demo ou PUT /api/projects/:id/scenes), assíncrona e em fila:
- * uma de cada vez, sempre com a revisão devolvida pela anterior.
+ * Estado do editor: documento + seleção + histórico (desfazer/refazer) + gravação + ferramentas.
+ *
+ * Toda mudança do documento passa pelo motor de sincronização (lib/colab/motor.ts), que a transforma em
+ * operações por propriedade. O desfazer/refazer guarda essas operações (e as inversas) — não cópias do documento —
+ * e as aplica sobre o documento ATUAL: cada pessoa desfaz só o que ela mesma fez, mesmo com outras editando junto.
+ *
+ * Gravação:
+ *  - modo real: colaboração em tempo real pela sala do projeto (lib/colab/cliente.ts → Durable Object). A sala
+ *    consolida as edições de todos e grava no Neon com a revisão; sem rede, o editor segue editando localmente e
+ *    sincroniza ao voltar.
+ *  - modo demonstração: autosave com debounce de 800 ms e ao sair, pela camada de dados (store local), com
+ *    baseRevision; 409 preserva mudanças locais e mostra conflito. Uma gravação de cada vez, em fila.
  */
-import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { FORMATOS, novaCena, parseCamada, type AutoLayout, type Camada, type CamadaFrame, type Cena, type DocumentoProjeto, type Interacao } from '@/lib/scene/schema'
 import { validarDocumento, type ResultadoValidacao } from '@/lib/scene/validate'
 import { moverCena, normalizarZ, novoId, trazerParaFrente, enviarParaTras, avancarUm, recuarUm } from '@/lib/scene/order'
@@ -16,6 +23,9 @@ import { LAYOUT_PADRAO, inferirLayout, inserirNoFrame as inserirNoFrameFn, mover
 import { distribuir as distribuirRects } from './guias'
 import { criarMascara, ehMascara, removerMascara } from '@/lib/scene/mascara'
 import { dados, ehErroDados, useDados, type AssetDemo } from '@/lib/dados'
+import { aplicarOps, compactar, diferenca, type Op } from '@/lib/colab/ops'
+import { MotorDocumento } from '@/lib/colab/motor'
+import { ConexaoSala, type EstadoConexao } from '@/lib/colab/cliente'
 
 export type EstadoSalvamento = 'salvo' | 'alterado' | 'salvando' | 'offline' | 'falha' | 'conflito'
 import type { Ferramenta } from './atalhos'
@@ -23,13 +33,22 @@ export type { Ferramenta } from './atalhos'
 export type AbaEsquerda = 'telas' | 'camadas' | 'arquivos' | 'blocos'
 export type AbaDireita = 'design' | 'animacao' | 'interacoes'
 
+/** Um passo de desfazer: as operações da ação e as inversas (aplicadas sobre o documento atual). */
+export interface PassoHistorico { fwd: Op[]; inv: Op[] }
+
 export interface EstadoEditor {
   documento: DocumentoProjeto
   cenaId: string
   selecao: string[]
-  passado: DocumentoProjeto[]
-  futuro: DocumentoProjeto[]
+  passado: PassoHistorico[]
+  futuro: PassoHistorico[]
   revisao: number
+  /** Modo real: estado da conexão com a sala (null = sem sala, modo demonstração). */
+  conexao: EstadoConexao | null
+  /** Visualizador na sala: o editor só mostra (não altera o documento). */
+  somenteLeitura: boolean
+  /** Falha de gravação informada pela sala. */
+  falhaSala: string | null
   salvamento: EstadoSalvamento
   salvoEm: string | null
   conflito: { currentRevision: number } | null
@@ -55,10 +74,12 @@ export interface EstadoEditor {
 }
 
 type Acao =
-  | { tipo: 'documento'; fn: (d: DocumentoProjeto) => DocumentoProjeto; historico: boolean }
-  | { tipo: 'marcarHistorico'; anterior: DocumentoProjeto }
-  | { tipo: 'desfazer' }
-  | { tipo: 'refazer' }
+  /** Mudança local já calculada (o motor guarda as operações); `desfeito` = desfazer/refazer. */
+  | { tipo: 'documento'; documento: DocumentoProjeto; desfeito?: boolean }
+  /** O documento mudou por causa da sala (outra pessoa, reconexão). */
+  | { tipo: 'remoto'; documento: DocumentoProjeto }
+  | { tipo: 'historico'; passado: PassoHistorico[]; futuro: PassoHistorico[] }
+  | { tipo: 'sala'; patch: Partial<Pick<EstadoEditor, 'conexao' | 'salvamento' | 'revisao' | 'salvoEm' | 'somenteLeitura' | 'falhaSala'>> }
   | { tipo: 'selecionar'; ids: string[] }
   | { tipo: 'cena'; id: string }
   | { tipo: 'salvamento'; valor: EstadoSalvamento; revisao?: number; salvoEm?: string; conflito?: { currentRevision: number } | null }
@@ -67,35 +88,30 @@ type Acao =
 
 const LIMITE_HISTORICO = 150
 
+function comDocumento(e: EstadoEditor, novo: DocumentoProjeto, limparSelecao: boolean): EstadoEditor {
+  const cenaExiste = novo.scenes.some((s) => s.id === e.cenaId)
+  return {
+    ...e,
+    documento: novo,
+    cenaId: cenaExiste ? e.cenaId : (novo.scenes[0]?.id ?? e.cenaId),
+    selecao: limparSelecao ? [] : e.selecao.filter((id) => novo.scenes.some((s) => s.layers.some((l) => l.id === id))),
+  }
+}
+
 function reducer(e: EstadoEditor, a: Acao): EstadoEditor {
   switch (a.tipo) {
     case 'documento': {
-      const novo = a.fn(e.documento)
-      if (novo === e.documento) return e
-      const cenaExiste = novo.scenes.some((s) => s.id === e.cenaId)
-      return {
-        ...e,
-        documento: novo,
-        cenaId: cenaExiste ? e.cenaId : (novo.scenes[0]?.id ?? e.cenaId),
-        passado: a.historico ? [...e.passado.slice(-LIMITE_HISTORICO), e.documento] : e.passado,
-        futuro: a.historico ? [] : e.futuro,
-        salvamento: e.salvamento === 'conflito' ? 'conflito' : 'alterado',
-        selecao: e.selecao.filter((id) => novo.scenes.some((s) => s.layers.some((l) => l.id === id))),
-      }
+      if (a.documento === e.documento) return e
+      const n = comDocumento(e, a.documento, !!a.desfeito)
+      // com a sala, o estado de gravação vem dela (ver useEditor); sem sala, o autosave olha "alterado"
+      return e.conexao ? n : { ...n, salvamento: e.salvamento === 'conflito' ? 'conflito' : 'alterado' }
     }
-    case 'marcarHistorico':
-      if (a.anterior === e.documento) return e
-      return { ...e, passado: [...e.passado.slice(-LIMITE_HISTORICO), a.anterior], futuro: [] }
-    case 'desfazer': {
-      const ant = e.passado[e.passado.length - 1]
-      if (!ant) return e
-      return { ...e, documento: ant, passado: e.passado.slice(0, -1), futuro: [e.documento, ...e.futuro], salvamento: 'alterado', selecao: [], cenaId: ant.scenes.some((s) => s.id === e.cenaId) ? e.cenaId : (ant.scenes[0]?.id ?? '') }
-    }
-    case 'refazer': {
-      const prox = e.futuro[0]
-      if (!prox) return e
-      return { ...e, documento: prox, passado: [...e.passado, e.documento], futuro: e.futuro.slice(1), salvamento: 'alterado', selecao: [], cenaId: prox.scenes.some((s) => s.id === e.cenaId) ? e.cenaId : (prox.scenes[0]?.id ?? '') }
-    }
+    case 'remoto':
+      return a.documento === e.documento ? e : comDocumento(e, a.documento, false)
+    case 'historico':
+      return { ...e, passado: a.passado, futuro: a.futuro }
+    case 'sala':
+      return { ...e, ...a.patch }
     case 'selecionar':
       return { ...e, selecao: a.ids }
     case 'cena':
@@ -104,6 +120,8 @@ function reducer(e: EstadoEditor, a: Acao): EstadoEditor {
       return { ...e, salvamento: a.valor, revisao: a.revisao ?? e.revisao, salvoEm: a.salvoEm ?? e.salvoEm, conflito: a.conflito === undefined ? e.conflito : a.conflito }
     case 'substituir':
       return { ...e, documento: a.documento, revisao: a.revisao, passado: [], futuro: [], salvamento: 'salvo', conflito: null, selecao: [] }
+    default:
+      return e
     case 'ui':
       return { ...e, ...a.patch }
   }
@@ -138,6 +156,9 @@ export function expandirGrupos(cena: Cena | undefined, ids: string[]): string[] 
 /** Documento e revisão com que o editor abre (EditorShell busca com `dados.abrirProjeto`). */
 export interface AberturaEditor { documento: DocumentoProjeto; revisao: number }
 
+/** Com o backend real, o editor entra na sala do projeto (colaboração em tempo real). */
+const colaborativo = dados.modo === 'real'
+
 export function useEditor(projetoId: string, abertura: AberturaEditor | null) {
   const inicial = useMemo(() => (abertura ? { documento: abertura.documento, revisao: abertura.revisao, cenaId: abertura.documento.scenes[0]?.id ?? '' } : null), [abertura])
 
@@ -148,6 +169,9 @@ export function useEditor(projetoId: string, abertura: AberturaEditor | null) {
     passado: [],
     futuro: [],
     revisao: i?.revisao ?? 0,
+    conexao: colaborativo && i ? 'conectando' : null,
+    somenteLeitura: false,
+    falhaSala: null,
     salvamento: 'salvo',
     salvoEm: null,
     conflito: null,
@@ -166,6 +190,14 @@ export function useEditor(projetoId: string, abertura: AberturaEditor | null) {
     previa: 0,
   }))
 
+  /** Documento local + operações pendentes (a fonte do documento; o estado do React é o espelho). */
+  const motorRef = useRef<MotorDocumento | null>(null)
+  motorRef.current ??= new MotorDocumento(inicial?.documento ?? e.documento)
+  const motor = motorRef.current
+  const [sala, setSala] = useState<ConexaoSala | null>(null)
+  const salaRef = useRef<ConexaoSala | null>(null)
+  const historico = useRef<{ passado: PassoHistorico[]; futuro: PassoHistorico[]; acumulado: PassoHistorico | null }>({ passado: [], futuro: [], acumulado: null })
+  const somenteLeituraRef = useRef(false)
   const ultimoSalvo = useRef<DocumentoProjeto | null>(inicial?.documento ?? null)
   const timer = useRef<number | undefined>(undefined)
   const estadoRef = useRef(e)
@@ -222,13 +254,14 @@ export function useEditor(projetoId: string, abertura: AberturaEditor | null) {
   salvarRef.current = salvarAgora
 
   useEffect(() => {
-    if (e.salvamento !== 'alterado') return
+    if (colaborativo || e.salvamento !== 'alterado') return
     window.clearTimeout(timer.current)
     timer.current = window.setTimeout(() => { void salvarAgora() }, 800)
     return () => window.clearTimeout(timer.current)
   }, [e.documento, e.salvamento, salvarAgora])
 
   useEffect(() => {
+    if (colaborativo) return
     const online = () => { if (estadoRef.current.salvamento === 'offline' || estadoRef.current.salvamento === 'falha') void salvarAgora() }
     const offline = () => { if (estadoRef.current.salvamento === 'alterado' || estadoRef.current.salvamento === 'salvando') dispatch({ tipo: 'salvamento', valor: 'offline' }) }
     const antesDeSair = (ev: BeforeUnloadEvent) => {
@@ -242,12 +275,99 @@ export function useEditor(projetoId: string, abertura: AberturaEditor | null) {
     return () => { window.removeEventListener('online', online); window.removeEventListener('offline', offline); window.removeEventListener('beforeunload', antesDeSair); void salvarAgora() }
   }, [salvarAgora])
 
+  // ---------- sala (modo real) ----------
+  useEffect(() => {
+    if (!colaborativo || !inicial) return
+    const s = new ConexaoSala(projetoId, motor, {
+      aoDocumento: (documento) => dispatch({ tipo: 'remoto', documento }),
+      aoAviso: (texto, tipo) => window.dispatchEvent(new CustomEvent('mostra:aviso-sala', { detail: { texto, tipo } })),
+      aoSemSessao: () => { window.location.assign(`/login?${new URLSearchParams({ proximo: `${window.location.pathname}${window.location.search}` })}`) },
+    })
+    let chave = ''
+    const refletir = () => {
+      const i = s.instantaneo()
+      const conexao = i.conexao
+      const salvamento: EstadoSalvamento = conexao === 'online' ? (i.falha ? 'falha' : i.pendente ? 'salvando' : 'salvo') : conexao === 'conectando' ? (i.pendente ? 'salvando' : 'salvo') : 'offline'
+      const somenteLeitura = i.papel === 'viewer'
+      somenteLeituraRef.current = somenteLeitura
+      const nova = [conexao, salvamento, i.revisao, i.salvoEm, somenteLeitura, i.falha].join('|')
+      if (nova === chave) return
+      chave = nova
+      dispatch({ tipo: 'sala', patch: { conexao, salvamento, somenteLeitura, falhaSala: i.falha, ...(i.revisao ? { revisao: i.revisao } : {}), ...(i.salvoEm ? { salvoEm: i.salvoEm } : {}) } })
+    }
+    const parar = s.assinar(refletir)
+    salaRef.current = s
+    setSala(s)
+    s.conectar()
+    // fechar a aba com mudanças ainda não confirmadas pela sala: o navegador pergunta
+    const antesDeSair = (ev: BeforeUnloadEvent) => { if (motor.enviados.length || motor.fila.length) { ev.preventDefault(); ev.returnValue = '' } }
+    window.addEventListener('beforeunload', antesDeSair)
+    return () => {
+      window.removeEventListener('beforeunload', antesDeSair)
+      parar()
+      s.fechar()
+      salaRef.current = null
+      setSala(null)
+    }
+  }, [projetoId, inicial, motor])
+
+  // presença: tela e seleção desta aba
+  useEffect(() => { sala?.presenca({ cenaId: e.cenaId || null, selecao: e.selecao }) }, [sala, e.cenaId, e.selecao])
+
   // ---------- helpers ----------
-  const aplicar = useCallback((fn: (d: DocumentoProjeto) => DocumentoProjeto, historico = true) => dispatch({ tipo: 'documento', fn, historico }), [])
+  const publicarHistorico = useCallback(() => {
+    const h = historico.current
+    dispatch({ tipo: 'historico', passado: h.passado, futuro: h.futuro })
+  }, [])
+
+  /** Mudança local: calcula o documento novo, registra as operações (e o desfazer) e avisa a sala. */
+  const aplicar = useCallback((fn: (d: DocumentoProjeto) => DocumentoProjeto, comHistorico = true) => {
+    if (somenteLeituraRef.current) return
+    const antes = motor.local
+    const depois = fn(antes)
+    if (depois === antes) return
+    const fwd = motor.editar(depois)
+    if (!colaborativo) motor.substituir(depois)
+    const h = historico.current
+    if (fwd.length) {
+      const inv = diferenca(depois, antes)
+      if (comHistorico) {
+        h.passado = [...h.passado.slice(-LIMITE_HISTORICO), { fwd, inv }]
+        h.futuro = []
+        h.acumulado = null
+      } else {
+        // gesto contínuo (arrastar, digitar): acumula até registrarHistorico
+        h.acumulado = h.acumulado ? { fwd: [...h.acumulado.fwd, ...fwd], inv: [...inv, ...h.acumulado.inv] } : { fwd, inv }
+      }
+    }
+    dispatch({ tipo: 'documento', documento: depois })
+    if (comHistorico && fwd.length) publicarHistorico()
+    salaRef.current?.notificarEdicao()
+  }, [motor, publicarHistorico])
+
+  /** Desfazer/refazer: aplica as operações do passo sobre o documento atual (só o que esta pessoa fez). */
+  const passoHistorico = useCallback((direcao: 'desfazer' | 'refazer') => {
+    if (somenteLeituraRef.current) return
+    const h = historico.current
+    h.acumulado = null
+    const passo = direcao === 'desfazer' ? h.passado[h.passado.length - 1] : h.futuro[0]
+    if (!passo) return
+    if (direcao === 'desfazer') { h.passado = h.passado.slice(0, -1); h.futuro = [passo, ...h.futuro] }
+    else { h.futuro = h.futuro.slice(1); h.passado = [...h.passado, passo] }
+    const antes = motor.local
+    const depois = aplicarOps(antes, direcao === 'desfazer' ? passo.inv : passo.fwd)
+    if (depois !== antes) {
+      motor.editar(depois)
+      if (!colaborativo) motor.substituir(depois)
+      dispatch({ tipo: 'documento', documento: depois, desfeito: true })
+      salaRef.current?.notificarEdicao()
+    }
+    publicarHistorico()
+  }, [motor, publicarHistorico])
   const cena = e.documento.scenes.find((s) => s.id === e.cenaId) ?? e.documento.scenes[0]
   const indiceCena = cena ? e.documento.scenes.indexOf(cena) : -1
   const camadasSelecionadas = cena ? cena.layers.filter((l) => e.selecao.includes(l.id)) : []
-  const cenaAtualRef = () => estadoRef.current.documento.scenes.find((s) => s.id === estadoRef.current.cenaId)
+  const cenaAtualRef = useCallback(() => motor.local.scenes.find((s) => s.id === estadoRef.current.cenaId), [motor])
 
   /** Toda edição da tela passa pelo resolvedor de frames/auto layout (lib/editor/autolayout.ts). */
   const atualizarCenaAtual = useCallback(
@@ -347,18 +467,27 @@ export function useEditor(projetoId: string, abertura: AberturaEditor | null) {
       selecionar: (ids: string[]) => dispatch({ tipo: 'selecionar', ids: expandirGrupos(cenaAtualRef(), ids) }),
       selecionarExato: (ids: string[]) => dispatch({ tipo: 'selecionar', ids }),
       irParaCena: (id: string) => dispatch({ tipo: 'cena', id }),
-      desfazer: () => dispatch({ tipo: 'desfazer' }),
-      refazer: () => dispatch({ tipo: 'refazer' }),
-      registrarHistorico: (anterior: DocumentoProjeto) => dispatch({ tipo: 'marcarHistorico', anterior }),
-      documentoAtual: () => estadoRef.current.documento,
+      desfazer: () => passoHistorico('desfazer'),
+      refazer: () => passoHistorico('refazer'),
+      /** Fim de um gesto contínuo (feito com historico=false): vira um passo de desfazer. */
+      registrarHistorico: (anterior: DocumentoProjeto) => {
+        const h = historico.current
+        if (!h.acumulado || anterior === motor.local) { h.acumulado = null; return }
+        h.passado = [...h.passado.slice(-LIMITE_HISTORICO), { fwd: compactar(h.acumulado.fwd), inv: compactar(h.acumulado.inv) }]
+        h.futuro = []
+        h.acumulado = null
+        publicarHistorico()
+      },
+      documentoAtual: () => motor.local,
       ui,
       setZoom: (zoom: number) => ui({ zoom }),
       ajustar: () => ui({ zoom: 0, pan: { x: 0, y: 0 } }),
       setFerramenta: (ferramenta: Ferramenta) => ui({ ferramenta }),
       reproduzirPrevia: () => ui({ previa: estadoRef.current.previa + 1 }),
-      salvarAgora,
+      /** Grava agora (modo real: a sala confirma e grava no banco). true = tudo gravado. */
+      salvarAgora: (): Promise<boolean> => (salaRef.current ? salaRef.current.salvarAgora() : salvarAgora()),
       /** Revisão que o servidor tem agora (a base da próxima gravação/publicação). */
-      revisaoAtual: () => revisaoRef.current,
+      revisaoAtual: () => (salaRef.current ? salaRef.current.instantaneo().revisao || revisaoRef.current : revisaoRef.current),
 
       // ----- conflito -----
       /** Descarta as mudanças desta sessão e abre a versão mais recente do servidor. */
@@ -368,6 +497,8 @@ export function useEditor(projetoId: string, abertura: AberturaEditor | null) {
         ultimoSalvo.current = p.documento
         revisaoRef.current = p.revisaoAtual
         emConflito.current = false
+        motor.substituir(p.documento)
+        historico.current = { passado: [], futuro: [], acumulado: null }
         dispatch({ tipo: 'substituir', documento: p.documento, revisao: p.revisaoAtual })
         return true
       },
@@ -616,14 +747,14 @@ export function useEditor(projetoId: string, abertura: AberturaEditor | null) {
       },
       temEstiloCopiado: () => !!estiloCopiado.current,
     }
-  }, [aplicar, atualizarCenaAtual, projetoId, salvarAgora])
+  }, [aplicar, atualizarCenaAtual, projetoId, salvarAgora, passoHistorico, publicarHistorico, motor, cenaAtualRef])
 
   // mídias do workspace (no modo real chegam do servidor; antes disso não acusa mídia "inexistente")
   const assetsLista = useDados((s) => s.assets)
   const assetsProntos = useDados((s) => s.situacao.assets.estado === 'pronto')
   const validacao: ResultadoValidacao = useMemo(() => validarDocumento(e.documento, assetsProntos ? { assetsExistentes: new Set(assetsLista.map((a) => a.id)) } : {}), [e.documento, assetsLista, assetsProntos])
 
-  return { estado: e, cena, indiceCena, camadasSelecionadas, acoes, validacao, existe: !!inicial, projetoId }
+  return { estado: e, cena, indiceCena, camadasSelecionadas, acoes, validacao, existe: !!inicial, projetoId, sala }
 }
 
 export type Editor = ReturnType<typeof useEditor>
