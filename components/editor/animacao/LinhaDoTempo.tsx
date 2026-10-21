@@ -4,7 +4,7 @@
  * Arraste a barra para mudar o atraso, as bordas para mudar a duração; clique numa trilha vazia para
  * adicionar um fade naquele instante. O cursor acompanha a prévia tocando no canvas.
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { Animacao, Camada } from '@/lib/scene/schema'
 import type { Editor } from '@/lib/editor/useEditor'
 import { linhaDoTempo, nomeAnimacao, nomeLoop, type LinhaTempo } from '@/lib/scene/animacoes'
@@ -23,16 +23,7 @@ export function LinhaDoTempo({ editor }: { editor: Editor }) {
   const [congelado, setCongelado] = useState<{ total: number; ordem: string[] } | null>(null)
   const [arrasto, setArrasto] = useState<{ id: string; delay: number; duration: number } | null>(null)
   const previa = usePreviaAnimacao(true)
-  const [agora, setAgora] = useState(-1)
   const trilhas = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!previa || previa.semAtraso || previa.saida) return setAgora(-1)
-    let r = 0
-    const tique = () => { setAgora(performance.now() - previa.inicio); r = requestAnimationFrame(tique) }
-    r = requestAnimationFrame(tique)
-    return () => cancelAnimationFrame(r)
-  }, [previa])
 
   if (!cena) return null
   const total = congelado?.total ?? dados.total
@@ -88,7 +79,10 @@ export function LinhaDoTempo({ editor }: { editor: Editor }) {
 
   const marcas: number[] = []
   for (let t = 0; t <= total; t += 500) marcas.push(t)
-  const tocando = agora >= 0 && agora <= total
+  // cursor da prévia: uma animação CSS (transform, na GPU) em vez de um estado React por quadro — antes a
+  // linha do tempo inteira re-renderizava e o cursor mudava `left` (layout + pintura) a cada quadro
+  const tocando = !!previa && !previa.semAtraso && !previa.saida
+  const decorrido = tocando ? Math.max(0, performance.now() - previa.inicio) : 0
 
   return (
     <div className="select-none" data-testid="linha-do-tempo">
@@ -156,10 +150,12 @@ export function LinhaDoTempo({ editor }: { editor: Editor }) {
           })}
         </div>
         {/* cursor da prévia */}
-        {tocando && (
-          <div aria-hidden className="pointer-events-none absolute bottom-0 top-0 flex" style={{ left: 76, right: 0 }}>
-            <div className="absolute bottom-0 top-0 w-px bg-guia" style={{ left: pct(agora) }}>
-              <span className="absolute -left-[3px] top-0 h-[7px] w-[7px] rounded-full bg-guia" />
+        {tocando && decorrido <= total && (
+          <div aria-hidden className="pointer-events-none absolute bottom-0 top-0" style={{ left: 76, right: 0, overflow: 'clip', overflowClipMargin: 4 }}>
+            <div key={`${previa.nonce}-${total}`} className="linha-cursor absolute inset-y-0 left-0 w-full" style={{ animationDuration: `${total}ms`, animationDelay: `${-Math.round(decorrido)}ms` }}>
+              <div className="absolute bottom-0 left-0 top-0 w-px bg-guia">
+                <span className="absolute -left-[3px] top-0 h-[7px] w-[7px] rounded-full bg-guia" />
+              </div>
             </div>
           </div>
         )}

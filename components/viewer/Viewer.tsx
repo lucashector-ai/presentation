@@ -7,7 +7,7 @@
  * Proporção diferente da tela: "Ajustar" (padrão) mostra a cena inteira e estende o fundo dela pelas faixas;
  * "Preencher tela" cobre a tela cortando o mínimo das bordas (escolha lembrada neste navegador).
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, LayoutGrid, Maximize2, Minimize2, Proportions, X } from 'lucide-react'
 import type { Camada, Cena, DocumentoProjeto, Interacao } from '@/lib/scene/schema'
 import { adaptarTransicao, aoEntrarNaCena, aoSairHover, cenaAtual, estadoInicialRuntime, executar, irPara, type Efeito, type EstadoRuntime, EASING_CSS } from '@/lib/scene/motor'
@@ -23,6 +23,8 @@ import { sangriaDoEncaixe } from '@/lib/scene/sangria'
 import { encaixar, type ModoEncaixe } from './fundo'
 import { useControles } from './useControles'
 import { Marca } from '@/components/ui/Logo'
+import { carregarModelViewer } from '@/components/renderer/camadas/Modelo3d'
+import { precarregarLottie } from '@/components/renderer/camadas/Lottie'
 
 export interface ViewerProps {
   documento: DocumentoProjeto
@@ -331,18 +333,21 @@ export function Viewer(props: ViewerProps) {
               // no morph o que não tem par sai rápido (45% da duração): o texto antigo não fica por baixo do novo
               <div key={`sai-${anterior.chave}`} className="cena-saindo" style={{ position: 'absolute', left: e.offsetX, top: e.offsetY, zIndex: 0, ['--dur' as string]: `${ehMorph ? Math.round(duracao * 0.45) : duracao}ms`, animationDelay: saidaMs ? `${saidaMs}ms` : undefined }}>
                 {camadaDeCena(anterior.cena, e, !ehMorph)}
-                <SceneRenderer cena={anterior.cena} escala={e.scale} assets={assets} modo="viewer" sangria={sangriaDoEncaixe(e.offsetX, e.offsetY, e.scale)} reduzirMovimento={reduzirMovimento} saida={saidaMs > 0} ocultar={ehMorph ? idsCasados(anterior.cena, cena) : undefined} />
+                {/* a tela que sai remonta parada no estado final (animar=false): sem isso as entradas dela tocavam
+                    de novo por baixo do fade e o texto dividido inteiro era montado outra vez no meio da transição */}
+                <SceneRenderer cena={anterior.cena} escala={e.scale} assets={assets} modo="viewer" sangria={sangriaDoEncaixe(e.offsetX, e.offsetY, e.scale)} reduzirMovimento={reduzirMovimento} saida={saidaMs > 0} animar={saidaMs > 0} ocultar={ehMorph ? idsCasados(anterior.cena, cena) : undefined} />
               </div>
             )
           })()}
           <AposSaida key={`${cena.id}-${runtime.historico.length}`} ms={saidaMs}>
-          <div
-            className={[!ehMorph && transicao && transicao.type !== 'none' && runtime.historico.length ? `cena-transicao-${transicao.type}` : '', iniciado ? '' : 'animacoes-em-espera'].filter(Boolean).join(' ') || undefined}
+          <TelaEntrando
+            transicao={!ehMorph && transicao && transicao.type !== 'none' && runtime.historico.length ? transicao.type : undefined}
+            espera={!iniciado}
             style={{ position: 'absolute', left: encaixe.offsetX, top: encaixe.offsetY, zIndex: 1, ['--dur' as string]: `${duracao}ms` }}
           >
             {camadaDeCena(cena, encaixe, !ehMorph)}
             <SceneRenderer cena={cena} escala={encaixe.scale} sangria={sangria} runtime={runtime} chaveEntrada={cena.id} morphDe={ehMorph ? anterior?.cena : undefined} morphDuracao={transicao?.duration} morphEasing={easing} style={ehMorph ? { background: 'transparent' } : undefined} {...comum} />
-          </div>
+          </TelaEntrando>
           </AposSaida>
         </>
       )}
@@ -392,6 +397,24 @@ export function Viewer(props: ViewerProps) {
   )
 }
 
+/**
+ * Tela que entra. A classe da transição sai quando ela termina: com fill-mode both a tela inteira continuava
+ * numa camada composta. Estado próprio (e os filhos vêm prontos do Viewer): ao soltar, só este nó re-renderiza,
+ * não a cena com as entradas ainda tocando.
+ */
+function TelaEntrando({ transicao, espera, style, children }: { transicao?: string; espera: boolean; style: CSSProperties; children: ReactNode }) {
+  const [feita, setFeita] = useState(false)
+  return (
+    <div
+      className={[transicao && !feita ? `cena-transicao-${transicao}` : '', espera ? 'animacoes-em-espera' : ''].filter(Boolean).join(' ') || undefined}
+      style={style}
+      onAnimationEnd={(e) => { if (e.target === e.currentTarget) setFeita(true) }}
+    >
+      {children}
+    </div>
+  )
+}
+
 /** Monta a tela que entra só depois que as animações de saída da anterior terminam. */
 function AposSaida({ ms, children }: { ms: number; children: ReactNode }) {
   const [pronto, setPronto] = useState(ms <= 0)
@@ -413,7 +436,17 @@ function idsCasados(sai: Cena, entra: Cena): Set<string> {
 // ---------- pré-carregamento controlado ----------
 
 const cachePre = new Set<string>()
+/** Quando a página estiver ociosa (a entrada da tela atual ainda está tocando quando a próxima é pré-carregada). */
+const quandoOcioso = (fn: () => void) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(fn, { timeout: 3000 }) : window.setTimeout(fn, 1200))
 export function precarregar(cena: Cena, assets: AssetsResolvidos): Promise<void> {
+  // 3D e Lottie: o código (three.js, lottie-web) é baixado e avaliado antes de a tela entrar — avaliar no meio da
+  // transição era uma tarefa longa justamente quando as entradas começam
+  const modelo = cena.layers.some((c) => c.type === 'model3d')
+  const lotties = cena.layers.filter((c) => c.type === 'lottie')
+  if (modelo || lotties.length) quandoOcioso(() => {
+    if (modelo) void carregarModelViewer().catch(() => undefined)
+    for (const l of lotties) if (l.type === 'lottie') precarregarLottie(l.data ? undefined : l.assetId ? assets[l.assetId]?.url : undefined)
+  })
   const urls = new Set<string>()
   if (cena.backgroundAssetId && assets[cena.backgroundAssetId]) urls.add(assets[cena.backgroundAssetId]!.url)
   for (const c of cena.layers) if (c.type === 'image' && assets[c.assetId]) urls.add(assets[c.assetId]!.url)

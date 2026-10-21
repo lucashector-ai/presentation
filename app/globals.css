@@ -78,6 +78,10 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 @keyframes anim-movBlur { from { opacity: var(--anim-op, 0); transform: translate(var(--anim-dx, 0px), var(--anim-dy, 0px)) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(var(--anim-rot, 0deg)) scale(var(--anim-sx, 1), var(--anim-sy, 1)) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)); filter: blur(var(--anim-blur, 0px)) } to { opacity: var(--op, 1); transform: translate(0px, 0px) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(0deg) scale(1, 1) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)); filter: none } }
 @keyframes anim-movSai { from { opacity: var(--op, 1); transform: translate(0px, 0px) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(0deg) scale(1, 1) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) } to { opacity: var(--anim-op, 0); transform: translate(var(--anim-dx, 0px), var(--anim-dy, 0px)) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(var(--anim-rot, 0deg)) scale(var(--anim-sx, 1), var(--anim-sy, 1)) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) } }
 @keyframes anim-movSaiBlur { from { opacity: var(--op, 1); transform: translate(0px, 0px) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(0deg) scale(1, 1) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)); filter: none } to { opacity: var(--anim-op, 0); transform: translate(var(--anim-dx, 0px), var(--anim-dy, 0px)) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(var(--anim-rot, 0deg)) scale(var(--anim-sx, 1), var(--anim-sy, 1)) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)); filter: blur(var(--anim-blur, 0px)) } }
+/* desfoque separado do movimento (o renderizador troca anim-movBlur por anim-mov + anim-desfoque, no mesmo tempo):
+   filtro de desfoque não roda na GPU e, no mesmo keyframe, levava o movimento junto para a thread principal */
+@keyframes anim-desfoque { from { filter: blur(var(--anim-blur, 0px)) } to { filter: none } }
+@keyframes anim-desfoqueSai { from { filter: none } to { filter: blur(var(--anim-blur, 0px)) } }
 /* ênfase: pop (ultrapassa proporcional à escala inicial), elástico e quique */
 @keyframes anim-pop {
   0% { opacity: var(--anim-op, 0); transform: translate(0px, 0px) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(0deg) scale(var(--anim-sx, .5), var(--anim-sx, .5)) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) }
@@ -119,15 +123,22 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 /* texto dividido: cada parte é um <span class="seg-texto"> (variáveis --seg-*: deslocamento, desfoque em em, escala, giro) */
 @keyframes seg-mov { from { opacity: var(--seg-op, 0); transform: translate(var(--seg-dx, 0px), var(--seg-dy, 0px)) rotate(var(--seg-rot, 0deg)) scale(var(--seg-escala, 1)) } to { opacity: 1; transform: translate(0px, 0px) rotate(0deg) scale(1) } }
 @keyframes seg-movBlur { from { opacity: var(--seg-op, 0); transform: translate(var(--seg-dx, 0px), var(--seg-dy, 0px)) rotate(var(--seg-rot, 0deg)) scale(var(--seg-escala, 1)); filter: blur(var(--seg-blur, 0px)) } to { opacity: 1; transform: translate(0px, 0px) rotate(0deg) scale(1); filter: none } }
+@keyframes seg-desfoque { from { filter: blur(var(--seg-blur, 0px)) } to { filter: none } }
 @keyframes seg-linha { from { opacity: var(--seg-op, 1); transform: translateY(110%) } to { opacity: 1; transform: translateY(0%) } }
-@keyframes seg-typewriter { from { opacity: 0 } to { opacity: 1 } }
-@keyframes seg-cursor { from, to { box-shadow: .07em 0 0 0 var(--cursor-cor, currentColor) } }
-@keyframes seg-cursor-piscar { 0%, 49.9% { box-shadow: .07em 0 0 0 var(--cursor-cor, currentColor) } 50%, 100% { box-shadow: none } }
-@keyframes seg-scramble { 0% { opacity: 0 } 1%, 100% { opacity: 1 } }
+/* máquina de escrever e decodificar: a letra aparece seca. `visibility` (e não opacidade) porque opacidade
+   animada vira uma camada composta POR LETRA — inclusive enquanto a letra espera o seu atraso —, e um parágrafo
+   na máquina de escrever chegava a 300 camadas; visibility não cria camada e só muda de estado uma vez.
+   A letra fica visível assim que começa (o antigo fade durava até 60 ms; o cursor dela aparece junto). */
+@keyframes seg-typewriter { 0% { visibility: hidden } 0.1%, 100% { visibility: visible } }
+@keyframes seg-scramble { 0% { visibility: hidden } 1%, 100% { visibility: visible } }
 @keyframes seg-contador { 0% { opacity: 0 } 12%, 100% { opacity: 1 } }
 @keyframes seg-marca { from { background-size: 0% var(--marca-h, .38em) } to { background-size: 100% var(--marca-h, .38em) } }
 .seg-texto { display: inline-block; animation-fill-mode: both; }
 .seg-texto-linha { display: inline; animation-fill-mode: both; }
+/* cursor da máquina de escrever: um elemento só, no canto da letra atual (keyframes gerados pelo renderizador
+   com a posição de cada letra; transform e opacidade, na GPU). Parado ele fica invisível. */
+.seg-cursor { position: absolute; left: 0; top: 0; width: .07em; background: var(--cursor-cor, currentColor); opacity: 0; pointer-events: none; animation-fill-mode: both; animation-timing-function: linear; }
+.seg-cursor[data-fim] { display: none; }
 .seg-palavra { display: inline-block; white-space: nowrap; }
 /* linha por linha: cada linha renderizada é um bloco; com máscara, a linha sobe de trás da própria borda
    (o recorte passa .25em da caixa em cima/embaixo para não cortar acentos e descendentes; é clip-path, e não
@@ -143,6 +154,9 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 /* destaque / sublinhado desenhado: o marcador corre por trás das palavras (atravessa as linhas em sequência) */
 .seg-marca { background-image: linear-gradient(var(--marca-cor, currentColor), var(--marca-cor, currentColor)); background-repeat: no-repeat; background-position: 0 var(--marca-y, 88%); background-size: 100% var(--marca-h, .38em); animation-fill-mode: both; }
 .seg-contador { font-variant-numeric: tabular-nums; animation-fill-mode: both; }
+/* parte que já terminou de entrar: o último quadro é o estilo parado, então a animação sai (cada animação
+   terminada com fill-mode both mantinha uma camada composta por letra/palavra; ver soltarParte) */
+:is([data-seg], .seg-marca, .seg-contador)[data-fim] { animation: none !important; }
 /* texto completo para leitores de tela: conteúdo gerado não entra na seleção nem no innerText (sem duplicar ao copiar) */
 .texto-acessivel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .texto-acessivel::before { content: attr(data-texto); }
@@ -165,7 +179,7 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 @media (prefers-reduced-motion: reduce) {
   .camada-animada { animation-name: anim-fadeIn !important; animation-duration: 150ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; animation-timing-function: linear !important; }
   .camada-animada.camada-saida { animation-name: anim-fadeOut !important; }
-  .seg-texto, .seg-texto-linha, .seg-marca, .seg-contador, .camada-desenho * { animation: none !important; }
+  .seg-texto, .seg-texto-linha, .seg-marca, .seg-contador, .seg-cursor, .camada-desenho * { animation: none !important; }
 }
 /* ===== MOSTRA · ANIMAÇÕES DE CAMADA — fim ===== */
 
@@ -216,3 +230,6 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 .deslizante::-moz-range-track { height: 3px; border-radius: 2px; background: rgb(var(--cor-texto) / .9); }
 .deslizante::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: rgb(var(--cor-texto)); border: 2px solid rgb(var(--cor-superficie)); }
 @keyframes previa-mov { from { left: 4px } to { left: calc(100% - 28px) } }
+/* cursor da linha do tempo (aba Animação): anda a largura da trilha e some no fim */
+@keyframes linha-cursor { 0% { transform: translateX(0%); opacity: 1 } 99.9% { transform: translateX(100%); opacity: 1 } 100% { transform: translateX(100%); opacity: 0 } }
+.linha-cursor { animation-name: linha-cursor; animation-timing-function: linear; animation-fill-mode: forwards; }

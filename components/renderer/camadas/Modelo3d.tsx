@@ -14,7 +14,8 @@ import type { CamadaModelo3d } from '@/lib/scene/schema'
 import { SANGRIA, enquadramentoComSangria } from './enquadramento3d'
 
 let carregando: Promise<unknown> | null = null
-function carregarModelViewer() {
+/** Baixa e avalia o model-viewer (three.js). O visualizador chama antes da tela com 3D entrar. */
+export function carregarModelViewer() {
   if (!carregando) carregando = import('@google/model-viewer')
   return carregando
 }

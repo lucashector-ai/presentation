@@ -11,6 +11,14 @@ function carregarJson(url: string) {
   return cacheJson.get(url) as Promise<unknown>
 }
 
+const carregarLottie = () => import('lottie-web/build/player/lottie_light')
+
+/** Baixa o lottie-web e o JSON antes da tela entrar (o visualizador chama para a próxima tela). */
+export function precarregarLottie(src?: string) {
+  void carregarLottie().catch(() => undefined)
+  if (src) void carregarJson(src).catch(() => undefined)
+}
+
 export function Lottie({ camada: c, src, estatico }: { camada: CamadaLottie; src?: string; estatico: boolean }) {
   const ref = useRef<HTMLDivElement>(null)
   const [erro, setErro] = useState(false)
@@ -20,7 +28,7 @@ export function Lottie({ camada: c, src, estatico }: { camada: CamadaLottie; src
     let ativo = true
     ;(async () => {
       try {
-        const [{ default: lottie }, dados] = await Promise.all([import('lottie-web/build/player/lottie_light'), c.data ? Promise.resolve(JSON.parse(c.data)) : src ? carregarJson(src) : Promise.reject(new Error('sem fonte'))])
+        const [{ default: lottie }, dados] = await Promise.all([carregarLottie(), c.data ? Promise.resolve(JSON.parse(c.data)) : src ? carregarJson(src) : Promise.reject(new Error('sem fonte'))])
         if (!ativo || !ref.current) return
         anim = lottie.loadAnimation({ container: ref.current, renderer: 'svg', loop: c.loop, autoplay: c.autoplay && !estatico, animationData: structuredClone(dados) }) as unknown as Animacao
         anim.setSpeed(c.speed)
