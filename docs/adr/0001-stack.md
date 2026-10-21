@@ -1,6 +1,6 @@
 # ADR 0001 — Stack: Next.js + TypeScript + Tailwind + Supabase
 
-**Status:** aceito · **Data:** 2026-10-21
+**Status:** aceito · **Data:** 2026-10-21 · Supabase substituído por Neon + Cloudflare R2 (ADR 0010).
 
 ## Contexto
 O blueprint sugere Next.js/React/TS, Tailwind, Zod, Postgres (Prisma/Drizzle), object storage S3-compatible e auth gerenciado. A casa já opera um produto (Clinical 360) em Next.js 14 + Supabase + Vercel.

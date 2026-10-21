@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { Home, Library, LogOut, Menu, Moon, Search, Send, Settings2, Sparkles, Trash2, X } from 'lucide-react'
-import { alternarTema, sair, sessaoAtiva } from '@/lib/sessao'
+import { alternarTema, MODO_DEMO, sair, sessaoAtiva, verificarSessao } from '@/lib/sessao'
 import { useDemo } from '@/lib/demo/useDemo'
 import { PLANOS, formatarBytes, percentualUso, textoApresentacoes } from '@/lib/planos'
 import { estadoDoLink } from '@/lib/share/token'
@@ -20,10 +20,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [pronto, setPronto] = useState(false)
 
   useEffect(() => {
-    if (sessaoAtiva()) return setPronto(true)
     // guarda o destino (ex.: um projeto ou /app/criar?prompt=…) para voltar depois de entrar
-    const proximo = `${window.location.pathname}${window.location.search}`
-    router.replace(`/login?${new URLSearchParams({ proximo })}`)
+    const negar = () => router.replace(`/login?${new URLSearchParams({ proximo: `${window.location.pathname}${window.location.search}` })}`)
+    if (MODO_DEMO) {
+      if (sessaoAtiva()) return setPronto(true)
+      return negar()
+    }
+    // modo real: sessão do Neon Auth (também conclui o retorno do login com Google, que chega com ?neon_auth_session_verifier)
+    let vivo = true
+    verificarSessao().then((ok) => { if (vivo) (ok ? setPronto(true) : negar()) })
+    return () => { vivo = false }
   }, [router])
 
   if (!pronto) return <div className={cx('min-h-dvh', /\/apresentar$|\/apresentador$/.test(caminho) ? 'bg-[#111]' : 'bg-fundo')} />
@@ -107,7 +113,7 @@ function Moldura({ caminho, children }: { caminho: string; children: React.React
               <div className="truncate px-3 py-2 text-[12px] text-texto2">{usuario.email}</div>
               <button role="menuitem" onClick={() => router.push('/app/settings')} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-[13px] hover:bg-hover"><Settings2 className="h-4 w-4" /> Plano e conta</button>
               <button role="menuitem" onClick={() => alternarTema()} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-[13px] hover:bg-hover"><Moon className="h-4 w-4" /> Alternar tema</button>
-              <button role="menuitem" onClick={() => { sair(); router.push('/login') }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-[13px] hover:bg-hover"><LogOut className="h-4 w-4" /> Sair</button>
+              <button role="menuitem" onClick={async () => { await sair(); router.push('/login') }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-[13px] hover:bg-hover"><LogOut className="h-4 w-4" /> Sair</button>
             </div>
           )}
         </div>

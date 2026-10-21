@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { autenticar, ErroHttp, hashIp, lerJson, limitar, responder, rota } from '@/lib/api/servidor'
+import { cobrarIa } from '@/lib/api/creditosServidor'
 import { iaConfigurada, RecusaModelo, refazerTelaClaude } from '@/lib/ia/claude'
 import { PedidoTelaSchema, refazerTelaLocal, type RespostaTela } from '@/lib/ia/tela'
 import { custoDe } from '@/lib/planos'
@@ -25,11 +26,7 @@ export const POST = rota(async (req, _ctx, requestId) => {
   if (!DEMO) {
     const ctx = await autenticar(req, requestId)
     if (iaConfigurada()) {
-      const { error } = await ctx.sb.rpc('debitar_creditos', { p_workspace: ctx.workspaceId, p_custo: custo, p_motivo: 'Refazer tela com IA' })
-      if (error) throw error.message.includes('saldo_insuficiente') ? new ErroHttp('limite_do_plano', 'Créditos insuficientes para refazer esta tela.', { custo }) : error
-      estornar = async () => {
-        await ctx.sb.rpc('debitar_creditos', { p_workspace: ctx.workspaceId, p_custo: -custo, p_motivo: 'Estorno: tela com IA não gerada' })
-      }
+      estornar = await cobrarIa(ctx, custo, { debito: 'Refazer tela com IA', estorno: 'Estorno: tela com IA não gerada', semSaldo: 'Créditos insuficientes para refazer esta tela.' })
     }
   }
 

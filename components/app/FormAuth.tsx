@@ -2,10 +2,10 @@
 import { useId, useState, type FormEvent, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { entrar } from '@/lib/sessao'
+import { carregarAuth, entrar, MODO_DEMO } from '@/lib/sessao'
 import { definirUsuario } from '@/lib/demo/store'
 import { PLANOS, textoApresentacoes } from '@/lib/planos'
-import { Botao, Campo, Entrada } from '@/components/ui'
+import { Botao, Campo, Entrada, cx } from '@/components/ui'
 import { Marca } from '@/components/ui/Logo'
 
 const EMAIL_DEMO = 'demo@mostra.app'
@@ -15,6 +15,9 @@ const COPIA = {
   signup: { titulo: 'Crie sua conta.', subtitulo: `Três projetos e ${PLANOS.free.creditos.quantidade} créditos de IA grátis (${textoApresentacoes(PLANOS.free.creditos.quantidade)} de 10 telas). Sem cartão.`, cta: 'Criar conta', troca: 'Já tem conta?', trocaLink: 'Entrar', trocaHref: '/login' },
   recuperar: { titulo: 'Recuperar senha.', subtitulo: 'Informe seu e-mail e enviaremos um link para redefinir.', cta: 'Enviar link', troca: 'Lembrou a senha?', trocaLink: 'Voltar ao login', trocaHref: '/login' },
 } as const
+
+/** Erros do Neon Auth em português (o SDK só é baixado no modo real). */
+const mensagemErro = async (e: unknown) => (await import('@/lib/auth/cliente')).mensagemErroAuth(e)
 
 export function FormAuth({ modo }: { modo: 'login' | 'signup' }) {
   const router = useRouter()
@@ -38,6 +41,7 @@ export function FormAuth({ modo }: { modo: 'login' | 'signup' }) {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return setErro('Informe um e-mail válido.')
     if (!recuperar && senha.length < 8) return setErro('A senha precisa ter pelo menos 8 caracteres.')
     setEnviando(true)
+    if (!MODO_DEMO) return enviarReal()
     await new Promise((r) => setTimeout(r, 400))
     if (recuperar) { setVerificar(true); setEnviando(false); return }
     if (modo === 'signup') { setVerificar(true); setEnviando(false); return }
@@ -45,11 +49,45 @@ export function FormAuth({ modo }: { modo: 'login' | 'signup' }) {
     router.push(destino)
   }
 
-  /** Modo demonstração: Google/Apple entram direto, como o formulário. */
-  const entrarSocial = () => {
-    entrar(email || EMAIL_DEMO)
-    router.push(destino)
+  /** Modo real: Neon Auth (cadastro e login por e-mail e senha; a sessão vira cookie HttpOnly do app). */
+  const enviarReal = async () => {
+    try {
+      const auth = await carregarAuth()
+      if (modo === 'signup') {
+        const { data, error } = await auth.signUp.email({ email, password: senha, name: nome.trim() || (email.split('@')[0] ?? '') })
+        if (error) return setErro(await mensagemErro(error))
+        // com verificação de e-mail ligada no Neon Auth, a conta nasce sem sessão até confirmar o código
+        if (!data?.token) return setVerificar(true)
+        return router.push(destino)
+      }
+      const { error } = await auth.signIn.email({ email, password: senha })
+      if (error) return setErro(await mensagemErro(error))
+      router.push(destino)
+    } catch (e) {
+      setErro(await mensagemErro(e))
+    } finally {
+      setEnviando(false)
+    }
   }
+
+  /** Modo demonstração: Google/Apple entram direto, como o formulário. Modo real: Google pelo Neon Auth. */
+  const entrarSocial = async () => {
+    if (MODO_DEMO) {
+      entrar(email || EMAIL_DEMO)
+      router.push(destino)
+      return
+    }
+    setErro(null)
+    try {
+      const { error } = await (await carregarAuth()).signIn.social({ provider: 'google', callbackURL: new URL(destino, window.location.origin).href })
+      if (error) setErro(await mensagemErro(error))
+    } catch (e) {
+      setErro(await mensagemErro(e))
+    }
+  }
+
+  if (recuperar && !MODO_DEMO) return <RecuperarSenha />
+  if (verificar && !MODO_DEMO) return <ConfirmarEmail email={email} senha={senha} destino={destino} />
 
   if (verificar) {
     return (
@@ -78,9 +116,10 @@ export function FormAuth({ modo }: { modo: 'login' | 'signup' }) {
 
       {!recuperar && (
         <>
-          <div className="grid grid-cols-2 gap-2.5">
+          {/* Neon Auth (gerenciado) oferece Google, não Apple: no modo real só o Google aparece */}
+          <div className={cx('grid gap-2.5', MODO_DEMO ? 'grid-cols-2' : 'grid-cols-1')}>
             <BotaoSocial rotulo="Google" onClick={entrarSocial} icone={<span className="text-[15px] font-bold leading-none">G</span>} />
-            <BotaoSocial rotulo="Apple" onClick={entrarSocial} icone={<span className="block h-[13px] w-[11px] rounded-[5px_5px_6px_6px] bg-current" />} />
+            {MODO_DEMO && <BotaoSocial rotulo="Apple" onClick={entrarSocial} icone={<span className="block h-[13px] w-[11px] rounded-[5px_5px_6px_6px] bg-current" />} />}
           </div>
           <div className="flex items-center gap-3 text-[12px] text-texto3">
             <span aria-hidden className="h-px flex-1 bg-[#E7E5E4]" />
@@ -120,7 +159,119 @@ export function FormAuth({ modo }: { modo: 'login' | 'signup' }) {
         {c.troca}
         <Link href={proximo && destino !== '/app' ? `${c.trocaHref}?${new URLSearchParams({ proximo: destino })}` : c.trocaHref} className="font-medium text-texto underline underline-offset-[3px] transition-colors hover:text-acento">{c.trocaLink}</Link>
       </div>
-      <p className="m-0 -mt-3 text-[12px] text-texto3">Modo demonstração: qualquer e-mail e senha entram, com dados fictícios locais.</p>
+      {MODO_DEMO && <p className="m-0 -mt-3 text-[12px] text-texto3">Modo demonstração: qualquer e-mail e senha entram, com dados fictícios locais.</p>}
+    </div>
+  )
+}
+
+const RE_EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
+
+function Titulo({ titulo, subtitulo }: { titulo: string; subtitulo: ReactNode }) {
+  return (
+    <div>
+      <h1 className="m-0 text-[32px] font-medium leading-[1.05] tracking-[-0.045em] sm:text-[36px]">{titulo}</h1>
+      <p className="mt-2.5 text-[15px] leading-normal text-texto2">{subtitulo}</p>
+    </div>
+  )
+}
+
+/** Modo real, conta criada com verificação de e-mail ligada: confirma o código de 6 dígitos e entra. */
+function ConfirmarEmail({ email, senha, destino }: { email: string; senha: string; destino: string }) {
+  const router = useRouter()
+  const [codigo, setCodigo] = useState('')
+  const [erro, setErro] = useState<string | null>(null)
+  const [enviando, setEnviando] = useState(false)
+  const confirmar = async (e: FormEvent) => {
+    e.preventDefault()
+    setErro(null)
+    if (!/^\d{4,8}$/.test(codigo.trim())) return setErro('Digite o código que chegou por e-mail.')
+    setEnviando(true)
+    try {
+      const auth = await carregarAuth()
+      const { error } = await auth.emailOtp.verifyEmail({ email, otp: codigo.trim() })
+      if (error) return setErro(await mensagemErro(error))
+      // sem login automático após verificar, entra com a senha recém-criada
+      if (!(await auth.getSession()).data?.user) {
+        const r = await auth.signIn.email({ email, password: senha })
+        if (r.error) return setErro(await mensagemErro(r.error))
+      }
+      router.push(destino)
+    } catch (e) {
+      setErro(await mensagemErro(e))
+    } finally {
+      setEnviando(false)
+    }
+  }
+  return (
+    <form onSubmit={confirmar} className="flex flex-col gap-7" noValidate>
+      <Titulo titulo="Verifique seu e-mail" subtitulo={<>Enviamos um código de confirmação para <strong className="font-medium text-texto">{email}</strong>.</>} />
+      <Campo rotulo="Código"><Entrada inputMode="numeric" autoComplete="one-time-code" placeholder="000000" value={codigo} onChange={(e) => setCodigo(e.target.value)} /></Campo>
+      {erro && <p role="alert" className="m-0 -mt-4 text-[13px] text-perigo">{erro}</p>}
+      <Botao type="submit" className="h-[46px] w-full" carregando={enviando}>Confirmar e entrar</Botao>
+    </form>
+  )
+}
+
+/** Modo real: recuperação por código no e-mail (funciona com o SMTP compartilhado do Neon; links pedem SMTP próprio). */
+function RecuperarSenha() {
+  const [email, setEmail] = useState('')
+  const [codigo, setCodigo] = useState('')
+  const [senha, setSenha] = useState('')
+  const [etapa, setEtapa] = useState<'email' | 'codigo' | 'pronto'>('email')
+  const [erro, setErro] = useState<string | null>(null)
+  const [enviando, setEnviando] = useState(false)
+
+  const executar = async (fn: () => Promise<string | null>) => {
+    setErro(null)
+    setEnviando(true)
+    try { setErro(await fn()) } catch (e) { setErro(await mensagemErro(e)) } finally { setEnviando(false) }
+  }
+  const pedirCodigo = (e: FormEvent) => {
+    e.preventDefault()
+    if (!RE_EMAIL.test(email)) return setErro('Informe um e-mail válido.')
+    void executar(async () => {
+      const { error } = await (await carregarAuth()).forgetPassword.emailOtp({ email })
+      if (error) return mensagemErro(error)
+      setEtapa('codigo')
+      return null
+    })
+  }
+  const redefinir = (e: FormEvent) => {
+    e.preventDefault()
+    if (!/^\d{4,8}$/.test(codigo.trim())) return setErro('Digite o código que chegou por e-mail.')
+    if (senha.length < 8) return setErro('A senha precisa ter pelo menos 8 caracteres.')
+    void executar(async () => {
+      const { error } = await (await carregarAuth()).emailOtp.resetPassword({ email, otp: codigo.trim(), password: senha })
+      if (error) return mensagemErro(error)
+      setEtapa('pronto')
+      return null
+    })
+  }
+
+  return (
+    <div className="flex flex-col gap-7">
+      {etapa === 'email' && (
+        <form onSubmit={pedirCodigo} className="flex flex-col gap-3.5" noValidate>
+          <Titulo titulo="Recuperar senha." subtitulo="Informe seu e-mail e enviaremos um código para redefinir." />
+          <Campo rotulo="E-mail"><Entrada type="email" autoComplete="email" placeholder="voce@estudio.com" value={email} onChange={(e) => setEmail(e.target.value)} required /></Campo>
+          {erro && <p role="alert" className="m-0 text-[13px] text-perigo">{erro}</p>}
+          <Botao type="submit" className="mt-1.5 h-[46px] w-full" carregando={enviando}>Enviar código</Botao>
+        </form>
+      )}
+      {etapa === 'codigo' && (
+        <form onSubmit={redefinir} className="flex flex-col gap-3.5" noValidate>
+          <Titulo titulo="Nova senha." subtitulo={<>Se existir uma conta para <strong className="font-medium text-texto">{email}</strong>, o código chega em instantes.</>} />
+          <Campo rotulo="Código"><Entrada inputMode="numeric" autoComplete="one-time-code" placeholder="000000" value={codigo} onChange={(e) => setCodigo(e.target.value)} /></Campo>
+          <Campo rotulo="Nova senha"><Entrada type="password" autoComplete="new-password" placeholder="Mínimo de 8 caracteres" value={senha} onChange={(e) => setSenha(e.target.value)} /></Campo>
+          {erro && <p role="alert" className="m-0 text-[13px] text-perigo">{erro}</p>}
+          <Botao type="submit" className="mt-1.5 h-[46px] w-full" carregando={enviando}>Redefinir senha</Botao>
+        </form>
+      )}
+      {etapa === 'pronto' && <Titulo titulo="Senha alterada." subtitulo="Entre com a nova senha." />}
+      <div className="flex flex-wrap gap-1.5 text-[14px] text-texto2">
+        {etapa === 'pronto' ? 'Tudo certo.' : 'Lembrou a senha?'}
+        <Link href="/login" className="font-medium text-texto underline underline-offset-[3px] transition-colors hover:text-acento">{etapa === 'pronto' ? 'Entrar' : 'Voltar ao login'}</Link>
+      </div>
     </div>
   )
 }

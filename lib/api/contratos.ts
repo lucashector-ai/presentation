@@ -74,7 +74,7 @@ export const AssetSchema = z.object({
   duration: z.number().nullable(),
   status: StatusAssetSchema,
   name: z.string(),
-  /** URLs assinadas/curta duração. Nunca persistir no cliente além da sessão. */
+  /** Rota do app que confere a permissão a cada pedido (o bucket é privado e não tem URL pública). */
   url: z.string().nullable(),
   thumbUrl: z.string().nullable(),
   createdAt: z.string(),
@@ -148,25 +148,21 @@ export const MIME_3D = ['model/gltf-binary', 'model/gltf+json'] as const
 export const MIME_LOTTIE = ['application/json'] as const
 export const MIMES_ACEITOS = [...MIME_IMAGEM, ...MIME_GIF, ...MIME_VIDEO, ...MIME_SVG, ...MIME_3D, ...MIME_LOTTIE] as const
 
-export const UploadUrlReq = z.object({
+/**
+ * POST /api/assets/upload — o corpo é o próprio arquivo (sem multipart). `mime` vem do Content-Type,
+ * `bytes` do Content-Length; o resto na query (?projectId=&name=&width=&height=&duration=).
+ * O servidor confere o MIME real (bytes mágicos / sanitização) antes de gravar no armazenamento privado.
+ */
+export const EnviarMidiaReq = z.object({
   projectId: z.string(),
   name: z.string().trim().min(1).max(255),
   mime: z.enum(MIMES_ACEITOS),
   bytes: z.number().int().positive(),
+  width: z.coerce.number().int().positive().optional(),
+  height: z.coerce.number().int().positive().optional(),
+  duration: z.coerce.number().positive().optional(),
 }).refine((r) => !ehMimeTexto(r.mime) || r.bytes <= MAX_BYTES_TEXTO, { message: 'Arquivos SVG, glTF e Lottie podem ter até 10 MB.', path: ['bytes'] })
-export const UploadUrlRes = z.object({
-  assetId: z.string(),
-  uploadUrl: z.string(),
-  /** Cabeçalhos exigidos pelo storage (ex.: content-type). */
-  headers: z.record(z.string(), z.string()),
-  expiresAt: z.string(),
-})
-
-export const FinalizarUploadReq = z.object({
-  width: z.number().int().positive().optional(),
-  height: z.number().int().positive().optional(),
-  duration: z.number().positive().optional(),
-})
+export const EnviarMidiaRes = AssetSchema
 
 // ---------- compartilhamento ----------
 

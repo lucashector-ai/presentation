@@ -146,7 +146,7 @@ export function Configuracoes() {
         </div>
       </Bloco>
 
-      <ModalConfirmar aberto={excluir} aoFechar={() => setExcluir(false)} titulo="Excluir conta?" descricao="Esta ação não pode ser desfeita." rotuloConfirmar="Excluir conta" perigoso aoConfirmar={() => { reiniciarDemo(); sair(); router.push('/') }} />
+      <ModalConfirmar aberto={excluir} aoFechar={() => setExcluir(false)} titulo="Excluir conta?" descricao="Esta ação não pode ser desfeita." rotuloConfirmar="Excluir conta" perigoso aoConfirmar={async () => { reiniciarDemo(); await sair(); router.push('/') }} />
     </div>
   )
 }

@@ -29,7 +29,7 @@ Direção e fluxos em [`DIRECAO.md`](./DIRECAO.md). Feito nesta rodada no fim do
 | U2 | ✅ | ~~Avisos proativos de saldo.~~ **Feito:** toast único por sessão quando um gasto deixa o saldo em ≈ 1 apresentação de 10 telas ou menos, com "Comprar" (toasts com ação ficam 8 s). Falta o e-mail no backend real. | `components/app/Creditos.tsx` (`AvisoSaldoBaixo`) | E-mail "seu saldo está acabando" quando houver backend de notificações. |
 | U3 | P2 | "Primeiros passos" some sozinho quando tudo é feito, mas não pode ser dispensado antes. | `Dashboard.tsx` `PrimeirosPassos` | Botão "Dispensar" com preferência em `localStorage` (é conveniência por pessoa). |
 | U4 | P2 | Notificação quando o cliente abre (o pedido principal de quem envia propostas). | Enviados, `Shell` | Ponto na barra lateral "Enviados" + lista "Aberto há 5 min" quando houver eventos com data. Depende de E9. |
-| U5 | P2 | Alterar senha e exportar dados são só demonstração (toast). | `Configuracoes.tsx` | Ligar ao Supabase Auth / job de exportação. |
+| U5 | P2 | Alterar senha e exportar dados são só demonstração (toast). | `Configuracoes.tsx` | Ligar ao Neon Auth (troca de senha por código) / job de exportação. |
 | U6 | P2 | Rodapé da landing com "Templates", "Central de ajuda", "Blog" sem página. | `components/marketing/dados.ts` `RODAPE` | Página de templates pública reaproveitando `TEMPLATES` (`lib/ia/roteiro.ts`) com "Usar template" → `/app/novo?comeco=template`. |
 | U7 | P2 | Troca de espaço/equipe (Studio "por membro") ainda não existe; o cartão do espaço leva ao plano. | `Shell.tsx` | Fase 2: seletor de espaço e convites. |
 | U8 | P2 | Criar com IA aceita só texto (.txt/.md/.html); PDF/DOCX pedem para colar. | `CriarComIA.tsx` `importar` | Extração no servidor (ADR 0008, pendências). |

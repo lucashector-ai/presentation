@@ -4,7 +4,7 @@ Legenda: ✅ verificado automaticamente no modo demonstração · 🟡 implement
 
 | ID | Cenário | Status | Como é verificado |
 | --- | --- | --- | --- |
-| AC-01 | Cadastro, sessão e recuperação | ✅ (demo) / 🟡 (Supabase Auth) | `e2e/fluxo.mjs` "AC-01"; isolamento por workspace: RLS + `projetoDoWorkspace` (teste de integração pendente) |
+| AC-01 | Cadastro, sessão e recuperação | ✅ (demo) / ✅ (Neon Auth, API) | `e2e/fluxo.mjs` "AC-01"; isolamento por workspace no servidor (`autenticar` + `projetoDoWorkspace`), testado em `lib/api/autorizacao.test.ts` e de ponta a ponta contra o Neon |
 | AC-02 | Upload em lote com progresso, thumbnail e erro individual | ✅ | E2E "AC-02/AC-03" (3 PNGs) e "AC-02 Formato inválido" (.txt) |
 | AC-03 | Importar cria cenas reordenáveis, duplicáveis e apagáveis | ✅ | E2E + `lib/scene/order.test.ts` |
 | AC-04 | Texto, mídia e hotspot: mover, dimensionar, alinhar, ordenar | ✅ | E2E "AC-04" (nudge por teclado, alinhar, trazer para frente) + `transform.test.ts` |
@@ -16,7 +16,7 @@ Legenda: ✅ verificado automaticamente no modo demonstração · 🟡 implement
 | AC-10 | Fechar/reabrir preserva edição; falha de rede é sinalizada | ✅ | E2E "AC-10" (reload); estados `offline/falha` em `useEditor` (manual) |
 | AC-11 | Rascunho não aparece para o cliente até publicar | ✅ | E2E "AC-11" + `store.test.ts` |
 | AC-12 | Link navegável por toque no celular | ✅ | E2E "AC-09/AC-12" (viewport 390×844); swipe em `Viewer.tsx` |
-| AC-13 | Asset privado não exposto por URL pública | 🟡 | Bucket privado + URLs assinadas de 15 min (`urlsAssinadas`); confirmar em staging |
+| AC-13 | Asset privado não exposto por URL pública | 🟡 | R2 privado; mídia só por `/api/midias/:id` (sessão) e `/api/share/:token/midias/:id` (link ativo + versão publicada) |
 | AC-14 | Operações por teclado; reduce-motion respeitado | ✅ | E2E "AC-14" (duração de animação com `prefers-reduced-motion`); atalhos do editor e do viewer; foco visível global |
 
 ## Suíte (seção 17.2)

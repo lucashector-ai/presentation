@@ -1,15 +1,18 @@
--- Funções transacionais chamadas pelo servidor (service role).
+-- Funções transacionais chamadas pelo servidor (cada chamada é atômica, mesmo pelo driver HTTP).
 -- Garantem que salvar cenas (com reordenação) e publicar sejam atômicos e respeitem a revisão (optimistic concurrency).
+-- A AUTORIZAÇÃO é do chamador: o servidor só chama depois de confirmar que o projeto é do workspace da sessão.
+-- Por isso p_workspace_id também entra no filtro: um id de projeto de outro workspace dá NOT_FOUND.
 
-create or replace function public.save_project_scenes(p_project_id uuid, p_base_revision int, p_scenes jsonb, p_schema_version int default 1)
+create or replace function public.save_project_scenes(p_project_id uuid, p_workspace_id uuid, p_base_revision int, p_scenes jsonb, p_schema_version int default 1)
 returns table (revision int, saved_at timestamptz)
-language plpgsql security definer set search_path = public as $$
+language plpgsql set search_path = public as $$
 declare
   v_current int;
   v_scene jsonb;
   v_idx int := 0;
 begin
-  select current_revision into v_current from public.projects where id = p_project_id and deleted_at is null for update;
+  select current_revision into v_current from public.projects
+  where id = p_project_id and workspace_id = p_workspace_id and deleted_at is null for update;
   if v_current is null then raise exception 'NOT_FOUND' using errcode = 'P0002'; end if;
   if v_current <> p_base_revision then raise exception 'REVISION_CONFLICT:%', v_current using errcode = 'P0001'; end if;
 
@@ -34,12 +37,13 @@ begin
   return query select v_current + 1, now();
 end $$;
 
-create or replace function public.publish_project(p_project_id uuid, p_base_revision int, p_user_id uuid, p_document jsonb, p_schema_version int default 1)
+create or replace function public.publish_project(p_project_id uuid, p_workspace_id uuid, p_base_revision int, p_user_id uuid, p_document jsonb, p_schema_version int default 1)
 returns table (published_revision int, published_at timestamptz)
-language plpgsql security definer set search_path = public as $$
+language plpgsql set search_path = public as $$
 declare v_current int;
 begin
-  select current_revision into v_current from public.projects where id = p_project_id and deleted_at is null for update;
+  select current_revision into v_current from public.projects
+  where id = p_project_id and workspace_id = p_workspace_id and deleted_at is null for update;
   if v_current is null then raise exception 'NOT_FOUND' using errcode = 'P0002'; end if;
   if v_current <> p_base_revision then raise exception 'REVISION_CONFLICT:%', v_current using errcode = 'P0001'; end if;
 
@@ -53,6 +57,12 @@ end $$;
 
 -- Incremento de visualizações sem corrida.
 create or replace function public.increment_share_views(p_link_id uuid) returns void
-language sql security definer set search_path = public as $$
+language sql set search_path = public as $$
   update public.share_links set view_count = view_count + 1 where id = p_link_id;
 $$;
+
+-- Só o dono do schema (o papel do app) executa; nenhum outro papel do branch herda acesso por PUBLIC.
+revoke execute on function public.save_project_scenes(uuid, uuid, int, jsonb, int) from public;
+revoke execute on function public.publish_project(uuid, uuid, int, uuid, jsonb, int) from public;
+revoke execute on function public.increment_share_views(uuid) from public;
+revoke execute on function public.garantir_conta(uuid, text, text) from public;

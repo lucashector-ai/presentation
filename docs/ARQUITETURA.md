@@ -9,7 +9,7 @@ Documento do "primeiro entregável" da instrução mestre (seção 20): stack e 
 | Web app | Next.js 14 (App Router) + React 18 + TypeScript strict | Mesmo stack do outro produto da casa (Clinical 360), SSR do marketing, rotas de API no mesmo deploy | Vite + API separada: dois deploys, mais plumbing |
 | UI | Tailwind 3 + componentes próprios (`components/ui`) com tokens em CSS variables | Tema claro/escuro sem duplicar classes; design editorial sem "cara de dashboard" | Biblioteca pronta (shadcn/MUI): mais peso visual e dependências |
 | Validação | Zod 4 | Um schema para API, editor, viewer e JSON do banco | io-ts/valibot: menos conhecidos pela equipe |
-| Banco/Auth/Storage | Supabase (Postgres + Auth + Storage privado) | Postgres gerenciado, RLS, bucket privado com URLs assinadas, já usado na casa | Prisma + S3 + Auth próprio: mais código para manter |
+| Banco/Auth/Storage | Neon Postgres + Neon Auth (Better Auth gerenciado) + Cloudflare R2 (ADR 0010) | Postgres com branches, login no mesmo banco, bucket privado no binding do Worker; autorização no servidor | Supabase (substituído: nunca rodou em produção e a hospedagem foi para Cloudflare) |
 | Renderizador | Camadas DOM posicionadas com `transform: scale()` | Texto selecionável/acessível, vídeos nativos, mesma base no editor e viewer | Canvas raster: acessibilidade e vídeo piores |
 | Testes | Vitest (unitário) + Playwright (E2E) | Rápidos, sem configuração pesada | Jest |
 | Hospedagem | Vercel (sugerido) | Deploy por branch, rollback por promote | Railway/Fly: ok, mas sem preview automático por PR |
@@ -28,14 +28,14 @@ web-app (Next.js)
 api (app/api)
   auth + permissions + project CRUD    projects/, lib/api/servidor.ts
   scene revisions + publish            projects/[id]/scenes, projects/[id]/publish (funções SQL transacionais)
-  asset ingest + signed media delivery assets/*, lib/midia
+  asset ingest + media delivery       assets/upload, midias/*, share/[token]/midias/*, lib/midia, lib/armazenamento.ts
   share grants                         projects/[id]/share-links, share-links/[id], share/[token]
   audit logs                           audit_events (lib/api/servidor.ts#auditar)
 infrastructure
-  PostgreSQL + RLS                     supabase/migrations
-  object storage privado               bucket `midias` (URLs assinadas de 15 min)
+  PostgreSQL (autorização no servidor) db/migrations
+  object storage privado               R2 `MIDIAS` (servido por rotas que conferem permissão)
   worker / fila                        PENDENTE (thumbnails, transcodificação) — ver §7
-  telemetria + backups + CI            .github/workflows/ci.yml; backups do Supabase; logs estruturados por requestId
+  telemetria + backups + CI            .github/workflows/ci.yml; restore/branches do Neon; logs estruturados por requestId
 ```
 
 ## 3. Mapa de telas (seção 4.1)
@@ -58,7 +58,7 @@ infrastructure
 
 ## 4. Modelo de dados
 
-Schema em `supabase/migrations/0000_base.sql` (seção 11.1): `users`, `workspaces`, `workspace_members` (Fase 2), `projects` (soft delete, `current_revision`, `published_revision`), `project_scenes` (rascunho, `content_json` validado, `order_index` único *deferrable* para reordenação transacional), `project_snapshots` (publicação imutável), `assets` (`storage_key` em bucket privado, status `queued|processing|ready|failed`), `share_links` (`token_hash`, `password_hash`, `expires_at`, `revoked_at`), `share_link_attempts`, `billing_accounts`, `audit_events`.
+Schema em `db/migrations/0000_base.sql` (seção 11.1): `users`, `workspaces`, `workspace_members` (Fase 2), `projects` (soft delete, `current_revision`, `published_revision`), `project_scenes` (rascunho, `content_json` validado, `order_index` único *deferrable* para reordenação transacional), `project_snapshots` (publicação imutável), `assets` (`storage_key` em bucket privado, status `queued|processing|ready|failed`), `share_links` (`token_hash`, `password_hash`, `expires_at`, `revoked_at`), `share_link_attempts`, `billing_accounts`, `audit_events`.
 
 Integridade: toda consulta filtra por `workspace_id` no servidor **e** RLS no banco (defesa em profundidade). Funções `save_project_scenes` e `publish_project` (`0001_funcoes_transacionais.sql`) fazem o lock da linha do projeto, comparam `base_revision` e falham com `REVISION_CONFLICT:n` → HTTP 409 com `currentRevision`.
 
@@ -75,16 +75,16 @@ Integridade: toda consulta filtra por `workspace_id` no servidor **e** RLS no ba
 | Sprint | Escopo | Status |
 | --- | --- | --- |
 | 0 — fundação | TS strict, lint, format, testes, CI, README, ADRs, protótipo navegável, migrations, storage privado | ✅ |
-| 1 — usuários e projetos | Auth real (Supabase), workspace, CRUD via `/api`, isolamento multi-tenant testado, seed | 🟡 rotas escritas; falta ligar UI (`lib/api/cliente.ts`) e testes de integração com banco |
-| 2 — mídia e cenas | Upload presigned + validação de MIME real + progresso; cenas/ordem/duplicação; autosave e revisão | 🟡 rotas e UI prontas no demo; falta worker de thumbnails |
+| 1 — usuários e projetos | Auth real (Neon Auth), workspace, CRUD via `/api`, isolamento multi-tenant testado, seed | 🟡 rotas e login testados contra o Neon; falta ligar a UI de dados (`lib/api/cliente.ts`) |
+| 2 — mídia e cenas | Upload pela rota do app (R2) + validação de MIME real + progresso; cenas/ordem/duplicação; autosave e revisão | 🟡 rotas e UI prontas no demo; falta worker de thumbnails |
 | 3 — engine e viewer | Renderer compartilhado, hotspots, transições, Slides/Story, teclado/toque, pré-carregamento, fullscreen, E2E | ✅ (E2E em `e2e/fluxo.mjs`) |
 | 4 — publicação e compartilhamento | Snapshot, links, senha, validade, revogação, entrega autorizada de mídia, rate limiting, audit | 🟡 lógica completa (demo + rotas); falta QA em staging real |
 | 5 — beta fechado | Testes com designers reais, limites de plano, checkout, produção com backup/rollback | ⏳ |
 
 ## 7. Riscos e próximas dependências
 
-1. **Rotas `/api` nunca rodaram contra um Supabase real.** Primeira tarefa da Sprint 1: criar projeto Supabase de staging, aplicar migrations, escrever testes de integração (auth, multi-tenant, 409, publicação, links) e só então apontar a UI para `lib/api/cliente.ts`.
-2. **Sessão no servidor**: hoje o guard de `/app` é no cliente. Com Supabase Auth real, adotar `@supabase/ssr` (cookies HttpOnly) e `middleware.ts` (ADR 0002).
+1. **UI de dados ainda no modo demo.** As rotas `/api` já rodam contra o Neon (login, multi-tenant, 409, publicação, links, créditos); falta apontar painel/editor para `lib/api/cliente.ts`.
+2. **Sessão no servidor**: a sessão já é cookie HttpOnly do Neon Auth e as rotas `/api` a conferem; o guard de páginas de `/app` continua no cliente (sem middleware do Next, por causa do vinext — ADR 0010).
 3. **Variantes de mídia**: `finalize` marca `ready` sem gerar thumbnails. O viewer usa o original com lazy loading; cenas com muitas imagens 4K podem pesar. Worker (Sprint 2): sharp para thumbs/webp, ffmpeg para poster/transcodificação.
 4. **Rate limiting** em memória por processo é suficiente para o beta; em produção multi-instância, mover para a borda (Vercel WAF) ou Redis.
 5. **Decisões a validar antes de cobrar** (seção 20.1): nome e domínio, limites definitivos por plano, mercado/moeda/provedor de pagamento, retenção e termos de conteúdo autoral.

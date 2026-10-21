@@ -1,8 +1,8 @@
 import 'server-only'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { SCHEMA_VERSION, type Cena, type DocumentoProjeto, type ModoProjeto } from '@/lib/scene/schema'
+import { sql } from '@/lib/db/neon'
 import type { ProjetoResumo } from './contratos'
-import { ErroHttp } from './servidor'
+import { ErroHttp, iso } from './servidor'
 
 export interface LinhaProjeto {
   id: string
@@ -15,8 +15,8 @@ export interface LinhaProjeto {
   cover_asset_id: string | null
   current_revision: number
   published_revision: number | null
-  created_at: string
-  updated_at: string
+  created_at: Date | string
+  updated_at: Date | string
 }
 
 export function resumo(p: LinhaProjeto, extras: { sceneCount: number; activeLinks: number; coverUrl: string | null }): ProjetoResumo {
@@ -32,14 +32,15 @@ export function resumo(p: LinhaProjeto, extras: { sceneCount: number; activeLink
     publishedRevision: p.published_revision,
     sceneCount: extras.sceneCount,
     activeLinks: extras.activeLinks,
-    createdAt: p.created_at,
-    updatedAt: p.updated_at,
+    createdAt: iso(p.created_at) ?? '',
+    updatedAt: iso(p.updated_at) ?? '',
   }
 }
 
-export async function documentoDoProjeto(sb: SupabaseClient, p: LinhaProjeto): Promise<DocumentoProjeto> {
-  const { data } = await sb.from('project_scenes').select('content_json').eq('project_id', p.id).order('order_index')
-  return { schemaVersion: SCHEMA_VERSION, mode: p.mode, scenes: (data ?? []).map((r) => r.content_json as Cena) }
+/** Cenas do rascunho. Só chamar com um projeto já autorizado (projetoDoWorkspace). */
+export async function documentoDoProjeto(p: LinhaProjeto): Promise<DocumentoProjeto> {
+  const linhas = await sql()`select content_json from public.project_scenes where project_id = ${p.id} order by order_index`
+  return { schemaVersion: SCHEMA_VERSION, mode: p.mode, scenes: linhas.map((r) => r.content_json as Cena) }
 }
 
 export function gerarSlug(nome: string): string {
@@ -47,12 +48,12 @@ export function gerarSlug(nome: string): string {
 }
 
 /** Converte erros das funções SQL (REVISION_CONFLICT:n / NOT_FOUND) em ErroHttp. */
-export function traduzirErroRpc(e: { message?: string } | null): never {
-  const msg = e?.message ?? ''
+export function traduzirErroRpc(e: unknown): never {
+  const msg = e instanceof Error ? e.message : String((e as { message?: string } | null)?.message ?? '')
   const m = msg.match(/REVISION_CONFLICT:(\d+)/)
   if (m) throw new ErroHttp('conflito_revisao', 'Há uma versão mais recente. Suas mudanças continuam seguras nesta sessão.', { currentRevision: Number(m[1]) })
   if (msg.includes('NOT_FOUND')) throw new ErroHttp('nao_encontrado', 'Projeto não encontrado')
-  throw new Error(msg || 'Falha na operação')
+  throw e instanceof Error ? e : new Error(msg || 'Falha na operação')
 }
 
 export function idsDeAssets(doc: DocumentoProjeto): string[] {

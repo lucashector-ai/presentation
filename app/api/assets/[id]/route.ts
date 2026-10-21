@@ -1,4 +1,5 @@
-import { auditar, autenticar, responder, rota, ErroHttp, BUCKET_MIDIAS } from '@/lib/api/servidor'
+import { auditar, autenticar, ehUuid, responder, rota, ErroHttp } from '@/lib/api/servidor'
+import { sql } from '@/lib/db/neon'
 
 export const dynamic = 'force-dynamic'
 
@@ -6,15 +7,18 @@ export const dynamic = 'force-dynamic'
 export const DELETE = rota<{ id: string }>(async (req, { params }, requestId) => {
   const ctx = await autenticar(req, requestId)
   const forcar = new URL(req.url).searchParams.get('force') === '1'
-  const { data: asset } = await ctx.sb.from('assets').select('id, storage_key').eq('id', params.id).eq('workspace_id', ctx.workspaceId).is('deleted_at', null).maybeSingle()
+  if (!ehUuid(params.id)) throw new ErroHttp('nao_encontrado', 'Mídia não encontrada')
+  const db = sql()
+  const [asset] = await db`select id from public.assets where id = ${params.id} and workspace_id = ${ctx.workspaceId} and deleted_at is null`
   if (!asset) throw new ErroHttp('nao_encontrado', 'Mídia não encontrada')
-  const { data: usos } = await ctx.sb.from('project_scenes').select('project_id, projects!inner(name, workspace_id)').eq('projects.workspace_id', ctx.workspaceId).filter('content_json::text', 'ilike', `%"${asset.id}"%`)
-  const projetos = [...new Set((usos ?? []).map((u) => { const pr = (u as unknown as { projects?: { name: string } | { name: string }[] }).projects; return Array.isArray(pr) ? pr[0]?.name : pr?.name }).filter((n): n is string => !!n))]
+  const usos = await db`
+    select distinct p.name
+    from public.project_scenes s join public.projects p on p.id = s.project_id
+    where p.workspace_id = ${ctx.workspaceId} and p.deleted_at is null and position(${`"${params.id}"`} in s.content_json::text) > 0`
+  const projetos = usos.map((u) => u.name as string)
   if (projetos.length && !forcar) throw new ErroHttp('entrada_invalida', `Esta mídia é usada em ${projetos.length} projeto(s).`, { projetos })
-  // soft delete: a rotina de retenção remove o objeto do bucket depois do prazo
-  const { error } = await ctx.sb.from('assets').update({ deleted_at: new Date().toISOString() }).eq('id', asset.id)
-  if (error) throw error
-  void BUCKET_MIDIAS
-  await auditar(ctx, 'asset.deleted', null, { assetId: asset.id, forcado: forcar })
+  // soft delete: a rotina de retenção remove o objeto do armazenamento (R2) depois do prazo
+  await db`update public.assets set deleted_at = now() where id = ${params.id} and workspace_id = ${ctx.workspaceId}`
+  await auditar(ctx, 'asset.deleted', null, { assetId: params.id, forcado: forcar })
   return responder({ deleted: true, projetosAfetados: projetos }, requestId)
 })

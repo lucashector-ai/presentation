@@ -1,6 +1,6 @@
 # ADR 0003 — Upload e entrega de mídia
 
-**Status:** aceito · **Data:** 2026-10-21
+**Status:** aceito · **Data:** 2026-10-21 · Partes de Supabase substituídas pela ADR 0010 (Neon + R2).
 
 ## Decisão
 1. `POST /api/assets/upload-url` valida cota e tamanho **por plano no servidor**, cria o registro `queued` e devolve URL assinada de upload direto ao bucket privado `midias` (o arquivo não passa pelo servidor Next).

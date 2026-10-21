@@ -1,6 +1,6 @@
 # ADR 0002 — Autenticação e autorização
 
-**Status:** aceito · **Data:** 2026-10-21
+**Status:** aceito · **Data:** 2026-10-21 · Partes de Supabase substituídas pela ADR 0010 (Neon + R2).
 
 ## Decisão
 - **Criadores**: Supabase Auth (e-mail + senha com verificação; social depois). A API aceita `Authorization: Bearer <access_token>`; `autenticar()` valida com `auth.getUser` e resolve o workspace por `workspace_members`.
