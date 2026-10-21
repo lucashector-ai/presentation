@@ -1,5 +1,7 @@
 -- 0002: editor criativo (SVG, 3D, Lottie, modo Explorar), novos planos, créditos de IA.
 -- Idempotente onde o Postgres permite.
+-- Os tipos de arquivo aceitos ficam no código (lib/api/contratos.ts MIMES_ACEITOS) e são conferidos
+-- pelo servidor no upload (bytes mágicos / sanitização); o R2 não tem lista de MIME por bucket.
 
 -- ---------- modos e tipos de mídia ----------
 alter type project_mode add value if not exists 'explorar';
@@ -11,16 +13,6 @@ alter type media_type add value if not exists 'lottie';
 alter table public.workspaces drop constraint if exists workspaces_plan_id_check;
 update public.workspaces set plan_id = 'pro' where plan_id = 'creator';
 alter table public.workspaces add constraint workspaces_plan_id_check check (plan_id in ('free', 'plus', 'pro', 'studio'));
-
--- ---------- storage: aceita SVG (sanitizado no servidor), GLB/glTF e Lottie ----------
-update storage.buckets
-set allowed_mime_types = array[
-  'image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml',
-  'video/mp4', 'video/webm',
-  'model/gltf-binary', 'model/gltf+json',
-  'application/json'
-]
-where id = 'midias';
 
 -- ---------- créditos (saldo compartilhado por workspace + extrato imutável) ----------
 create table if not exists public.credit_balances (
@@ -53,22 +45,11 @@ create table if not exists public.ai_generations (
 create index if not exists ai_generations_workspace_idx on public.ai_generations(workspace_id, created_at desc);
 create index if not exists ai_generations_user_idx on public.ai_generations(user_id);
 
-alter table public.credit_balances enable row level security;
-alter table public.credit_transactions enable row level security;
-alter table public.ai_generations enable row level security;
--- Membros só leem; toda escrita passa pela função abaixo (service role).
-drop policy if exists credit_balances_member on public.credit_balances;
-create policy credit_balances_member on public.credit_balances for select using (public.is_member(workspace_id));
-drop policy if exists credit_transactions_member on public.credit_transactions;
-create policy credit_transactions_member on public.credit_transactions for select using (public.is_member(workspace_id));
-drop policy if exists ai_generations_member on public.ai_generations;
-create policy ai_generations_member on public.ai_generations for select using (public.is_member(workspace_id));
-
 -- Debita (p_custo > 0) ou estorna/credita (p_custo < 0) de forma atômica.
 -- Saldo insuficiente → exceção 'saldo_insuficiente' e nada muda.
 create or replace function public.debitar_creditos(p_workspace uuid, p_custo int, p_motivo text)
 returns int
-language plpgsql security definer set search_path = public as $$
+language plpgsql set search_path = public as $$
 declare v_saldo int;
 begin
   if p_custo = 0 then
@@ -86,7 +67,7 @@ end $$;
 
 -- Créditos de cadastro (plano grátis: 400) para todo workspace novo.
 create or replace function public.creditos_iniciais() returns trigger
-language plpgsql security definer set search_path = public as $$
+language plpgsql set search_path = public as $$
 begin
   insert into public.credit_balances (workspace_id, balance) values (new.id, 400) on conflict (workspace_id) do nothing;
   insert into public.credit_transactions (workspace_id, amount, reason, balance_after) values (new.id, 400, 'Créditos de boas-vindas', 400);
@@ -100,14 +81,6 @@ insert into public.credit_balances (workspace_id, balance)
 select id, 400 from public.workspaces
 on conflict (workspace_id) do nothing;
 
--- ---------- funções security definer: só o servidor (service role) executa ----------
--- Sem isto, qualquer usuário autenticado poderia chamá-las pela API do PostgREST.
-revoke execute on function public.debitar_creditos(uuid, int, text) from public, anon, authenticated;
-revoke execute on function public.creditos_iniciais() from public, anon, authenticated;
-revoke execute on function public.save_project_scenes(uuid, int, jsonb, int) from public, anon, authenticated;
-revoke execute on function public.publish_project(uuid, int, uuid, jsonb, int) from public, anon, authenticated;
-revoke execute on function public.increment_share_views(uuid) from public, anon, authenticated;
-grant execute on function public.debitar_creditos(uuid, int, text) to service_role;
-grant execute on function public.save_project_scenes(uuid, int, jsonb, int) to service_role;
-grant execute on function public.publish_project(uuid, int, uuid, jsonb, int) to service_role;
-grant execute on function public.increment_share_views(uuid) to service_role;
+-- Só o papel do app executa as funções (nenhum outro papel do branch herda acesso por PUBLIC).
+revoke execute on function public.debitar_creditos(uuid, int, text) from public;
+revoke execute on function public.creditos_iniciais() from public;

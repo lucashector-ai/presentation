@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { autenticar, ErroHttp, hashIp, lerJson, limitar, responder, rota } from '@/lib/api/servidor'
+import { cobrarIa } from '@/lib/api/creditosServidor'
 import { iaConfigurada, RecusaModelo, reescreverTextoClaude } from '@/lib/ia/claude'
 import { PedidoTextoSchema, reescreverLocal, type RespostaTexto } from '@/lib/ia/texto'
 import { custoDe } from '@/lib/planos'
@@ -24,11 +25,7 @@ export const POST = rota(async (req, _ctx, requestId) => {
   if (!DEMO) {
     const ctx = await autenticar(req, requestId)
     if (iaConfigurada()) {
-      const { error } = await ctx.sb.rpc('debitar_creditos', { p_workspace: ctx.workspaceId, p_custo: custo, p_motivo: 'Reescrever texto com IA' })
-      if (error) throw error.message.includes('saldo_insuficiente') ? new ErroHttp('limite_do_plano', 'Créditos insuficientes para reescrever este texto.', { custo }) : error
-      estornar = async () => {
-        await ctx.sb.rpc('debitar_creditos', { p_workspace: ctx.workspaceId, p_custo: -custo, p_motivo: 'Estorno: texto com IA não gerado' })
-      }
+      estornar = await cobrarIa(ctx, custo, { debito: 'Reescrever texto com IA', estorno: 'Estorno: texto com IA não gerado', semSaldo: 'Créditos insuficientes para reescrever este texto.' })
     }
   }
 

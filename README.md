@@ -16,7 +16,7 @@ SaaS privado para designers, diretores de arte e estúdios: cole artes do Figma 
 | Criar com IA (`/app/criar`; `/criar` redireciona mantendo o prompt): prompt ou texto → roteiro editável → telas desenhadas; créditos por workspace | ✅ ver ADR 0008 — usa o Claude com `ANTHROPIC_API_KEY`, senão gerador local |
 | Publicação (snapshot imutável) e links (token hash, senha, validade, revogação, limite de tentativas) | ✅ no modo demonstração |
 | Painel como centro do app (criar, continuar, enviados e visualizações, créditos e compra, primeiros passos, busca ⌘K), detalhes, compartilhamento, conta/planos, marketing, login/cadastro | ✅ ver `docs/ux/DIRECAO.md` |
-| Banco (migrations + RLS + bucket privado) e rotas `/api` sobre Supabase | ✅ escritas e compiladas, **ainda não exercitadas contra um projeto Supabase real** |
+| Banco (Neon Postgres, `db/migrations`), login (Neon Auth: e-mail/senha + Google), mídias (Cloudflare R2) e rotas `/api` | ✅ exercitados de ponta a ponta contra o Neon (cadastro, login, projeto, cenas, upload, publicação, link de convidado, créditos, isolamento entre usuários) — ver ADR 0010 |
 | UI ligada ao backend real (hoje usa `lib/demo/store.ts` no navegador) | ⏳ Sprint 1: trocar o módulo de dados por `lib/api/cliente.ts` |
 | Worker de thumbnails/transcodificação, billing (Stripe), e-mail transacional | ⏳ não iniciados |
 
@@ -64,13 +64,14 @@ npm run dev & npm run test:e2e                       # fluxo ponta a ponta (Play
 
 `npm run verificar` encadeia lint, typecheck, testes e build (é o que a CI executa em `.github/workflows/ci.yml`).
 
-## Como migrar o banco (Supabase)
+## Banco, login e mídias (Neon + Cloudflare R2)
 
-1. Crie um projeto no Supabase e preencha `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` e `SHARE_GRANT_SECRET` em `.env.local` (nunca versionar).
-2. Aplique `supabase/migrations/0000_base.sql`, `0001_funcoes_transacionais.sql` e `0002_criativo_creditos_ia.sql` em ordem (SQL Editor ou `supabase db push`). Veja `supabase/LEIA-ME.md`.
-3. Desligue o modo demo: `NEXT_PUBLIC_DEMO=0`. As rotas `/api` passam a autenticar com o Bearer do Supabase Auth.
+1. `neon link` no projeto e `neon deploy` (o `neon.ts` declara `auth: true`): o CLI escreve `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `NEON_BRANCH`, `NEON_AUTH_BASE_URL` e `NEON_AUTH_JWKS_URL` em `.env.local`. Acrescente `NEON_AUTH_COOKIE_SECRET` e `SHARE_GRANT_SECRET` (`openssl rand -base64 32` cada; nunca versionar).
+2. `npm run db:migrar` aplica `db/migrations/*.sql` em ordem no branch do `.env.local` (teste antes num branch do Neon; ver `db/LEIA-ME.md`).
+3. Desligue o modo demo (`NEXT_PUBLIC_DEMO=0`). Cadastro/login usam o Neon Auth pelo proxy `/api/auth/*` (cookies HttpOnly do próprio domínio) e as rotas `/api` conferem a sessão e o workspace em toda consulta (não há RLS).
+4. Mídias: no Worker, o binding R2 `MIDIAS`; fora dele (`npm run dev`), disco em `.armazenamento-dev/` (em `next start`, defina `ARMAZENAMENTO_DEV_DIR`).
 
-Novas mudanças de schema: arquivo `000N_descricao.sql` sequencial; nunca editar migration já aplicada.
+Novas mudanças de schema: arquivo `000N_descricao.sql` sequencial; nunca editar migration já aplicada (o script recusa).
 
 ## Como publicar e reverter
 
@@ -97,7 +98,10 @@ components/
   ui/                     design system: Botao, Entrada, Campo, Modal, Toast, ZonaUpload (na biblioteca), Cartao, CampoInspetor, MiniaturaCena, ModalCompartilhar
 lib/
   scene/                  schema.ts (Zod), validate.ts, motor.ts (reducer de interações), transform.ts, order.ts
-  api/                    contratos.ts (Zod), servidor.ts (auth/envelope/rate limit), cliente.ts (HTTP tipado)
+  api/                    contratos.ts (Zod), servidor.ts (sessão/workspace/envelope/rate limit), cliente.ts (HTTP tipado), midiaServidor.ts (entrega de mídia)
+  auth/                   Neon Auth: servidor.ts (proxy /api/auth + sessão), cliente.ts (navegador)
+  armazenamento.ts        mídias no R2 (binding MIDIAS via lib/cf/ambiente.ts) ou disco/memória em dev
+  db/                     conexão Neon (sql() HTTP, novoPool() WebSocket)
   demo/                   backend de demonstração no navegador + dados fictícios
   editor/                 useEditor (undo/redo, autosave, revisão, conflito), guias, importação
   importar/               SVG (sanitização, cores), arquivos (GLB/glTF/Lottie), área de transferência
@@ -106,11 +110,11 @@ lib/
   midia/                  detecção de MIME real (bytes mágicos; SVG/glTF/Lottie validados pelo conteúdo)
   planos.ts               planos e entitlements (aplicados no servidor)
   design-tokens.ts        tokens (espelham app/globals.css)
-supabase/migrations/      schema relacional, RLS, bucket privado, funções transacionais
+db/migrations/            schema relacional e funções transacionais (Neon); db/migrar.mjs aplica
 docs/                     ARQUITETURA.md, CRITERIOS-ACEITE.md, adr/
 e2e/                      fluxo ponta a ponta com Playwright
 ```
 
 ## Decisões registradas
 
-Ver `docs/adr/`: stack (0001), autenticação (0002), entrega de mídia (0003), renderizador de cena (0004), modelo de revisões (0005), importação e área de transferência (0006), 3D/Lottie/embeds (0007), IA e créditos (0008). Visão geral, mapa de telas e plano P0 em `docs/ARQUITETURA.md`. Critérios de aceite e como cada um é verificado em `docs/CRITERIOS-ACEITE.md`.
+Ver `docs/adr/`: stack (0001), autenticação (0002), entrega de mídia (0003), renderizador de cena (0004), modelo de revisões (0005), importação e área de transferência (0006), 3D/Lottie/embeds (0007), IA e créditos (0008), IA no editor (0009), Neon + R2 no lugar do Supabase (0010). Visão geral, mapa de telas e plano P0 em `docs/ARQUITETURA.md`. Critérios de aceite e como cada um é verificado em `docs/CRITERIOS-ACEITE.md`.

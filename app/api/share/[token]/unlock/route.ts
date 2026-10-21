@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { DesbloquearShareReq } from '@/lib/api/contratos'
 import { auditar, emitirGrant, hashIp, lerJson, limitar, responder, rota, ErroHttp } from '@/lib/api/servidor'
-import { supabaseServidor } from '@/lib/supabase/servidor'
-import { estadoDoLink, hashToken, tokenValido, verificarSenha, JANELA_BLOQUEIO_MS, MAX_TENTATIVAS_SENHA } from '@/lib/share/token'
+import { linkAtivo } from '@/lib/api/compartilhamentoServidor'
+import { verificarSenha, JANELA_BLOQUEIO_MS, MAX_TENTATIVAS_SENHA } from '@/lib/share/token'
+import { sql } from '@/lib/db/neon'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,20 +12,20 @@ export const POST = rota<{ token: string }>(async (req, { params }, requestId) =
   const ip = await hashIp(req)
   limitar(`unlock:${ip}`, 30, JANELA_BLOQUEIO_MS)
   const { password } = await lerJson(req, DesbloquearShareReq)
-  if (!tokenValido(params.token)) throw new ErroHttp('nao_encontrado', 'Link indisponível')
-  const sb = supabaseServidor()
-  const { data: link } = await sb.from('share_links').select('id, project_id, password_hash, expires_at, revoked_at').eq('token_hash', await hashToken(params.token)).maybeSingle()
-  if (!link || !link.password_hash || estadoDoLink({ expiresAt: link.expires_at, revokedAt: link.revoked_at }) !== 'ativo') throw new ErroHttp('nao_encontrado', 'Link indisponível')
+  const link = await linkAtivo(params.token)
+  if (!link || !link.password_hash) throw new ErroHttp('nao_encontrado', 'Link indisponível')
 
+  const db = sql()
   const desde = new Date(Date.now() - JANELA_BLOQUEIO_MS).toISOString()
-  const { count } = await sb.from('share_link_attempts').select('id', { count: 'exact', head: true }).eq('share_link_id', link.id).eq('ip_hash', ip).eq('succeeded', false).gte('created_at', desde)
-  if ((count ?? 0) >= MAX_TENTATIVAS_SENHA) throw new ErroHttp('muitas_tentativas', 'Muitas tentativas. Aguarde alguns minutos.')
+  const [{ falhas } = { falhas: 0 }] = await db`select count(*)::int as falhas from public.share_link_attempts where share_link_id = ${link.id} and ip_hash = ${ip} and succeeded = false and created_at >= ${desde}::timestamptz`
+  const count = Number(falhas)
+  if (count >= MAX_TENTATIVAS_SENHA) throw new ErroHttp('muitas_tentativas', 'Muitas tentativas. Aguarde alguns minutos.')
 
   const certo = await verificarSenha(password, link.password_hash)
-  await sb.from('share_link_attempts').insert({ share_link_id: link.id, ip_hash: ip, succeeded: certo })
-  await auditar({ sb }, certo ? 'share_link.unlocked' : 'share_link.unlock_failed', link.project_id)
+  await db`insert into public.share_link_attempts (share_link_id, ip_hash, succeeded) values (${link.id}, ${ip}, ${certo})`
+  await auditar({ workspaceId: link.workspace_id }, certo ? 'share_link.unlocked' : 'share_link.unlock_failed', link.project_id)
   if (!certo) {
-    const restantes = Math.max(0, MAX_TENTATIVAS_SENHA - ((count ?? 0) + 1))
+    const restantes = Math.max(0, MAX_TENTATIVAS_SENHA - (count + 1))
     throw new ErroHttp('sem_permissao', 'Senha incorreta. Tente novamente.', { restantes, bloqueado: restantes === 0 })
   }
   const grant = await emitirGrant(link.id)

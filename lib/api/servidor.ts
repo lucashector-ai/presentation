@@ -1,13 +1,17 @@
 import 'server-only'
 /**
- * Infraestrutura das rotas /api: envelope { data, error, requestId }, autenticação (Bearer do Supabase Auth),
- * autorização por workspace, parsing com Zod, rate limiting simples e auditoria. Nunca registra tokens/senhas.
+ * Infraestrutura das rotas /api: envelope { data, error, requestId }, autenticação (cookie de sessão do
+ * Neon Auth), autorização por workspace, parsing com Zod, rate limiting simples e auditoria. Nunca registra
+ * tokens/senhas.
+ *
+ * Não há RLS no banco: o app conecta com um único papel. TODA consulta de dados de cliente filtra pelo
+ * workspace do usuário da sessão (`ctx.workspaceId`), resolvido aqui a partir do id do Neon Auth.
  */
 import { NextResponse } from 'next/server'
 import type { ZodType } from 'zod'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { CODIGOS_ERRO, erro, ok, type CodigoErro, type TipoEventoAuditoria } from './contratos'
-import { supabaseServidor } from '@/lib/supabase/servidor'
+import { sql } from '@/lib/db/neon'
+import { sessaoDaRequisicao } from '@/lib/auth/servidor'
 
 export class ErroHttp extends Error {
   constructor(public code: CodigoErro, message: string, public details?: unknown) {
@@ -16,7 +20,6 @@ export class ErroHttp extends Error {
 }
 
 export interface Contexto {
-  sb: SupabaseClient
   requestId: string
   userId: string
   workspaceId: string
@@ -34,20 +37,34 @@ export function responderErro(e: unknown, requestId: string) {
   if (e instanceof ErroHttp) {
     return NextResponse.json(erro(e.code, e.message, requestId, e.details), { status: CODIGOS_ERRO[e.code], headers: { 'x-request-id': requestId, 'cache-control': 'no-store' } })
   }
-  // log estruturado sem dados privados
-  console.error(JSON.stringify({ nivel: 'erro', requestId, mensagem: e instanceof Error ? e.message : 'erro desconhecido' }))
-  return NextResponse.json(erro('erro_interno', 'Algo deu errado. Tente novamente.', requestId), { status: 500, headers: { 'x-request-id': requestId } })
+  // log estruturado sem dados privados (a causa ajuda a separar rede/banco de bug)
+  // o driver do Neon guarda o erro original em sourceError (e o motivo de rede em sourceError.cause)
+  const fonte = (e as { sourceError?: unknown } | null)?.sourceError
+  const bruto = fonte instanceof Error ? (fonte.cause instanceof Error ? fonte.cause : fonte) : e instanceof Error ? e.cause : null
+  const causa = bruto instanceof Error ? bruto : null
+  console.error(JSON.stringify({ nivel: 'erro', requestId, mensagem: e instanceof Error ? e.message : 'erro desconhecido', causa: causa ? `${causa.name}: ${causa.message}`.slice(0, 200) : undefined }))
+  return NextResponse.json(erro('erro_interno', 'Algo deu errado. Tente novamente.', requestId), { status: 500, headers: { 'x-request-id': requestId, 'cache-control': 'no-store' } })
 }
+
+/** Cookies de sessão renovados durante a requisição (session_data do Neon Auth), devolvidos pela rota. */
+const cookiesDaRequisicao = new WeakMap<Request, string[]>()
 
 /** Envolve um handler: gera requestId, captura ErroHttp e padroniza a resposta. */
 export function rota<P>(handler: (req: Request, ctx: { params: P }, requestId: string) => Promise<Response>) {
   return async (req: Request, ctx: { params: P }) => {
     const requestId = req.headers.get('x-request-id')?.slice(0, 64) || novoRequestId()
+    const renovados: string[] = []
+    cookiesDaRequisicao.set(req, renovados)
+    let resposta: Response
     try {
-      return await handler(req, ctx, requestId)
+      resposta = await handler(req, ctx, requestId)
     } catch (e) {
-      return responderErro(e, requestId)
+      resposta = responderErro(e, requestId)
     }
+    for (const c of renovados) {
+      try { resposta.headers.append('set-cookie', c) } catch { /* headers imutáveis: segue sem renovar */ }
+    }
+    return resposta
   }
 }
 
@@ -70,29 +87,53 @@ export function lerQuery<T>(req: Request, schema: ZodType<T>): T {
   return r.data
 }
 
-/** Autentica pelo Bearer (sessão do Supabase Auth) e resolve o workspace do usuário. */
+const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+/** Ids vêm da URL: fora do formato, responde 404 (não 500 do cast do Postgres). */
+export const ehUuid = (id: unknown): id is string => typeof id === 'string' && RE_UUID.test(id)
+
+const METODOS_SEGUROS = new Set(['GET', 'HEAD', 'OPTIONS'])
+
+/**
+ * A sessão vai em cookie, então rotas que mudam estado exigem a mesma origem (defesa contra CSRF além do
+ * SameSite=Lax): Origin, quando presente, precisa ser a do app; sem Origin, recusa pedidos cross-site.
+ */
+export function verificarOrigem(req: Request) {
+  if (METODOS_SEGUROS.has(req.method)) return
+  const origem = req.headers.get('origin')
+  const permitidas = new Set([new URL(req.url).origin])
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    try { permitidas.add(new URL(process.env.NEXT_PUBLIC_APP_URL).origin) } catch { /* ignorar */ }
+  }
+  if (origem ? !permitidas.has(origem) : req.headers.get('sec-fetch-site') === 'cross-site') {
+    throw new ErroHttp('sem_permissao', 'Origem não permitida')
+  }
+}
+
+/** Autentica pelo cookie de sessão do Neon Auth e resolve (criando no primeiro acesso) o workspace do usuário. */
 export async function autenticar(req: Request, requestId: string): Promise<Contexto> {
-  const auth = req.headers.get('authorization') ?? ''
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
-  if (!token) throw new ErroHttp('nao_autenticado', 'Faça login para continuar')
-  const sb = supabaseServidor()
-  const { data, error } = await sb.auth.getUser(token)
-  if (error || !data.user) throw new ErroHttp('nao_autenticado', 'Sessão inválida ou expirada')
-  const { data: membro } = await sb.from('workspace_members').select('workspace_id').eq('user_id', data.user.id).limit(1).maybeSingle()
-  if (!membro) throw new ErroHttp('sem_permissao', 'Usuário sem workspace')
-  return { sb, requestId, userId: data.user.id, workspaceId: membro.workspace_id as string }
+  verificarOrigem(req)
+  const usuario = await sessaoDaRequisicao(req, cookiesDaRequisicao.get(req))
+  if (!usuario) throw new ErroHttp('nao_autenticado', 'Faça login para continuar')
+  const [linha] = await sql()`select public.garantir_conta(${usuario.id}::uuid, ${usuario.email}, ${usuario.nome}) as workspace_id`
+  const workspaceId = linha?.workspace_id as string | undefined
+  if (!workspaceId) throw new ErroHttp('sem_permissao', 'Usuário sem workspace')
+  return { requestId, userId: usuario.id, workspaceId }
 }
 
 /** Carrega um projeto garantindo que pertence ao workspace do usuário (404 sem vazar existência). */
 export async function projetoDoWorkspace(ctx: Contexto, projectId: string) {
-  const { data } = await ctx.sb.from('projects').select('*').eq('id', projectId).eq('workspace_id', ctx.workspaceId).is('deleted_at', null).maybeSingle()
-  if (!data) throw new ErroHttp('nao_encontrado', 'Projeto não encontrado')
-  return data
+  if (!ehUuid(projectId)) throw new ErroHttp('nao_encontrado', 'Projeto não encontrado')
+  const [p] = await sql()`select * from public.projects where id = ${projectId} and workspace_id = ${ctx.workspaceId} and deleted_at is null`
+  if (!p) throw new ErroHttp('nao_encontrado', 'Projeto não encontrado')
+  return p
 }
 
-export async function auditar(ctx: Pick<Contexto, 'sb'> & { userId?: string | null; workspaceId?: string | null }, tipo: TipoEventoAuditoria, projectId: string | null, meta: Record<string, string | number | boolean> = {}) {
-  await ctx.sb.from('audit_events').insert({ actor_id: ctx.userId ?? null, workspace_id: ctx.workspaceId ?? null, project_id: projectId, event_type: tipo, metadata_json: meta })
+export async function auditar(ctx: { userId?: string | null; workspaceId?: string | null }, tipo: TipoEventoAuditoria, projectId: string | null, meta: Record<string, string | number | boolean> = {}) {
+  await sql()`insert into public.audit_events (actor_id, workspace_id, project_id, event_type, metadata_json) values (${ctx.userId ?? null}, ${ctx.workspaceId ?? null}, ${projectId}, ${tipo}, ${JSON.stringify(meta)}::jsonb)`
 }
+
+/** Datas do driver vêm como Date; o contrato da API usa ISO string. */
+export const iso = (d: Date | string | null | undefined): string | null => (d == null ? null : d instanceof Date ? d.toISOString() : String(d))
 
 // ---------- rate limit simples por processo (complementa o limite na borda/CDN) ----------
 const janelas = new Map<string, { contagem: number; inicio: number }>()
@@ -109,27 +150,31 @@ export function limitar(chave: string, max: number, janelaMs: number) {
 }
 
 export async function hashIp(req: Request): Promise<string> {
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'desconhecido'
+  const ip = req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'desconhecido'
   const sal = process.env.SHARE_GRANT_SECRET ?? 'sem-segredo'
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${sal}:${ip}`))
   return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('').slice(0, 32)
 }
 
-export const BUCKET_MIDIAS = process.env.MIDIAS_BUCKET || 'midias'
-export const VALIDADE_URL_MIDIA_S = 15 * 60
+// ---------- URLs de mídia ----------
+export interface LinhaMidia {
+  id: string
+  metadata_json?: { thumb_key?: string; poster_key?: string } | null
+}
+export interface UrlsMidia { url: string; thumbUrl: string | null; posterUrl: string | null }
 
-/** URLs assinadas curtas para um conjunto de assets (nunca expor o storage_key público). */
-export async function urlsAssinadas(sb: SupabaseClient, assets: { id: string; storage_key: string; metadata_json?: { thumb_key?: string; poster_key?: string } | null }[]) {
-  const mapa: Record<string, { url: string; thumbUrl: string | null; posterUrl: string | null }> = {}
-  if (!assets.length) return mapa
-  const chaves = assets.flatMap((a) => [a.storage_key, a.metadata_json?.thumb_key, a.metadata_json?.poster_key].filter((k): k is string => !!k))
-  const { data } = await sb.storage.from(BUCKET_MIDIAS).createSignedUrls(chaves, VALIDADE_URL_MIDIA_S)
-  const porChave = new Map((data ?? []).map((d) => [d.path, d.signedUrl]))
+/**
+ * URLs de mídia servidas pelo app (o bucket é privado e não gera URL). `base` é a rota que confere a
+ * permissão: `/api/midias` (dono, pela sessão) ou `/api/share/{token}/midias` (convidado, pelo link).
+ */
+export function urlsDeMidia(assets: LinhaMidia[], base: string): Record<string, UrlsMidia> {
+  const mapa: Record<string, UrlsMidia> = {}
   for (const a of assets) {
+    const url = `${base}/${a.id}`
     mapa[a.id] = {
-      url: porChave.get(a.storage_key) ?? '',
-      thumbUrl: a.metadata_json?.thumb_key ? porChave.get(a.metadata_json.thumb_key) ?? null : null,
-      posterUrl: a.metadata_json?.poster_key ? porChave.get(a.metadata_json.poster_key) ?? null : null,
+      url,
+      thumbUrl: a.metadata_json?.thumb_key ? `${url}?variante=thumb` : null,
+      posterUrl: a.metadata_json?.poster_key ? `${url}?variante=poster` : null,
     }
   }
   return mapa
@@ -137,7 +182,7 @@ export async function urlsAssinadas(sb: SupabaseClient, assets: { id: string; st
 
 // ---------- grant de convidado (cookie HttpOnly assinado) ----------
 const COOKIE_GRANT = 'ap_grant'
-const VALIDADE_GRANT_S = 2 * 60 * 60
+export const VALIDADE_GRANT_S = 2 * 60 * 60
 
 async function hmac(texto: string): Promise<string> {
   const segredo = process.env.SHARE_GRANT_SECRET
