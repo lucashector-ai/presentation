@@ -133,6 +133,6 @@ describe('leitura pelo Claude (API simulada)', () => {
     expect(fora.status).toBe(503)
     resposta = { recusa: true }
     expect((await chamar(pdf, '1,2')).status).toBe(400)
-    expect(custoLeituraPdf(2)).toBe(34)
+    expect(custoLeituraPdf(2)).toBe(8)
   }, 20000)
 })

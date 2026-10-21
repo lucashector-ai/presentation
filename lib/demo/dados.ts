@@ -198,7 +198,7 @@ export function estadoInicial(): EstadoDemo {
     links: structuredClone(LINKS_DEMO),
     snapshots: structuredClone(SNAPSHOTS_DEMO),
     auditoria: [],
-    creditos: { saldo: 18_420, movimentos: [{ id: 'mv-1', quantidade: 20_000, motivo: 'Créditos mensais do plano Studio', criadoEm: '2026-10-01T00:00:00.000Z' }, { id: 'mv-2', quantidade: -1_580, motivo: 'Gerações de IA em outubro', criadoEm: AGORA }] },
+    creditos: { saldo: 2_986, movimentos: [{ id: 'mv-1', quantidade: 3_200, motivo: 'Créditos mensais do plano Studio (4 membros)', criadoEm: '2026-10-01T00:00:00.000Z' }, { id: 'mv-2', quantidade: -214, motivo: 'Telas criadas com IA em outubro', criadoEm: AGORA }] },
   }
 }
 

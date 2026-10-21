@@ -82,7 +82,7 @@ describe('pipeline com o Claude (API simulada)', () => {
     expect(r.custo.uso).toEqual({ entrada: 60, saida: 800, cacheLeitura: 0, cacheEscrita: 3000, cacheEscrita1h: 0 })
   })
 
-  it('design: Opus, uma chamada por tela; a primeira sozinha (escreve o cache) e as outras depois; deck em cache', async () => {
+  it('design premium: Opus, uma chamada por tela; a primeira sozinha (escreve o cache) e as outras depois; deck em cache', async () => {
     const { desenharTelasClaude } = await import('./claude')
     pedidos.length = 0
     t0 = Date.now()
@@ -92,7 +92,9 @@ describe('pipeline com o Claude (API simulada)', () => {
       const t = roteiro.telas[n - 1]!
       return { atraso: n === 1 ? 150 : 20, json: { variante: n === 1 ? 'capa.tipografica' : 'capa.classica', fundo: 'escuro', alinhamento: 'esquerda', rotulo: '', titulo: '', enfase: '', texto: '', itens: [], destaque: -1, imagem: n === 1 ? 'painel solar no telhado' : '', decoracao: 'marcante' }, recusa: t.tipo === 'encerramento' }
     }
-    const p = PedidoDesignSchema.parse({ roteiro, indices: [0, 1, 2, 5], tipo: 'pitch', tema: 'grafite', estilo: 'ousado' })
+    // sem qualidade o padrão é o Sonnet; o teste usa premium para conferir o Opus e o preço dele
+    expect(PedidoDesignSchema.parse({ roteiro, indices: [0] }).qualidade).toBe('padrao')
+    const p = PedidoDesignSchema.parse({ roteiro, indices: [0, 1, 2, 5], tipo: 'pitch', tema: 'grafite', estilo: 'ousado', qualidade: 'premium' })
     const r = await desenharTelasClaude(p)
     expect(pedidos).toHaveLength(4)
     expect(pedidos.every((x) => x.corpo.model === MODELOS.opus.id && x.corpo.stream === true)).toBe(true)

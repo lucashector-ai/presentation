@@ -3,6 +3,30 @@
 Fonte única dos números: `lib/ia/economia.ts` (estimativas de tokens e contas) e `lib/planos.ts` (preços em créditos e planos). O teste `lib/ia/economia.test.ts` falha se algum preço em créditos deixar de cobrir o custo estimado com folga, ou se algum plano passar do teto de custo de IA. Ao mudar modelo, prompt ou preço, rode `npx vitest run lib/ia/economia.test.ts` e atualize esta página.
 
 
+## Modelo atual (21/10/2026): 1 crédito = 1 tela
+
+Decidido com o dono depois do teste lado a lado em produção (mesmo roteiro de 10 telas desenhado com Opus e com Sonnet: resultado visual equivalente, porque o layout vem do design system; o Sonnet custou metade). O design passou para o **Sonnet 5.5**; o Opus fica como qualidade "premium" opcional (`qualidade: 'premium'` no pedido de `/api/ai/design`, sem interface ainda).
+
+| Ação | Créditos |
+|---|---|
+| Gerar apresentação | **1 por tela** (6 telas = 6, 30 telas = 30), cobrado no design |
+| Adicionar 1 tela nova com IA, redesenhar ou refazer 1 tela | 1 |
+| Ler PDF escaneado pela IA | 4 por página (a página vai como imagem; com 2 o lucro ficaria em ≈ 40%) |
+| Roteiro (até 3 por apresentação; teto de 40 por dia por espaço), reescrever/traduzir texto, estilo, cores, logo, reordenar, editar | **grátis** |
+| Material colado | grátis até 20 mil caracteres; depois 1 a cada 20 mil |
+
+| | Preço | Créditos (= telas) | Lucro com o custo medido, usando tudo (mensal / anual) |
+|---|---|---|---|
+| Free | R$ 0 | 50 no cadastro | custo ≈ R$ 1,35 por cadastro |
+| Plus | R$ 29/mês | 150/mês | 83% / 80% |
+| Pro | R$ 74/mês | 400/mês | 82% / 78% |
+| Studio | R$ 149/mês | 800/mês por membro | 82% / 78% |
+| Pacotes | R$ 19 / 69 / 299 | 100 / 400 / 2.000 | 83% / 81% / 78% |
+
+Custo medido: **US$ 0,0045 por tela** (roteiro US$ 0,020 + design ≈ US$ 0,025 numa apresentação de 10 telas, cache quente), constante `CUSTO_MEDIDO_POR_TELA_USD`. O teste `lib/ia/economia.test.ts` exige lucro ≥ 75% com o custo medido no crédito mais barato (≈ R$ 0,122 líquido) para apresentações de 6 a 30 telas, e ≥ 55% na estimativa conservadora (≈ 35% acima do medido). Ações grátis continuam medidas: o custo delas vai para `ai_usos` (migração 0006) e entra na view `ai_margem_diaria`. Créditos não usados acumulam até 2× a cota (`ACUMULO_MAXIMO`, a aplicar quando houver renovação mensal com cobrança).
+
+As seções abaixo são o histórico das versões anteriores da tabela.
+
 ## 0. Recalibração com uso real (21/10/2026)
 
 A primeira geração real em produção (10 telas, conta do dono) registrou o uso medido em `credit_transactions` (migração 0003):

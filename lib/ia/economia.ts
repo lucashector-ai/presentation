@@ -16,8 +16,18 @@ import { CUSTO_CREDITOS, DESCONTO_ANUAL, DIVISAO_TELA, LEITURA_PDF_CREDITOS, MAT
 
 /** Câmbio de planejamento (R$ por US$): comercial ≈ 5,60 + IOF de 3,5% no cartão internacional + folga de spread. */
 export const CAMBIO_BRL_POR_USD = 6.0
-/** Quanto de custo de IA cada crédito cobre, no máximo (1 crédito = US$ 0,002). */
-export const USD_POR_CREDITO = 0.002
+/**
+ * Teto de custo de IA por crédito (1 crédito = 1 tela): usado no pior caso dos planos (todos os créditos gastos
+ * no custo estimado mais alto). O custo medido fica bem abaixo (CUSTO_MEDIDO_POR_TELA_USD).
+ */
+export const USD_POR_CREDITO = 0.0075
+/**
+ * Custo real medido por tela em produção (21/10/2026, apresentação de 10 telas, roteiro e design no Sonnet 5.5,
+ * cache quente): roteiro US$ 0,020 + design ≈ US$ 0,025 = US$ 0,0045 por tela. Reavaliar com ai_margem_diaria.
+ */
+export const CUSTO_MEDIDO_POR_TELA_USD = 0.0045
+/** Lucro mínimo sobre a receita líquida, no crédito mais barato, com o custo medido (regra do dono: 70–80%). */
+export const LUCRO_MINIMO_MEDIDO = 0.75
 /** Folga sobre a estimativa de tokens (variação de tamanho, retentativas, reserva por recusa). */
 export const FOLGA = 0.25
 /** Parte da receita que não fica com o Mostra: impostos (Simples ≈ 12%) e meio de pagamento (≈ 5%). */
@@ -32,7 +42,8 @@ const tokens = (texto: string | number) => Math.ceil((typeof texto === 'number' 
 /** Tokens estimados por etapa. Os systems são medidos do texto real dos prompts. */
 export const ESTIMATIVA = {
   roteiro: {
-    sistema: tokens(INSTRUCOES_SISTEMA),
+    /** Medido: 4.161 tokens lidos do cache (instruções + esquema da saída estruturada). */
+    sistema: Math.max(tokens(INSTRUCOES_SISTEMA), 4200),
     /** Pedido, tipo, tom, público, marca + instruções do formato de saída. Medido: 1.292. */
     pedido: 1300,
     /** Pensamento (esforço médio) e estrutura do JSON. Medido: 2.170 tokens no total para 10 telas. */
@@ -41,13 +52,14 @@ export const ESTIMATIVA = {
     saidaPorTela: 200,
   },
   design: {
-    sistema: tokens(INSTRUCOES_DESIGN),
+    /** Medido: ≈ 5.100 tokens (catálogo + esquema da saída estruturada; o prefixo com o deck de 10 telas deu 6.717). */
+    sistema: Math.max(tokens(INSTRUCOES_DESIGN), 5100),
     /** Briefing + plano; o roteiro cresce com o número de telas. */
     deckBase: 300,
     deckPorTela: 130,
     sufixo: 60,
-    /** Pensamento (esforço médio) + JSON da tela (campos vazios quando o roteiro já serve). Medido: 100–236 por tela. */
-    saida: 300,
+    /** Pensamento (esforço médio) + JSON da tela (campos vazios quando o roteiro já serve). Medido: 113–236 por tela. */
+    saida: 250,
   },
   tela: { sistema: tokens(INSTRUCOES_TELA), entrada: 700, saida: 900 },
   texto: { sistema: tokens(INSTRUCOES_TEXTO), entrada: 600, saida: 600 },
@@ -156,6 +168,19 @@ export function margemDoPacote(creditos: number, precoBRL: number) {
   const custoIaMax = creditos * USD_POR_CREDITO * CAMBIO_BRL_POR_USD
   return { creditos, precoBRL, custoIaMaxBRL: custoIaMax, pesoIa: custoIaMax / receitaLiquida, margemBrutaMin: 1 - custoIaMax / receitaLiquida }
 }
+
+/** Menor receita líquida por crédito entre planos (mensal e anual) e pacotes: o pior caso para a margem. */
+export function valorLiquidoMinimoCreditoBRL(): number {
+  const planos = (Object.values(PLANOS) as (typeof PLANOS)[PlanoId][]).filter((p) => p.precoMensalBRL > 0)
+  const valores = [
+    ...planos.flatMap((p) => [p.precoMensalBRL, p.precoAnualBRL].map((preco) => (preco * (1 - DEDUCOES_RECEITA)) / p.creditos.quantidade)),
+    ...PACOTES_AVULSOS.map((p) => (p.precoBRL * (1 - DEDUCOES_RECEITA)) / p.creditos),
+  ]
+  return Math.min(...valores)
+}
+
+/** Lucro sobre a receita líquida de uma ação que cobra `creditos` e custa `usd` de IA, no crédito mais barato. */
+export const lucroDaAcao = (creditos: number, usd: number) => (creditos > 0 ? 1 - (usd * CAMBIO_BRL_POR_USD) / (creditos * valorLiquidoMinimoCreditoBRL()) : -Infinity)
 
 /** Tabela de custo por ação (para a documentação e o teste). */
 export function tabelaAcoes(telasLista = [6, 8, 10, 12, 20]) {

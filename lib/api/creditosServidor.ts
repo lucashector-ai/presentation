@@ -35,6 +35,7 @@ export interface CobrancaIa {
 
 /**
  * Cobra antes de chamar o modelo, já com a previsão de custo em USD e o modelo planejado no extrato
+ * (custo 0 = ação grátis: só registra o uso, sem débito nem linha no extrato)
  * (função SQL `debitar_creditos_ia`). Depois da chamada, `registrar` troca a previsão pelo uso medido;
  * se a geração falhar, `estornar` devolve os créditos (o custo do que foi consumido continua registrado).
  */
@@ -44,6 +45,18 @@ export async function cobrarIaComUso(
   motivos: { debito: string; estorno: string; semSaldo: string },
   previsao: { acao: AcaoIa; modelo: string; custoUsd: number }
 ): Promise<CobrancaIa> {
+  // ação grátis (custo 0): nada é debitado, mas o custo da IA fica registrado em ai_usos (margem real)
+  if (custo <= 0) {
+    const [u] = await sql()`insert into public.ai_usos (workspace_id, ai_action, ai_model, ai_cost_usd) values (${ctx.workspaceId}::uuid, ${previsao.acao}, ${previsao.modelo}, ${previsao.custoUsd.toFixed(6)}::numeric) returning id`
+    const id = u?.id == null ? null : Number(u.id)
+    return {
+      estornar: async () => {},
+      registrar: async (r) => {
+        if (id == null) return
+        await sql()`update public.ai_usos set ai_model = ${r.modelo}, ai_cost_usd = ${r.custoUsd.toFixed(6)}::numeric, ai_cost_source = 'uso', ai_input_tokens = ${Math.round(r.uso.entrada)}, ai_output_tokens = ${Math.round(r.uso.saida)}, ai_cache_read_tokens = ${Math.round(r.uso.cacheLeitura)}, ai_cache_write_tokens = ${Math.round(r.uso.cacheEscrita)} where id = ${id} and workspace_id = ${ctx.workspaceId}::uuid`
+      },
+    }
+  }
   let transacao: number | null = null
   try {
     const [r] = await sql()`select transacao from public.debitar_creditos_ia(${ctx.workspaceId}::uuid, ${custo}::int, ${motivos.debito}, ${previsao.acao}, ${previsao.modelo}, ${previsao.custoUsd.toFixed(6)}::numeric)`

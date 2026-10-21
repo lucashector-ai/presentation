@@ -133,7 +133,7 @@ export function CalculadoraApresentacao() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="m-0 flex items-center gap-2.5 text-[17px] font-semibold tracking-[-0.02em]"><span aria-hidden className="h-2.5 w-2.5 rounded-full bg-violeta" />Gerar uma apresentação</p>
-          <p className="m-0 mt-1 text-[13px] text-[#525252]">roteiro + telas desenhadas, prontas para editar</p>
+          <p className="m-0 mt-1 text-[13px] text-[#525252]">roteiro grátis + telas desenhadas, prontas para editar</p>
         </div>
         <p className="m-0 text-right" aria-live="polite">
           <span className="block text-[34px] font-semibold leading-none tracking-[-0.04em]">{total}</span>
@@ -146,7 +146,7 @@ export function CalculadoraApresentacao() {
             <button key={n} type="button" role="radio" aria-checked={telas === n} onClick={() => setTelas(n)} className={`rounded-full px-3 py-1.5 font-semibold transition-colors ${telas === n ? 'bg-grafite text-[#FAFAF9]' : 'text-grafite hover:bg-[#F3F2F0]'}`}>{n} telas</button>
           ))}
         </div>
-        <span className="font-mono text-[12px] text-[#525252]">{CUSTO_APRESENTACAO.roteiro} pelo roteiro + {telas} × {CUSTO_APRESENTACAO.porTela} por tela</span>
+        <span className="font-mono text-[12px] text-[#525252]">1 crédito por tela · roteiro grátis</span>
       </div>
     </div>
   )

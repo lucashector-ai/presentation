@@ -17,8 +17,9 @@ const aviso = (requestId: string, mensagem: string) => console.error(JSON.string
 /**
  * POST /api/ai/roteiro — etapa 1 do "Criar com IA": escreve o roteiro (estrutura e texto de cada tela).
  * Com ANTHROPIC_API_KEY usa o Claude (Sonnet); sem chave (ou se a API estiver fora do ar) usa o gerador local.
- * Fora do modo demo exige sessão e debita o roteiro (parte fixa + parte de cada tela + material longo) antes de
- * chamar o modelo, com a previsão de custo; depois grava o custo medido. Se falhar, estorna.
+ * Fora do modo demo exige sessão. O roteiro é grátis (1 crédito = 1 tela, cobrado no design); só material colado
+ * acima de 20 mil caracteres é debitado antes de chamar o modelo. O custo medido é gravado sempre (débito ou
+ * ai_usos), e roteiros grátis têm um teto diário por espaço contra abuso.
  */
 export const POST = rota(async (req, _ctx, requestId) => {
   limitar(`ia:${await hashIp(req)}`, 20, 10 * 60_000)
@@ -31,6 +32,8 @@ export const POST = rota(async (req, _ctx, requestId) => {
   let cobranca: CobrancaIa | null = null
   if (!DEMO) {
     const ctx = await autenticar(req, requestId)
+    // teto de roteiros grátis por espaço (≈ ROTEIROS_GRATIS por apresentação × apresentações de um dia intenso)
+    limitar(`roteiro-gratis:${ctx.workspaceId}`, 40, 24 * 60 * 60_000)
     if (iaConfigurada()) {
       cobranca = await cobrarIaComUso(ctx, custo, { debito: `Roteiro com IA · ${pedido.telas} telas`, estorno: 'Estorno: roteiro com IA não gerado', semSaldo: 'Créditos insuficientes para gerar este roteiro.' }, { acao: 'roteiro', modelo: MODELO_POR_ETAPA.roteiro.id, custoUsd: custoRoteiroUsd(pedido.telas, pedido.conteudo.length).usd })
     }

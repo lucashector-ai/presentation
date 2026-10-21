@@ -577,7 +577,7 @@ export function CriarComIA() {
               </div>
             </div>
             <div className="-mt-3 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-[12px] text-texto3">
-              <span>Apresentação de {telas} telas · <span className="mono text-texto">{custoTotal}</span> créditos (roteiro {custoDoRoteiro} agora + design {custoDesenho(telas)} no fim)</span>
+              <span>Apresentação de {telas} telas · <span className="mono text-texto">{custoTotal}</span> créditos (1 por tela{custoDoRoteiro > 0 ? ` + ${custoDoRoteiro} pelo material longo` : ''}; o roteiro é grátis)</span>
               <span>·</span>
               {semSaldo
                 ? <span className="text-perigo">você tem {saldo.toLocaleString('pt-BR')} <button type="button" onClick={() => abrirCompra()} className="ml-1 font-medium text-acento underline-offset-2 hover:underline">Comprar créditos</button></span>

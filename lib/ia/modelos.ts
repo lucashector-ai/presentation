@@ -31,19 +31,20 @@ export const MODELOS = {
 
 /**
  * Roteamento: o roteiro (estrutura e texto) vai no Sonnet; o desenho de cada tela (composição, hierarquia,
- * ajuste de texto ao layout) no Opus; refazer uma tela no Sonnet; ações curtas de texto no Haiku. A leitura
+ * ajuste de texto ao layout) também no Sonnet — no teste lado a lado de 21/10/2026 o resultado foi equivalente ao
+ * Opus pela metade do custo, porque o layout vem do design system; o Opus fica como qualidade "premium"; refazer uma tela no Sonnet; ações curtas de texto no Haiku. A leitura
  * de PDF escaneado (transcrição do material que vai para o roteiro) fica no mesmo modelo do roteiro.
  */
 export const MODELO_POR_ETAPA: Record<EtapaIA, ModeloIA> = {
   roteiro: MODELOS.sonnet,
-  design: MODELOS.opus,
+  design: MODELOS.sonnet,
   tela: MODELOS.sonnet,
   texto: MODELOS.haiku,
   pdf: MODELOS.sonnet,
 }
 
 /** Modelo do desenho das telas pela qualidade pedida: premium (Opus) ou padrão (Sonnet, metade do custo). */
-export const modeloDoDesenho = (qualidade: 'padrao' | 'premium' = 'premium'): ModeloIA => (qualidade === 'padrao' ? MODELOS.sonnet : MODELO_POR_ETAPA.design)
+export const modeloDoDesenho = (qualidade: 'padrao' | 'premium' = 'padrao'): ModeloIA => (qualidade === 'premium' ? MODELOS.opus : MODELO_POR_ETAPA.design)
 
 /**
  * Esforço e limite de saída por etapa. O roteiro e o design usam streaming (geração longa ou em paralelo);
