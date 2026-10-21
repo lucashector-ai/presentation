@@ -30,7 +30,7 @@ const ATALHOS: [string, string][] = [
   ['V', 'Mover / selecionar'], ['F', 'Frame (arraste para desenhar)'], ['R', 'Retângulo'], ['O', 'Elipse'], ['L', 'Linha'], ['Shift + L', 'Seta'], ['T', 'Texto'], ['S', 'Hotspot (área clicável)'], ['H', 'Mão'], ['Espaço + arrastar', 'Mão temporária (pan)'],
   ['Alt + A / D', 'Alinhar à esquerda / direita'], ['Alt + W / S', 'Alinhar ao topo / à base'], ['Alt + H / V', 'Centralizar na horizontal / vertical'], ['Shift + H / V', 'Espelhar na horizontal / vertical'],
   ['1 … 9 / 0', 'Opacidade 10–90% / 100% (dois dígitos: 5 5 = 55%)'], ['Alt + arrastar', 'Duplicar e arrastar a cópia'],
-  ['Ctrl/⌘ + roda', 'Zoom no cursor'], ['Shift + 1', 'Ajustar à tela'], ['Ctrl/⌘ + 0', 'Zoom 100%'], ['+ / −', 'Zoom'],
+  ['Ctrl/⌘ + roda', 'Zoom no cursor'], ['Shift + 1', 'Ajustar à tela'], ['Shift + 2', 'Zoom na seleção'], ['Ctrl/⌘ + Shift + C', 'Copiar como PNG'], ['Ctrl/⌘ + ] / [', 'Um passo à frente / atrás'], ['Ctrl/⌘ + 0', 'Zoom 100%'], ['+ / −', 'Zoom'],
   ['Ctrl/⌘ + C / X / V', 'Copiar, recortar, colar (também do Figma e Illustrator)'], ['Ctrl/⌘ + D', 'Duplicar'], ['Delete', 'Excluir'],
   ['Ctrl/⌘ + G', 'Agrupar'], ['Ctrl/⌘ + Shift + G', 'Desagrupar / desfazer frame'], ['Ctrl/⌘ + Alt + G', 'Envolver em frame'], ['Shift + A', 'Adicionar auto layout'], ['Shift + Alt + A', 'Remover auto layout'],
   ['Enter', 'Editar texto / selecionar filhos'], ['Shift + Enter', 'Selecionar frame pai'], ['Ctrl/⌘ + clique', 'Selecionar camada dentro do frame'], ['Ctrl/⌘ + Alt + C / V', 'Copiar / colar estilo'],
@@ -207,6 +207,9 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
       if (mod && k === 'a' && cena) { e.preventDefault(); acoes.selecionarExato(cena.layers.filter((l) => !l.locked && !l.hidden).map((l) => l.id)); return }
       if (mod && k === 'l' && sel.length) { e.preventDefault(); acoes.atualizarCamadas(sel, (l) => ({ ...l, locked: !l.locked })); return }
       if (mod && e.shiftKey && k === 'h' && sel.length) { e.preventDefault(); acoes.atualizarCamadas(sel, (l) => ({ ...l, hidden: !l.hidden })); return }
+      // ⌘] / ⌘[ um passo; ⌥⌘] / ⌥⌘[ para frente / para trás (como no Figma)
+      if (mod && (e.code === 'BracketRight' || e.code === 'BracketLeft') && sel[0]) { e.preventDefault(); const f = e.code === 'BracketRight'; acoes.ordem(sel[0], e.altKey ? (f ? 'frente' : 'tras') : f ? 'avancar' : 'recuar'); return }
+      if (mod && e.shiftKey && k === 'c') { e.preventDefault(); window.dispatchEvent(new Event('mostra:copiar-png')); return }
       if (mod && k === '0') { e.preventDefault(); acoes.setZoom(1); return }
       if (mod) return
       // auto layout e grade (atalhos do Figma)
@@ -225,6 +228,7 @@ export function EditorShell({ projetoId }: { projetoId: string }) {
       if (e.key === 'Escape') { acoes.selecionarExato([]); acoes.setFerramenta('mover'); setMenu(null); return }
       if (e.key === '?' ) { setAtalhos(true); return }
       if (e.shiftKey && e.key === '!') { acoes.ajustar(); return }
+      if (e.shiftKey && e.code === 'Digit2' && sel.length) { window.dispatchEvent(new Event('mostra:zoom-selecao')); return }
       if (e.key === '+' || e.key === '=') { acoes.setZoom(Math.min(8, escala * 1.2)); return }
       if (e.key === '-') { acoes.setZoom(Math.max(0.05, escala / 1.2)); return }
       if (e.key === ']' && sel[0]) { acoes.ordem(sel[0], e.shiftKey ? 'avancar' : 'frente'); return }

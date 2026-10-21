@@ -54,5 +54,17 @@ export function useExportar(editor: Editor, nomeProjeto?: string) {
     return `PDF com ${doc.scenes.length} ${doc.scenes.length === 1 ? 'página' : 'páginas'} exportado.`
   }), [rodar, estado.documento, assets, nomeProjeto])
 
-  return { ocupado, exportarTela, exportarSelecao, exportarPdf, temSelecao: camadasSelecionadas.length > 0 }
+  /** ⇧⌘C: copia a seleção (ou a tela) como PNG para a área de transferência. */
+  const copiarPng = useCallback(() => rodar('copiar', async () => {
+    if (!cena) throw new Error('Nenhuma tela para copiar.')
+    const alvo = camadasSelecionadas.length ? cenaDaSelecao(cena, camadasSelecionadas.map((l) => l.id)) : cena
+    if (!alvo) throw new Error('Selecione uma camada visível.')
+    if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) throw new Error('Este navegador não copia imagens. Use Exportar.')
+    // o Safari exige o ClipboardItem criado ainda no gesto (antes de qualquer await), com a promessa da imagem
+    const png = import('@/lib/exportar/rasterizar').then((r) => r.cenaParaBlob(alvo, assets, { formato: 'png', escala: 2 }))
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+    return camadasSelecionadas.length ? 'Seleção copiada como PNG.' : 'Tela copiada como PNG.'
+  }), [rodar, cena, camadasSelecionadas, assets])
+
+  return { ocupado, exportarTela, exportarSelecao, exportarPdf, copiarPng, temSelecao: camadasSelecionadas.length > 0 }
 }

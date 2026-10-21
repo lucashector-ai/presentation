@@ -160,6 +160,23 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
     window.addEventListener('mostra:empurrou', g)
     return () => { window.removeEventListener('mostra:editar-texto', f); window.removeEventListener('mostra:empurrou', g) }
   }, [acoes])
+
+  // ⇧2: zoom na seleção (centraliza e ajusta com margem), como no Figma
+  useEffect(() => {
+    const z = () => {
+      const est = editor.estado
+      const c = est.documento.scenes.find((x) => x.id === est.cenaId)
+      const sel = c?.layers.filter((l) => est.selecao.includes(l.id)) ?? []
+      if (!c || !sel.length || !tamanho.width) return
+      const caixa = envolvente(sel)
+      const s2 = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.min((tamanho.width - 160) / Math.max(1, caixa.width), (tamanho.height - 160) / Math.max(1, caixa.height))))
+      const ox = tamanho.width / 2 - (caixa.x + caixa.width / 2) * s2
+      const oy = tamanho.height / 2 - (caixa.y + caixa.height / 2) * s2
+      acoes.ui({ zoom: s2, pan: { x: ox - (tamanho.width - c.size.width * s2) / 2, y: oy - (tamanho.height - c.size.height * s2) / 2 } })
+    }
+    window.addEventListener('mostra:zoom-selecao', z)
+    return () => window.removeEventListener('mostra:zoom-selecao', z)
+  }, [editor.estado, acoes, tamanho])
   useEffect(() => {
     if (!guiasTemporarias) return
     const t = window.setTimeout(() => setGuiasTemporarias(0), Math.max(0, guiasTemporarias - Date.now()))

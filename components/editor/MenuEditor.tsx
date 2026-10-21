@@ -6,7 +6,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
-import { Download, Eye, FileText, Info, Keyboard, Loader2, MonitorPlay, MoreHorizontal, Play, Redo2, Undo2 } from 'lucide-react'
+import { Copy, Download, Eye, FileText, Info, Keyboard, Loader2, MonitorPlay, MoreHorizontal, Play, Redo2, Undo2 } from 'lucide-react'
 import type { Editor } from '@/lib/editor/useEditor'
 import { ESCALAS, type FormatoImagem } from '@/lib/exportar/medidas'
 import { cx } from '@/components/ui'
@@ -37,6 +37,12 @@ export function MenuEditor({ editor, projetoId, nomeProjeto, aoPreview, aoAprese
     return () => { document.removeEventListener('pointerdown', fora); document.removeEventListener('keydown', esc, true) }
   }, [aberto])
   const fechar = (fn: () => void) => () => { setAberto(false); fn() }
+  const copiar = exp.copiarPng
+  useEffect(() => {
+    const f = () => void copiar()
+    window.addEventListener('mostra:copiar-png', f)
+    return () => window.removeEventListener('mostra:copiar-png', f)
+  }, [copiar])
   const girando = (id: string) => (exp.ocupado === id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null)
 
   return (
@@ -66,6 +72,7 @@ export function MenuEditor({ editor, projetoId, nomeProjeto, aoPreview, aoAprese
           </div>
           <Item icone={girando('tela') ?? <Download className="h-3.5 w-3.5" />} disabled={!!exp.ocupado} onClick={fechar(() => void exp.exportarTela(formato, escala))}>Exportar tela atual</Item>
           <Item icone={girando('selecao') ?? <Download className="h-3.5 w-3.5" />} disabled={!!exp.ocupado || !exp.temSelecao} title={exp.temSelecao ? undefined : 'Selecione camadas no canvas'} onClick={fechar(() => void exp.exportarSelecao(formato, escala))}>Exportar seleção</Item>
+          <Item icone={girando('copiar') ?? <Copy className="h-3.5 w-3.5" />} disabled={!!exp.ocupado} onClick={fechar(() => void exp.copiarPng())}>Copiar como PNG <span className="mono float-right text-[11px] text-texto3">⇧⌘C</span></Item>
           <Item icone={girando('pdf') ?? <FileText className="h-3.5 w-3.5" />} disabled={!!exp.ocupado} onClick={fechar(() => void exp.exportarPdf())}>Exportar apresentação em PDF</Item>
           <div className="my-1 h-px bg-borda" />
           <Link role="menuitem" href={`/app/projects/${projetoId}`} onClick={() => acoes.salvarAgora()} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] hover:bg-hover"><Info className="h-3.5 w-3.5" /> Detalhes do projeto</Link>
