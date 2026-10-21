@@ -30,6 +30,8 @@ export const PedidoDesignSchema = z.object({
   publico: z.string().trim().max(200).default(''),
   tom: z.enum(TONS).default('profissional'),
   marca: MarcaSchema.default({ nome: '', cores: [] }),
+  /** Modelo do desenho: premium = Opus (padrão); padrao = Sonnet, mais barato. */
+  qualidade: z.enum(['padrao', 'premium']).default('premium'),
 }).refine((p) => p.indices.every((i) => i < p.roteiro.telas.length), { message: 'Tela fora do roteiro.', path: ['indices'] })
 export type PedidoDesign = z.infer<typeof PedidoDesignSchema>
 

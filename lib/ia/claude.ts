@@ -13,7 +13,7 @@ import 'server-only'
 import Anthropic from '@anthropic-ai/sdk'
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod'
 import { DesenhoModeloSchema, INSTRUCOES_DESIGN, mensagemDeck, mensagemTelaDesign, normalizarDesenho, type PedidoDesign } from './design'
-import { CONFIG_ETAPA, MODELO_POR_ETAPA, custoDaResposta, type ModeloIA, type UsoTokens } from './modelos'
+import { CONFIG_ETAPA, MODELO_POR_ETAPA, custoDaResposta, modeloDoDesenho, type ModeloIA, type UsoTokens } from './modelos'
 import type { TelaDesenhada } from './montagem'
 import { normalizarRoteiro, RoteiroModeloSchema, type PedidoRoteiro } from './pedido'
 import { INSTRUCOES_PDF, mensagemPdf, normalizarPaginasLidas, PaginasLidasSchema, type PaginaLida } from './pdf'
@@ -72,7 +72,7 @@ export interface ResultadoDesenho { indice: number; desenho: TelaDesenhada | nul
  * Telas que falham voltam com `desenho: null` (a rota usa o desenho local e estorna o crédito delas).
  */
 export async function desenharTelasClaude(p: PedidoDesign, sinal?: AbortSignal, paralelo = 4): Promise<{ telas: ResultadoDesenho[]; modelo: string; custo: CustoIa | null }> {
-  const m = MODELO_POR_ETAPA.design
+  const m = modeloDoDesenho(p.qualidade)
   const story = p.formato === 'story'
   // catálogo igual para todos os decks: cache de 1 hora; o roteiro do deck (na mensagem) fica no de 5 minutos
   const sistema = [{ type: 'text' as const, text: INSTRUCOES_DESIGN, cache_control: { type: 'ephemeral' as const, ttl: '1h' as const } }]

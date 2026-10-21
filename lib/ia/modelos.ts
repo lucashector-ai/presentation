@@ -42,6 +42,9 @@ export const MODELO_POR_ETAPA: Record<EtapaIA, ModeloIA> = {
   pdf: MODELOS.sonnet,
 }
 
+/** Modelo do desenho das telas pela qualidade pedida: premium (Opus) ou padrão (Sonnet, metade do custo). */
+export const modeloDoDesenho = (qualidade: 'padrao' | 'premium' = 'premium'): ModeloIA => (qualidade === 'padrao' ? MODELOS.sonnet : MODELO_POR_ETAPA.design)
+
 /**
  * Esforço e limite de saída por etapa. O roteiro e o design usam streaming (geração longa ou em paralelo);
  * o design roda uma chamada por tela, com o catálogo e o roteiro em cache.

@@ -6,7 +6,7 @@ import { PedidoDesignSchema, type RespostaDesign } from '@/lib/ia/design'
 import { resolverTema } from '@/lib/ia/designSystem'
 import { desenharLocal } from '@/lib/ia/desenhoLocal'
 import { custoDesenhoUsd } from '@/lib/ia/economia'
-import { MODELO_POR_ETAPA } from '@/lib/ia/modelos'
+import { modeloDoDesenho } from '@/lib/ia/modelos'
 import { custoDesenho, DIVISAO_TELA } from '@/lib/planos'
 
 export const dynamic = 'force-dynamic'
@@ -37,7 +37,7 @@ export const POST = rota(async (req, _ctx, requestId) => {
   if (!DEMO) {
     const ctx = await autenticar(req, requestId)
     if (iaConfigurada()) {
-      cobranca = await cobrarIaComUso(ctx, custo, { debito: `Design com IA · ${n} ${n === 1 ? 'tela' : 'telas'}`, estorno: 'Estorno: design com IA não gerado', semSaldo: 'Créditos insuficientes para desenhar estas telas.' }, { acao: 'design', modelo: MODELO_POR_ETAPA.design.id, custoUsd: custoDesenhoUsd(n, pedido.roteiro.telas.length).usd })
+      cobranca = await cobrarIaComUso(ctx, custo, { debito: `Design com IA · ${n} ${n === 1 ? 'tela' : 'telas'}`, estorno: 'Estorno: design com IA não gerado', semSaldo: 'Créditos insuficientes para desenhar estas telas.' }, { acao: 'design', modelo: modeloDoDesenho(pedido.qualidade).id, custoUsd: custoDesenhoUsd(n, pedido.roteiro.telas.length).usd })
     }
   }
 
