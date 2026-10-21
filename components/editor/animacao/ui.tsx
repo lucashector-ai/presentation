@@ -3,9 +3,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Play, Square } from 'lucide-react'
 import type { Animacao, Loop, Transicao } from '@/lib/scene/schema'
-import { PRESETS_LOOP, animacaoDoPreset, type TipoAnimacao, type TipoLoop } from '@/lib/scene/animacoes'
+import { PRESETS_LOOP, animacaoDoPreset, ehAnimacaoDeTexto, type PresetEntrada, type TipoAnimacao, type TipoLoop } from '@/lib/scene/animacoes'
 import { EASING_CSS } from '@/lib/scene/motor'
-import { TextoSegmentado, planoAnimacao } from '@/components/renderer/animacao'
+import { Desenho, TextoSegmentado, planoAnimacao } from '@/components/renderer/animacao'
 import { usePreferencias } from '@/components/renderer/useTamanho'
 import { cx } from '@/components/ui'
 
@@ -95,7 +95,8 @@ export function CartaoPreset({ selecionado, rotulo, aoClicar, children, titulo, 
       onBlur={() => setTocando(false)}
       className={cx('group flex min-w-0 flex-col gap-1 rounded-lg border p-1 pb-1.5 text-left transition-colors', selecionado ? 'border-acento bg-acentoSuave' : 'border-borda bg-superficie hover:border-bordaForte')}
     >
-      <span className={cx('relative block h-10 w-full overflow-hidden rounded-[6px]', selecionado ? 'bg-superficie' : 'bg-superficie2')}>{children(tocando)}</span>
+      {/* sem eventos na prévia: ela remonta ao passar o mouse, e um clique que começa num nó removido não conta */}
+      <span className={cx('pointer-events-none relative block h-10 w-full overflow-hidden rounded-[6px]', selecionado ? 'bg-superficie' : 'bg-superficie2')}>{children(tocando)}</span>
       <span className={cx('block px-0.5 text-[11px] leading-tight', duasLinhas ? 'line-clamp-2 min-h-[26px]' : 'truncate', selecionado ? 'font-medium text-acento' : 'text-texto2 group-hover:text-texto')}>{rotulo}</span>
     </button>
   )
@@ -126,37 +127,48 @@ const ESCALA = 0.25 // a prévia usa coordenadas de referência (como a cena) e 
 
 /**
  * Miniatura de um preset com os MESMOS keyframes/estilos do renderizador.
- * `tipo` = entrada/saída; `loop` = ênfase. Texto mostra a divisão real em palavras/letras.
+ * `tipo`/`preset` = entrada/saída (o preset traz os ajustes da variação); `loop` = ênfase.
+ * Texto mostra a divisão real em palavras/letras (número, no contador).
  */
-export function MiniPrevia({ tipo, loop, saida, texto, tocando, cor = '#5965F2' }: { tipo?: TipoAnimacao; loop?: TipoLoop; saida?: boolean; texto?: boolean; tocando: boolean; cor?: string }) {
+export function MiniPrevia({ tipo: tipoProp, preset, loop, saida, texto, tocando, cor = '#5965F2' }: { tipo?: TipoAnimacao; preset?: PresetEntrada; loop?: TipoLoop; saida?: boolean; texto?: boolean; tocando: boolean; cor?: string }) {
   const { reduzirMovimento } = usePreferencias()
-  const anim: Animacao | undefined = tipo && tipo !== 'none' ? animacaoDoPreset(tipo) : undefined
+  const tipo = preset?.id ?? tipoProp
+  const anim: Animacao | undefined = useMemo(() => (tipo && tipo !== 'none' ? animacaoDoPreset(tipo, undefined, preset) : undefined), [tipo, preset])
   const loopDef: Loop | undefined = useMemo(() => (loop ? { type: loop, duration: Math.min(PRESETS_LOOP.find((p) => p.id === loop)?.duracao ?? 2000, 2400), intensity: 1.8 } : undefined), [loop])
   const temAnim = !!anim || !!loopDef
   const ativo = tocando && !reduzirMovimento && temAnim
   const ciclo = useCiclo(ativo, loopDef ? null : (anim?.duration ?? 600) + 900)
-  const plano = temAnim ? planoAnimacao({ entrada: saida ? undefined : anim, saida: saida ? anim : undefined, loop: loopDef, reduzir: false, ehTexto: !!texto }) : {}
-  const vars = { ['--op' as string]: 1, ['--tf' as string]: 'translate(0)', ['--amp' as string]: loopDef?.intensity ?? 1 }
+  const desenho = tipo === 'draw'
+  const plano = temAnim ? planoAnimacao({ entrada: saida ? undefined : anim, saida: saida ? anim : undefined, loop: loopDef, reduzir: false, ehTexto: !!texto, desenhavel: desenho }) : {}
+  const vars = { ['--op' as string]: 1, ['--tf' as string]: 'translate(0)', ['--amp' as string]: loopDef?.intensity ?? 1, ['--clip-final' as string]: 'none' }
   // parado: congela os mesmos keyframes no meio do movimento, para cada cartão mostrar o "jeito" do efeito
   const ref = useRef<HTMLSpanElement>(null)
   useLayoutEffect(() => {
     const el = ref.current
     if (ativo || !temAnim || !el || typeof el.getAnimations !== 'function') return
-    const t = loopDef ? loopDef.duration * (loop === 'pulse' || loop === 'float' ? 0.5 : 0.25) : (anim?.duration ?? 600) * (saida ? 0.55 : tipo === 'reveal' || tipo === 'typewriter' || tipo === 'letters' || tipo === 'words' ? 0.45 : 0.2)
+    const meio = tipo === 'reveal' || tipo === 'mask' || tipo === 'iris' || tipo === 'draw' || tipo === 'unfold' || tipo === 'expand' || (!!tipo && ehAnimacaoDeTexto(tipo))
+    const t = loopDef ? loopDef.duration * (loop === 'pulse' || loop === 'float' || loop === 'glow' ? 0.5 : 0.25) : (anim?.duration ?? 600) * (saida ? 0.55 : tipo === 'bounce' ? 0.62 : meio ? 0.45 : 0.2)
     for (const a of el.getAnimations({ subtree: true })) {
       a.pause()
       a.currentTime = t
     }
   }, [ativo, temAnim, ciclo, anim?.duration, loopDef, loop, saida, tipo])
   const chave = `${ativo ? 'a' : 'p'}-${ciclo}`
+  const amostra = tipo === 'counter' ? '38%' : tipo === 'lines' ? 'Olá\nmundo' : 'Olá mundo'
   return (
     <span ref={ref} aria-hidden className="absolute left-1/2 top-1/2" style={{ width: 288, height: 160, marginLeft: -144, marginTop: -80, transform: `scale(${ESCALA})` }}>
       {texto ? (
-        <span key={chave} style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 46, fontWeight: 600, letterSpacing: -1.5, color: 'rgb(var(--cor-texto))', whiteSpace: 'pre-wrap', ...vars, ...plano.estilo }}>
-          {plano.texto ? <TextoSegmentado texto="Olá mundo" animacao={plano.texto} /> : 'Olá mundo'}
+        <span key={chave} className={plano.classe} style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize: 46, lineHeight: 1.05, fontWeight: 600, letterSpacing: -1.5, color: 'rgb(var(--cor-texto))', whiteSpace: 'pre-wrap', ...vars, ...plano.estilo }}>
+          <span>{plano.texto ? <TextoSegmentado texto={amostra} animacao={plano.texto} cor="#5965F2" /> : amostra}</span>
+        </span>
+      ) : desenho ? (
+        <span key={chave} className={plano.classe} style={{ position: 'absolute', left: 84, top: 30, width: 120, height: 100, ...vars, ...plano.estilo }}>
+          <Desenho ativo style={{ width: '100%', height: '100%' }}>
+            <svg viewBox="0 0 120 100" width="120" height="100"><polygon points="60,6 74,40 112,42 82,64 92,96 60,76 28,96 38,64 8,42 46,40" fill="#C9CCF7" stroke={cor} strokeWidth="5" strokeLinejoin="round" /></svg>
+          </Desenho>
         </span>
       ) : (
-        <span key={chave} style={{ position: 'absolute', left: 84, top: 40, width: 120, height: 80, borderRadius: 16, background: cor, boxShadow: cor === '#5965F2' ? '0 8px 20px -8px rgba(89,101,242,.6)' : undefined, ...vars, ...plano.estilo }} />
+        <span key={chave} className={plano.classe} style={{ position: 'absolute', left: 84, top: 40, width: 120, height: 80, borderRadius: 16, background: cor, boxShadow: cor === '#5965F2' ? '0 8px 20px -8px rgba(89,101,242,.6)' : undefined, ...vars, ...plano.estilo }} />
       )}
     </span>
   )

@@ -61,58 +61,111 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 ::selection { background: rgb(var(--cor-acento) / .2); }
 
 /* ===== MOSTRA · ANIMAÇÕES DE CAMADA — início =====
-   Catálogo: lib/scene/schema.ts (TIPOS_ANIMACAO, TIPOS_LOOP) e lib/scene/animacoes.ts (presets).
-   Variáveis definidas pelo renderizador (components/renderer/animacao.ts):
-   --tf  transform base da camada (rotação/espelho), --op opacidade final, --amp intensidade do loop.
-   As listas de transform têm a mesma forma em todos os quadros para interpolar sem saltos. */
+   Catálogo: lib/scene/schema.ts (TIPOS_ANIMACAO, TIPOS_LOOP), lib/scene/parametros.ts (família de keyframes,
+   padrões e variáveis de cada tipo) e lib/scene/animacoes.ts (presets). Guia: docs/animacoes.md.
+   Variáveis definidas pelo renderizador (components/renderer/animacao.tsx):
+   --tf  transform base da camada (rotação/espelho), --op opacidade final, --amp intensidade do loop;
+   --anim-dx/-dy deslocamento, --anim-sx/-sy escala, --anim-rot rotação, --anim-blur desfoque, --anim-op opacidade
+   inicial (final, nas saídas), --anim-ox/-oy origem da transformação (% a partir do centro), --anim-rx/-ry giro 3D,
+   --clip-de/--clip-ate cortina, --mask-x/-y máscara, --iris-pos/--iris-r íris, --clip-final recorte depois do fim.
+   As listas de transform têm a mesma forma em todos os quadros para interpolar sem saltos. Recortes (cortina,
+   máscara, íris) e o 3D terminam em 99,9% e soltam no último quadro: sombras/brilhos não ficam cortados e o
+   texto não fica rasterizado em 3D depois do fim. */
 @keyframes anim-fadeIn { from { opacity: 0 } to { opacity: var(--op, 1) } }
 @keyframes anim-fadeOut { from { opacity: var(--op, 1) } to { opacity: 0 } }
-@keyframes anim-slideUp { from { opacity: 0; transform: translateY(40px) var(--tf, translate(0)) } to { opacity: var(--op, 1); transform: translateY(0) var(--tf, translate(0)) } }
-@keyframes anim-slideDown { from { opacity: 0; transform: translateY(-40px) var(--tf, translate(0)) } to { opacity: var(--op, 1); transform: translateY(0) var(--tf, translate(0)) } }
-@keyframes anim-slideLeft { from { opacity: 0; transform: translateX(40px) var(--tf, translate(0)) } to { opacity: var(--op, 1); transform: translateX(0) var(--tf, translate(0)) } }
-@keyframes anim-slideRight { from { opacity: 0; transform: translateX(-40px) var(--tf, translate(0)) } to { opacity: var(--op, 1); transform: translateX(0) var(--tf, translate(0)) } }
-@keyframes anim-scaleIn { from { opacity: 0; transform: scale(.92) var(--tf, translate(0)) } to { opacity: var(--op, 1); transform: scale(1) var(--tf, translate(0)) } }
-@keyframes anim-scaleOut { from { opacity: var(--op, 1); transform: scale(1) var(--tf, translate(0)) } to { opacity: 0; transform: scale(.92) var(--tf, translate(0)) } }
-@keyframes anim-reveal { from { clip-path: inset(0 100% 0 0) } to { clip-path: inset(0 0 0 0) } }
-@keyframes anim-blurIn { from { opacity: 0; filter: blur(24px) } to { opacity: var(--op, 1); filter: blur(0) } }
-@keyframes anim-rotateIn { from { opacity: 0; transform: rotate(-12deg) scale(.94) var(--tf, translate(0)) } to { opacity: var(--op, 1); transform: rotate(0deg) scale(1) var(--tf, translate(0)) } }
+/* movimento genérico: desloca + gira + escala (com origem) e, na variante Blur, desfoca */
+@keyframes anim-mov { from { opacity: var(--anim-op, 0); transform: translate(var(--anim-dx, 0px), var(--anim-dy, 0px)) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(var(--anim-rot, 0deg)) scale(var(--anim-sx, 1), var(--anim-sy, 1)) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) } to { opacity: var(--op, 1); transform: translate(0px, 0px) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(0deg) scale(1, 1) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) } }
+@keyframes anim-movBlur { from { opacity: var(--anim-op, 0); transform: translate(var(--anim-dx, 0px), var(--anim-dy, 0px)) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(var(--anim-rot, 0deg)) scale(var(--anim-sx, 1), var(--anim-sy, 1)) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)); filter: blur(var(--anim-blur, 0px)) } to { opacity: var(--op, 1); transform: translate(0px, 0px) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(0deg) scale(1, 1) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)); filter: none } }
+@keyframes anim-movSai { from { opacity: var(--op, 1); transform: translate(0px, 0px) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(0deg) scale(1, 1) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) } to { opacity: var(--anim-op, 0); transform: translate(var(--anim-dx, 0px), var(--anim-dy, 0px)) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(var(--anim-rot, 0deg)) scale(var(--anim-sx, 1), var(--anim-sy, 1)) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) } }
+@keyframes anim-movSaiBlur { from { opacity: var(--op, 1); transform: translate(0px, 0px) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(0deg) scale(1, 1) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)); filter: none } to { opacity: var(--anim-op, 0); transform: translate(var(--anim-dx, 0px), var(--anim-dy, 0px)) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(var(--anim-rot, 0deg)) scale(var(--anim-sx, 1), var(--anim-sy, 1)) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)); filter: blur(var(--anim-blur, 0px)) } }
+/* ênfase: pop (ultrapassa proporcional à escala inicial), elástico e quique */
 @keyframes anim-pop {
-  0% { opacity: 0; transform: scale(.5) var(--tf, translate(0)) }
-  55% { opacity: var(--op, 1); transform: scale(1.08) var(--tf, translate(0)) }
-  78% { transform: scale(.97) var(--tf, translate(0)) }
-  100% { opacity: var(--op, 1); transform: scale(1) var(--tf, translate(0)) }
+  0% { opacity: var(--anim-op, 0); transform: translate(0px, 0px) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(0deg) scale(var(--anim-sx, .5), var(--anim-sx, .5)) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) }
+  55% { opacity: var(--op, 1); transform: translate(0px, 0px) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(0deg) scale(calc(1 + (1 - var(--anim-sx, .5)) * .16), calc(1 + (1 - var(--anim-sx, .5)) * .16)) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) }
+  78% { transform: translate(0px, 0px) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(0deg) scale(calc(1 - (1 - var(--anim-sx, .5)) * .06), calc(1 - (1 - var(--anim-sx, .5)) * .06)) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) }
+  100% { opacity: var(--op, 1); transform: translate(0px, 0px) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(0deg) scale(1, 1) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) }
 }
-@keyframes anim-zoomOut { from { opacity: 0; transform: scale(1.25) var(--tf, translate(0)); filter: blur(6px) } to { opacity: var(--op, 1); transform: scale(1) var(--tf, translate(0)); filter: blur(0) } }
 @keyframes anim-elastic {
-  0% { opacity: 0; transform: scale(.4, .4) var(--tf, translate(0)) }
-  35% { opacity: var(--op, 1); transform: scale(1.14, .88) var(--tf, translate(0)) }
-  52% { transform: scale(.92, 1.08) var(--tf, translate(0)) }
-  68% { transform: scale(1.05, .96) var(--tf, translate(0)) }
-  84% { transform: scale(.99, 1.01) var(--tf, translate(0)) }
-  100% { opacity: var(--op, 1); transform: scale(1, 1) var(--tf, translate(0)) }
+  0% { opacity: var(--anim-op, 0); transform: translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) scale(var(--anim-sx, .4), var(--anim-sy, .4)) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) }
+  35% { opacity: var(--op, 1); transform: translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) scale(1.14, .88) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) }
+  52% { transform: translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) scale(.92, 1.08) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) }
+  68% { transform: translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) scale(1.05, .96) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) }
+  84% { transform: translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) scale(.99, 1.01) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) }
+  100% { opacity: var(--op, 1); transform: translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) scale(1, 1) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) }
 }
-/* saídas */
-@keyframes anim-slideOutUp { from { opacity: var(--op, 1); transform: translateY(0) var(--tf, translate(0)) } to { opacity: 0; transform: translateY(-40px) var(--tf, translate(0)) } }
-@keyframes anim-slideOutDown { from { opacity: var(--op, 1); transform: translateY(0) var(--tf, translate(0)) } to { opacity: 0; transform: translateY(40px) var(--tf, translate(0)) } }
-@keyframes anim-blurOut { from { opacity: var(--op, 1); filter: blur(0) } to { opacity: 0; filter: blur(16px) } }
-/* texto dividido (máquina de escrever, palavra por palavra, letra por letra): cada parte é um <span class="seg-texto"> */
+@keyframes anim-bounce {
+  0% { opacity: var(--anim-op, 0); transform: translate(calc(var(--anim-dx, 0px) * 1), calc(var(--anim-dy, 0px) * 1)) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(0deg) scale(1, 1) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)); animation-timing-function: cubic-bezier(.55, 0, 1, .45) }
+  30% { opacity: var(--op, 1) }
+  52% { transform: translate(calc(var(--anim-dx, 0px) * 0), calc(var(--anim-dy, 0px) * 0)) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(0deg) scale(1, 1) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)); animation-timing-function: cubic-bezier(0, .55, .45, 1) }
+  68% { transform: translate(calc(var(--anim-dx, 0px) * .18), calc(var(--anim-dy, 0px) * .18)) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(0deg) scale(1, 1) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)); animation-timing-function: cubic-bezier(.55, 0, 1, .45) }
+  82% { transform: translate(calc(var(--anim-dx, 0px) * 0), calc(var(--anim-dy, 0px) * 0)) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(0deg) scale(1, 1) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)); animation-timing-function: cubic-bezier(0, .55, .45, 1) }
+  91% { transform: translate(calc(var(--anim-dx, 0px) * .05), calc(var(--anim-dy, 0px) * .05)) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(0deg) scale(1, 1) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)); animation-timing-function: cubic-bezier(.55, 0, 1, .45) }
+  100% { opacity: var(--op, 1); transform: translate(calc(var(--anim-dx, 0px) * 0), calc(var(--anim-dy, 0px) * 0)) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotate(0deg) scale(1, 1) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) }
+}
+/* 3D */
+@keyframes anim-flip { 0% { opacity: var(--anim-op, 0); transform: perspective(1200px) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotateX(var(--anim-rx, 0deg)) rotateY(var(--anim-ry, 0deg)) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) } 99.9% { opacity: var(--op, 1); transform: perspective(1200px) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotateX(0deg) rotateY(0deg) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) } 100% { opacity: var(--op, 1); transform: var(--tf, translate(0)) } }
+@keyframes anim-flipSai { 0% { opacity: var(--op, 1); transform: var(--tf, translate(0)) } .1% { transform: perspective(1200px) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotateX(0deg) rotateY(0deg) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) } 100% { opacity: var(--anim-op, 0); transform: perspective(1200px) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotateX(var(--anim-rx, 0deg)) rotateY(var(--anim-ry, 0deg)) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) } }
+/* revelar: cortina (wipe), máscara (o conteúdo sobe de trás de uma borda fixa) e íris */
+@keyframes anim-reveal { 0% { opacity: var(--anim-op, 1); clip-path: var(--clip-de) } 99.9% { opacity: var(--op, 1); clip-path: var(--clip-ate) } 100% { opacity: var(--op, 1); clip-path: var(--clip-final, none) } }
+@keyframes anim-revealSai { 0% { opacity: var(--op, 1); clip-path: var(--clip-final, none) } .1% { clip-path: var(--clip-de) } 100% { opacity: var(--anim-op, 1); clip-path: var(--clip-ate) } }
+@keyframes anim-mask { 0% { transform: translate(var(--mask-x, 0%), var(--mask-y, 0%)) var(--tf, translate(0)); clip-path: inset(calc(-1 * var(--mask-y, 0%)) var(--mask-x, 0%) var(--mask-y, 0%) calc(-1 * var(--mask-x, 0%))) } 99.9% { transform: translate(0%, 0%) var(--tf, translate(0)); clip-path: inset(0% 0% 0% 0%) } 100% { transform: translate(0%, 0%) var(--tf, translate(0)); clip-path: var(--clip-final, none) } }
+@keyframes anim-maskSai { 0% { transform: translate(0%, 0%) var(--tf, translate(0)); clip-path: var(--clip-final, none) } .1% { clip-path: inset(0% 0% 0% 0%) } 100% { transform: translate(var(--mask-x, 0%), var(--mask-y, 0%)) var(--tf, translate(0)); clip-path: inset(calc(-1 * var(--mask-y, 0%)) var(--mask-x, 0%) var(--mask-y, 0%) calc(-1 * var(--mask-x, 0%))) } }
+@keyframes anim-iris { 0% { clip-path: circle(0% at var(--iris-pos, 50% 50%)) } 99.9% { clip-path: circle(var(--iris-r, 72%) at var(--iris-pos, 50% 50%)) } 100% { clip-path: var(--clip-final, none) } }
+@keyframes anim-irisSai { 0% { clip-path: var(--clip-final, none) } .1% { clip-path: circle(var(--iris-r, 72%) at var(--iris-pos, 50% 50%)) } 100% { clip-path: circle(0% at var(--iris-pos, 50% 50%)) } }
+/* desenhar contorno: a camada aparece e os traços do SVG se desenham (--len medido no renderizador) */
+@keyframes anim-draw { 0% { opacity: 0 } 1%, 100% { opacity: var(--op, 1) } }
+@keyframes traco-desenhar { 0% { stroke-dashoffset: var(--len, 0); fill-opacity: 0 } 55% { fill-opacity: 0 } 100% { stroke-dashoffset: 0; fill-opacity: 1 } }
+.camada-desenho :is(path, line, polyline, polygon, rect, circle, ellipse) { stroke-dasharray: var(--len, 0) var(--len, 0); animation: traco-desenhar var(--anim-dur, 800ms) var(--anim-curva, ease) var(--anim-atraso, 0ms) both; }
+/* texto dividido: cada parte é um <span class="seg-texto"> (variáveis --seg-*: deslocamento, desfoque em em, escala, giro) */
+@keyframes seg-mov { from { opacity: var(--seg-op, 0); transform: translate(var(--seg-dx, 0px), var(--seg-dy, 0px)) rotate(var(--seg-rot, 0deg)) scale(var(--seg-escala, 1)) } to { opacity: 1; transform: translate(0px, 0px) rotate(0deg) scale(1) } }
+@keyframes seg-movBlur { from { opacity: var(--seg-op, 0); transform: translate(var(--seg-dx, 0px), var(--seg-dy, 0px)) rotate(var(--seg-rot, 0deg)) scale(var(--seg-escala, 1)); filter: blur(var(--seg-blur, 0px)) } to { opacity: 1; transform: translate(0px, 0px) rotate(0deg) scale(1); filter: none } }
+@keyframes seg-linha { from { opacity: var(--seg-op, 1); transform: translateY(110%) } to { opacity: 1; transform: translateY(0%) } }
 @keyframes seg-typewriter { from { opacity: 0 } to { opacity: 1 } }
-@keyframes seg-words { from { opacity: 0; transform: translateY(.45em); filter: blur(8px) } to { opacity: 1; transform: translateY(0); filter: blur(0) } }
-@keyframes seg-letters { from { opacity: 0; transform: translateY(.6em) } to { opacity: 1; transform: translateY(0) } }
+@keyframes seg-cursor { from, to { box-shadow: .07em 0 0 0 var(--cursor-cor, currentColor) } }
+@keyframes seg-cursor-piscar { 0%, 49.9% { box-shadow: .07em 0 0 0 var(--cursor-cor, currentColor) } 50%, 100% { box-shadow: none } }
+@keyframes seg-scramble { 0% { opacity: 0 } 1%, 100% { opacity: 1 } }
+@keyframes seg-contador { 0% { opacity: 0 } 12%, 100% { opacity: 1 } }
+@keyframes seg-marca { from { background-size: 0% var(--marca-h, .38em) } to { background-size: 100% var(--marca-h, .38em) } }
 .seg-texto { display: inline-block; animation-fill-mode: both; }
 .seg-texto-linha { display: inline; animation-fill-mode: both; }
 .seg-palavra { display: inline-block; white-space: nowrap; }
+/* linha por linha: cada linha renderizada é um bloco; com máscara, a linha sobe de trás da própria borda
+   (o recorte passa .25em da caixa em cima/embaixo para não cortar acentos e descendentes; é clip-path, e não
+   overflow + padding/margem negativa, porque margens de blocos vizinhos se fundem e o entrelinha abria) */
+.seg-linha-caixa { display: block; }
+/* a linha anima como bloco: inline-block dentro do bloco somaria a folga da linha-base e abriria o entrelinha */
+.seg-linha-caixa > .seg-texto { display: block; }
+.seg-linha-caixa.com-mascara { clip-path: inset(-.25em -50% -.25em -50%); }
+/* decodificar: a letra real segura o espaço (sem tremer o texto) e o caractere sorteado aparece por cima */
+.seg-scramble { position: relative; }
+.seg-scramble[data-g] { color: transparent !important; -webkit-text-fill-color: transparent !important; background-image: none !important; }
+.seg-scramble[data-g]::after { content: attr(data-g); position: absolute; left: 0; right: 0; top: 0; text-align: center; color: var(--scr-cor, currentColor); -webkit-text-fill-color: var(--scr-cor, currentColor); }
+/* destaque / sublinhado desenhado: o marcador corre por trás das palavras (atravessa as linhas em sequência) */
+.seg-marca { background-image: linear-gradient(var(--marca-cor, currentColor), var(--marca-cor, currentColor)); background-repeat: no-repeat; background-position: 0 var(--marca-y, 88%); background-size: 100% var(--marca-h, .38em); animation-fill-mode: both; }
+.seg-contador { font-variant-numeric: tabular-nums; animation-fill-mode: both; }
+/* texto completo para leitores de tela: conteúdo gerado não entra na seleção nem no innerText (sem duplicar ao copiar) */
+.texto-acessivel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.texto-acessivel::before { content: attr(data-texto); }
+/* entradas esperando (tela de carregamento, seção do Story ainda fora da janela, câmera do Explorar voando):
+   pausadas no 1º quadro; o atraso também não corre */
+.animacoes-em-espera, .animacoes-em-espera * { animation-play-state: paused !important; }
 /* ênfase em loop (começa quando a entrada termina) */
 @keyframes loop-float { 0%, 100% { transform: translateY(0) var(--tf, translate(0)) } 50% { transform: translateY(calc(-14px * var(--amp, 1))) var(--tf, translate(0)) } }
 @keyframes loop-pulse { 0%, 100% { transform: scale(1) var(--tf, translate(0)) } 50% { transform: scale(calc(1 + .05 * var(--amp, 1))) var(--tf, translate(0)) } }
 @keyframes loop-wiggle { 0%, 100% { transform: rotate(0deg) var(--tf, translate(0)) } 25% { transform: rotate(calc(3deg * var(--amp, 1))) var(--tf, translate(0)) } 75% { transform: rotate(calc(-3deg * var(--amp, 1))) var(--tf, translate(0)) } }
+/* deriva: flutua em x e y com períodos diferentes (nunca repete igual); tremor leve; brilho discreto */
+@keyframes loop-drift { 0%, 100% { transform: translate(0px, 0px) var(--tf, translate(0)) } 25% { transform: translate(calc(6px * var(--amp, 1)), calc(-8px * var(--amp, 1))) var(--tf, translate(0)) } 50% { transform: translate(calc(-4px * var(--amp, 1)), calc(-12px * var(--amp, 1))) var(--tf, translate(0)) } 75% { transform: translate(calc(-7px * var(--amp, 1)), calc(-4px * var(--amp, 1))) var(--tf, translate(0)) } }
+@keyframes loop-shake { 0%, 60%, 100% { transform: translateX(0px) var(--tf, translate(0)) } 10%, 30%, 50% { transform: translateX(calc(-4px * var(--amp, 1))) var(--tf, translate(0)) } 20%, 40% { transform: translateX(calc(4px * var(--amp, 1))) var(--tf, translate(0)) } }
+@keyframes loop-glow { 0%, 100% { filter: drop-shadow(0 0 0 transparent) } 50% { filter: drop-shadow(0 0 calc(14px * var(--amp, 1)) var(--glow-cor, rgba(255, 214, 10, .6))) } }
 @keyframes loop-spin { from { transform: rotate(0deg) var(--tf, translate(0)) } to { transform: rotate(360deg) var(--tf, translate(0)) } }
-.camada-animada { animation-fill-mode: both; will-change: transform, opacity; }
+/* sem will-change fixo: o navegador já promove a camada enquanto a animação roda; deixar will-change depois
+   do fim mantinha dezenas de camadas na GPU e o texto rasterizado na escala inicial (borrado depois de pop/escala) */
+.camada-animada { animation-fill-mode: both; }
 /* movimento reduzido: tudo vira um fade de 150 ms, sem loops (o motor já adapta; isto é a rede de segurança) */
 @media (prefers-reduced-motion: reduce) {
   .camada-animada { animation-name: anim-fadeIn !important; animation-duration: 150ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; animation-timing-function: linear !important; }
   .camada-animada.camada-saida { animation-name: anim-fadeOut !important; }
-  .seg-texto, .seg-texto-linha { animation: none !important; }
+  .seg-texto, .seg-texto-linha, .seg-marca, .seg-contador, .camada-desenho * { animation: none !important; }
 }
 /* ===== MOSTRA · ANIMAÇÕES DE CAMADA — fim ===== */
 

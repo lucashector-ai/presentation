@@ -1,7 +1,7 @@
 'use client'
 /** Aba Animação sem seleção: transição da tela, "Animar tela inteira", linha do tempo e avanço automático. */
 import { useState } from 'react'
-import { Sparkles, Trash2 } from 'lucide-react'
+import { Sparkles, Timer, Trash2 } from 'lucide-react'
 import type { Cena, Transicao } from '@/lib/scene/schema'
 import type { Editor } from '@/lib/editor/useEditor'
 import { ESTILOS_TELA, ORDENS_TELA, animarTelaInteira, duracaoPrevia, removerAnimacoes, type EstiloTela, type OrdemTela } from '@/lib/scene/animacoes'
@@ -32,7 +32,7 @@ const CURVAS_TRANSICAO: { id: Transicao['easing']; rotulo: string }[] = [
 export function AnimacaoTela({ editor }: { editor: Editor }) {
   const { cena, acoes, estado } = editor
   const [estilo, setEstilo] = useState<EstiloTela>('suave')
-  const [ordem, setOrdem] = useState<OrdemTela>('topo')
+  const [ordem, setOrdem] = useState<OrdemTela>('leitura')
   const [avancado, setAvancado] = useState(false)
   const previa = usePreviaAnimacao(true)
   if (!cena) return null
@@ -123,7 +123,7 @@ export function AnimacaoTela({ editor }: { editor: Editor }) {
           </div>
           {cena.autoAdvance > 0 && (
             <div className="flex items-center gap-2">
-              <CampoNum rotulo="Segundos até avançar" prefixo="Tempo" valor={cena.autoAdvance / 1000} min={1} max={600} passo={0.5} casas={1} sufixo="s" aoMudar={(v) => acoes.atualizarCena({ autoAdvance: Math.round(v * 1000) })} />
+              <CampoNum rotulo="Segundos até avançar" prefixo={<Timer className="h-3 w-3" />} valor={cena.autoAdvance / 1000} min={1} max={600} passo={0.5} casas={1} sufixo="s" aoMudar={(v) => acoes.atualizarCena({ autoAdvance: Math.round(v * 1000) })} />
             </div>
           )}
         </Secao>
