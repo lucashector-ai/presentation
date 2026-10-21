@@ -48,7 +48,7 @@ export function irPara(doc: DocumentoProjeto, e: EstadoRuntime, indice: number, 
     indice: alvo,
     visiveis: {},
     animacoes: {},
-    transicao: transicao ?? cena?.transition ?? { type: 'fade', duration: 350 },
+    transicao: transicao ?? cena?.transition ?? { type: 'fade', duration: 400, easing: 'easeInOut' },
     historico: [...e.historico.slice(-50), e.indice],
   }
 }
@@ -109,8 +109,9 @@ export function aoEntrarNaCena(doc: DocumentoProjeto, e: EstadoRuntime): { estad
   let estado = e
   const efeitos: Efeito[] = []
   for (const c of cena.layers) {
-    if (c.interaction?.trigger === 'sceneEnter') {
-      const r = executar(doc, estado, c, c.interaction)
+    for (const inter of c.interactions) {
+      if (inter.trigger !== 'sceneEnter') continue
+      const r = executar(doc, estado, c, inter)
       estado = r.estado
       efeitos.push(...r.efeitos)
     }
@@ -118,15 +119,35 @@ export function aoEntrarNaCena(doc: DocumentoProjeto, e: EstadoRuntime): { estad
   return { estado, efeitos }
 }
 
-/** Reverte o efeito de um hover ao sair (apenas para toggleLayer em modo toggle). */
+/** Interações da camada para um trigger. */
+export function interacoesDe(camada: Camada, trigger: Interacao['trigger']): Interacao[] {
+  return camada.interactions.filter((i) => i.trigger === trigger)
+}
+
+/** Reverte o efeito de hover ao sair (toggleLayer em modo toggle volta ao estado original). */
 export function aoSairHover(doc: DocumentoProjeto, e: EstadoRuntime, camada: Camada): EstadoRuntime {
-  const inter = camada.interaction
-  if (!inter || inter.trigger !== 'hover' || inter.do.action !== 'toggleLayer' || inter.do.mode !== 'toggle') return e
   const cena = cenaAtual(doc, e)
-  const alvo = cena?.layers.find((l) => l.id === (inter.do as { targetLayerId: string }).targetLayerId)
-  if (!alvo) return e
-  const { [alvo.id]: _, ...resto } = e.visiveis
-  return { ...e, visiveis: resto }
+  let visiveis = e.visiveis
+  for (const inter of interacoesDe(camada, 'hover')) {
+    if (inter.do.action !== 'toggleLayer' || inter.do.mode !== 'toggle') continue
+    const alvoId = inter.do.targetLayerId
+    if (!cena?.layers.some((l) => l.id === alvoId)) continue
+    const { [alvoId]: _, ...resto } = visiveis
+    visiveis = resto
+  }
+  return visiveis === e.visiveis ? e : { ...e, visiveis }
+}
+
+/** Executa todas as interações de um trigger em sequência (ex.: um clique que mostra uma camada e toca um vídeo). */
+export function executarTodas(doc: DocumentoProjeto, e: EstadoRuntime, camada: Camada, trigger: Interacao['trigger']): { estado: EstadoRuntime; efeitos: Efeito[] } {
+  let estado = e
+  const efeitos: Efeito[] = []
+  for (const inter of interacoesDe(camada, trigger)) {
+    const r = executar(doc, estado, camada, inter)
+    estado = r.estado
+    efeitos.push(...r.efeitos)
+  }
+  return { estado, efeitos }
 }
 
 /** Com prefers-reduced-motion: substitui por transição instantânea ou fade discreto. */
@@ -137,10 +158,17 @@ export function adaptarAnimacao(a: Animacao, reduzirMovimento: boolean): Animaca
   return { type: saida ? 'fadeOut' : 'fadeIn', duration: 150, delay: 0, easing: 'linear' }
 }
 
+/** Transição de tela sob reduced-motion: tudo vira fade curto (morph inclusive). */
+export function adaptarTransicao(t: Transicao | null, reduzirMovimento: boolean): Transicao | null {
+  if (!t || !reduzirMovimento || t.type === 'none') return t
+  return { type: 'fade', duration: 150, easing: 'linear' }
+}
+
 export const EASING_CSS: Record<Animacao['easing'], string> = {
   linear: 'linear',
   ease: 'ease',
   easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
   easeOut: 'cubic-bezier(0, 0, 0.2, 1)',
   easeInOut: 'cubic-bezier(0.4, 0, 0.2, 1)',
+  spring: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
 }

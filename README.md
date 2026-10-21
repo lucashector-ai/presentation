@@ -1,6 +1,6 @@
-# Plataforma de Apresentações Criativas — MVP
+# Mostra — apresentações para quem cria
 
-SaaS privado para designers, diretores de arte e estúdios: importe artes prontas, monte cenas, adicione interações simples (clique → ir para cena, hover → revelar camada) e envie um **link privado, com senha opcional e revogável**. Construído a partir do blueprint v1.0 (20.10.2026).
+SaaS privado para designers, diretores de arte e estúdios: cole artes do Figma e do Illustrator, traga modelos 3D do Blender, monte telas com animação e interações, peça para a IA escrever o roteiro e envie um **link privado, com senha opcional e revogável**. Construído a partir do blueprint v1.0 (20.10.2026) e do design "Mostra" (protótipo de sete telas).
 
 > Produto privado por padrão. Nada é indexado, listado ou acessível por URL previsível.
 
@@ -9,8 +9,11 @@ SaaS privado para designers, diretores de arte e estúdios: importe artes pronta
 | Área | Status |
 | --- | --- |
 | Schema de cena compartilhado (Zod), validação semântica, motor de interação | ✅ com testes unitários |
-| Editor (cenas, canvas DOM, inspetor, biblioteca de mídias, undo/redo, autosave com revisão) | ✅ protótipo funcional |
-| Visualizador Slides + Story (teclado, toque, fullscreen, pré-carregamento, fallback, reduced motion) | ✅ |
+| Editor profissional (telas, camadas, grupos, guias inteligentes, alinhar/distribuir, cortar/máscara, efeitos, gradientes, curvas de easing, copiar/colar estilo, atalhos, undo/redo, autosave com revisão) | ✅ |
+| Colar/importar de Figma, Illustrator, navegador: SVG (sanitizado), imagens, texto, links (YouTube/Vimeo/Figma/Spline viram embed) | ✅ ver ADR 0006 |
+| 3D (GLB/glTF do Blender via `<model-viewer>`), Lottie, embeds com allowlist | ✅ ver ADR 0007 |
+| Visualizador Slides, Story e Explorar (mapa navegável), transição morph, avanço automático, modo apresentador com notas sincronizado | ✅ |
+| Criar com IA (`/criar`): prompt ou texto → roteiro editável → telas desenhadas; créditos por workspace | ✅ ver ADR 0008 — usa o Claude com `ANTHROPIC_API_KEY`, senão gerador local |
 | Publicação (snapshot imutável) e links (token hash, senha, validade, revogação, limite de tentativas) | ✅ no modo demonstração |
 | Painel, detalhes, compartilhamento, conta/planos, marketing, login/cadastro | ✅ |
 | Banco (migrations + RLS + bucket privado) e rotas `/api` sobre Supabase | ✅ escritas e compiladas, **ainda não exercitadas contra um projeto Supabase real** |
@@ -29,6 +32,8 @@ npm run dev                        # http://localhost:3000
 
 Contas de demonstração: qualquer e-mail/senha entram. Link público de exemplo: `/p/demo_cafe_aurora_proposta_01_token_fixo_xx`.
 
+Para o "Criar com IA" escrever roteiros com o Claude, defina `ANTHROPIC_API_KEY` em `.env.local` (só no servidor). Sem chave, a rota `/api/ai/roteiro` usa um gerador local determinístico e não cobra créditos.
+
 ## Como testar
 
 ```bash
@@ -42,7 +47,7 @@ npm run dev & npm run test:e2e                       # fluxo ponta a ponta (Play
 ## Como migrar o banco (Supabase)
 
 1. Crie um projeto no Supabase e preencha `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` e `SHARE_GRANT_SECRET` em `.env.local` (nunca versionar).
-2. Aplique `supabase/migrations/0000_base.sql` e `0001_funcoes_transacionais.sql` em ordem (SQL Editor ou `supabase db push`). Veja `supabase/LEIA-ME.md`.
+2. Aplique `supabase/migrations/0000_base.sql`, `0001_funcoes_transacionais.sql` e `0002_criativo_creditos_ia.sql` em ordem (SQL Editor ou `supabase db push`). Veja `supabase/LEIA-ME.md`.
 3. Desligue o modo demo: `NEXT_PUBLIC_DEMO=0`. As rotas `/api` passam a autenticar com o Bearer do Supabase Auth.
 
 Novas mudanças de schema: arquivo `000N_descricao.sql` sequencial; nunca editar migration já aplicada.
@@ -59,13 +64,14 @@ Novas mudanças de schema: arquivo `000N_descricao.sql` sequencial; nunca editar
 app/                      rotas (App Router)
   page.tsx                marketing
   login/ signup/          autenticação
-  app/                    área autenticada: painel, projects/[id] (detalhes, edit, share, apresentar), settings
+  app/                    área autenticada: painel, novo, biblioteca, compartilhados, lixeira, projects/[id] (detalhes, edit, share, apresentar, apresentador), settings
+  criar/                  Criar com IA (prompt → roteiro → apresentação)
   p/[token]/              visualizador público não listado
   api/                    rotas HTTP (contratos em lib/api/contratos.ts)
 components/
   renderer/               SceneRenderer — ÚNICO renderizador (editor, miniaturas, preview, viewer)
-  viewer/                 Viewer (Slides/Story), página pública
-  editor/                 EditorShell, PainelCenas, Canvas, Inspetor, BibliotecaMidias
+  viewer/                 Viewer (Slides/Story/Explorar), Apresentador, página pública
+  editor/                 EditorShell, PainelEsquerdo (telas/camadas/arquivos/blocos), Canvas, inspetor/ (Design, Animação, Interações)
   compartilhar/           links privados
   app/                    Shell, Dashboard, DetalheProjeto, Configuracoes, FormAuth
   ui/                     design system: Botao, Entrada, Campo, Modal, Toast, ZonaUpload (na biblioteca), Cartao, CampoInspetor, MiniaturaCena, ModalCompartilhar
@@ -73,9 +79,11 @@ lib/
   scene/                  schema.ts (Zod), validate.ts, motor.ts (reducer de interações), transform.ts, order.ts
   api/                    contratos.ts (Zod), servidor.ts (auth/envelope/rate limit), cliente.ts (HTTP tipado)
   demo/                   backend de demonstração no navegador + dados fictícios
-  editor/                 useEditor (undo/redo, autosave, revisão, conflito)
+  editor/                 useEditor (undo/redo, autosave, revisão, conflito), guias, importação
+  importar/               SVG (sanitização, cores), arquivos (GLB/glTF/Lottie), área de transferência
+  ia/                     roteiro + motor de layout, gerador local, prompt e chamada ao Claude
   share/                  tokens, hash de senha (PBKDF2), estado do link, limite de tentativas
-  midia/                  detecção de MIME real por bytes mágicos
+  midia/                  detecção de MIME real (bytes mágicos; SVG/glTF/Lottie validados pelo conteúdo)
   planos.ts               planos e entitlements (aplicados no servidor)
   design-tokens.ts        tokens (espelham app/globals.css)
 supabase/migrations/      schema relacional, RLS, bucket privado, funções transacionais
@@ -85,4 +93,4 @@ e2e/                      fluxo ponta a ponta com Playwright
 
 ## Decisões registradas
 
-Ver `docs/adr/`: stack (0001), autenticação (0002), entrega de mídia (0003), renderizador de cena (0004), modelo de revisões (0005). Visão geral, mapa de telas e plano P0 em `docs/ARQUITETURA.md`. Critérios de aceite e como cada um é verificado em `docs/CRITERIOS-ACEITE.md`.
+Ver `docs/adr/`: stack (0001), autenticação (0002), entrega de mídia (0003), renderizador de cena (0004), modelo de revisões (0005), importação e área de transferência (0006), 3D/Lottie/embeds (0007), IA e créditos (0008). Visão geral, mapa de telas e plano P0 em `docs/ARQUITETURA.md`. Critérios de aceite e como cada um é verificado em `docs/CRITERIOS-ACEITE.md`.

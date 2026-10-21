@@ -1,21 +1,23 @@
 import type { Metadata, Viewport } from 'next'
+import { GeistSans } from 'geist/font/sans'
+import { GeistMono } from 'geist/font/mono'
 import './globals.css'
 import { ToastProvider } from '@/components/ui/toast'
 
 export const metadata: Metadata = {
-  title: { default: 'Apresentações Criativas', template: '%s · Apresentações Criativas' },
-  description: 'Transforme projetos criativos em apresentações digitais que impressionam, sem programação, sem distrações e com controle de compartilhamento.',
+  title: { default: 'Mostra — apresentações para quem cria', template: '%s · Mostra' },
+  description: 'Crie, apresente e compartilhe experiências visuais que vão além dos slides — com movimento, interações, 3D e links privados, sem escrever código.',
   robots: { index: false, follow: false },
 }
 
-export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover', themeColor: '#101820' }
+export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover', themeColor: '#FAFAF9' }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
+    <html lang="pt-BR" suppressHydrationWarning className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <head>
-        {/* aplica o tema salvo antes da pintura para evitar flash */}
-        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('tema');if(t==='escuro'||(!t&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.dataset.tema='escuro'}catch(e){}` }} />
+        {/* tema salvo aplicado antes da pintura (sem flash). Padrão: claro, como no design. */}
+        <script dangerouslySetInnerHTML={{ __html: `try{if(localStorage.getItem('tema')==='escuro')document.documentElement.dataset.tema='escuro'}catch(e){}` }} />
       </head>
       <body>
         <ToastProvider>{children}</ToastProvider>

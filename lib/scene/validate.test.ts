@@ -10,7 +10,7 @@ describe('validação semântica', () => {
   it('aceita documento válido com hotspot navegando para cena existente', () => {
     const r = validarDocumento(
       doc('slides', [
-        { id: 'a', size: tam, layers: [{ id: 'h', type: 'hotspot', ariaLabel: 'Ir', x: 0, y: 0, width: 10, height: 10, interaction: { trigger: 'click', do: { action: 'goToScene', targetSceneId: 'b' } } }] },
+        { id: 'a', size: tam, layers: [{ id: 'h', type: 'hotspot', ariaLabel: 'Ir', x: 0, y: 0, width: 10, height: 10, interactions: [{ trigger: 'click', do: { action: 'goToScene', targetSceneId: 'b' } }] }] },
         { id: 'b', size: tam, layers: [] },
       ])
     )
@@ -20,7 +20,7 @@ describe('validação semântica', () => {
 
   it('erro quando cena alvo não existe', () => {
     const r = validarDocumento(
-      doc('slides', [{ id: 'a', size: tam, layers: [{ id: 'h', type: 'hotspot', ariaLabel: 'Ir', x: 0, y: 0, width: 10, height: 10, interaction: { trigger: 'click', do: { action: 'goToScene', targetSceneId: 'zzz' } } }] }])
+      doc('slides', [{ id: 'a', size: tam, layers: [{ id: 'h', type: 'hotspot', ariaLabel: 'Ir', x: 0, y: 0, width: 10, height: 10, interactions: [{ trigger: 'click', do: { action: 'goToScene', targetSceneId: 'zzz' } }] }] }])
     )
     expect(r.ok).toBe(false)
     expect(r.erros.map((e) => e.codigo)).toContain('cena_alvo_inexistente')
@@ -29,7 +29,7 @@ describe('validação semântica', () => {
   it('erro quando trigger e ação são incompatíveis (sceneEnter + goToScene evita ciclos)', () => {
     const r = validarDocumento(
       doc('slides', [
-        { id: 'a', size: tam, layers: [{ id: 't', type: 'text', text: 'x', x: 0, y: 0, width: 10, height: 10, interaction: { trigger: 'sceneEnter', do: { action: 'goToScene', targetSceneId: 'b' } } }] },
+        { id: 'a', size: tam, layers: [{ id: 't', type: 'text', text: 'x', x: 0, y: 0, width: 10, height: 10, interactions: [{ trigger: 'sceneEnter', do: { action: 'goToScene', targetSceneId: 'b' } }] }] },
         { id: 'b', size: tam, layers: [] },
       ])
     )
@@ -37,7 +37,7 @@ describe('validação semântica', () => {
   })
 
   it('scrollThreshold só no modo story', () => {
-    const camada = { id: 't', type: 'text', text: 'x', x: 0, y: 0, width: 10, height: 10, interaction: { trigger: 'scrollThreshold', do: { action: 'animate', targetLayerId: 't', animation: { type: 'fadeIn' } } } }
+    const camada = { id: 't', type: 'text', text: 'x', x: 0, y: 0, width: 10, height: 10, interactions: [{ trigger: 'scrollThreshold', do: { action: 'animate', targetLayerId: 't', animation: { type: 'fadeIn' } } }] }
     expect(validarDocumento(doc('slides', [{ id: 'a', size: tam, layers: [camada] }])).erros.map((e) => e.codigo)).toContain('scroll_fora_do_story')
     expect(validarDocumento(doc('story', [{ id: 'a', size: tam, layers: [camada] }])).ok).toBe(true)
   })
@@ -46,7 +46,7 @@ describe('validação semântica', () => {
     const r = validarDocumento(
       doc('slides', [{ id: 'a', size: tam, layers: [
         { id: 'img', type: 'image', assetId: 'x', x: 0, y: 0, width: 10, height: 10 },
-        { id: 'h', type: 'hotspot', ariaLabel: 'Play', x: 0, y: 0, width: 10, height: 10, interaction: { trigger: 'click', do: { action: 'toggleVideo', targetLayerId: 'img' } } },
+        { id: 'h', type: 'hotspot', ariaLabel: 'Play', x: 0, y: 0, width: 10, height: 10, interactions: [{ trigger: 'click', do: { action: 'toggleVideo', targetLayerId: 'img' } }] },
       ] }])
     )
     expect(r.erros.map((e) => e.codigo)).toContain('alvo_nao_e_video')
@@ -60,7 +60,7 @@ describe('validação semântica', () => {
   it('aviso de acessibilidade para forma clicável sem rótulo', () => {
     const r = validarDocumento(
       doc('slides', [
-        { id: 'a', size: tam, layers: [{ id: 's', type: 'shape', x: 0, y: 0, width: 10, height: 10, interaction: { trigger: 'click', do: { action: 'nextScene' } } }] },
+        { id: 'a', size: tam, layers: [{ id: 's', type: 'shape', x: 0, y: 0, width: 10, height: 10, interactions: [{ trigger: 'click', do: { action: 'nextScene' } }] }] },
         { id: 'b', size: tam, layers: [] },
       ])
     )

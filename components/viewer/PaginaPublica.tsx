@@ -25,10 +25,11 @@ export function PaginaPublica({ token }: { token: string }) {
 
   if (res.state === 'unavailable') {
     return (
-      <main className="flex h-dvh flex-col items-center justify-center gap-3 bg-fundo p-6 text-center">
+      <main className="relative flex h-dvh flex-col items-center justify-center gap-4 overflow-hidden bg-fundo p-6 text-center">
+        <Formas />
         <Logo />
-        <h1 className="text-xl font-semibold">Este link não está mais disponível.</h1>
-        <p className="max-w-sm text-sm text-texto2">Peça um novo link a quem compartilhou a apresentação com você.</p>
+        <h1 className="titulo-display max-w-[14ch] text-balance text-[clamp(32px,5vw,52px)] font-semibold leading-[0.98] tracking-[-0.045em]">Este link não está mais disponível.</h1>
+        <p className="max-w-sm text-[15px] leading-normal text-texto2">Peça um novo link a quem compartilhou a apresentação com você.</p>
       </main>
     )
   }
@@ -49,11 +50,13 @@ export function PaginaPublica({ token }: { token: string }) {
       }
     }
     return (
-      <main className="flex h-dvh items-center justify-center bg-fundo p-5">
-        <form onSubmit={enviar} className="w-full max-w-sm rounded-2xl border bg-superficie p-6 sm:p-8">
-          <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-superficie2"><Lock className="h-5 w-5" /></div>
-          <h1 className="text-lg font-semibold">{res.projectName}</h1>
-          <p className="mb-4 text-sm text-texto2">Esta apresentação é protegida. Digite a senha que você recebeu.</p>
+      <main className="relative flex h-dvh items-center justify-center overflow-hidden bg-fundo p-5">
+        <Formas />
+        <form onSubmit={enviar} className="relative w-full max-w-sm rounded-[18px] border-2 border-grafite bg-superficie p-6 shadow-[8px_8px_0_#171717] sm:p-8">
+          <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-acento text-white"><Lock className="h-[18px] w-[18px]" /></div>
+          <div className="rotulo-mono mb-1">Apresentação protegida</div>
+          <h1 className="text-[24px] font-semibold tracking-[-0.03em]">{res.projectName}</h1>
+          <p className="mb-4 mt-1 text-sm text-texto2">Digite a senha que você recebeu de quem compartilhou.</p>
           <Entrada type="password" autoFocus autoComplete="off" aria-label="Senha" value={senha} onChange={(e) => setSenha(e.target.value)} className="h-12 text-base" />
           {erro && <p role="alert" className="mt-2 text-sm text-perigo">{erro}</p>}
           <Botao type="submit" tamanho="lg" className="mt-4 w-full" carregando={enviando} disabled={!senha}>Abrir apresentação</Botao>
@@ -65,6 +68,18 @@ export function PaginaPublica({ token }: { token: string }) {
   return (
     <div className="h-dvh w-full bg-black">
       <Viewer documento={res.documento} assets={res.assets} nome={res.projectName} marca />
+    </div>
+  )
+}
+
+/** Formas decorativas da marca (só visual). */
+function Formas() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 hidden sm:block">
+      <div className="absolute left-[8%] top-[14%] h-20 w-20 rounded-full bg-coral" />
+      <div className="absolute right-[9%] top-[18%] h-16 w-16 rotate-[18deg] bg-violeta" />
+      <div className="absolute bottom-[14%] right-[12%] h-[50px] w-[100px] rounded-t-full bg-ipe" />
+      <div className="absolute bottom-[12%] left-[10%] h-[54px] w-[54px] rotate-[-14deg] bg-lima [clip-path:polygon(50%_0,100%_100%,0_100%)]" />
     </div>
   )
 }

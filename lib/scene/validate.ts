@@ -3,9 +3,11 @@
  * compatibilidade trigger/ação, acessibilidade e prevenção de ciclos.
  * Usada pelo editor (avisos ao designer) e pelo backend (rejeita antes de gravar/publicar).
  */
+import { migrarDocumento } from './migrar'
 import {
   ACOES_POR_TRIGGER,
   DocumentoProjetoSchema,
+  assetsDaCamada,
   camadaTemTextoVisivel,
   type Camada,
   type Cena,
@@ -38,7 +40,7 @@ export interface OpcoesValidacao {
 const PROTOCOLOS_PERIGOSOS = /^(javascript|data|vbscript|file|blob|about):/i
 
 export function validarDocumento(entrada: unknown, opcoes: OpcoesValidacao = {}): ResultadoValidacao {
-  const parsed = DocumentoProjetoSchema.safeParse(entrada)
+  const parsed = DocumentoProjetoSchema.safeParse(migrarDocumento(entrada))
   if (!parsed.success) {
     const erros: Problema[] = parsed.error.issues.map((i) => ({
       gravidade: 'erro',
@@ -83,55 +85,81 @@ function validarCena(
   }
 
   if (cena.backgroundAssetId && opcoes.assetsExistentes && !opcoes.assetsExistentes.has(cena.backgroundAssetId)) {
-    add({ gravidade: 'erro', codigo: 'asset_inexistente', mensagem: 'Fundo da cena aponta para mídia inexistente', sceneId: cena.id })
+    add({ gravidade: 'erro', codigo: 'asset_inexistente', mensagem: 'Fundo da tela aponta para mídia inexistente', sceneId: cena.id })
+  }
+  if (doc.mode === 'explorar' && !cena.map) {
+    add({ gravidade: 'aviso', codigo: 'sem_posicao_mapa', mensagem: 'Tela sem posição no mapa do modo Explorar (será posicionada automaticamente)', sceneId: cena.id })
   }
 
   for (const camada of cena.layers) {
     const ctx = { sceneId: cena.id, layerId: camada.id }
 
-    // assets
-    if ((camada.type === 'image' || camada.type === 'video') && opcoes.assetsExistentes && !opcoes.assetsExistentes.has(camada.assetId)) {
-      add({ gravidade: 'erro', codigo: 'asset_inexistente', mensagem: `Mídia "${camada.assetId}" não existe neste workspace`, ...ctx })
+    // assets referenciados precisam pertencer ao workspace
+    if (opcoes.assetsExistentes) {
+      for (const a of assetsDaCamada(camada)) {
+        if (!opcoes.assetsExistentes.has(a)) add({ gravidade: 'erro', codigo: 'asset_inexistente', mensagem: `Mídia "${a}" não existe neste workspace`, ...ctx })
+      }
     }
     if (camada.type === 'video' && camada.autoplay && !camada.muted) {
       add({ gravidade: 'aviso', codigo: 'autoplay_com_som', mensagem: 'Vídeo com autoplay precisa estar mudo; o navegador vai bloquear o som', ...ctx })
     }
+    if (camada.type === 'svg' && camada.markup && /<script|on[a-z]+\s*=|javascript:/i.test(camada.markup)) {
+      add({ gravidade: 'erro', codigo: 'svg_inseguro', mensagem: 'SVG contém código ativo; cole novamente para sanitizar', ...ctx })
+    }
+    if (camada.type === 'model3d' && !camada.posterAssetId) {
+      add({ gravidade: 'aviso', codigo: 'modelo_sem_poster', mensagem: 'Modelo 3D sem imagem de capa: o convidado verá um espaço vazio enquanto carrega', ...ctx })
+    }
 
     // hotspot sem interação é inútil
-    if (camada.type === 'hotspot' && !camada.interaction) {
+    if (camada.type === 'hotspot' && camada.interactions.length === 0) {
       add({ gravidade: 'aviso', codigo: 'hotspot_sem_acao', mensagem: 'Hotspot sem ação configurada', ...ctx })
     }
 
-    const inter = camada.interaction
-    if (!inter) continue
+    for (const inter of camada.interactions) {
+      validarInteracao(inter, camada, cena, doc, idsCena, idsCamada, add)
+    }
+  }
+}
 
+function validarInteracao(
+  inter: Camada['interactions'][number],
+  camada: Camada,
+  cena: Cena,
+  doc: DocumentoProjeto,
+  idsCena: ReadonlySet<string>,
+  idsCamada: ReadonlyMap<string, Camada>,
+  add: (p: Problema) => void
+) {
+  const ctx = { sceneId: cena.id, layerId: camada.id }
+  {
     // compatibilidade trigger/ação
     if (!ACOES_POR_TRIGGER[inter.trigger].includes(inter.do.action)) {
       add({ gravidade: 'erro', codigo: 'acao_incompativel', mensagem: `Ação "${inter.do.action}" não é permitida para o evento "${inter.trigger}"`, ...ctx })
     }
 
-    // scrollThreshold só em Story
     if (inter.trigger === 'scrollThreshold' && doc.mode !== 'story') {
       add({ gravidade: 'erro', codigo: 'scroll_fora_do_story', mensagem: 'Evento de rolagem só existe no modo Story', ...ctx })
     }
 
-    // acessibilidade: elementos com ação precisam de rótulo quando não têm texto
     if (inter.trigger === 'click' && !camada.ariaLabel && !camadaTemTextoVisivel(camada)) {
       add({ gravidade: 'aviso', codigo: 'sem_rotulo', mensagem: 'Elemento clicável sem descrição para leitores de tela', ...ctx })
     }
 
-    // hover precisa de alternativa por toque — avisamos para o designer revisar
     if (inter.trigger === 'hover' && !camada.ariaLabel && !camadaTemTextoVisivel(camada)) {
       add({ gravidade: 'aviso', codigo: 'hover_sem_rotulo', mensagem: 'Interação por hover vira toque no celular; dê um rótulo ao elemento', ...ctx })
+    }
+
+    if (inter.transition?.type === 'morph' && doc.mode === 'story') {
+      add({ gravidade: 'aviso', codigo: 'morph_no_story', mensagem: 'Morph não se aplica ao modo Story; será usado fade', ...ctx })
     }
 
     const acao = inter.do
     switch (acao.action) {
       case 'goToScene': {
         if (!idsCena.has(acao.targetSceneId)) {
-          add({ gravidade: 'erro', codigo: 'cena_alvo_inexistente', mensagem: `Cena de destino "${acao.targetSceneId}" não existe`, ...ctx })
+          add({ gravidade: 'erro', codigo: 'cena_alvo_inexistente', mensagem: `Tela de destino "${acao.targetSceneId}" não existe`, ...ctx })
         } else if (acao.targetSceneId === cena.id) {
-          add({ gravidade: 'aviso', codigo: 'navegacao_para_si', mensagem: 'Ação navega para a própria cena', ...ctx })
+          add({ gravidade: 'aviso', codigo: 'navegacao_para_si', mensagem: 'Ação navega para a própria tela', ...ctx })
         }
         break
       }
@@ -146,7 +174,7 @@ function validarCena(
       case 'toggleVideo': {
         const alvo = idsCamada.get(acao.targetLayerId)
         if (!alvo) {
-          add({ gravidade: 'erro', codigo: 'camada_alvo_inexistente', mensagem: `Camada de destino "${acao.targetLayerId}" não existe nesta cena`, ...ctx })
+          add({ gravidade: 'erro', codigo: 'camada_alvo_inexistente', mensagem: `Camada de destino "${acao.targetLayerId}" não existe nesta tela`, ...ctx })
         } else if (acao.action === 'toggleVideo' && alvo.type !== 'video') {
           add({ gravidade: 'erro', codigo: 'alvo_nao_e_video', mensagem: 'Tocar/pausar só funciona em camadas de vídeo', ...ctx })
         }

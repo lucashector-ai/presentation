@@ -1,18 +1,22 @@
 'use client'
 /**
- * Estado do editor: documento + seleção + histórico (undo/redo) + autosave com revisão.
- * Regras (seção 6.4): autosave com debounce 800 ms e ao sair; cada gravação leva baseRevision;
- * 409 preserva mudanças locais e informa conflito; undo/redo por comandos na sessão.
+ * Estado do editor: documento + seleção + histórico (desfazer/refazer) + autosave com revisão + ferramentas.
+ * Regras: autosave com debounce de 800 ms e ao sair; cada gravação leva baseRevision; 409 preserva mudanças
+ * locais e mostra conflito; desfazer/refazer por comandos na sessão (gestos contínuos viram uma entrada).
  */
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
-import { FORMATOS, type Camada, type Cena, type DocumentoProjeto } from '@/lib/scene/schema'
+import { FORMATOS, novaCena, parseCamada, type Camada, type Cena, type DocumentoProjeto, type Interacao } from '@/lib/scene/schema'
 import { validarDocumento, type ResultadoValidacao } from '@/lib/scene/validate'
 import { moverCena, normalizarZ, novoId, trazerParaFrente, enviarParaTras, avancarUm, recuarUm } from '@/lib/scene/order'
 import { alinhar as alinharRects, enquadrarNaCena, type Alinhamento } from '@/lib/scene/transform'
-import { ErroDemo, salvarDocumento, obterProjeto, mapaAssets, type ResolucaoLink } from '@/lib/demo/store'
+import { distribuir as distribuirRects } from './guias'
+import { ErroDemo, salvarDocumento, obterProjeto, mapaAssets } from '@/lib/demo/store'
 import type { AssetDemo } from '@/lib/demo/tipos'
 
 export type EstadoSalvamento = 'salvo' | 'alterado' | 'salvando' | 'offline' | 'falha' | 'conflito'
+export type Ferramenta = 'mover' | 'mao' | 'texto' | 'forma' | 'hotspot'
+export type AbaEsquerda = 'telas' | 'camadas' | 'arquivos' | 'blocos'
+export type AbaDireita = 'design' | 'animacao' | 'interacoes'
 
 export interface EstadoEditor {
   documento: DocumentoProjeto
@@ -24,9 +28,19 @@ export interface EstadoEditor {
   salvamento: EstadoSalvamento
   salvoEm: string | null
   conflito: { currentRevision: number } | null
-  zoom: number // 0 = ajustar à tela
+  /** 0 = ajustar à tela */
+  zoom: number
+  pan: { x: number; y: number }
   grade: boolean
   snap: boolean
+  reguas: boolean
+  ferramenta: Ferramenta
+  abaEsquerda: AbaEsquerda
+  abaDireita: AbaDireita
+  /** Mostrar marcadores de hotspot/fluxo no canvas (aba Interações). */
+  mostrarHotspots: boolean
+  /** Contador para reexecutar a prévia de animação no canvas. */
+  previa: number
 }
 
 type Acao =
@@ -38,11 +52,9 @@ type Acao =
   | { tipo: 'cena'; id: string }
   | { tipo: 'salvamento'; valor: EstadoSalvamento; revisao?: number; salvoEm?: string; conflito?: { currentRevision: number } | null }
   | { tipo: 'substituir'; documento: DocumentoProjeto; revisao: number }
-  | { tipo: 'zoom'; valor: number }
-  | { tipo: 'grade'; valor: boolean }
-  | { tipo: 'snap'; valor: boolean }
+  | { tipo: 'ui'; patch: Partial<Pick<EstadoEditor, 'zoom' | 'pan' | 'grade' | 'snap' | 'reguas' | 'ferramenta' | 'abaEsquerda' | 'abaDireita' | 'mostrarHotspots' | 'previa'>> }
 
-const LIMITE_HISTORICO = 100
+const LIMITE_HISTORICO = 150
 
 function reducer(e: EstadoEditor, a: Acao): EstadoEditor {
   switch (a.tipo) {
@@ -66,12 +78,12 @@ function reducer(e: EstadoEditor, a: Acao): EstadoEditor {
     case 'desfazer': {
       const ant = e.passado[e.passado.length - 1]
       if (!ant) return e
-      return { ...e, documento: ant, passado: e.passado.slice(0, -1), futuro: [e.documento, ...e.futuro], salvamento: 'alterado', selecao: [] }
+      return { ...e, documento: ant, passado: e.passado.slice(0, -1), futuro: [e.documento, ...e.futuro], salvamento: 'alterado', selecao: [], cenaId: ant.scenes.some((s) => s.id === e.cenaId) ? e.cenaId : (ant.scenes[0]?.id ?? '') }
     }
     case 'refazer': {
       const prox = e.futuro[0]
       if (!prox) return e
-      return { ...e, documento: prox, passado: [...e.passado, e.documento], futuro: e.futuro.slice(1), salvamento: 'alterado', selecao: [] }
+      return { ...e, documento: prox, passado: [...e.passado, e.documento], futuro: e.futuro.slice(1), salvamento: 'alterado', selecao: [], cenaId: prox.scenes.some((s) => s.id === e.cenaId) ? e.cenaId : (prox.scenes[0]?.id ?? '') }
     }
     case 'selecionar':
       return { ...e, selecao: a.ids }
@@ -81,13 +93,34 @@ function reducer(e: EstadoEditor, a: Acao): EstadoEditor {
       return { ...e, salvamento: a.valor, revisao: a.revisao ?? e.revisao, salvoEm: a.salvoEm ?? e.salvoEm, conflito: a.conflito === undefined ? e.conflito : a.conflito }
     case 'substituir':
       return { ...e, documento: a.documento, revisao: a.revisao, passado: [], futuro: [], salvamento: 'salvo', conflito: null, selecao: [] }
-    case 'zoom':
-      return { ...e, zoom: a.valor }
-    case 'grade':
-      return { ...e, grade: a.valor }
-    case 'snap':
-      return { ...e, snap: a.valor }
+    case 'ui':
+      return { ...e, ...a.patch }
   }
+}
+
+/** Clona camadas com IDs novos, preservando referências internas (grupos e interações entre elas). */
+export function clonarCamadas(camadas: Camada[], existentes: { id: string }[], deslocamento = 0): Camada[] {
+  const mapa = new Map<string, string>()
+  const usados = [...existentes]
+  for (const c of camadas) {
+    const id = novoId(c.type, usados)
+    usados.push({ id })
+    mapa.set(c.id, id)
+  }
+  const grupos = new Map<string, string>()
+  return camadas.map((c, i) => {
+    const groupId = c.groupId ? (grupos.get(c.groupId) ?? (grupos.set(c.groupId, novoId('grupo', usados)), grupos.get(c.groupId))) : undefined
+    const interactions = c.interactions.map((it) => (it.do.action === 'toggleLayer' || it.do.action === 'animate' || it.do.action === 'toggleVideo') && mapa.has(it.do.targetLayerId) ? ({ ...it, do: { ...it.do, targetLayerId: mapa.get(it.do.targetLayerId)! } } as Interacao) : it)
+    return { ...structuredClone(c), id: mapa.get(c.id)!, groupId, interactions, x: c.x + deslocamento, y: c.y + deslocamento, z: 100_000 + i }
+  })
+}
+
+/** Expande a seleção para incluir todos os membros dos grupos tocados. */
+export function expandirGrupos(cena: Cena | undefined, ids: string[]): string[] {
+  if (!cena) return ids
+  const grupos = new Set(cena.layers.filter((l) => ids.includes(l.id) && l.groupId).map((l) => l.groupId))
+  if (!grupos.size) return ids
+  return [...new Set([...ids, ...cena.layers.filter((l) => l.groupId && grupos.has(l.groupId)).map((l) => l.id)])]
 }
 
 export function useEditor(projetoId: string) {
@@ -98,7 +131,7 @@ export function useEditor(projetoId: string) {
   }, [projetoId])
 
   const [e, dispatch] = useReducer(reducer, inicial, (i: typeof inicial): EstadoEditor => ({
-    documento: i?.documento ?? { schemaVersion: 1, mode: 'slides', scenes: [] },
+    documento: i?.documento ?? { schemaVersion: 2, mode: 'slides', scenes: [] },
     cenaId: i?.cenaId ?? '',
     selecao: [],
     passado: [],
@@ -108,21 +141,29 @@ export function useEditor(projetoId: string) {
     salvoEm: null,
     conflito: null,
     zoom: 0,
+    pan: { x: 0, y: 0 },
     grade: false,
     snap: true,
+    reguas: false,
+    ferramenta: 'mover',
+    abaEsquerda: 'telas',
+    abaDireita: 'design',
+    mostrarHotspots: true,
+    previa: 0,
   }))
 
   const ultimoSalvo = useRef<DocumentoProjeto | null>(inicial?.documento ?? null)
   const timer = useRef<number | undefined>(undefined)
   const estadoRef = useRef(e)
   estadoRef.current = e
+  const areaTransferencia = useRef<Camada[]>([])
+  const estiloCopiado = useRef<Partial<Camada> | null>(null)
 
   // ---------- autosave ----------
   const salvarAgora = useCallback(() => {
     const atual = estadoRef.current
     if (atual.salvamento === 'conflito') return
     if (atual.documento === ultimoSalvo.current) {
-      // undo/redo voltou exatamente ao estado já gravado: nada a enviar
       if (atual.salvamento !== 'salvo') dispatch({ tipo: 'salvamento', valor: 'salvo' })
       return
     }
@@ -136,11 +177,8 @@ export function useEditor(projetoId: string) {
       ultimoSalvo.current = atual.documento
       dispatch({ tipo: 'salvamento', valor: 'salvo', revisao: r.revision, salvoEm: r.savedAt })
     } catch (err) {
-      if (err instanceof ErroDemo && err.code === 'conflito_revisao') {
-        dispatch({ tipo: 'salvamento', valor: 'conflito', conflito: err.details as { currentRevision: number } })
-      } else {
-        dispatch({ tipo: 'salvamento', valor: 'falha' })
-      }
+      if (err instanceof ErroDemo && err.code === 'conflito_revisao') dispatch({ tipo: 'salvamento', valor: 'conflito', conflito: err.details as { currentRevision: number } })
+      else dispatch({ tipo: 'salvamento', valor: 'falha' })
     }
   }, [projetoId])
 
@@ -167,25 +205,61 @@ export function useEditor(projetoId: string) {
   const cena = e.documento.scenes.find((s) => s.id === e.cenaId) ?? e.documento.scenes[0]
   const indiceCena = cena ? e.documento.scenes.indexOf(cena) : -1
   const camadasSelecionadas = cena ? cena.layers.filter((l) => e.selecao.includes(l.id)) : []
+  const cenaAtualRef = () => estadoRef.current.documento.scenes.find((s) => s.id === estadoRef.current.cenaId)
 
   const atualizarCenaAtual = useCallback(
-    (fn: (c: Cena) => Cena, historico = true) =>
-      aplicar((d) => ({ ...d, scenes: d.scenes.map((s) => (s.id === estadoRef.current.cenaId ? fn(s) : s)) }), historico),
+    (fn: (c: Cena) => Cena, historico = true) => aplicar((d) => ({ ...d, scenes: d.scenes.map((s) => (s.id === estadoRef.current.cenaId ? fn(s) : s)) }), historico),
     [aplicar]
   )
 
-  const acoes = useMemo(
-    () => ({
-      selecionar: (ids: string[]) => dispatch({ tipo: 'selecionar', ids }),
+  const acoes = useMemo(() => {
+    const ui = (patch: Extract<Acao, { tipo: 'ui' }>['patch']) => dispatch({ tipo: 'ui', patch })
+
+    const inserirCamadas = (novas: Camada[]) => {
+      atualizarCenaAtual((c) => ({ ...c, layers: normalizarZ([...c.layers, ...novas]) }))
+      dispatch({ tipo: 'selecionar', ids: novas.map((n) => n.id) })
+    }
+
+    /** Cria uma camada com defaults do schema no centro da tela (ou no retângulo dado). */
+    const criarCamada = (parcial: Record<string, unknown> & { type: Camada['type'] }, rect?: { x: number; y: number; width: number; height: number }) => {
+      const c = cenaAtualRef()
+      if (!c) return null
+      const id = novoId(parcial.type, c.layers)
+      const z = c.layers.length ? Math.max(...c.layers.map((l) => l.z)) + 1 : 0
+      const padrao = rect ?? { x: c.size.width * 0.3, y: c.size.height * 0.35, width: c.size.width * 0.4, height: c.size.height * 0.2 }
+      const extras: Record<string, unknown> = {
+        text: { text: 'Digite seu texto', fontSize: Math.round(c.size.width / 26), color: '#171717' },
+        shape: { fill: '#5965F2' },
+        hotspot: { ariaLabel: 'Área clicável', hint: true },
+        image: {},
+        video: {},
+        svg: {},
+        model3d: {},
+        lottie: {},
+        embed: { radius: 12 },
+      }[parcial.type] as Record<string, unknown>
+      try {
+        const camada = parseCamada({ id, z, ...padrao, ...extras, ...parcial })
+        inserirCamadas([camada])
+        return camada
+      } catch {
+        return null
+      }
+    }
+
+    return {
+      selecionar: (ids: string[]) => dispatch({ tipo: 'selecionar', ids: expandirGrupos(cenaAtualRef(), ids) }),
+      selecionarExato: (ids: string[]) => dispatch({ tipo: 'selecionar', ids }),
       irParaCena: (id: string) => dispatch({ tipo: 'cena', id }),
       desfazer: () => dispatch({ tipo: 'desfazer' }),
-      /** Consolida um gesto contínuo (mover/redimensionar) como uma única entrada de undo. */
+      refazer: () => dispatch({ tipo: 'refazer' }),
       registrarHistorico: (anterior: DocumentoProjeto) => dispatch({ tipo: 'marcarHistorico', anterior }),
       documentoAtual: () => estadoRef.current.documento,
-      refazer: () => dispatch({ tipo: 'refazer' }),
-      setZoom: (v: number) => dispatch({ tipo: 'zoom', valor: v }),
-      setGrade: (v: boolean) => dispatch({ tipo: 'grade', valor: v }),
-      setSnap: (v: boolean) => dispatch({ tipo: 'snap', valor: v }),
+      ui,
+      setZoom: (zoom: number) => ui({ zoom }),
+      ajustar: () => ui({ zoom: 0, pan: { x: 0, y: 0 } }),
+      setFerramenta: (ferramenta: Ferramenta) => ui({ ferramenta }),
+      reproduzirPrevia: () => ui({ previa: estadoRef.current.previa + 1 }),
       salvarAgora,
 
       // ----- conflito -----
@@ -194,20 +268,19 @@ export function useEditor(projetoId: string) {
         if (p) { ultimoSalvo.current = p.documento; dispatch({ tipo: 'substituir', documento: p.documento, revisao: p.revisaoAtual }) }
       },
       manterMinhaVersao: () => {
-        // adota a revisão atual do servidor como base e grava por cima (decisão explícita do usuário)
         const p = obterProjeto(projetoId)
-        if (!p) return
-        dispatch({ tipo: 'salvamento', valor: 'alterado', revisao: p.revisaoAtual, conflito: null })
+        if (p) dispatch({ tipo: 'salvamento', valor: 'alterado', revisao: p.revisaoAtual, conflito: null })
       },
 
-      // ----- cenas -----
+      // ----- telas -----
       adicionarCena: (apos?: number) =>
         aplicar((d) => {
-          const base = d.scenes[apos ?? d.scenes.length - 1] ?? d.scenes[0]
+          const idx = apos ?? d.scenes.length - 1
+          const base = d.scenes[idx] ?? d.scenes[0]
           const size = base?.size ?? (d.mode === 'story' ? FORMATOS.story : FORMATOS.slides169)
-          const nova: Cena = { id: novoId('scene', d.scenes), title: `Cena ${d.scenes.length + 1}`, size, background: base?.background ?? '#101820', backgroundFit: 'cover', layers: [] }
+          const nova = novaCena({ id: novoId('tela', d.scenes), title: `Tela ${d.scenes.length + 1}`, size, background: base?.background ?? '#FAFAF9', ...(d.mode === 'explorar' && base?.map ? { map: { x: base.map.x + size.width + 360, y: base.map.y } } : {}) })
           const scenes = [...d.scenes]
-          scenes.splice((apos ?? d.scenes.length - 1) + 1, 0, nova)
+          scenes.splice(idx + 1, 0, nova)
           queueMicrotask(() => dispatch({ tipo: 'cena', id: nova.id }))
           return { ...d, scenes }
         }),
@@ -216,7 +289,7 @@ export function useEditor(projetoId: string) {
           const i = d.scenes.findIndex((s) => s.id === id)
           const orig = d.scenes[i]
           if (!orig) return d
-          const copia: Cena = { ...structuredClone(orig), id: novoId('scene', d.scenes), title: `${orig.title || 'Cena'} (cópia)` }
+          const copia: Cena = { ...structuredClone(orig), id: novoId('tela', d.scenes), title: `${orig.title || 'Tela'} (cópia)`, ...(orig.map ? { map: { x: orig.map.x + 200, y: orig.map.y + 200 } } : {}) }
           const scenes = [...d.scenes]
           scenes.splice(i + 1, 0, copia)
           queueMicrotask(() => dispatch({ tipo: 'cena', id: copia.id }))
@@ -224,8 +297,9 @@ export function useEditor(projetoId: string) {
         }),
       removerCena: (id: string) => aplicar((d) => (d.scenes.length <= 1 ? d : { ...d, scenes: d.scenes.filter((s) => s.id !== id) })),
       moverCena: (de: number, para: number) => aplicar((d) => ({ ...d, scenes: moverCena(d.scenes, de, para) })),
-      atualizarCena: (patch: Partial<Cena>) => atualizarCenaAtual((c) => ({ ...c, ...patch })),
-      /** Cria uma cena por mídia (Fluxo A, passo 04). */
+      atualizarCena: (patch: Partial<Cena>, historico = true) => atualizarCenaAtual((c) => ({ ...c, ...patch }), historico),
+      atualizarDocumento: (patch: Partial<Pick<DocumentoProjeto, 'theme' | 'mode'>>) => aplicar((d) => ({ ...d, ...patch })),
+      /** Uma tela por mídia (importação em lote). */
       cenasDeAssets: (assets: AssetDemo[]) =>
         aplicar((d) => {
           const base = d.scenes[d.scenes.length - 1]
@@ -233,87 +307,98 @@ export function useEditor(projetoId: string) {
           const novas: Cena[] = []
           for (const a of assets) {
             const r = enquadrarNaCena({ width: a.width ?? size.width, height: a.height ?? size.height }, size)
-            const id = novoId('scene', [...d.scenes, ...novas])
-            novas.push({
-              id,
-              title: a.nome.replace(/\.[^.]+$/, ''),
-              size,
-              background: base?.background ?? '#101820',
-              backgroundFit: 'cover',
-              layers: [a.tipo === 'video'
-                ? { id: 'midia', type: 'video', assetId: a.id, fit: 'contain', autoplay: false, loop: false, muted: true, controls: true, radius: 0, x: r.x, y: r.y, width: r.width, height: r.height, rotation: 0, opacity: 1, z: 0, locked: false, hidden: false }
-                : { id: 'midia', type: 'image', assetId: a.id, fit: 'contain', radius: 0, shadow: false, x: r.x, y: r.y, width: r.width, height: r.height, rotation: 0, opacity: 1, z: 0, locked: false, hidden: false }],
-            })
+            const tipo = a.tipo === 'video' ? 'video' : a.tipo === 'model3d' ? 'model3d' : a.tipo === 'lottie' ? 'lottie' : a.tipo === 'svg' ? 'svg' : 'image'
+            const camada = parseCamada({ id: 'midia', type: tipo, assetId: a.id, x: r.x, y: r.y, width: r.width, height: r.height, ...(tipo === 'image' ? { fit: 'contain' } : {}) })
+            novas.push(novaCena({ id: novoId('tela', [...d.scenes, ...novas]), title: a.nome.replace(/\.[^.]+$/, ''), size, background: base?.background ?? '#FAFAF9', layers: [camada] }))
           }
-          // se a única cena está vazia, substitui
           const scenes = d.scenes.length === 1 && d.scenes[0]!.layers.length === 0 ? novas : [...d.scenes, ...novas]
           if (novas[0]) queueMicrotask(() => dispatch({ tipo: 'cena', id: novas[0]!.id }))
           return { ...d, scenes }
         }),
 
       // ----- camadas -----
-      adicionarCamada: (parcial: Partial<Camada> & { type: Camada['type'] }, asset?: AssetDemo) => {
-        const c = estadoRef.current.documento.scenes.find((s) => s.id === estadoRef.current.cenaId)
+      criarCamada,
+      inserirCamadas,
+      adicionarAsset: (asset: AssetDemo, ponto?: { x: number; y: number }) => {
+        const c = cenaAtualRef()
         if (!c) return
-        const { type: tipo, ...extra } = parcial
-        const id = novoId(tipo, c.layers)
-        const z = c.layers.length ? Math.max(...c.layers.map((l) => l.z)) + 1 : 0
-        const comum = { id, rotation: 0, opacity: 1, z, locked: false, hidden: false }
-        const padrao = { x: c.size.width * 0.3, y: c.size.height * 0.3, width: c.size.width * 0.4, height: c.size.height * 0.2 }
-        let nova: Camada
-        switch (tipo) {
-          case 'text':
-            nova = { ...comum, ...padrao, type: 'text', text: 'Texto', fontFamily: 'system-ui', fontSize: Math.round(c.size.width / 30), fontWeight: 500, color: '#F3F5F2', align: 'left', lineHeight: 1.2, letterSpacing: 0, ...extra } as Camada
-            break
-          case 'shape':
-            nova = { ...comum, ...padrao, type: 'shape', shape: 'rect', fill: '#D9F99D', strokeWidth: 0, radius: 0, shadow: false, ...extra } as Camada
-            break
-          case 'hotspot':
-            nova = { ...comum, ...padrao, type: 'hotspot', ariaLabel: 'Área clicável', hint: true, ...extra } as Camada
-            break
-          case 'image': {
-            const r = asset ? enquadrarNaCena({ width: asset.width ?? 800, height: asset.height ?? 600 }, c.size, c.size.width * 0.1) : padrao
-            nova = { ...comum, ...r, type: 'image', assetId: asset?.id ?? '', fit: 'contain', radius: 0, shadow: false, ...extra } as Camada
-            break
-          }
-          case 'video': {
-            const r = asset ? enquadrarNaCena({ width: asset.width ?? 1280, height: asset.height ?? 720 }, c.size, c.size.width * 0.1) : padrao
-            nova = { ...comum, ...r, type: 'video', assetId: asset?.id ?? '', fit: 'contain', autoplay: false, loop: false, muted: true, controls: true, radius: 0, ...extra } as Camada
-            break
-          }
-        }
-        atualizarCenaAtual((cc) => ({ ...cc, layers: [...cc.layers, nova] }))
-        dispatch({ tipo: 'selecionar', ids: [id] })
+        const tipo = asset.tipo === 'video' ? 'video' : asset.tipo === 'model3d' ? 'model3d' : asset.tipo === 'lottie' ? 'lottie' : asset.tipo === 'svg' ? 'svg' : 'image'
+        const tam = tipo === 'model3d' ? { width: c.size.height * 0.7, height: c.size.height * 0.7 } : { width: asset.width ?? c.size.width * 0.4, height: asset.height ?? c.size.height * 0.4 }
+        const r = enquadrarNaCena(tam, c.size, Math.min(c.size.width, c.size.height) * 0.15)
+        const rect = ponto ? { ...r, x: ponto.x - r.width / 2, y: ponto.y - r.height / 2 } : r
+        return criarCamada({ type: tipo, assetId: asset.id, name: asset.nome.replace(/\.[^.]+$/, '').slice(0, 80) }, rect)
       },
       atualizarCamadas: (ids: string[], patch: Partial<Camada> | ((l: Camada) => Camada), historico = true) =>
         atualizarCenaAtual((c) => ({ ...c, layers: c.layers.map((l) => (ids.includes(l.id) ? (typeof patch === 'function' ? patch(l) : ({ ...l, ...patch } as Camada)) : l)) }), historico),
       removerCamadas: (ids: string[]) => atualizarCenaAtual((c) => ({ ...c, layers: c.layers.filter((l) => !ids.includes(l.id)) })),
       duplicarCamadas: (ids: string[]) => {
-        const novos: string[] = []
-        atualizarCenaAtual((c) => {
-          const copias: Camada[] = []
-          for (const l of c.layers) {
-            if (!ids.includes(l.id)) continue
-            const id = novoId(l.type, [...c.layers, ...copias])
-            novos.push(id)
-            copias.push({ ...structuredClone(l), id, x: l.x + 24, y: l.y + 24, z: l.z + copias.length + 1 })
-          }
-          return { ...c, layers: normalizarZ([...c.layers, ...copias]) }
-        })
-        dispatch({ tipo: 'selecionar', ids: novos })
+        const c = cenaAtualRef()
+        if (!c) return
+        const copias = clonarCamadas(c.layers.filter((l) => ids.includes(l.id)), c.layers, 24)
+        inserirCamadas(copias)
       },
       ordem: (id: string, op: 'frente' | 'tras' | 'avancar' | 'recuar') =>
         atualizarCenaAtual((c) => ({ ...c, layers: op === 'frente' ? trazerParaFrente(c.layers, id) : op === 'tras' ? enviarParaTras(c.layers, id) : op === 'avancar' ? avancarUm(c.layers, id) : recuarUm(c.layers, id) })),
+      /** Reordena pelo painel de camadas (lista de cima para baixo = maior z primeiro). */
+      reordenarCamadas: (idsDeCimaParaBaixo: string[]) =>
+        atualizarCenaAtual((c) => {
+          const n = idsDeCimaParaBaixo.length
+          const z = new Map(idsDeCimaParaBaixo.map((id, i) => [id, n - 1 - i]))
+          return { ...c, layers: c.layers.map((l) => ({ ...l, z: z.get(l.id) ?? l.z })) }
+        }),
       alinhar: (ids: string[], modo: Alinhamento) =>
         atualizarCenaAtual((c) => {
-          const alvo = c.layers.filter((l) => ids.includes(l.id))
-          const novos = alinharRects(alvo, c.size, modo)
+          const novos = alinharRects(c.layers.filter((l) => ids.includes(l.id)), c.size, modo)
+          return { ...c, layers: c.layers.map((l) => novos.find((n) => n.id === l.id) ?? l) }
+        }),
+      distribuir: (ids: string[], eixo: 'h' | 'v') =>
+        atualizarCenaAtual((c) => {
+          const novos = distribuirRects(c.layers.filter((l) => ids.includes(l.id)), eixo)
           return { ...c, layers: c.layers.map((l) => novos.find((n) => n.id === l.id) ?? l) }
         }),
       deslocar: (ids: string[], dx: number, dy: number) => atualizarCenaAtual((c) => ({ ...c, layers: c.layers.map((l) => (ids.includes(l.id) && !l.locked ? { ...l, x: l.x + dx, y: l.y + dy } : l)) })),
-    }),
-    [aplicar, atualizarCenaAtual, projetoId, salvarAgora]
-  )
+      agrupar: (ids: string[]) => {
+        if (ids.length < 2) return
+        const c = cenaAtualRef()
+        const groupId = novoId('grupo', c?.layers ?? [])
+        atualizarCenaAtual((cc) => ({ ...cc, layers: cc.layers.map((l) => (ids.includes(l.id) ? { ...l, groupId } : l)) }))
+      },
+      desagrupar: (ids: string[]) => atualizarCenaAtual((c) => ({ ...c, layers: c.layers.map((l) => (ids.includes(l.id) ? { ...l, groupId: undefined } : l)) })),
+      inverter: (ids: string[], eixo: 'x' | 'y') => atualizarCenaAtual((c) => ({ ...c, layers: c.layers.map((l) => (ids.includes(l.id) ? (eixo === 'x' ? { ...l, flipX: !l.flipX } : { ...l, flipY: !l.flipY }) : l)) })),
+
+      // ----- área de transferência -----
+      copiar: (ids: string[]) => {
+        const c = cenaAtualRef()
+        if (!c) return []
+        const camadas = c.layers.filter((l) => ids.includes(l.id))
+        areaTransferencia.current = structuredClone(camadas)
+        return camadas
+      },
+      /** Cola camadas (da Mostra) na tela atual; desloca se ainda estiverem sobrepostas às originais. */
+      colarCamadas: (brutas?: unknown[]) => {
+        const c = cenaAtualRef()
+        if (!c) return
+        const origem = brutas ?? areaTransferencia.current
+        const validas: Camada[] = []
+        for (const b of origem) {
+          try { validas.push(parseCamada(b)) } catch { /* ignora camada inválida */ }
+        }
+        if (!validas.length) return
+        const sobrepoe = validas.some((v) => c.layers.some((l) => l.x === v.x && l.y === v.y && l.width === v.width))
+        inserirCamadas(clonarCamadas(validas, c.layers, sobrepoe ? 24 : 0))
+      },
+      copiarEstilo: (camada: Camada) => {
+        const { id: _i, x: _x, y: _y, width: _w, height: _h, z: _z, name: _n, interactions: _it, groupId: _g, ...estilo } = camada as Camada & Record<string, unknown>
+        estiloCopiado.current = estilo as Partial<Camada>
+      },
+      colarEstilo: (ids: string[]) => {
+        const est = estiloCopiado.current
+        if (!est) return
+        atualizarCenaAtual((c) => ({ ...c, layers: c.layers.map((l) => (ids.includes(l.id) ? (() => { try { return parseCamada({ ...l, ...est, type: l.type, ...(l.type === 'image' || l.type === 'video' || l.type === 'model3d' ? { assetId: (l as { assetId: string }).assetId } : {}), ...(l.type === 'text' ? { text: l.text } : {}) }) } catch { return l } })() : l)) }))
+      },
+      temEstiloCopiado: () => !!estiloCopiado.current,
+    }
+  }, [aplicar, atualizarCenaAtual, projetoId, salvarAgora])
 
   const validacao: ResultadoValidacao = useMemo(() => validarDocumento(e.documento, { assetsExistentes: new Set(Object.keys(mapaAssets())) }), [e.documento])
 
@@ -321,4 +406,3 @@ export function useEditor(projetoId: string) {
 }
 
 export type Editor = ReturnType<typeof useEditor>
-export type { ResolucaoLink }

@@ -11,6 +11,7 @@ describe('detectarMime', () => {
     expect(detectarMime(bytes('GIF89a', 0))).toBe('image/gif')
     expect(detectarMime(bytes(0, 0, 0, 0x18, 'ftypisom', 0, 0, 0, 0))).toBe('video/mp4')
     expect(detectarMime(bytes(0x1a, 0x45, 0xdf, 0xa3, 0))).toBe('video/webm')
+    expect(detectarMime(bytes('glTF', 2, 0, 0, 0))).toBe('model/gltf-binary')
   })
   it('rejeita SVG, HTML e executáveis (formatos ativos)', () => {
     expect(detectarMime(bytes('<svg xmlns'))).toBeNull()
@@ -20,6 +21,8 @@ describe('detectarMime', () => {
   })
   it('extensão por mime', () => {
     expect(extensaoPorMime('image/jpeg')).toBe('jpg')
+    expect(extensaoPorMime('model/gltf-binary')).toBe('glb')
+    expect(extensaoPorMime('image/svg+xml')).toBe('svg')
     expect(extensaoPorMime('application/x')).toBe('bin')
   })
 })

@@ -51,11 +51,11 @@ export function Compartilhar({ projetoId }: { projetoId: string }) {
 
   return (
     <div className="space-y-6">
-      {!publicado && <p className="rounded-xl border border-dashed p-3 text-sm text-texto2">Publique o projeto no editor antes de criar links. Convidados sempre veem a última revisão publicada, nunca o rascunho.</p>}
-      {desatualizado && <p className="rounded-xl bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200">Há mudanças no rascunho que ainda não foram publicadas. Os links mostram a revisão {projeto.revisaoPublicada}.</p>}
+      {!publicado && <p className="rounded-[10px] border-[1.5px] border-dashed border-bordaForte p-3 text-[13px] leading-normal text-texto2">Publique o projeto no editor antes de criar links. Convidados sempre veem a última revisão publicada, nunca o rascunho.</p>}
+      {desatualizado && <p className="rounded-[10px] bg-aviso/10 p-3 text-[13px] leading-normal text-texto">Há mudanças no rascunho que ainda não foram publicadas. Os links mostram a revisão {projeto.revisaoPublicada}.</p>}
 
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold">Novo link privado</h3>
+        <h3 className="rotulo-mono">Novo link privado</h3>
         <div className="grid gap-3 sm:grid-cols-2">
           <Campo rotulo="Validade">
             <Selecao value={validade} onChange={(e) => setValidade(e.target.value as typeof validade)}>
@@ -63,16 +63,16 @@ export function Compartilhar({ projetoId }: { projetoId: string }) {
             </Selecao>
           </Campo>
           <div>
-            <div className="mb-1.5 flex items-center justify-between"><span className="text-[13px] font-medium">Proteger com senha</span><Alternador rotulo="Proteger com senha" ativo={comSenha} onChange={(v) => { if (!podeSenha) return mostrar('Links com senha estão disponíveis a partir do plano Creator.', 'info'); setComSenha(v) }} /></div>
-            {comSenha ? <Entrada type="text" autoComplete="off" placeholder="Senha para o cliente (4 a 64 caracteres)" value={senha} onChange={(e) => setSenha(e.target.value)} /> : <p className="text-xs text-texto2">{podeSenha ? 'Quem abrir o link precisará digitar a senha.' : 'Disponível no plano Creator.'}</p>}
+            <div className="mb-1.5 flex items-center justify-between"><span className="text-[13px] font-medium">Proteger com senha</span><Alternador rotulo="Proteger com senha" ativo={comSenha} onChange={(v) => { if (!podeSenha) return mostrar('Links com senha estão disponíveis a partir do plano Pro.', 'info'); setComSenha(v) }} /></div>
+            {comSenha ? <Entrada type="text" autoComplete="off" placeholder="Senha para o cliente (4 a 64 caracteres)" value={senha} onChange={(e) => setSenha(e.target.value)} /> : <p className="text-xs text-texto2">{podeSenha ? 'Quem abrir o link precisará digitar a senha.' : 'Disponível a partir do plano Pro.'}</p>}
           </div>
         </div>
         <Botao onClick={criar} carregando={criando} disabled={!publicado} icone={<Link2 className="h-4 w-4" />}>Gerar link</Botao>
         {novoToken && (
-          <div className="rounded-xl border bg-superficie2 p-3">
+          <div className="rounded-[12px] border-2 border-grafite bg-superficie p-3 shadow-[4px_4px_0_#5965F2]">
             <p className="mb-1 text-xs font-medium">Seu link (exibido uma única vez)</p>
             <div className="flex items-center gap-2">
-              <code className="flex-1 truncate rounded-lg bg-superficie px-2 py-1.5 text-xs">{urlDoLink(BASE, novoToken)}</code>
+              <code className="mono flex-1 truncate rounded-md bg-superficie2 px-2 py-1.5 text-xs">{urlDoLink(BASE, novoToken)}</code>
               <Botao tamanho="sm" variante="secundario" onClick={() => copiar(urlDoLink(BASE, novoToken))} icone={copiado ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}>{copiado ? 'Copiado' : 'Copiar'}</Botao>
             </div>
           </div>
@@ -80,11 +80,11 @@ export function Compartilhar({ projetoId }: { projetoId: string }) {
       </section>
 
       <section>
-        <h3 className="mb-2 text-sm font-semibold">Links criados · {ativos.length} ativo(s)</h3>
+        <h3 className="rotulo-mono mb-2">Links criados · {ativos.length} ativo(s)</h3>
         {links.length === 0 ? (
           <p className="text-sm text-texto2">Nenhum link ainda.</p>
         ) : (
-          <ul className="divide-y rounded-xl border">
+          <ul className="divide-y divide-borda rounded-[12px] border border-borda bg-superficie">
             {links.map((l) => {
               const estado = estadoDoLink({ expiresAt: l.expiraEm, revokedAt: l.revogadoEm })
               return (

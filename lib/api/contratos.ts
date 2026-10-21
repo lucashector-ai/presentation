@@ -4,6 +4,7 @@
  */
 import { z } from 'zod'
 import { CenaSchema, DocumentoProjetoSchema, ModoProjetoSchema } from '@/lib/scene/schema'
+import { ehMimeTexto, MAX_BYTES_TEXTO } from '@/lib/midia/mime'
 
 // ---------- envelope e erros ----------
 
@@ -43,7 +44,7 @@ export function erro(code: CodigoErro, message: string, requestId: string, detai
 
 export const StatusProjetoSchema = z.enum(['draft', 'published', 'archived'])
 export const StatusAssetSchema = z.enum(['queued', 'processing', 'ready', 'failed'])
-export const TipoMidiaSchema = z.enum(['image', 'video', 'gif'])
+export const TipoMidiaSchema = z.enum(['image', 'video', 'gif', 'svg', 'model3d', 'lottie'])
 
 export const ProjetoResumoSchema = z.object({
   id: z.string(),
@@ -141,14 +142,18 @@ export const PublicarRes = z.object({ publishedRevision: z.number().int(), publi
 export const MIME_IMAGEM = ['image/png', 'image/jpeg', 'image/webp'] as const
 export const MIME_GIF = ['image/gif'] as const
 export const MIME_VIDEO = ['video/mp4', 'video/webm'] as const
-export const MIMES_ACEITOS = [...MIME_IMAGEM, ...MIME_GIF, ...MIME_VIDEO] as const
+/** SVG é sanitizado no servidor; glTF precisa ser autocontido; JSON só é aceito se for animação Lottie. */
+export const MIME_SVG = ['image/svg+xml'] as const
+export const MIME_3D = ['model/gltf-binary', 'model/gltf+json'] as const
+export const MIME_LOTTIE = ['application/json'] as const
+export const MIMES_ACEITOS = [...MIME_IMAGEM, ...MIME_GIF, ...MIME_VIDEO, ...MIME_SVG, ...MIME_3D, ...MIME_LOTTIE] as const
 
 export const UploadUrlReq = z.object({
   projectId: z.string(),
   name: z.string().trim().min(1).max(255),
   mime: z.enum(MIMES_ACEITOS),
   bytes: z.number().int().positive(),
-})
+}).refine((r) => !ehMimeTexto(r.mime) || r.bytes <= MAX_BYTES_TEXTO, { message: 'Arquivos SVG, glTF e Lottie podem ter até 10 MB.', path: ['bytes'] })
 export const UploadUrlRes = z.object({
   assetId: z.string(),
   uploadUrl: z.string(),

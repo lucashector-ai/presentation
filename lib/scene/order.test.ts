@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { avancarUm, enviarParaTras, moverItem, normalizarZ, novoId, trazerParaFrente } from './order'
-import type { Camada } from './schema'
+import { parseCamada, type Camada } from './schema'
 
-const c = (id: string, z: number): Camada => ({ id, type: 'shape', shape: 'rect', fill: '#000', strokeWidth: 0, radius: 0, shadow: false, x: 0, y: 0, width: 1, height: 1, rotation: 0, opacity: 1, z, locked: false, hidden: false })
+const c = (id: string, z: number): Camada => parseCamada({ id, type: 'shape', x: 0, y: 0, width: 1, height: 1, z })
 
 describe('ordem', () => {
   it('moverItem reordena e tolera índices fora da faixa', () => {

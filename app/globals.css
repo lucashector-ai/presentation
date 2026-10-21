@@ -2,41 +2,60 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ---------- tokens (ver lib/design-tokens.ts) ---------- */
+/* ---------- tokens Mostra (ver lib/design-tokens.ts) ---------- */
 :root {
-  --cor-fundo: 246 247 245;
+  --cor-fundo: 250 250 249;        /* #FAFAF9 */
   --cor-superficie: 255 255 255;
-  --cor-superficie-2: 238 241 236;
-  --cor-borda: 226 230 223;
-  --cor-texto: 16 24 32;
-  --cor-texto-2: 91 102 112;
-  --cor-acao: 16 24 32;
-  --cor-acao-texto: 255 255 255;
-  --cor-destaque: 217 249 157;
-  --cor-perigo: 194 65 12;
-  --cor-sucesso: 21 128 61;
+  --cor-superficie-2: 245 245 244; /* #F5F5F4 */
+  --cor-hover: 243 242 240;        /* #F3F2F0 */
+  --cor-borda: 237 236 234;        /* #EDECEA */
+  --cor-borda-forte: 226 225 222;  /* #E2E1DE */
+  --cor-texto: 23 23 23;           /* #171717 */
+  --cor-texto-2: 115 115 115;      /* #737373 */
+  --cor-texto-3: 163 163 163;      /* #A3A3A3 */
+  --cor-acao: 23 23 23;
+  --cor-acao-texto: 250 250 249;
+  --cor-acento: 89 101 242;        /* violeta #5965F2 */
+  --cor-acento-suave: 240 241 254; /* #F0F1FE */
+  --cor-destaque: 215 242 92;      /* lima #D7F25C */
+  --cor-perigo: 228 87 46;         /* coral #E4572E */
+  --cor-sucesso: 34 160 107;       /* #22A06B */
+  --cor-aviso: 242 193 78;         /* ipê #F2C14E */
+  --cor-guia: 242 89 135;          /* guias inteligentes #F25987 */
+  --cor-canvas: 240 239 237;       /* #F0EFED */
   color-scheme: light;
 }
 [data-tema='escuro'] {
-  --cor-fundo: 15 22 32;
-  --cor-superficie: 23 32 43;
-  --cor-superficie-2: 31 42 54;
-  --cor-borda: 42 54 66;
-  --cor-texto: 243 245 242;
-  --cor-texto-2: 154 166 178;
-  --cor-acao: 217 249 157;
-  --cor-acao-texto: 16 24 32;
-  --cor-destaque: 181 216 194;
-  --cor-perigo: 251 146 60;
-  --cor-sucesso: 74 222 128;
+  --cor-fundo: 23 23 23;
+  --cor-superficie: 30 30 30;
+  --cor-superficie-2: 38 38 38;
+  --cor-hover: 45 45 45;
+  --cor-borda: 46 46 46;
+  --cor-borda-forte: 64 64 64;
+  --cor-texto: 250 250 249;
+  --cor-texto-2: 163 163 163;
+  --cor-texto-3: 115 115 115;
+  --cor-acao: 250 250 249;
+  --cor-acao-texto: 23 23 23;
+  --cor-acento: 124 133 255;
+  --cor-acento-suave: 40 42 70;
+  --cor-destaque: 215 242 92;
+  --cor-perigo: 255 120 80;
+  --cor-sucesso: 52 199 135;
+  --cor-aviso: 242 193 78;
+  --cor-guia: 242 89 135;
+  --cor-canvas: 18 18 18;
   color-scheme: dark;
 }
 
 html, body { height: 100%; }
-body { @apply bg-fundo text-texto antialiased; font-feature-settings: 'ss01', 'cv11'; }
+body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif; letter-spacing: -0.005em; }
+.mono { font-family: var(--font-geist-mono), ui-monospace, monospace; letter-spacing: 0.02em; }
+.rotulo-mono { font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: rgb(var(--cor-texto-3)); }
+.titulo-display { letter-spacing: -0.045em; line-height: 1; font-weight: 500; }
 * { @apply border-borda; }
-:focus-visible { outline: 2px solid rgb(var(--cor-acao)); outline-offset: 2px; border-radius: 6px; }
-::selection { background: rgb(var(--cor-destaque)); color: #101820; }
+:focus-visible { outline: 2px solid rgb(var(--cor-acento)); outline-offset: 2px; border-radius: 6px; }
+::selection { background: rgb(var(--cor-acento) / .2); }
 
 /* ---------- animações do catálogo (lib/scene/schema.ts TIPOS_ANIMACAO) ---------- */
 @keyframes anim-fadeIn { from { opacity: 0 } to { opacity: var(--op, 1) } }
@@ -48,19 +67,25 @@ body { @apply bg-fundo text-texto antialiased; font-feature-settings: 'ss01', 'c
 @keyframes anim-scaleIn { from { opacity: 0; transform: scale(.92) rotate(var(--rot, 0deg)) } to { opacity: var(--op, 1); transform: scale(1) rotate(var(--rot, 0deg)) } }
 @keyframes anim-scaleOut { from { opacity: var(--op, 1); transform: scale(1) rotate(var(--rot, 0deg)) } to { opacity: 0; transform: scale(.92) rotate(var(--rot, 0deg)) } }
 @keyframes anim-reveal { from { clip-path: inset(0 100% 0 0) } to { clip-path: inset(0 0 0 0) } }
+@keyframes anim-blurIn { from { opacity: 0; filter: blur(24px) } to { opacity: var(--op, 1); filter: blur(0) } }
+@keyframes anim-rotateIn { from { opacity: 0; transform: rotate(calc(var(--rot, 0deg) - 12deg)) scale(.94) } to { opacity: var(--op, 1); transform: rotate(var(--rot, 0deg)) scale(1) } }
 
 /* transições de cena */
 @keyframes cena-fade { from { opacity: 0 } to { opacity: 1 } }
 @keyframes cena-slide { from { opacity: 0; transform: translateX(6%) } to { opacity: 1; transform: translateX(0) } }
 @keyframes cena-zoom { from { opacity: 0; transform: scale(1.04) } to { opacity: 1; transform: scale(1) } }
+@keyframes cena-scale { from { opacity: 0; transform: scale(.92) } to { opacity: 1; transform: scale(1) } }
+@keyframes cena-saida { from { opacity: 1 } to { opacity: 0 } }
 
 .camada-animada { animation-fill-mode: both; will-change: transform, opacity; }
 .cena-transicao-fade { animation: cena-fade var(--dur, 350ms) ease-out both; }
 .cena-transicao-slide { animation: cena-slide var(--dur, 350ms) ease-out both; }
 .cena-transicao-zoom { animation: cena-zoom var(--dur, 350ms) ease-out both; }
+.cena-transicao-scale { animation: cena-scale var(--dur, 350ms) cubic-bezier(.2,.8,.2,1) both; }
+.cena-saindo { animation: cena-saida var(--dur, 400ms) ease-out both; pointer-events: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .camada-animada, .cena-transicao-fade, .cena-transicao-slide, .cena-transicao-zoom { animation-duration: 1ms !important; animation-delay: 0ms !important; }
+  .camada-animada, .cena-transicao-fade, .cena-transicao-slide, .cena-transicao-zoom, .cena-transicao-scale, .cena-saindo { animation-duration: 1ms !important; animation-delay: 0ms !important; }
 }
 
 /* controles do visualizador: somem após inatividade */
@@ -69,11 +94,27 @@ body { @apply bg-fundo text-texto antialiased; font-feature-settings: 'ss01', 'c
 .viewer-ocioso { cursor: none; }
 
 /* grade do editor */
-.grade-editor { background-image: linear-gradient(to right, rgb(var(--cor-texto) / .08) 1px, transparent 1px), linear-gradient(to bottom, rgb(var(--cor-texto) / .08) 1px, transparent 1px); }
+.grade-editor { background-image: linear-gradient(to right, rgb(var(--cor-acento) / .12) 1px, transparent 1px), linear-gradient(to bottom, rgb(var(--cor-acento) / .12) 1px, transparent 1px); }
+/* sombra "carimbo" das superfícies da landing (deslocada, sólida) */
+.sombra-carimbo { box-shadow: 6px 6px 0 0 #171717; }
+.borda-carimbo { border: 1.5px solid #171717; }
+/* textura listrada usada em placeholders de foto do design */
+.listras { background-image: repeating-linear-gradient(135deg, rgb(255 255 255 / .08) 0 1px, transparent 1px 14px); }
+@keyframes marquee { from { transform: translateX(0) } to { transform: translateX(-50%) } }
+.marquee { animation: marquee 40s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .marquee { animation: none } }
 
 /* hotspot com dica no viewer */
-.hotspot-dica:hover, .hotspot-dica:focus-visible { box-shadow: inset 0 0 0 2px rgb(217 249 157 / .9); border-radius: 8px; }
+.hotspot-dica:hover, .hotspot-dica:focus-visible { box-shadow: inset 0 0 0 2px rgb(89 101 242 / .9); border-radius: 8px; }
 
 /* scrollbars discretas */
 .rolagem-fina::-webkit-scrollbar { width: 8px; height: 8px; }
 .rolagem-fina::-webkit-scrollbar-thumb { background: rgb(var(--cor-texto) / .15); border-radius: 8px; }
+
+/* controle deslizante do inspetor (trilho fino, botão grafite) */
+.deslizante { -webkit-appearance: none; appearance: none; background: transparent; }
+.deslizante::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: rgb(var(--cor-texto) / .9); }
+.deslizante::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: rgb(var(--cor-texto)); margin-top: -5.5px; border: 2px solid rgb(var(--cor-superficie)); box-shadow: 0 0 0 1px rgb(var(--cor-texto) / .2); }
+.deslizante::-moz-range-track { height: 3px; border-radius: 2px; background: rgb(var(--cor-texto) / .9); }
+.deslizante::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: rgb(var(--cor-texto)); border: 2px solid rgb(var(--cor-superficie)); }
+@keyframes previa-mov { from { left: 4px } to { left: calc(100% - 28px) } }

@@ -4,15 +4,16 @@
  * persistindo em localStorage. Quando o backend real existir, os componentes trocam este módulo por chamadas HTTP
  * sem mudar a UI. Nenhum dado aqui é real.
  */
-import { FORMATOS, SCHEMA_VERSION, type DocumentoProjeto, type ModoProjeto } from '@/lib/scene/schema'
+import { FORMATOS, SCHEMA_VERSION, novaCena, type DocumentoProjeto, type ModoProjeto } from '@/lib/scene/schema'
+import { podeGastarCreditos } from '@/lib/planos'
 import { validarDocumento } from '@/lib/scene/validate'
 import { estadoDoLink, gerarToken, hashSenha, hashToken, verificarSenha, avaliarTentativa, registrarFalha, type RegistroTentativas } from '@/lib/share/token'
 import { PLANOS, podeCriarProjeto, podeEnviarArquivo, podeUsarSenhaNoLink } from '@/lib/planos'
-import { MIMES_ACEITOS } from '@/lib/api/contratos'
+import { classificar, precisaTexto } from '@/lib/importar/arquivos'
 import { estadoInicial } from './dados'
 import type { AssetDemo, EstadoDemo, LinkCompartilhado, Projeto } from './tipos'
 
-const CHAVE = 'apresentacoes.demo.v1'
+const CHAVE = 'mostra.demo.v2'
 const ouvintes = new Set<() => void>()
 let cache: EstadoDemo | null = null
 const tentativas = new Map<string, RegistroTentativas>()
@@ -30,7 +31,7 @@ function carregar(): EstadoDemo {
       const bruto = localStorage.getItem(CHAVE)
       if (bruto) {
         const salvo = JSON.parse(bruto) as EstadoDemo
-        if (salvo.versao === 1) cache = salvo
+        if (salvo.versao === 2) cache = salvo
       }
     } catch {
       /* dados corrompidos: recomeça */
@@ -109,25 +110,30 @@ export function gerarSlug(nome: string): string {
   return nome.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60) || 'projeto'
 }
 
-export function criarProjeto(entrada: { nome: string; modo: ModoProjeto; formato?: keyof typeof FORMATOS }): Projeto {
+export function criarProjeto(entrada: { nome: string; modo: ModoProjeto; formato?: keyof typeof FORMATOS; cliente?: string; descricao?: string; documento?: DocumentoProjeto }): Projeto {
   const e = carregar()
   const decisao = podeCriarProjeto(contextoPlano(e), uso(e))
   if (!decisao.ok) throw new ErroDemo('limite_do_plano', decisao.motivo, { upgradePara: decisao.upgradePara })
-  const nome = entrada.nome.trim()
-  if (!nome) throw new ErroDemo('entrada_invalida', 'Dê um nome ao projeto')
+  const nome = entrada.nome.trim() || 'Sem título'
   const size = FORMATOS[entrada.formato ?? (entrada.modo === 'story' ? 'story' : 'slides169')]
+  const documento: DocumentoProjeto = entrada.documento ?? {
+    schemaVersion: SCHEMA_VERSION,
+    mode: entrada.modo,
+    scenes: [novaCena({ id: 'tela-01', title: 'Capa', size, background: '#FAFAF9', ...(entrada.modo === 'explorar' ? { map: { x: 0, y: 0 } } : {}) })],
+  }
   const novo: Projeto = {
     id: id('pr'),
     workspaceId: e.workspace.id,
     nome,
+    cliente: entrada.cliente?.trim() || undefined,
     slug: gerarSlug(nome),
-    descricao: '',
+    descricao: entrada.descricao?.trim() ?? '',
     modo: entrada.modo,
     status: 'draft',
     coverAssetId: null,
     revisaoAtual: 1,
     revisaoPublicada: null,
-    documento: { schemaVersion: SCHEMA_VERSION, mode: entrada.modo, scenes: [{ id: 'scene-01', title: 'Capa', size, background: '#101820', backgroundFit: 'cover', layers: [] }] },
+    documento,
     criadoEm: agoraIso(),
     atualizadoEm: agoraIso(),
     excluidoEm: null,
@@ -136,13 +142,45 @@ export function criarProjeto(entrada: { nome: string; modo: ModoProjeto; formato
   return novo
 }
 
+/** Restaura da lixeira. */
+export function restaurarProjeto(idProjeto: string) {
+  atualizar((e) => ({ ...e, projetos: e.projetos.map((p) => (p.id === idProjeto ? { ...p, excluidoEm: null } : p)) }))
+}
+
+export function listarLixeira(): Projeto[] {
+  return carregar().projetos.filter((p) => !!p.excluidoEm)
+}
+
+/** Exclusão definitiva (só a partir da lixeira). */
+export function excluirDefinitivo(idProjeto: string) {
+  atualizar((e) => auditar({ ...e, projetos: e.projetos.filter((p) => p.id !== idProjeto), links: e.links.filter((l) => l.projectId !== idProjeto), snapshots: e.snapshots.filter((s) => s.projectId !== idProjeto) }, 'project.deleted', idProjeto, { definitivo: true }))
+}
+
+// ---------- créditos de IA ----------
+
+export function saldoCreditos(): number {
+  return carregar().creditos.saldo
+}
+
+/** Debita créditos de forma atômica (no backend real: transação no ledger credit_transactions). */
+export function gastarCreditos(custo: number, motivo: string) {
+  const e = carregar()
+  const d = podeGastarCreditos(e.creditos.saldo, custo)
+  if (!d.ok) throw new ErroDemo('limite_do_plano', d.motivo)
+  gravar({ ...e, creditos: { saldo: e.creditos.saldo - custo, movimentos: [{ id: id('mv'), quantidade: -custo, motivo, criadoEm: agoraIso() }, ...e.creditos.movimentos].slice(0, 200) } })
+}
+
+export function adicionarCreditos(quantidade: number, motivo: string) {
+  atualizar((e) => ({ ...e, creditos: { saldo: e.creditos.saldo + quantidade, movimentos: [{ id: id('mv'), quantidade, motivo, criadoEm: agoraIso() }, ...e.creditos.movimentos].slice(0, 200) } }))
+}
+
 export function duplicarProjeto(idProjeto: string): Projeto {
   const e = carregar()
   const orig = e.projetos.find((p) => p.id === idProjeto)
   if (!orig) throw new ErroDemo('nao_encontrado', 'Projeto não encontrado')
   const decisao = podeCriarProjeto(contextoPlano(e), uso(e))
   if (!decisao.ok) throw new ErroDemo('limite_do_plano', decisao.motivo, { upgradePara: decisao.upgradePara })
-  const copia: Projeto = { ...structuredClone(orig), id: id('pr'), nome: `${orig.nome} (cópia)`, slug: `${orig.slug}-copia`, status: 'draft', revisaoAtual: 1, revisaoPublicada: null, criadoEm: agoraIso(), atualizadoEm: agoraIso() }
+  const copia: Projeto = { ...structuredClone(orig), id: id('pr'), nome: `${orig.nome} (cópia)`, slug: `${orig.slug}-copia`, status: 'draft', revisaoAtual: 1, revisaoPublicada: null, criadoEm: agoraIso(), atualizadoEm: agoraIso(), excluidoEm: null }
   gravar(auditar({ ...e, projetos: [copia, ...e.projetos] }, 'project.created', copia.id, { duplicadoDe: orig.id }))
   return copia
 }
@@ -227,49 +265,66 @@ export type ProgressoUpload = { fase: 'validating' | 'uploading' | 'processing' 
 
 /**
  * Simula selected -> validating -> uploading -> processing -> ready (ou failed com mensagem acionável).
- * No backend real: POST /api/assets/upload-url → PUT no storage → POST /api/assets/:id/finalize → worker gera variantes.
+ * Aceita tudo que o editor importa: imagens, GIF, vídeo, SVG (sanitizado), GLB/GLTF (Blender) e Lottie.
+ * No backend real: POST /api/assets/upload-url → PUT no storage → POST /api/assets/:id/finalize → worker.
  */
-export async function enviarArquivo(arquivo: File, aoProgredir: (p: ProgressoUpload) => void): Promise<AssetDemo> {
+export async function enviarArquivo(arquivo: File, aoProgredir: (p: ProgressoUpload) => void, opcoes: { sanitizarSvg?: (t: string) => string } = {}): Promise<AssetDemo> {
   const e = carregar()
   aoProgredir({ fase: 'validating', progresso: 0 })
-  await espera(200)
-  if (!(MIMES_ACEITOS as readonly string[]).includes(arquivo.type)) {
-    aoProgredir({ fase: 'failed', progresso: 0, mensagem: 'Formato não suportado. Envie PNG, JPG, WebP, GIF, MP4 ou WebM.' })
-    throw new ErroDemo('entrada_invalida', 'Formato não suportado')
+  const inicio = new Uint8Array(await arquivo.slice(0, 16).arrayBuffer())
+  const texto = precisaTexto(arquivo.name, arquivo.type) ? await arquivo.text() : undefined
+  const cl = classificar(arquivo.name, arquivo.type, inicio, texto)
+  if (cl.tipo === 'nao_suportado') {
+    aoProgredir({ fase: 'failed', progresso: 0, mensagem: cl.dica })
+    throw new ErroDemo('entrada_invalida', cl.dica ?? 'Formato não suportado')
   }
   const decisao = podeEnviarArquivo(contextoPlano(e), uso(e), arquivo.size)
   if (!decisao.ok) {
     aoProgredir({ fase: 'failed', progresso: 0, mensagem: decisao.motivo })
     throw new ErroDemo('limite_do_plano', decisao.motivo)
   }
-  const url = URL.createObjectURL(arquivo)
-  const tipo = arquivo.type.startsWith('video/') ? 'video' : arquivo.type === 'image/gif' ? 'gif' : 'image'
-  const dims = tipo === 'video' ? await dimensoesVideo(url) : await dimensoesImagem(url)
+  let blob: Blob = arquivo
+  if (cl.tipo === 'svg' && texto !== undefined) {
+    const limpo = opcoes.sanitizarSvg ? opcoes.sanitizarSvg(texto) : texto
+    blob = new Blob([limpo], { type: 'image/svg+xml' })
+  }
+  const url = URL.createObjectURL(blob)
+  const dims = cl.tipo === 'video' ? await dimensoesVideo(url) : cl.tipo === 'image' || cl.tipo === 'gif' || cl.tipo === 'svg' ? await dimensoesImagem(url) : cl.tipo === 'lottie' && texto ? lottieDims(texto) : { width: null, height: null }
   for (let p = 10; p <= 100; p += 30) {
-    await espera(120)
+    await espera(90)
     aoProgredir({ fase: 'uploading', progresso: p })
   }
   aoProgredir({ fase: 'processing', progresso: 100 })
-  await espera(300)
+  await espera(200)
   const asset: AssetDemo = {
     id: id('as'),
     workspaceId: e.workspace.id,
     nome: arquivo.name,
-    tipo,
-    mime: arquivo.type,
+    tipo: cl.tipo,
+    mime: cl.mime,
     bytes: arquivo.size,
     width: dims.width,
     height: dims.height,
     duracao: dims.duration ?? null,
     status: 'ready',
     url,
-    thumbUrl: tipo === 'video' ? null : url,
+    thumbUrl: cl.tipo === 'image' || cl.tipo === 'gif' || cl.tipo === 'svg' ? url : null,
     posterUrl: null,
     criadoEm: agoraIso(),
+    erro: cl.dica,
   }
   atualizar((s) => ({ ...s, assets: [asset, ...s.assets] }))
   aoProgredir({ fase: 'ready', progresso: 100, asset })
   return asset
+}
+
+function lottieDims(texto: string): { width: number | null; height: number | null; duration?: number } {
+  try {
+    const j = JSON.parse(texto) as { w?: number; h?: number }
+    return { width: j.w ?? null, height: j.h ?? null }
+  } catch {
+    return { width: null, height: null }
+  }
 }
 
 /** Impede quebra silenciosa: devolve os projetos que usam a mídia. */

@@ -7,6 +7,7 @@ import type { z } from 'zod'
 import type { Asset, CriarProjetoReq, CriarShareLinkReq, DetalheProjetoRes, Envelope, ProjetoResumo, ResolverShareRes, SalvarCenasRes, ShareLink } from './contratos'
 import type { DocumentoProjeto } from '@/lib/scene/schema'
 import { supabaseNavegador } from '@/lib/supabase/navegador'
+import type { PedidoRoteiro, RespostaRoteiro } from '@/lib/ia/pedido'
 
 export class ErroApiCliente extends Error {
   constructor(public code: string, message: string, public details?: unknown, public status?: number) {
@@ -28,6 +29,10 @@ async function chamar<T>(caminho: string, init: RequestInit = {}, autenticado = 
 }
 
 export const api = {
+  ia: {
+    /** No modo demo a rota não exige sessão. */
+    roteiro: (b: Partial<PedidoRoteiro>, sinal?: AbortSignal) => chamar<RespostaRoteiro>('/api/ai/roteiro', { method: 'POST', body: JSON.stringify(b), signal: sinal }, process.env.NEXT_PUBLIC_DEMO !== '1'),
+  },
   projetos: {
     listar: (q: { q?: string; status?: string; cursor?: string } = {}) => chamar<{ items: ProjetoResumo[]; nextCursor: string | null; total: number }>(`/api/projects?${new URLSearchParams(q as Record<string, string>)}`),
     criar: (b: z.infer<typeof CriarProjetoReq>) => chamar<ProjetoResumo>('/api/projects', { method: 'POST', body: JSON.stringify(b) }),

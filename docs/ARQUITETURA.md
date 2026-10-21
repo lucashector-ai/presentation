@@ -50,7 +50,11 @@ infrastructure
 | `/app/projects/:id/share` | Compartilhamento: criar/revogar link, senha, validade | ✅ |
 | `/app/projects/:id/apresentar` | Rota limpa para o autor apresentar | ✅ |
 | `/p/:token` | Visualizador público não listado (indisponível / senha / pronto) | ✅ |
-| `/app/settings` | Conta, plano e uso, tema, LGPD | ✅ |
+| `/app/settings` | Conta, plano e uso, créditos, tema, LGPD | ✅ |
+| `/app/novo` | Novo projeto: formato, templates, importação de arquivos | ✅ |
+| `/app/biblioteca`, `/app/compartilhados`, `/app/lixeira` | Arquivos do workspace, projetos com link, lixeira com restauração | ✅ |
+| `/app/projects/:id/apresentador` | Visão do apresentador (notas, próxima tela, cronômetro) sincronizada por BroadcastChannel | ✅ |
+| `/criar` | Criar com IA: prompt/texto/arquivo → roteiro editável → apresentação | ✅ |
 
 ## 4. Modelo de dados
 
@@ -60,7 +64,8 @@ Integridade: toda consulta filtra por `workspace_id` no servidor **e** RLS no ba
 
 ## 5. Contratos
 
-- **Cena/documento**: `lib/scene/schema.ts` — `DocumentoProjeto { schemaVersion, mode, scenes[] }`; camadas `image | video | text | shape | hotspot`; `Interacao = trigger + conditions + do (ação) + transition`; matriz `ACOES_POR_TRIGGER`.
+- **Cena/documento**: `lib/scene/schema.ts` (schema v2, migração automática da v1 em `lib/scene/migrar.ts`) — `DocumentoProjeto { schemaVersion, mode: slides|story|explorar, theme, scenes[] }`; camadas `image | video | text | shape | hotspot | svg | model3d | lottie | embed`, com grupos, efeitos, gradientes, corte/máscara; até 8 `interactions` por camada (`trigger + conditions + do + transition`); transição `morph` casa camadas pelo nome entre telas.
+- **IA**: `lib/ia/pedido.ts` (pedido/resposta de `/api/ai/roteiro`), `lib/ia/roteiro.ts` (roteiro → documento).
 - **Validação semântica**: `lib/scene/validate.ts` — referências cruzadas, URLs só http(s), compatibilidade trigger/ação, `scrollThreshold` só em Story, rótulos de acessibilidade (aviso ao designer).
 - **Motor**: `lib/scene/motor.ts` — reducer puro `executar(doc, estado, camada, interacao) → { estado, efeitos }`. Editor (preview) e viewer usam exatamente o mesmo contrato.
 - **API**: `lib/api/contratos.ts` — envelope `{ data, error, requestId }`, códigos (400/401/403/404/409/413/429/5xx), schemas de cada rota da seção 13.1.

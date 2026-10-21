@@ -3,7 +3,7 @@ import type { PlanoId, EstadoAssinatura } from '@/lib/planos'
 
 export type StatusProjeto = 'draft' | 'published' | 'archived'
 export type StatusAsset = 'queued' | 'processing' | 'ready' | 'failed'
-export type TipoMidia = 'image' | 'video' | 'gif'
+export type TipoMidia = 'image' | 'video' | 'gif' | 'svg' | 'model3d' | 'lottie'
 
 export interface Usuario {
   id: string
@@ -16,6 +16,15 @@ export interface Workspace {
   nome: string
   planoId: PlanoId
   estadoAssinatura: EstadoAssinatura
+  membros: number
+}
+
+export interface MovimentoCredito {
+  id: string
+  /** positivo = entrada (plano, pacote), negativo = consumo */
+  quantidade: number
+  motivo: string
+  criadoEm: string
 }
 
 export interface Projeto {
@@ -27,6 +36,10 @@ export interface Projeto {
   modo: ModoProjeto
   status: StatusProjeto
   coverAssetId: string | null
+  /** Cliente (opcional, só exibição). */
+  cliente?: string
+  /** Categoria exibida na capa do card (ex.: IDENTIDADE VISUAL). */
+  categoria?: string
   revisaoAtual: number
   revisaoPublicada: number | null
   documento: DocumentoProjeto
@@ -91,4 +104,5 @@ export interface EstadoDemo {
   links: LinkCompartilhado[]
   snapshots: Snapshot[]
   auditoria: EventoAuditoria[]
+  creditos: { saldo: number; movimentos: MovimentoCredito[] }
 }

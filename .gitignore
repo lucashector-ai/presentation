@@ -9,3 +9,4 @@ out/
 tsconfig.tsbuildinfo
 coverage/
 e2e/capturas/
+.next-*/
