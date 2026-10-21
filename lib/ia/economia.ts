@@ -35,10 +35,10 @@ export const ESTIMATIVA = {
     sistema: tokens(INSTRUCOES_SISTEMA),
     /** Pedido, tipo, tom, público, marca. */
     pedido: 350,
-    /** Pensamento (esforço médio) e estrutura do JSON. */
-    saidaBase: 900,
+    /** Pensamento (esforço médio) e estrutura do JSON. Medido: 2.170 tokens no total para 10 telas. */
+    saidaBase: 600,
     /** Título, rótulo, texto, itens e notas de cada tela. */
-    saidaPorTela: 330,
+    saidaPorTela: 250,
   },
   design: {
     sistema: tokens(INSTRUCOES_DESIGN),
@@ -46,8 +46,8 @@ export const ESTIMATIVA = {
     deckBase: 300,
     deckPorTela: 130,
     sufixo: 60,
-    /** Pensamento (esforço médio) + JSON da tela (campos vazios quando o roteiro já serve). */
-    saida: 850,
+    /** Pensamento (esforço médio) + JSON da tela (campos vazios quando o roteiro já serve). Medido: 100–236 por tela. */
+    saida: 300,
   },
   tela: { sistema: tokens(INSTRUCOES_TELA), entrada: 700, saida: 900 },
   texto: { sistema: tokens(INSTRUCOES_TEXTO), entrada: 600, saida: 600 },
@@ -162,10 +162,12 @@ export function tabelaAcoes(telasLista = [6, 8, 10, 12, 20]) {
     return { acao: `Gerar apresentação de ${n} telas`, usd: r.usd + d.usd, creditos: custoApresentacao(n), necessarios: creditosNecessarios(r.usd + d.usd), roteiro: { usd: r.usd, creditos: custoRoteiro(n) }, desenho: { usd: d.usd, creditos: custoDesenho(n) } }
   })
   const material = custoRoteiroUsd(10, 60000).usd - custoRoteiroUsd(10).usd
+  // uma tela a mais num deck de 10 com o cache quente (o redesenho avulso com o cache frio está em redesenhar1Frio)
+  const marginal = custoDesenhoUsd(10, 10, { sistemaQuente: true }).usd - custoDesenhoUsd(9, 10, { sistemaQuente: true }).usd
   return {
     apresentacoes: linhas,
     material: { acao: 'Material colado (60 mil caracteres)', usd: material, creditos: custoRoteiro(10, 60000) - custoRoteiro(10), necessarios: creditosNecessarios(material) },
-    redesenhar1: { acao: 'Redesenhar 1 tela de um deck de 10', usd: custoDesenhoUsd(1, 10, { sistemaQuente: true }).usd, creditos: DIVISAO_TELA.desenho, necessarios: creditosNecessarios(custoDesenhoUsd(1, 10, { sistemaQuente: true }).usd) },
+    redesenhar1: { acao: 'Redesenhar 1 tela de um deck de 10 (cache quente)', usd: marginal, creditos: DIVISAO_TELA.desenho, necessarios: creditosNecessarios(marginal) },
     redesenhar1Frio: { acao: 'Redesenhar 1 tela com a plataforma ociosa (cache todo frio)', usd: custoDesenhoUsd(1, 10).usd, creditos: DIVISAO_TELA.desenho, necessarios: creditosNecessarios(custoDesenhoUsd(1, 10).usd) },
     refazer: { acao: 'Refazer uma tela', usd: custoRefazerTelaUsd().usd, creditos: CUSTO_CREDITOS.refazerTela, necessarios: creditosNecessarios(custoRefazerTelaUsd().usd) },
     reescrever: { acao: 'Reescrever o texto de uma tela', usd: custoReescreverUsd().usd, creditos: CUSTO_CREDITOS.reescrever, necessarios: creditosNecessarios(custoReescreverUsd().usd) },

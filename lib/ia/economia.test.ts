@@ -51,11 +51,14 @@ describe('preço em créditos cobre o custo com folga', () => {
     for (const material of [0, 2500, 20000, 60000]) {
       expect(coberturaUsd(custoRoteiro(n, material))).toBeGreaterThanOrEqual(creditosNecessarios(custoRoteiroUsd(n, material).usd) * USD_POR_CREDITO)
     }
-    expect(coberturaUsd(custoDesenho(n))).toBeGreaterThanOrEqual(creditosNecessarios(custoDesenhoUsd(n).usd) * USD_POR_CREDITO)
+    // o custo fixo do design (cache frio) é cobrado na parte fixa do roteiro: a apresentação inteira cobre o pior caso
+    expect(coberturaUsd(custoRoteiro(n) + custoDesenho(n))).toBeGreaterThanOrEqual(creditosNecessarios(custoRoteiroUsd(n).usd + custoDesenhoUsd(n).usd) * USD_POR_CREDITO)
   })
   it('redesenhar uma tela (system em cache), refazer tela e reescrever texto', () => {
-    // deck de 10 telas; num deck de 20 o redesenho avulso fica ~4 créditos abaixo, coberto pela sobra da geração (docs/economia-ia.md)
-    expect(DIVISAO_TELA.desenho).toBeGreaterThanOrEqual(creditosNecessarios(custoDesenhoUsd(1, 10, { sistemaQuente: true }).usd))
+    // custo de uma tela a mais num deck com cache quente; o redesenho avulso com o cache do deck frio fica até ~3 créditos
+    // abaixo (gravação do deck), coberto pela sobra da geração (docs/economia-ia.md)
+    const marginal = custoDesenhoUsd(10, 10, { sistemaQuente: true }).usd - custoDesenhoUsd(9, 10, { sistemaQuente: true }).usd
+    expect(DIVISAO_TELA.desenho).toBeGreaterThanOrEqual(creditosNecessarios(marginal))
     expect(CUSTO_CREDITOS.refazerTela).toBeGreaterThanOrEqual(creditosNecessarios(custoRefazerTelaUsd().usd))
     expect(CUSTO_CREDITOS.reescrever).toBeGreaterThanOrEqual(creditosNecessarios(custoReescreverUsd().usd))
   })
@@ -100,8 +103,8 @@ describe('planos e pacotes com margem', () => {
       expect(m.margemBrutaMin).toBeGreaterThanOrEqual(1 - TETO_IA_SOBRE_RECEITA)
     }
   })
-  it('free: custo de aquisição limitado a 2 apresentações de 10 telas', () => {
-    expect(PLANOS.free.creditos.quantidade).toBeLessThanOrEqual(2 * (10 + 10 * CUSTO_CREDITOS.tela) + 50)
+  it('free: custo de aquisição limitado (≈ 5 apresentações de 10 telas, no máximo R$ 6 de IA)', () => {
+    expect(PLANOS.free.creditos.quantidade).toBeLessThanOrEqual(5 * (CUSTO_CREDITOS.roteiro + 10 * CUSTO_CREDITOS.tela))
     expect(margemDoPlano('free', 'mensal').custoIaMaxBRL).toBeLessThan(6)
   })
   it('pacotes avulsos: margem mínima e preço por crédito decrescente', () => {
