@@ -1,51 +1,76 @@
 'use client'
 /**
  * Canvas do editor (camadas DOM + Pointer Events, sem canvas raster).
- * - Seleção: clique (grupo inteiro), Shift+clique, duplo clique entra no grupo/edita texto, arrastar no vazio = área
- * - Mover com guias inteligentes (bordas e centros das outras camadas e da tela); Shift trava o eixo
- * - Redimensionar (8 alças, Shift proporcional) também para seleção múltipla; alça de rotação (Shift = 15°)
- * - Ferramentas Texto/Forma/Hotspot: arraste para desenhar (ou clique para tamanho padrão)
+ * - Seleção: clique (frame/grupo externo), Shift+clique, ⌘/Ctrl+clique seleciona direto a camada funda,
+ *   duplo clique entra no frame/grupo ou edita texto, arrastar no vazio = área
+ * - Mover com encaixe estilo Figma (bordas, centros, tela, espaçamento igual, grade); limiar de 5 px de tela;
+ *   Shift trava o eixo; ⌘/Ctrl desliga o encaixe; Alt mostra distâncias até a camada sob o cursor
+ * - Redimensionar (8 alças) com encaixe; Shift proporcional, Alt a partir do centro
+ * - Auto layout: arrastar um filho reordena (linha azul); soltar fora tira do frame; soltar sobre um frame coloca dentro
+ * - Ferramenta Texto: clique cria texto com largura automática já em edição; arrastar cria largura fixa
+ * - Ferramentas Forma/Hotspot: arraste para desenhar (ou clique para tamanho padrão)
  * - Zoom no cursor (Ctrl/⌘ + roda, pinça), pan (roda, espaço+arrastar, botão do meio, ferramenta Mão)
  * - Soltar arquivos/SVG/links na posição do cursor
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Camada, CamadaTexto, DocumentoProjeto } from '@/lib/scene/schema'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { Camada, CamadaFrame, CamadaTexto, DocumentoProjeto } from '@/lib/scene/schema'
 import type { Editor } from '@/lib/editor/useEditor'
-import { encaixar, intersecta, anguloRotacao, type Guia } from '@/lib/editor/guias'
-import { camadaNoPonto, envolvente, redimensionar, snap, type Alca, type Retangulo } from '@/lib/scene/transform'
+import { encaixar, guiasDaCaixa, intersecta, anguloRotacao, limiarEmCena, medirDistancias, redimensionarComEncaixe, LIMIAR_TELA } from '@/lib/editor/guias'
+import { indiceDeInsercao, type Insercao } from '@/lib/editor/autolayout'
+import { alvoDoClique, ancestrais, comDescendentes, mapaDe, ocultasEfetivas, paiDe, raizDe, raizesDaSelecao, temAutoLayout } from '@/lib/scene/arvore'
+import { camadaNoPonto, contemPonto, envolvente, type Alca, type Retangulo } from '@/lib/scene/transform'
+import { indiceNoPonto, medirTexto, textoAutomatico } from '@/lib/editor/medirTexto'
 import { pilhaFonte } from '@/lib/design-tokens'
 import { SceneRenderer, type AssetsResolvidos } from '@/components/renderer/SceneRenderer'
 import { useTamanho } from '@/components/renderer/useTamanho'
 import { MiniaturaCena } from './MiniaturaCena'
+import { GuiasCanvas, LinhaInsercao, SEM_SOBREPOSICAO, type Sobreposicao } from './GuiasCanvas'
 import { lerDataTransfer } from '@/lib/importar/clipboard'
 import { importarConteudo, type Avisar } from '@/lib/editor/importar'
 import type { AssetDemo } from '@/lib/demo/tipos'
 
 const ALCAS: Alca[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
 const CURSORES: Record<Alca, string> = { n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize', ne: 'nesw-resize', sw: 'nesw-resize', nw: 'nwse-resize', se: 'nwse-resize' }
-const PASSO_GRADE = 8
 const ZOOM_MIN = 0.05
 const ZOOM_MAX = 8
 
 type Gesto =
-  | { tipo: 'mover'; inicio: { x: number; y: number }; iniciais: Map<string, Retangulo>; caixa: Retangulo; moveu: boolean; antes: DocumentoProjeto }
+  | { tipo: 'mover'; inicio: { x: number; y: number }; iniciais: Map<string, Retangulo>; raizes: string[]; caixa: Retangulo; moveu: boolean; antes: DocumentoProjeto; fluxo: boolean; delta: { x: number; y: number }; ponteiro: { x: number; y: number } }
   | { tipo: 'redimensionar'; alca: Alca; inicio: { x: number; y: number }; caixa: Retangulo; iniciais: Map<string, Retangulo>; antes: DocumentoProjeto }
   | { tipo: 'rotacionar'; centro: { x: number; y: number }; id: string; antes: DocumentoProjeto }
   | { tipo: 'area'; inicio: { x: number; y: number }; atual: { x: number; y: number }; base: string[] }
-  | { tipo: 'desenhar'; inicio: { x: number; y: number }; atual: { x: number; y: number } }
+  | { tipo: 'desenhar'; inicio: { x: number; y: number }; atual: { x: number; y: number }; manterFerramenta: boolean }
   | { tipo: 'pan'; inicio: { x: number; y: number }; panInicial: { x: number; y: number } }
+
+interface EdicaoTexto {
+  id: string
+  /** Documento antes da sessão de edição (um passo de desfazer por sessão). */
+  antes: DocumentoProjeto
+  nova: boolean
+  /** Onde pôr o cursor: índice, 'fim' ou 'tudo' (Enter seleciona tudo, como no Figma). */
+  cursor: number | 'fim' | 'tudo'
+}
+
+type EstiloTexto = Partial<Pick<CamadaTexto, 'fontFamily' | 'fontSize' | 'fontWeight' | 'color' | 'lineHeight' | 'letterSpacing' | 'italic' | 'transform'>>
 
 export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }: { editor: Editor; assets: Record<string, AssetDemo>; avisar: Avisar; interagir3d?: boolean; aoEscala?: (s: number) => void }) {
   const { estado, cena, acoes, indiceCena } = editor
   const { ref, tamanho } = useTamanho<HTMLDivElement>()
   const gesto = useRef<Gesto | null>(null)
   const [, forcar] = useState(0)
-  const [guias, setGuias] = useState<Guia[]>([])
+  const [sobre, setSobre] = useState<Sobreposicao>(SEM_SOBREPOSICAO)
+  const [insercao, setInsercao] = useState<(Insercao & { frameId: string }) | null>(null)
   const [hover, setHover] = useState<string | null>(null)
-  const [editandoTexto, setEditandoTexto] = useState<string | null>(null)
+  const [edicao, setEdicao] = useState<EdicaoTexto | null>(null)
+  const editandoTexto = edicao?.id ?? null
   const [espaco, setEspaco] = useState(false)
+  const [alt, setAlt] = useState(false)
   const [arrastandoArquivo, setArrastandoArquivo] = useState(false)
   const [previaAtiva, setPreviaAtiva] = useState(false)
+  const [guiasTemporarias, setGuiasTemporarias] = useState(0)
+  const [fontesProntas, setFontesProntas] = useState(0)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const estiloTexto = useRef<EstiloTexto>({})
 
   // prévia de animação: o canvas renderiza em modo apresentação por alguns segundos e volta ao modo edição
   useEffect(() => {
@@ -86,16 +111,20 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
     [vp, cena, acoes, tamanho]
   )
 
-  // espaço segurado = mão temporária
+  // espaço segurado = mão temporária; Alt segurado = medir distâncias
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       const alvo = e.target as HTMLElement
-      if (e.code === 'Space' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(alvo.tagName) && !alvo.isContentEditable) { e.preventDefault(); setEspaco(true) }
+      const digitando = ['INPUT', 'TEXTAREA', 'SELECT'].includes(alvo.tagName) || alvo.isContentEditable
+      if (e.code === 'Space' && !digitando) { e.preventDefault(); setEspaco(true) }
+      if (e.key === 'Alt' && !digitando) { e.preventDefault(); setAlt(true) }
     }
-    const up = (e: KeyboardEvent) => { if (e.code === 'Space') setEspaco(false) }
+    const up = (e: KeyboardEvent) => { if (e.code === 'Space') setEspaco(false); if (e.key === 'Alt') setAlt(false) }
+    const sair = () => { setAlt(false); setEspaco(false) }
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
-    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
+    window.addEventListener('blur', sair)
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); window.removeEventListener('blur', sair) }
   }, [])
 
   // roda: pan; Ctrl/⌘ (e pinça do trackpad): zoom no cursor
@@ -112,15 +141,127 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
     return () => el.removeEventListener('wheel', roda)
   }, [ref, vp, zoomEm, local, acoes, estado.pan, estado.zoom])
 
+  // Enter num texto selecionado (EditorShell) entra em edição com tudo selecionado
+  useEffect(() => {
+    const f = (e: Event) => { const id = (e as CustomEvent<{ id: string }>).detail.id; setEdicao({ id, antes: acoes.documentoAtual(), nova: false, cursor: 'tudo' }) }
+    const g = () => setGuiasTemporarias(Date.now() + 700)
+    window.addEventListener('mostra:editar-texto', f)
+    window.addEventListener('mostra:empurrou', g)
+    return () => { window.removeEventListener('mostra:editar-texto', f); window.removeEventListener('mostra:empurrou', g) }
+  }, [acoes])
+  useEffect(() => {
+    if (!guiasTemporarias) return
+    const t = window.setTimeout(() => setGuiasTemporarias(0), Math.max(0, guiasTemporarias - Date.now()))
+    return () => window.clearTimeout(t)
+  }, [guiasTemporarias])
+
+  // fontes web mudam a medida dos textos automáticos
+  useEffect(() => {
+    if (typeof document === 'undefined' || !document.fonts) return
+    const f = () => setFontesProntas((n) => n + 1)
+    document.fonts.addEventListener('loadingdone', f)
+    void document.fonts.ready.then(f)
+    return () => document.fonts.removeEventListener('loadingdone', f)
+  }, [])
+
+  // textos com largura/altura automática: mede no DOM e grava no documento (sem passo de desfazer)
+  useLayoutEffect(() => {
+    if (!cena) return
+    const mudancas = new Map<string, { width: number; height: number; x: number }>()
+    const mapa = mapaDe(cena.layers)
+    for (const l of cena.layers) {
+      if (!textoAutomatico(l)) continue
+      const m = medirTexto(l)
+      if (Math.abs(m.width - l.width) < 0.5 && Math.abs(m.height - l.height) < 0.5) continue
+      // largura automática cresce conforme o alinhamento (centro: para os dois lados; direita: para a esquerda)
+      const dw = m.width - l.width
+      const livre = !temAutoLayout(paiDe(l, mapa))
+      const x = livre && l.sizingW === 'hug' ? (l.align === 'center' ? Math.round(l.x - dw / 2) : l.align === 'right' ? l.x - dw : l.x) : l.x
+      mudancas.set(l.id, { ...m, x })
+    }
+    if (!mudancas.size) return
+    acoes.atualizarCamadas([...mudancas.keys()], (l) => ({ ...l, ...mudancas.get(l.id)! }), false, { manterDimensionamento: true })
+  }, [cena, acoes, fontesProntas])
+
+  // lembra o estilo do último texto selecionado (o próximo texto criado com T usa o mesmo)
+  const unicaId = estado.selecao.length === 1 ? estado.selecao[0] : undefined
+  useEffect(() => {
+    const t = cena?.layers.find((l) => l.id === unicaId)
+    if (t?.type === 'text') estiloTexto.current = { fontFamily: t.fontFamily, fontSize: t.fontSize, fontWeight: t.fontWeight, color: t.color, lineHeight: t.lineHeight, letterSpacing: t.letterSpacing, italic: t.italic, transform: t.transform }
+  }, [unicaId, cena])
+
+  // foco do editor de texto sem rolar a área (antes o autoFocus "pulava" a tela para o topo)
+  useLayoutEffect(() => {
+    const ta = textareaRef.current
+    if (!edicao || !ta) return
+    ta.focus({ preventScroll: true })
+    const n = ta.value.length
+    if (edicao.cursor === 'tudo') ta.setSelectionRange(0, n)
+    else if (edicao.cursor === 'fim') ta.setSelectionRange(n, n)
+    else ta.setSelectionRange(Math.min(edicao.cursor, n), Math.min(edicao.cursor, n))
+    ref.current?.scrollTo?.(0, 0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edicao?.id])
+
   if (!cena) return null
-  const selecionadas = cena.layers.filter((l) => estado.selecao.includes(l.id))
+  const camadas = cena.layers
+  const mapa = mapaDe(camadas)
+  const ocultas = ocultasEfetivas(camadas)
+  const selecionadas = camadas.filter((l) => estado.selecao.includes(l.id))
   const caixaSel = selecionadas.length ? envolvente(selecionadas) : null
   const unica = selecionadas.length === 1 ? selecionadas[0]! : null
   const ehDesenho = estado.ferramenta === 'texto' || estado.ferramenta === 'forma' || estado.ferramenta === 'hotspot'
   const modoMao = estado.ferramenta === 'mao' || espaco
-  const aplicarGrade = (v: number) => (estado.grade ? snap(v, PASSO_GRADE, true) : v)
+  const grade = estado.grade ? estado.gradePasso : 0
+  const naGrade = (v: number) => (grade ? Math.round(v / grade) * grade : Math.round(v))
   const interacoesVisiveis = estado.abaDireita === 'interacoes' && estado.mostrarHotspots
-  const comInteracao = cena.layers.filter((l) => l.interactions.length > 0)
+  const comInteracao = camadas.filter((l) => l.interactions.length > 0)
+  const limiar = vp ? limiarEmCena(LIMIAR_TELA, vp.s) : LIMIAR_TELA
+  const visiveisExceto = (excluir: ReadonlySet<string>) => camadas.filter((l) => !excluir.has(l.id) && !ocultas.has(l.id))
+
+  /** Frame sob o ponteiro para soltar (o mais fundo), fora do conjunto que está sendo movido. */
+  const frameSob = (p: { x: number; y: number }, excluir: ReadonlySet<string>): CamadaFrame | undefined =>
+    camadas
+      .filter((l): l is CamadaFrame => l.type === 'frame' && !excluir.has(l.id) && !ocultas.has(l.id) && !l.locked && contemPonto(l, p))
+      .sort((a, b) => b.z - a.z)[0]
+
+  // ---------- texto ----------
+  const editarTexto = (id: string, cursor: EdicaoTexto['cursor'], nova = false, antes?: DocumentoProjeto) => {
+    setHover(null)
+    setEdicao({ id, antes: antes ?? acoes.documentoAtual(), nova, cursor })
+  }
+  const finalizarTexto = () => {
+    const ed = edicao
+    if (!ed) return
+    setEdicao(null)
+    const t = editor.acoes.documentoAtual().scenes.flatMap((s) => s.layers).find((l) => l.id === ed.id)
+    if (!t || t.type !== 'text') return
+    if (!t.text.trim()) {
+      // texto vazio é removido ao sair (como no Figma); se era novo, não deixa rastro no histórico
+      acoes.removerCamadas([t.id], false)
+      if (!ed.nova) acoes.registrarHistorico(ed.antes)
+      acoes.selecionarExato([])
+      return
+    }
+    acoes.registrarHistorico(ed.antes)
+    acoes.selecionarExato([t.id])
+  }
+  const criarTextoEm = (r: Retangulo, larguraFixa: boolean) => {
+    const antes = acoes.documentoAtual()
+    const est = estiloTexto.current
+    const fonte = estado.documento.theme?.fontBody
+    const fontSize = est.fontSize ?? Math.round(cena.size.width / 26)
+    const alturaLinha = Math.ceil(fontSize * (est.lineHeight ?? 1.15))
+    // dentro da tela: clicar perto da base cria ali mesmo (nunca pula para o topo)
+    const x = Math.round(Math.min(Math.max(0, r.x), cena.size.width - Math.max(1, larguraFixa ? r.width : fontSize)))
+    const y = Math.round(Math.min(Math.max(0, r.y), cena.size.height - alturaLinha))
+    const nova = acoes.criarCamada(
+      { type: 'text', text: '', color: '#171717', ...(fonte ? { fontFamily: fonte } : {}), ...est, fontSize, ...(larguraFixa ? { sizingW: 'fixed', sizingH: 'hug' } : { sizingW: 'hug', sizingH: 'hug' }) },
+      { x, y, width: larguraFixa ? Math.max(1, Math.round(r.width)) : 1, height: alturaLinha },
+      { historico: false }
+    )
+    if (nova) editarTexto(nova.id, 'fim', true, antes)
+  }
 
   // ---------- ponteiro ----------
   const onPointerDown = (ev: React.PointerEvent) => {
@@ -148,33 +289,48 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
       return
     }
     if (ehDesenho) {
-      gesto.current = { tipo: 'desenhar', inicio: pc, atual: pc }
+      // T sobre um texto existente: edita no ponto clicado
+      if (estado.ferramenta === 'texto') {
+        const t = camadaNoPonto(cena, pc, { ignorarTravadas: true })
+        if (t?.type === 'text') {
+          ev.preventDefault()
+          editarTexto(t.id, indiceNoPonto(ev.clientX, ev.clientY, ref.current?.querySelector(`[data-layer-id="${t.id}"]`) ?? null) ?? 'fim')
+          if (!ev.shiftKey) acoes.setFerramenta('mover')
+          return
+        }
+      }
+      gesto.current = { tipo: 'desenhar', inicio: pc, atual: pc, manterFerramenta: ev.shiftKey }
       return
     }
-    // clique dentro da caixa de seleção múltipla move tudo
-    const camada = camadaNoPonto(cena, pc, { ignorarTravadas: true })
+    const atingida = camadaNoPonto(cena, pc, { ignorarTravadas: true })
+    const camada = atingida ? alvoDoClique(atingida, camadas, estado.selecao, ev.metaKey || ev.ctrlKey) : undefined
     let ids = estado.selecao
     if (camada) {
       if (ev.shiftKey) ids = ids.includes(camada.id) ? ids.filter((i) => i !== camada.id) : [...ids, camada.id]
       else if (!ids.includes(camada.id)) ids = [camada.id]
       acoes.selecionar(ids)
-    } else if (caixaSel && selecionadas.length > 1 && pc.x >= caixaSel.x && pc.x <= caixaSel.x + caixaSel.width && pc.y >= caixaSel.y && pc.y <= caixaSel.y + caixaSel.height) {
-      // mantém a seleção
+    } else if (caixaSel && selecionadas.length > 1 && contemPonto(caixaSel, pc)) {
+      // clique dentro da caixa de seleção múltipla move tudo
     } else {
       gesto.current = { tipo: 'area', inicio: pc, atual: pc, base: ev.shiftKey ? estado.selecao : [] }
       if (!ev.shiftKey) acoes.selecionar([])
       return
     }
     const idsFinais = camada ? expandir(ids) : estado.selecao
-    const moviveis = cena.layers.filter((l) => idsFinais.includes(l.id) && !l.locked)
+    const raizes = raizesDaSelecao(idsFinais, camadas).filter((id) => !mapa.get(id)?.locked)
+    const todos = comDescendentes(raizes, camadas)
+    const moviveis = camadas.filter((l) => todos.includes(l.id))
     if (moviveis.length) {
-      gesto.current = { tipo: 'mover', inicio: pc, iniciais: new Map(moviveis.map((l) => [l.id, { x: l.x, y: l.y, width: l.width, height: l.height }])), caixa: envolvente(moviveis), moveu: false, antes: acoes.documentoAtual() }
+      const raizCamadas = moviveis.filter((l) => raizes.includes(l.id))
+      const so = raizCamadas.length === 1 ? raizCamadas[0]! : undefined
+      const fluxo = !!so && !so.absolute && temAutoLayout(paiDe(so, mapa))
+      gesto.current = { tipo: 'mover', inicio: pc, iniciais: new Map(moviveis.map((l) => [l.id, { x: l.x, y: l.y, width: l.width, height: l.height }])), raizes, caixa: envolvente(raizCamadas), moveu: false, antes: acoes.documentoAtual(), fluxo, delta: { x: 0, y: 0 }, ponteiro: pc }
     }
   }
 
   const expandir = (ids: string[]) => {
-    const grupos = new Set(cena.layers.filter((l) => ids.includes(l.id) && l.groupId).map((l) => l.groupId))
-    return [...new Set([...ids, ...cena.layers.filter((l) => l.groupId && grupos.has(l.groupId)).map((l) => l.id)])]
+    const grupos = new Set(camadas.filter((l) => ids.includes(l.id) && l.groupId).map((l) => l.groupId))
+    return [...new Set([...ids, ...camadas.filter((l) => l.groupId && grupos.has(l.groupId)).map((l) => l.id)])]
   }
 
   const onPointerMove = (ev: React.PointerEvent) => {
@@ -184,9 +340,12 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
     const g = gesto.current
     if (!g) {
       const h = !ehDesenho && !modoMao ? camadaNoPonto(cena, pc, { ignorarTravadas: true }) : undefined
-      if ((h?.id ?? null) !== hover) setHover(h?.id ?? null)
+      // com Alt, mede até a camada sob o cursor; sem Alt, destaca o que o clique selecionaria
+      const alvoH = h ? (alt ? h : alvoDoClique(h, camadas, estado.selecao, ev.metaKey || ev.ctrlKey)) : undefined
+      if ((alvoH?.id ?? null) !== hover) setHover(alvoH?.id ?? null)
       return
     }
+    const semEncaixe = !estado.snap || ev.metaKey || ev.ctrlKey
     switch (g.tipo) {
       case 'pan':
         acoes.ui({ pan: { x: g.panInicial.x + (p.x - g.inicio.x), y: g.panInicial.y + (p.y - g.inicio.y) } })
@@ -196,28 +355,48 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
         let dy = pc.y - g.inicio.y
         if (!g.moveu && Math.hypot(dx, dy) * vp.s < 3) return
         g.moveu = true
+        g.ponteiro = pc
         if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0 }
-        let proposta = { ...g.caixa, x: aplicarGrade(g.caixa.x + dx), y: aplicarGrade(g.caixa.y + dy) }
-        let novasGuias: Guia[] = []
-        if (estado.snap && !ev.altKey) {
-          const outros = cena.layers.filter((l) => !g.iniciais.has(l.id) && !l.hidden)
-          const r = encaixar(proposta, outros, cena.size, 6 / vp.s)
-          proposta = { ...proposta, x: r.x, y: r.y }
-          novasGuias = r.guias
-        }
-        setGuias(novasGuias)
-        const fx = proposta.x - g.caixa.x
-        const fy = proposta.y - g.caixa.y
-        acoes.atualizarCamadas([...g.iniciais.keys()], (l) => { const i = g.iniciais.get(l.id)!; return { ...l, x: Math.round((i.x + fx) * 10) / 10, y: Math.round((i.y + fy) * 10) / 10 } }, false)
+        const proposta = { ...g.caixa, x: g.caixa.x + dx, y: g.caixa.y + dy }
+        const movidos = new Set(g.iniciais.keys())
+        let final = { x: naGrade(proposta.x), y: naGrade(proposta.y) }
+        if (g.fluxo) final = { x: Math.round(proposta.x), y: Math.round(proposta.y) } // reordenar: só a linha azul, sem guias
+        else if (!semEncaixe) {
+          const r = encaixar(proposta, visiveisExceto(movidos), cena.size, limiar, { grade })
+          final = { x: r.x, y: r.y }
+          setSobre({ guias: r.guias, espacos: r.espacos, medidas: r.medidas })
+        } else setSobre(SEM_SOBREPOSICAO)
+        const fx = final.x - g.caixa.x
+        const fy = final.y - g.caixa.y
+        g.delta = { x: fx, y: fy }
+        // auto layout: alvo de inserção sob o ponteiro (linha azul)
+        const f = frameSob(pc, movidos)
+        if (f && temAutoLayout(f)) setInsercao({ ...indiceDeInsercao(f, camadas, pc, movidos), frameId: f.id })
+        else if (insercao) setInsercao(null)
+        if (g.fluxo) { forcar((n) => n + 1); break } // o filho do auto layout só se move ao soltar (fantasma segue o cursor)
+        acoes.atualizarCamadas([...g.iniciais.keys()], (l) => { const i = g.iniciais.get(l.id)!; return { ...l, x: Math.round(i.x + fx), y: Math.round(i.y + fy) } }, false)
         break
       }
       case 'redimensionar': {
-        const nova = redimensionar(g.caixa, g.alca, pc.x - g.inicio.x, pc.y - g.inicio.y, ev.shiftKey || (g.iniciais.size === 1 && cena.layers.find((l) => g.iniciais.has(l.id))?.type === 'svg' && !ev.altKey))
+        const svgUnico = g.iniciais.size === 1 && camadas.find((l) => g.iniciais.has(l.id))?.type === 'svg'
+        const movidos = new Set(comDescendentes([...g.iniciais.keys()], camadas))
+        const res = redimensionarComEncaixe(g.caixa, g.alca, pc.x - g.inicio.x, pc.y - g.inicio.y, visiveisExceto(movidos), cena.size, limiar, { proporcional: ev.shiftKey || svgUnico, doCentro: ev.altKey, semEncaixe, grade })
+        setSobre({ guias: res.guias, espacos: [], medidas: res.medidas })
+        const nova = res.caixa
         const sx = nova.width / g.caixa.width
         const sy = nova.height / g.caixa.height
+        const proporcional = ev.shiftKey || svgUnico
         acoes.atualizarCamadas([...g.iniciais.keys()], (l) => {
           const i = g.iniciais.get(l.id)!
-          return { ...l, x: Math.round(nova.x + (i.x - g.caixa.x) * sx), y: Math.round(nova.y + (i.y - g.caixa.y) * sy), width: Math.max(4, Math.round(i.width * sx)), height: Math.max(4, Math.round(i.height * sy)) }
+          if (g.iniciais.size === 1) {
+            // alça lateral só mexe no eixo dela (a altura automática do texto continua valendo)
+            const soX = !proporcional && !/[ns]/.test(g.alca)
+            const soY = !proporcional && !/[ew]/.test(g.alca)
+            return { ...l, ...nova, ...(soX ? { y: l.y, height: l.height } : {}), ...(soY ? { x: l.x, width: l.width } : {}) }
+          }
+          const x = Math.round(nova.x + (i.x - g.caixa.x) * sx)
+          const y = Math.round(nova.y + (i.y - g.caixa.y) * sy)
+          return { ...l, x, y, width: Math.max(1, Math.round(nova.x + (i.x + i.width - g.caixa.x) * sx) - x), height: Math.max(1, Math.round(nova.y + (i.y + i.height - g.caixa.y) * sy) - y) }
         }, false)
         break
       }
@@ -227,43 +406,83 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
       case 'area': {
         g.atual = pc
         const area = retDe(g.inicio, g.atual)
-        const dentro = cena.layers.filter((l) => !l.hidden && !l.locked && intersecta(area, l)).map((l) => l.id)
+        // como no Figma: a área pega o item externo (frame), não os filhos
+        const dentro = camadas.filter((l) => !ocultas.has(l.id) && !l.locked && intersecta(area, l)).map((l) => raizDe(l, mapa).id)
         acoes.selecionar([...new Set([...g.base, ...dentro])])
         forcar((n) => n + 1)
         break
       }
-      case 'desenhar':
-        g.atual = ev.shiftKey ? quadrado(g.inicio, pc) : pc
+      case 'desenhar': {
+        const alvo = ev.shiftKey && estado.ferramenta !== 'texto' ? quadrado(g.inicio, pc) : pc
+        g.atual = { x: naGrade(alvo.x), y: naGrade(alvo.y) }
         forcar((n) => n + 1)
         break
+      }
     }
   }
 
-  const onPointerUp = () => {
+  const onPointerUp = (ev: React.PointerEvent) => {
     const g = gesto.current
     gesto.current = null
-    setGuias([])
+    setSobre(SEM_SOBREPOSICAO)
+    const ins = insercao
+    setInsercao(null)
     if (!g) return
-    if ((g.tipo === 'mover' && g.moveu) || g.tipo === 'redimensionar' || g.tipo === 'rotacionar') acoes.registrarHistorico(g.antes)
+    if (g.tipo === 'mover' && g.moveu) {
+      const movidos = new Set(g.iniciais.keys())
+      const raiz = g.raizes.length === 1 ? mapa.get(g.raizes[0]!) : undefined
+      const pc = g.ponteiro
+      if (g.fluxo && raiz) {
+        // filho de auto layout: reordena, entra em outro frame ou sai para onde foi solto
+        if (ins) acoes.inserirNoFrame(raiz.id, ins.frameId, ins.indice)
+        else {
+          const destino = frameSob(pc, movidos)
+          acoes.inserirNoFrame(raiz.id, destino?.id, undefined, { x: raiz.x + g.delta.x, y: raiz.y + g.delta.y })
+        }
+      } else {
+        if (ins) g.raizes.forEach((id, k) => acoes.inserirNoFrame(id, ins.frameId, ins.indice + k, undefined, false))
+        else if (raiz) {
+          // soltar dentro de um frame livre coloca a camada nele; fora, devolve à tela
+          const destino = frameSob(pc, movidos)
+          const atual = paiDe(raiz, mapa)
+          if ((destino?.id ?? undefined) !== (atual?.id ?? undefined) && !(atual && contemPonto(atual, pc) && !destino)) acoes.inserirNoFrame(raiz.id, destino?.id, undefined, undefined, false)
+        }
+        acoes.registrarHistorico(g.antes)
+      }
+    } else if (g.tipo === 'redimensionar' || g.tipo === 'rotacionar') acoes.registrarHistorico(g.antes)
     if (g.tipo === 'desenhar') {
       const r = retDe(g.inicio, g.atual)
       const pequeno = r.width < 8 && r.height < 8
-      const tipo = estado.ferramenta === 'texto' ? 'text' : estado.ferramenta === 'hotspot' ? 'hotspot' : 'shape'
-      const padrao = tipo === 'text' ? { width: cena.size.width * 0.3, height: cena.size.width * 0.05 } : { width: cena.size.width * 0.18, height: cena.size.width * 0.18 }
-      const rect = pequeno ? { x: g.inicio.x, y: g.inicio.y, ...padrao } : r
-      const nova = acoes.criarCamada({ type: tipo }, { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) })
-      acoes.setFerramenta('mover')
-      if (nova?.type === 'text') setTimeout(() => setEditandoTexto(nova.id), 30)
+      if (estado.ferramenta === 'texto') {
+        // clique = largura automática no ponto exato; arrastar = largura fixa (quebra linha, altura automática)
+        criarTextoEm(pequeno ? { x: g.inicio.x, y: g.inicio.y, width: 1, height: 1 } : r, !pequeno)
+      } else {
+        const tipo = estado.ferramenta === 'hotspot' ? 'hotspot' : 'shape'
+        const padrao = { width: cena.size.width * 0.18, height: cena.size.width * 0.18 }
+        const rect = pequeno ? { x: g.inicio.x, y: g.inicio.y, ...padrao } : r
+        acoes.criarCamada({ type: tipo }, { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) })
+      }
+      if (!g.manterFerramenta && !ev.shiftKey) acoes.setFerramenta('mover')
     }
     forcar((n) => n + 1)
   }
 
   const onDoubleClick = (ev: React.MouseEvent) => {
+    if (editandoTexto) return
     const pc = paraCena(local(ev))
-    const camada = camadaNoPonto(cena, pc, { ignorarTravadas: true })
-    if (!camada) return
-    if (camada.type === 'text') setEditandoTexto(camada.id)
-    else if (camada.groupId) acoes.selecionarExato([camada.id])
+    const atingida = camadaNoPonto(cena, pc, { ignorarTravadas: true })
+    if (!atingida) return
+    // cadeia do frame externo até a camada atingida: o duplo clique desce um nível
+    const cadeia: Camada[] = [...ancestrais(atingida, mapa)].reverse()
+    cadeia.push(atingida)
+    const i = cadeia.reduce((acc, c, k) => (estado.selecao.includes(c.id) ? k : acc), -1)
+    const proxima = cadeia[Math.min(cadeia.length - 1, i + 1)]!
+    if (proxima.type === 'text' && (proxima.id === atingida.id || i === cadeia.length - 1)) {
+      editarTexto(proxima.id, indiceNoPonto(ev.clientX, ev.clientY, ref.current?.querySelector(`[data-layer-id="${proxima.id}"]`) ?? null) ?? 'fim')
+      return
+    }
+    if (cadeia.length > 1) acoes.selecionarExato([proxima.id])
+    else if (atingida.groupId) acoes.selecionarExato([atingida.id])
   }
 
   // ---------- soltar arquivos ----------
@@ -288,8 +507,26 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
   if (!vp) return <div ref={ref} className="h-full w-full bg-canvas" />
   const telaCena = { x: vp.ox, y: vp.oy, width: cena.size.width * vp.s, height: cena.size.height * vp.s }
   const g = gesto.current
-  const textoEmEdicao = editandoTexto ? (cena.layers.find((l) => l.id === editandoTexto) as CamadaTexto | undefined) : undefined
-  const cursor = modoMao ? (g?.tipo === 'pan' ? 'grabbing' : 'grab') : ehDesenho ? 'crosshair' : 'default'
+  const textoEmEdicao = editandoTexto ? (camadas.find((l) => l.id === editandoTexto) as CamadaTexto | undefined) : undefined
+  const cursor = modoMao ? (g?.tipo === 'pan' ? 'grabbing' : 'grab') : estado.ferramenta === 'texto' ? 'text' : ehDesenho ? 'crosshair' : 'default'
+  // grade visível: passo configurado, dobrado até ficar legível na tela
+  let passoTela = estado.gradePasso * vp.s
+  while (passoTela < 6) passoTela *= 2
+
+  // Alt: distâncias da seleção até a camada sob o cursor (ou até o frame pai / a tela)
+  const medidasAlt = (() => {
+    if (!alt || !caixaSel || editandoTexto || (g && g.tipo !== 'mover')) return []
+    const caixaAtual = g?.tipo === 'mover' && g.fluxo ? { ...g.caixa, x: g.caixa.x + g.delta.x, y: g.caixa.y + g.delta.y } : caixaSel
+    const h = hover && !estado.selecao.includes(hover) ? mapa.get(hover) : undefined
+    const pai = unica ? paiDe(unica, mapa) : undefined
+    const ref2 = h ?? pai ?? { x: 0, y: 0, width: cena.size.width, height: cena.size.height }
+    return medirDistancias(caixaAtual, ref2)
+  })()
+  const sobreposicao: Sobreposicao = medidasAlt.length
+    ? { guias: [], espacos: [], medidas: medidasAlt }
+    : !g && guiasTemporarias && caixaSel
+      ? guiasDaCaixa(caixaSel, visiveisExceto(new Set(comDescendentes(estado.selecao, camadas))), cena.size)
+      : sobre
 
   return (
     <div
@@ -313,13 +550,17 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
         {String(indiceCena + 1).padStart(2, '0')} — {cena.title || 'Sem título'}
       </div>
 
-      <div data-testid="canvas" className={`absolute shadow-[0_1px_3px_rgba(0,0,0,.06),0_20px_50px_-30px_rgba(0,0,0,.35)] ${estado.grade ? 'grade-editor' : ''}`} style={{ left: telaCena.x, top: telaCena.y, width: telaCena.width, height: telaCena.height, backgroundSize: `${PASSO_GRADE * vp.s * 4}px ${PASSO_GRADE * vp.s * 4}px` }}>
+      <div data-testid="canvas" className="absolute shadow-[0_1px_3px_rgba(0,0,0,.06),0_20px_50px_-30px_rgba(0,0,0,.35)]" style={{ left: telaCena.x, top: telaCena.y, width: telaCena.width, height: telaCena.height }}>
         <SceneRenderer key={`${cena.id}-${previaAtiva ? estado.previa : 0}`} cena={cena} assets={assets} escala={vp.s} modo={previaAtiva ? 'viewer' : 'editor'} interativoNoEditor={interagir3d} chaveEntrada={`${estado.previa}`} ocultar={editandoTexto ? new Set([editandoTexto]) : undefined} />
+        {estado.grade && <div aria-hidden data-testid="grade" className="grade-editor pointer-events-none absolute inset-0 z-[1]" style={{ backgroundSize: `${passoTela}px ${passoTela}px` }} />}
         {estado.documento.mode === 'story' && <div aria-hidden className="pointer-events-none absolute border border-dashed border-texto3/60" style={{ left: '6%', right: '6%', top: '8%', bottom: '10%' }} />}
       </div>
 
       {/* hover */}
-      {hover && !estado.selecao.includes(hover) && !g && (() => { const l = cena.layers.find((x) => x.id === hover); return l ? <Contorno r={paraTela(l)} rot={l.rotation} cor="rgb(89 101 242 / .55)" /> : null })()}
+      {hover && !estado.selecao.includes(hover) && (!g || g.tipo === 'mover') && !editandoTexto && (() => { const l = mapa.get(hover); return l ? <Contorno r={paraTela(l)} rot={l.rotation} cor={alt && caixaSel ? 'rgb(var(--cor-guia))' : 'rgb(89 101 242 / .55)'} /> : null })()}
+
+      {/* frames: contorno discreto do frame pai da seleção (contexto) */}
+      {unica && !editandoTexto && (() => { const p = paiDe(unica, mapa); return p ? <Contorno r={paraTela(p)} rot={p.rotation} cor="rgb(89 101 242 / .35)" tracejado /> : null })()}
 
       {/* interações: marcadores numerados e fluxo */}
       {interacoesVisiveis && comInteracao.map((l, i) => {
@@ -334,7 +575,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
 
       {/* seleção */}
       {!editandoTexto && selecionadas.map((l) => <Contorno key={l.id} r={paraTela(l)} rot={l.rotation} cor="rgb(89 101 242)" largura={1.5} />)}
-      {caixaSel && !editandoTexto && !interacoesVisiveis && (() => {
+      {caixaSel && !editandoTexto && !interacoesVisiveis && !(g?.tipo === 'mover' && g.fluxo && g.moveu) && (() => {
         const r = paraTela(caixaSel)
         const travada = selecionadas.every((l) => l.locked)
         return (
@@ -348,36 +589,41 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
             {unica && !travada && <div data-alca="rot" title="Girar (Shift = 15°)" className="absolute z-10 h-3 w-3 rounded-full border-[1.5px] border-acento bg-white" style={{ left: r.x + r.width / 2 - 6, top: r.y - 28, cursor: 'grab' }} />}
             {unica && !travada && <div className="pointer-events-none absolute w-px bg-acento" style={{ left: r.x + r.width / 2, top: r.y - 16, height: 16 }} />}
             <div className="mono pointer-events-none absolute whitespace-nowrap rounded-[4px] bg-acento px-1.5 py-[3px] text-[11px] leading-none text-white" style={{ left: r.x + r.width / 2, top: r.y + r.height + 8, transform: 'translateX(-50%)' }}>
-              {Math.round(caixaSel.width)} × {Math.round(caixaSel.height)}{unica?.rotation ? ` · ${unica.rotation}°` : ''}
+              {rotuloTamanho(caixaSel.width, unica?.sizingW)} × {rotuloTamanho(caixaSel.height, unica?.sizingH)}{unica?.rotation ? ` · ${unica.rotation}°` : ''}
             </div>
           </>
         )
       })()}
 
-      {/* guias inteligentes */}
-      {guias.map((gu, i) => {
-        const a = paraTela(gu.eixo === 'v' ? { x: gu.pos, y: gu.de, width: 0, height: gu.ate - gu.de } : { x: gu.de, y: gu.pos, width: gu.ate - gu.de, height: 0 })
-        return <div key={i} className="pointer-events-none absolute bg-guia" style={gu.eixo === 'v' ? { left: a.x, top: a.y, width: 1, height: Math.max(1, a.height) } : { left: a.x, top: a.y, height: 1, width: Math.max(1, a.width) }} />
-      })}
+      {/* auto layout: fantasma do item arrastado e linha azul de inserção */}
+      {g?.tipo === 'mover' && g.fluxo && g.moveu && (() => { const r = paraTela({ ...g.caixa, x: g.caixa.x + g.delta.x, y: g.caixa.y + g.delta.y }); return <div data-testid="fantasma" className="pointer-events-none absolute z-20 border-[1.5px] border-acento bg-acento/15" style={{ left: r.x, top: r.y, width: r.width, height: r.height }} /> })()}
+      {insercao && g?.tipo === 'mover' && g.moveu && <LinhaInsercao linha={insercao.linha} paraTela={paraTela} />}
+
+      {/* guias inteligentes, vãos iguais e medidas */}
+      <GuiasCanvas s={sobreposicao} paraTela={paraTela} />
 
       {/* área e desenho */}
       {g?.tipo === 'area' && (() => { const r = paraTela(retDe(g.inicio, g.atual)); return <div className="pointer-events-none absolute border border-acento bg-acento/10" style={{ left: r.x, top: r.y, width: r.width, height: r.height }} /> })()}
       {g?.tipo === 'desenhar' && (() => { const r = paraTela(retDe(g.inicio, g.atual)); return <div className="pointer-events-none absolute border-[1.5px] border-acento bg-acento/10" style={{ left: r.x, top: r.y, width: r.width, height: r.height, borderRadius: estado.ferramenta === 'hotspot' ? 6 : 0, borderStyle: estado.ferramenta === 'hotspot' ? 'dashed' : 'solid' }} /> })()}
 
-      {/* edição de texto no lugar */}
+      {/* edição de texto no lugar: o documento muda a cada tecla (sem histórico); um passo de desfazer por sessão */}
       {textoEmEdicao && (() => {
         const r = paraTela(textoEmEdicao)
+        const hug = textoEmEdicao.sizingW === 'hug'
         return (
           <textarea
-            autoFocus
+            ref={textareaRef}
             aria-label="Editar texto"
+            spellCheck={false}
             defaultValue={textoEmEdicao.text}
-            onFocus={(e) => e.currentTarget.select()}
-            onBlur={(e) => { if (e.target.value !== textoEmEdicao.text) acoes.atualizarCamadas([textoEmEdicao.id], { text: e.target.value } as Partial<Camada>); setEditandoTexto(null) }}
-            onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Escape' || (e.key === 'Enter' && (e.metaKey || e.ctrlKey))) (e.target as HTMLTextAreaElement).blur() }}
+            onChange={(e) => { acoes.atualizarCamadas([textoEmEdicao.id], { text: e.target.value } as Partial<Camada>, false); e.currentTarget.scrollLeft = 0; e.currentTarget.scrollTop = 0 }}
+            onBlur={finalizarTexto}
+            onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Escape' || (e.key === 'Enter' && (e.metaKey || e.ctrlKey))) { e.preventDefault(); (e.target as HTMLTextAreaElement).blur() } }}
             onPointerDown={(e) => e.stopPropagation()}
-            className="absolute z-20 resize-none overflow-hidden bg-transparent outline-none ring-[1.5px] ring-acento"
-            style={{ left: r.x, top: r.y, width: r.width, height: r.height, fontFamily: pilhaFonte(textoEmEdicao.fontFamily), fontSize: textoEmEdicao.fontSize * vp.s, fontWeight: textoEmEdicao.fontWeight, fontStyle: textoEmEdicao.italic ? 'italic' : undefined, color: textoEmEdicao.color, textAlign: textoEmEdicao.align === 'justify' ? 'justify' : textoEmEdicao.align, lineHeight: textoEmEdicao.lineHeight, letterSpacing: textoEmEdicao.letterSpacing * vp.s, padding: textoEmEdicao.padding * vp.s, textTransform: textoEmEdicao.transform === 'none' ? undefined : textoEmEdicao.transform, background: textoEmEdicao.background, borderRadius: textoEmEdicao.radius * vp.s, transform: textoEmEdicao.rotation ? `rotate(${textoEmEdicao.rotation}deg)` : undefined }}
+            onDoubleClick={(e) => e.stopPropagation()}
+            wrap={hug ? 'off' : 'soft'}
+            className="absolute z-20 resize-none overflow-hidden bg-transparent caret-acento outline-none ring-[1.5px] ring-acento"
+            style={{ left: r.x, top: r.y, width: r.width + (hug ? 2 : 0), height: r.height, whiteSpace: hug ? 'pre' : 'pre-wrap', wordBreak: 'break-word', fontFamily: pilhaFonte(textoEmEdicao.fontFamily), fontSize: textoEmEdicao.fontSize * vp.s, fontWeight: textoEmEdicao.fontWeight, fontStyle: textoEmEdicao.italic ? 'italic' : undefined, textDecoration: textoEmEdicao.underline ? 'underline' : undefined, color: textoEmEdicao.color, textAlign: textoEmEdicao.align === 'justify' ? 'justify' : textoEmEdicao.align, lineHeight: textoEmEdicao.lineHeight, letterSpacing: textoEmEdicao.letterSpacing * vp.s, padding: textoEmEdicao.padding * vp.s, textTransform: textoEmEdicao.transform === 'none' ? undefined : textoEmEdicao.transform, background: textoEmEdicao.background, borderRadius: textoEmEdicao.radius * vp.s, transform: textoEmEdicao.rotation ? `rotate(${textoEmEdicao.rotation}deg)` : undefined, transformOrigin: 'center' }}
           />
         )
       })()}
@@ -389,6 +635,11 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
       )}
     </div>
   )
+}
+
+/** "240 Hug" / "Fill" como no rótulo de tamanho do Figma. */
+function rotuloTamanho(v: number, d: Camada['sizingW']) {
+  return d === 'hug' ? `${Math.round(v)} Hug` : d === 'fill' ? `${Math.round(v)} Fill` : `${Math.round(v)}`
 }
 
 function Contorno({ r, rot, cor, largura = 1, tracejado }: { r: Retangulo; rot: number; cor: string; largura?: number; tracejado?: boolean }) {

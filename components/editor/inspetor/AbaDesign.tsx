@@ -3,7 +3,7 @@ import { useMemo } from 'react'
 import {
   AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceAround, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceAround,
   AlignCenter, AlignJustify, AlignLeft, AlignRight, ArrowDownToLine, ArrowUpToLine, Box, Code2, Copy, Crosshair, Eye, EyeOff, FlipHorizontal2, FlipVertical2, Image as ImageIcon,
-  Italic, Link2, Lock, LockOpen, PenTool, RotateCw, Sparkles, Square, Trash2, Type, Underline, Video,
+  Frame, Italic, Link2, Lock, LockOpen, PenTool, RotateCw, Sparkles, Square, Trash2, Type, Underline, Video,
 } from 'lucide-react'
 import type { Camada, CamadaForma, CamadaImagem, CamadaLottie, CamadaModelo3d, CamadaSvg, CamadaTexto, CamadaVideo, Gradiente, Interacao, Sombra } from '@/lib/scene/schema'
 import { FORMAS, MODOS_MESCLAGEM } from '@/lib/scene/schema'
@@ -13,9 +13,10 @@ import type { Editor } from '@/lib/editor/useEditor'
 import type { AssetDemo } from '@/lib/demo/tipos'
 import { BotaoIcone, cx } from '@/components/ui'
 import { CampoCor, CampoNum, Deslizante, Interruptor, Linha, LinhaResumo, Secao, Segmentado, SeletorLista } from './controles'
+import { SecaoAutoLayout } from './SecaoAutoLayout' // auto layout (frames)
 
-export const ICONE_TIPO: Record<Camada['type'], typeof Type> = { text: Type, shape: Square, image: ImageIcon, video: Video, hotspot: Crosshair, svg: PenTool, model3d: Box, lottie: Sparkles, embed: Code2 }
-export const NOME_TIPO: Record<Camada['type'], string> = { text: 'Texto', shape: 'Forma', image: 'Imagem', video: 'Vídeo', hotspot: 'Hotspot', svg: 'Vetor (SVG)', model3d: 'Modelo 3D', lottie: 'Animação Lottie', embed: 'Incorporado' }
+export const ICONE_TIPO: Record<Camada['type'], typeof Type> = { text: Type, shape: Square, image: ImageIcon, video: Video, hotspot: Crosshair, svg: PenTool, model3d: Box, lottie: Sparkles, embed: Code2, frame: Frame }
+export const NOME_TIPO: Record<Camada['type'], string> = { text: 'Texto', shape: 'Forma', image: 'Imagem', video: 'Vídeo', hotspot: 'Hotspot', svg: 'Vetor (SVG)', model3d: 'Modelo 3D', lottie: 'Animação Lottie', embed: 'Incorporado', frame: 'Frame' }
 
 const SOMBRAS: Record<string, Sombra | undefined> = {
   nenhuma: undefined,
@@ -98,6 +99,9 @@ export function AbaDesign({ editor, assets }: { editor: Editor; assets: AssetDem
           )}
         </div>
       </Secao>
+
+      {/* auto layout · frames · redimensionar texto */}
+      <SecaoAutoLayout editor={editor} />
 
       {!multi && <SecaoTipo camada={l} set={set} assets={assets} />}
 

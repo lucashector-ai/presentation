@@ -1,9 +1,14 @@
 /**
- * Guias inteligentes (smart guides) e distribuição. Puro e testável.
- * Ao mover uma caixa, procura bordas/centros alinháveis nas outras camadas e na tela,
- * devolve o deslocamento ajustado e as linhas a desenhar.
+ * Guias inteligentes (smart guides), encaixe e medidas — modelo do Figma. Puro e testável.
+ *
+ * - Encaixe de bordas e centros na tela (bordas + linhas centrais) e nas outras camadas visíveis
+ * - Espaçamento igual (indicadores rosa "=" quando os vãos batem)
+ * - X e Y independentes; limiar em pixels de TELA (converta com `limiarEmCena`)
+ * - Grade opcional: com grade ligada, posição e tamanho arredondam para a grade
+ * - Resultado sempre em pixels inteiros
+ * - Medidas (linhas vermelhas com números): distâncias entre caixas (Alt) e ao longo das guias
  */
-import type { Retangulo, Tamanho } from '@/lib/scene/transform'
+import { redimensionar, type Alca, type Retangulo, type Tamanho } from '@/lib/scene/transform'
 
 export interface Guia {
   /** 'v' = linha vertical em x; 'h' = linha horizontal em y. */
@@ -14,64 +19,308 @@ export interface Guia {
   ate: number
 }
 
+/** Segmento medido. eixo 'h' = segmento horizontal (mede distância em x) na altura `pos`. */
+export interface Medida {
+  eixo: 'v' | 'h'
+  pos: number
+  de: number
+  ate: number
+  valor: number
+}
+
 export interface ResultadoEncaixe {
   x: number
   y: number
   guias: Guia[]
+  /** Vãos iguais (rosa). */
+  espacos: Medida[]
+  /** Distâncias ao longo das guias (vermelho). */
+  medidas: Medida[]
+}
+
+export interface OpcoesEncaixe {
+  /** Passo da grade (px da cena). 0/ausente = sem grade. */
+  grade?: number
+  /** Desliga o encaixe de espaçamento igual. */
+  semEspacamento?: boolean
+}
+
+/** Limiar padrão de encaixe, em pixels de tela (independe do zoom). */
+export const LIMIAR_TELA = 5
+
+/** Converte um limiar em px de tela para px da cena no zoom atual. */
+export function limiarEmCena(pxTela: number, escala: number): number {
+  return pxTela / Math.max(escala, 1e-6)
 }
 
 const pontosX = (r: Retangulo) => [r.x, r.x + r.width / 2, r.x + r.width]
 const pontosY = (r: Retangulo) => [r.y, r.y + r.height / 2, r.y + r.height]
+const dir = (r: Retangulo) => r.x + r.width
+const base = (r: Retangulo) => r.y + r.height
+const EPS = 0.5
+
+interface Alvo { v: number; ref: Retangulo | null }
+
+function alvos(outros: readonly Retangulo[], cena: Tamanho, eixo: 'x' | 'y'): Alvo[] {
+  const tela = { x: 0, y: 0, width: cena.width, height: cena.height }
+  const pts = eixo === 'x' ? pontosX : pontosY
+  return [...pts(tela).map((v) => ({ v, ref: null })), ...outros.flatMap((o) => pts(o).map((v) => ({ v, ref: o })))]
+}
+
+function maisProximo(pontos: number[], lista: Alvo[], limiar: number): { d: number; ajuste: number } | null {
+  let melhor: { d: number; ajuste: number } | null = null
+  for (const p of pontos) for (const a of lista) {
+    const d = Math.abs(a.v - p)
+    if (d <= limiar && (!melhor || d < melhor.d - 1e-9)) melhor = { d, ajuste: a.v - p }
+  }
+  return melhor
+}
+
+const sobrepoeY = (a: Retangulo, b: Retangulo) => Math.min(base(a), base(b)) - Math.max(a.y, b.y) > 0
+const sobrepoeX = (a: Retangulo, b: Retangulo) => Math.min(dir(a), dir(b)) - Math.max(a.x, b.x) > 0
+
+/** Candidatos de espaçamento igual num eixo (posição da borda inicial da caixa). */
+function candidatosEspaco(m: Retangulo, outros: readonly Retangulo[], eixo: 'x' | 'y'): number[] {
+  const H = eixo === 'x'
+  const ini = (r: Retangulo) => (H ? r.x : r.y)
+  const fim = (r: Retangulo) => (H ? dir(r) : base(r))
+  const tam = H ? m.width : m.height
+  const linha = outros.filter((o) => (H ? sobrepoeY(o, m) : sobrepoeX(o, m))).sort((a, b) => ini(a) - ini(b))
+  const centro = ini(m) + tam / 2
+  const esq = linha.filter((o) => fim(o) <= centro && ini(o) + (fim(o) - ini(o)) / 2 < centro).sort((a, b) => fim(b) - fim(a))[0]
+  const dirV = linha.filter((o) => ini(o) >= centro).sort((a, b) => ini(a) - ini(b))[0]
+  const vaos: number[] = []
+  for (let i = 1; i < linha.length; i++) {
+    const g = ini(linha[i]!) - fim(linha[i - 1]!)
+    if (g > 0) vaos.push(g)
+  }
+  const c: number[] = []
+  if (esq && dirV && ini(dirV) - fim(esq) >= tam) c.push((fim(esq) + ini(dirV) - tam) / 2)
+  for (const g of vaos) {
+    if (esq) c.push(fim(esq) + g)
+    if (dirV) c.push(ini(dirV) - g - tam)
+  }
+  return c
+}
 
 /**
+ * Encaixa uma caixa em movimento.
  * @param movendo caixa na posição proposta
- * @param outros caixas de referência (outras camadas)
+ * @param outros caixas de referência (outras camadas visíveis)
  * @param cena tamanho da tela (bordas e centro também são alvos)
- * @param limiar distância máxima de encaixe (em px da cena)
+ * @param limiar distância máxima de encaixe em px da CENA (use `limiarEmCena(LIMIAR_TELA, zoom)`)
  */
-export function encaixar(movendo: Retangulo, outros: Retangulo[], cena: Tamanho, limiar: number): ResultadoEncaixe {
-  const alvosX: { v: number; ref: Retangulo }[] = []
-  const alvosY: { v: number; ref: Retangulo }[] = []
-  const telaRef = { x: 0, y: 0, width: cena.width, height: cena.height }
-  for (const v of pontosX(telaRef)) alvosX.push({ v, ref: telaRef })
-  for (const v of pontosY(telaRef)) alvosY.push({ v, ref: telaRef })
-  for (const o of outros) {
-    for (const v of pontosX(o)) alvosX.push({ v, ref: o })
-    for (const v of pontosY(o)) alvosY.push({ v, ref: o })
-  }
-
-  let melhorX: { d: number; ajuste: number; alvo: number } | null = null
-  for (const p of pontosX(movendo)) {
-    for (const a of alvosX) {
-      const d = Math.abs(a.v - p)
-      if (d <= limiar && (!melhorX || d < melhorX.d)) melhorX = { d, ajuste: a.v - p, alvo: a.v }
+export function encaixar(movendo: Retangulo, outros: readonly Retangulo[], cena: Tamanho, limiar: number, opcoes: OpcoesEncaixe = {}): ResultadoEncaixe {
+  const grade = opcoes.grade && opcoes.grade > 0 ? opcoes.grade : 0
+  const ajusteEixo = (eixo: 'x' | 'y'): number => {
+    const p0 = eixo === 'x' ? movendo.x : movendo.y
+    if (grade) return Math.round(p0 / grade) * grade - p0
+    const borda = maisProximo(eixo === 'x' ? pontosX(movendo) : pontosY(movendo), alvos(outros, cena, eixo), limiar)
+    let melhor = borda ? { d: borda.d, ajuste: borda.ajuste } : null
+    if (!opcoes.semEspacamento) {
+      for (const v of candidatosEspaco(movendo, outros, eixo)) {
+        const d = Math.abs(v - p0)
+        if (d <= limiar && (!melhor || d < melhor.d - 1e-9)) melhor = { d, ajuste: v - p0 }
+      }
     }
+    return melhor?.ajuste ?? 0
   }
-  let melhorY: { d: number; ajuste: number; alvo: number } | null = null
-  for (const p of pontosY(movendo)) {
-    for (const a of alvosY) {
-      const d = Math.abs(a.v - p)
-      if (d <= limiar && (!melhorY || d < melhorY.d)) melhorY = { d, ajuste: a.v - p, alvo: a.v }
-    }
-  }
-
-  const x = movendo.x + (melhorX?.ajuste ?? 0)
-  const y = movendo.y + (melhorY?.ajuste ?? 0)
+  const x = Math.round(movendo.x + ajusteEixo('x'))
+  const y = Math.round(movendo.y + ajusteEixo('y'))
   const final = { ...movendo, x, y }
+  return { x, y, ...guiasDaCaixa(final, outros, cena) }
+}
+
+/**
+ * Guias, vãos iguais e medidas para uma caixa já posicionada (sem mover).
+ * Usado depois do encaixe e ao deslocar com as setas.
+ */
+export function guiasDaCaixa(final: Retangulo, outros: readonly Retangulo[], cena: Tamanho): Omit<ResultadoEncaixe, 'x' | 'y'> {
   const guias: Guia[] = []
-  if (melhorX) {
-    const refs = [telaRef, ...outros].filter((r) => pontosX(r).some((v) => Math.abs(v - melhorX!.alvo) < 0.5))
-    const ys = [final.y, final.y + final.height, ...refs.flatMap((r) => (r === telaRef ? [] : [r.y, r.y + r.height]))]
-    const ehTela = refs.length === 1 && refs[0] === telaRef
-    guias.push({ eixo: 'v', pos: melhorX.alvo, de: ehTela ? 0 : Math.min(...ys), ate: ehTela ? cena.height : Math.max(...ys) })
+  const medidas: Medida[] = []
+  for (const eixo of ['x', 'y'] as const) {
+    const pts = eixo === 'x' ? pontosX(final) : pontosY(final)
+    const lista = alvos(outros, cena, eixo)
+    const feitos = new Set<number>()
+    for (const p of pts) {
+      const iguais = lista.filter((a) => Math.abs(a.v - p) < EPS)
+      if (!iguais.length || feitos.has(Math.round(p * 2))) continue
+      feitos.add(Math.round(p * 2))
+      const refs = [...new Set(iguais.map((a) => a.ref).filter((r): r is Retangulo => !!r))]
+      const soTela = refs.length === 0
+      if (eixo === 'x') {
+        const ys = [final.y, base(final), ...refs.flatMap((r) => [r.y, base(r)])]
+        guias.push({ eixo: 'v', pos: p, de: soTela ? 0 : Math.min(...ys), ate: soTela ? cena.height : Math.max(...ys) })
+      } else {
+        const xs = [final.x, dir(final), ...refs.flatMap((r) => [r.x, dir(r)])]
+        guias.push({ eixo: 'h', pos: p, de: soTela ? 0 : Math.min(...xs), ate: soTela ? cena.width : Math.max(...xs) })
+      }
+      // distância até a camada alinhada mais próxima, ao longo da guia
+      const m = medidaAoLongo(final, refs, eixo, p)
+      if (m && !medidas.some((x) => x.eixo === m.eixo && Math.abs(x.de - m.de) < EPS && Math.abs(x.ate - m.ate) < EPS)) medidas.push(m)
+    }
   }
-  if (melhorY) {
-    const refs = [telaRef, ...outros].filter((r) => pontosY(r).some((v) => Math.abs(v - melhorY!.alvo) < 0.5))
-    const xs = [final.x, final.x + final.width, ...refs.flatMap((r) => (r === telaRef ? [] : [r.x, r.x + r.width]))]
-    const ehTela = refs.length === 1 && refs[0] === telaRef
-    guias.push({ eixo: 'h', pos: melhorY.alvo, de: ehTela ? 0 : Math.min(...xs), ate: ehTela ? cena.width : Math.max(...xs) })
+  const espacos = [...vaosIguais(final, outros, 'x'), ...vaosIguais(final, outros, 'y')]
+  // com vãos iguais no eixo, o rosa já mostra a distância (como no Figma)
+  return { guias, espacos, medidas: medidas.filter((m) => !espacos.some((e) => e.eixo === m.eixo)) }
+}
+
+function medidaAoLongo(m: Retangulo, refs: Retangulo[], eixo: 'x' | 'y', pos: number): Medida | null {
+  let melhor: Medida | null = null
+  for (const r of refs) {
+    if (eixo === 'x') {
+      // guia vertical: mede a distância vertical
+      const [de, ate] = base(r) <= m.y ? [base(r), m.y] : base(m) <= r.y ? [base(m), r.y] : [0, 0]
+      if (ate - de > 0 && (!melhor || ate - de < melhor.valor)) melhor = { eixo: 'v', pos, de, ate, valor: Math.round(ate - de) }
+    } else {
+      const [de, ate] = dir(r) <= m.x ? [dir(r), m.x] : dir(m) <= r.x ? [dir(m), r.x] : [0, 0]
+      if (ate - de > 0 && (!melhor || ate - de < melhor.valor)) melhor = { eixo: 'h', pos, de, ate, valor: Math.round(ate - de) }
+    }
   }
-  return { x, y, guias }
+  return melhor
+}
+
+/** Vãos iguais aos vizinhos imediatos da caixa (indicadores rosa). */
+export function vaosIguais(m: Retangulo, outros: readonly Retangulo[], eixo: 'x' | 'y'): Medida[] {
+  const H = eixo === 'x'
+  const ini = (r: Retangulo) => (H ? r.x : r.y)
+  const fim = (r: Retangulo) => (H ? dir(r) : base(r))
+  const linha = [...outros.filter((o) => (H ? sobrepoeY(o, m) : sobrepoeX(o, m))), m].sort((a, b) => ini(a) - ini(b))
+  const pares: { a: Retangulo; b: Retangulo; g: number }[] = []
+  for (let i = 1; i < linha.length; i++) {
+    const a = linha[i - 1]!
+    const b = linha[i]!
+    const g = ini(b) - fim(a)
+    if (g > 0) pares.push({ a, b, g })
+  }
+  const vizinhos = pares.filter((p) => p.a === m || p.b === m)
+  const r: Medida[] = []
+  for (const v of vizinhos) {
+    const iguais = pares.filter((p) => Math.abs(p.g - v.g) < EPS)
+    if (iguais.length < 2) continue
+    for (const p of iguais) {
+      if (r.some((x) => Math.abs(x.de - fim(p.a)) < EPS && Math.abs(x.ate - ini(p.b)) < EPS)) continue
+      const sob0 = H ? Math.max(p.a.y, p.b.y) : Math.max(p.a.x, p.b.x)
+      const sob1 = H ? Math.min(base(p.a), base(p.b)) : Math.min(dir(p.a), dir(p.b))
+      r.push({ eixo: H ? 'h' : 'v', pos: (sob0 + sob1) / 2, de: fim(p.a), ate: ini(p.b), valor: Math.round(p.g) })
+    }
+  }
+  return r
+}
+
+export interface OpcoesRedimensionar extends OpcoesEncaixe {
+  /** Shift: mantém a proporção. */
+  proporcional?: boolean
+  /** Alt: redimensiona a partir do centro. */
+  doCentro?: boolean
+  /** Ctrl/⌘: sem encaixe (a grade continua valendo). */
+  semEncaixe?: boolean
+}
+
+/**
+ * Redimensiona pela alça com encaixe das bordas que se movem (todas as 8 alças),
+ * respeitando Shift (proporção) e Alt (a partir do centro). Resultado em pixels inteiros.
+ */
+export function redimensionarComEncaixe(
+  inicial: Retangulo, alca: Alca, dx: number, dy: number,
+  outros: readonly Retangulo[], cena: Tamanho, limiar: number, opcoes: OpcoesRedimensionar = {}
+): { caixa: Retangulo } & Omit<ResultadoEncaixe, 'x' | 'y'> {
+  const prop = !!opcoes.proporcional
+  const centro = !!opcoes.doCentro
+  const grade = opcoes.grade && opcoes.grade > 0 ? opcoes.grade : 0
+  const r0 = redimensionar(inicial, alca, dx, dy, prop, centro)
+  const moveX = alca.includes('e') || alca.includes('w')
+  const moveY = alca.includes('n') || alca.includes('s')
+  const borda = (r: Retangulo, eixo: 'x' | 'y') => (eixo === 'x' ? (alca.includes('e') ? dir(r) : r.x) : alca.includes('s') ? base(r) : r.y)
+  const encaixeDe = (eixo: 'x' | 'y'): { d: number; v: number } | null => {
+    const b = borda(r0, eixo)
+    if (grade) { const v = Math.round(b / grade) * grade; return { d: Math.abs(v - b), v } }
+    if (opcoes.semEncaixe) return null
+    const m = maisProximo([b], alvos(outros, cena, eixo), limiar)
+    return m ? { d: m.d, v: b + m.ajuste } : null
+  }
+  const sx = moveX ? encaixeDe('x') : null
+  const sy = moveY ? encaixeDe('y') : null
+  let r = r0
+  if (prop) {
+    const escolha = sx && (!sy || sx.d <= sy.d) ? ({ eixo: 'x', v: sx.v } as const) : sy ? ({ eixo: 'y', v: sy.v } as const) : null
+    if (escolha) r = aplicarBorda(inicial, alca, r0, escolha.eixo, escolha.v, true, centro)
+  } else {
+    if (sx) r = aplicarBorda(inicial, alca, r, 'x', sx.v, false, centro)
+    if (sy) r = aplicarBorda(inicial, alca, r, 'y', sy.v, false, centro)
+  }
+  const x = Math.round(r.x)
+  const y = Math.round(r.y)
+  const caixa = { x, y, width: Math.max(1, Math.round(r.x + r.width) - x), height: Math.max(1, Math.round(r.y + r.height) - y) }
+  return { caixa, ...(opcoes.semEncaixe ? { guias: [], espacos: [], medidas: [] } : guiasDaCaixa(caixa, outros, cena)) }
+}
+
+/** Reposiciona a borda arrastada num eixo (e deriva o outro eixo se proporcional). */
+function aplicarBorda(ini: Retangulo, alca: Alca, r: Retangulo, eixo: 'x' | 'y', v: number, prop: boolean, centro: boolean): Retangulo {
+  const razao = ini.width / ini.height
+  const cx = ini.x + ini.width / 2
+  const cy = ini.y + ini.height / 2
+  if (eixo === 'x') {
+    const e = alca.includes('e')
+    let a = e ? (centro ? 2 * cx - v : ini.x) : v
+    let b = e ? v : centro ? 2 * cx - v : dir(ini)
+    if (a > b) [a, b] = [b, a]
+    const w = Math.max(1, b - a)
+    if (!prop) return { ...r, x: a, width: w }
+    const h = w / razao
+    const y = centro ? cy - h / 2 : alca.includes('n') ? base(ini) - h : alca.includes('s') ? ini.y : r.y
+    return { x: a, y, width: w, height: h }
+  }
+  const s = alca.includes('s')
+  let a = s ? (centro ? 2 * cy - v : ini.y) : v
+  let b = s ? v : centro ? 2 * cy - v : base(ini)
+  if (a > b) [a, b] = [b, a]
+  const h = Math.max(1, b - a)
+  if (!prop) return { ...r, y: a, height: h }
+  const w = h * razao
+  const x = centro ? cx - w / 2 : alca.includes('w') ? dir(ini) - w : alca.includes('e') ? ini.x : r.x
+  return { x, y: a, width: w, height: h }
+}
+
+/**
+ * Distâncias entre a seleção `a` e a camada `b` sob o cursor (Alt), como no Figma:
+ * uma dentro da outra → 4 distâncias até as bordas; separadas → vãos horizontal/vertical.
+ */
+export function medirDistancias(a: Retangulo, b: Retangulo): Medida[] {
+  const r: Medida[] = []
+  const dentro = (i: Retangulo, o: Retangulo) => i.x >= o.x && i.y >= o.y && dir(i) <= dir(o) && base(i) <= base(o)
+  const quatro = (i: Retangulo, o: Retangulo) => {
+    const cy = i.y + i.height / 2
+    const cx = i.x + i.width / 2
+    if (i.x - o.x > 0) r.push({ eixo: 'h', pos: cy, de: o.x, ate: i.x, valor: Math.round(i.x - o.x) })
+    if (dir(o) - dir(i) > 0) r.push({ eixo: 'h', pos: cy, de: dir(i), ate: dir(o), valor: Math.round(dir(o) - dir(i)) })
+    if (i.y - o.y > 0) r.push({ eixo: 'v', pos: cx, de: o.y, ate: i.y, valor: Math.round(i.y - o.y) })
+    if (base(o) - base(i) > 0) r.push({ eixo: 'v', pos: cx, de: base(i), ate: base(o), valor: Math.round(base(o) - base(i)) })
+  }
+  if (dentro(a, b)) { quatro(a, b); return r }
+  if (dentro(b, a)) { quatro(b, a); return r }
+  // horizontal
+  const meioY = sobrepoeY(a, b) ? (Math.max(a.y, b.y) + Math.min(base(a), base(b))) / 2 : a.y + a.height / 2
+  if (dir(a) <= b.x) r.push({ eixo: 'h', pos: meioY, de: dir(a), ate: b.x, valor: Math.round(b.x - dir(a)) })
+  else if (dir(b) <= a.x) r.push({ eixo: 'h', pos: meioY, de: dir(b), ate: a.x, valor: Math.round(a.x - dir(b)) })
+  // vertical
+  const meioX = sobrepoeX(a, b) ? (Math.max(a.x, b.x) + Math.min(dir(a), dir(b))) / 2 : a.x + a.width / 2
+  if (base(a) <= b.y) r.push({ eixo: 'v', pos: meioX, de: base(a), ate: b.y, valor: Math.round(b.y - base(a)) })
+  else if (base(b) <= a.y) r.push({ eixo: 'v', pos: meioX, de: base(b), ate: a.y, valor: Math.round(a.y - base(b)) })
+  // sobrepostas: diferença entre bordas equivalentes
+  if (!r.length) {
+    if (a.x !== b.x) r.push({ eixo: 'h', pos: meioY, de: Math.min(a.x, b.x), ate: Math.max(a.x, b.x), valor: Math.round(Math.abs(a.x - b.x)) })
+    if (a.y !== b.y) r.push({ eixo: 'v', pos: meioX, de: Math.min(a.y, b.y), ate: Math.max(a.y, b.y), valor: Math.round(Math.abs(a.y - b.y)) })
+  }
+  return r
+}
+
+/** Próxima posição ao deslocar com as setas: 1/10 px, ou a próxima linha da grade. */
+export function deslocarComGrade(v: number, sentido: -1 | 1, passo: number, grade: number): number {
+  if (!grade) return Math.round(v) + sentido * passo
+  const linhas = passo > 1 ? Math.max(1, Math.round(10 / grade)) : 1
+  const alvo = sentido > 0 ? Math.floor(v / grade + 1e-9) + linhas : Math.ceil(v / grade - 1e-9) - linhas
+  return alvo * grade
 }
 
 /** Distribui caixas com espaçamento igual no eixo (precisa de 3+). Mantém as extremidades. */

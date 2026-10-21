@@ -73,4 +73,14 @@ describe('validação semântica', () => {
     expect(r.ok).toBe(false)
     expect(r.erros[0]?.codigo).toBe('schema')
   })
+
+  it('frames: aceita aninhamento com auto layout e acusa pai inválido e ciclo', () => {
+    const f = (id: string, extra: Record<string, unknown> = {}) => ({ id, type: 'frame', x: 0, y: 0, width: 100, height: 100, ...extra })
+    const ok = validarDocumento(doc('slides', [{ id: 'a', size: tam, layers: [f('pai', { layout: { direction: 'vertical', gap: 8 } }), f('filho', { parentId: 'pai', sizingW: 'fill' }), { id: 't', type: 'text', text: 'oi', x: 0, y: 0, width: 10, height: 10, parentId: 'filho', sizingW: 'hug', sizingH: 'hug' }] }]))
+    expect(ok.ok).toBe(true)
+    expect(ok.avisos).toEqual([])
+    const ruim = validarDocumento(doc('slides', [{ id: 'a', size: tam, layers: [{ id: 's', type: 'shape', x: 0, y: 0, width: 10, height: 10 }, { id: 'x', type: 'shape', x: 0, y: 0, width: 10, height: 10, parentId: 's' }, f('p', { parentId: 'q' }), f('q', { parentId: 'p' })] }]))
+    expect(ruim.erros.map((e) => e.codigo)).toEqual(expect.arrayContaining(['pai_nao_e_frame', 'ciclo_de_frames']))
+  })
 })
+

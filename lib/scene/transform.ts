@@ -79,22 +79,18 @@ export type Alca = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
 
 /**
  * Redimensiona um retângulo pela alça arrastada. dx/dy em coordenadas da cena.
- * `proporcional` mantém a razão de aspecto (Shift no editor).
+ * `proporcional` mantém a razão de aspecto (Shift no editor); `doCentro` cresce para os dois lados (Alt).
  */
-export function redimensionar(r: Retangulo, alca: Alca, dx: number, dy: number, proporcional = false): Retangulo {
-  let { x, y, width, height } = r
+export function redimensionar(r: Retangulo, alca: Alca, dx: number, dy: number, proporcional = false, doCentro = false): Retangulo {
+  const k = doCentro ? 2 : 1
+  let width = r.width
+  let height = r.height
   const razao = r.width / r.height
 
-  if (alca.includes('e')) width = r.width + dx
-  if (alca.includes('w')) {
-    width = r.width - dx
-    x = r.x + dx
-  }
-  if (alca.includes('s')) height = r.height + dy
-  if (alca.includes('n')) {
-    height = r.height - dy
-    y = r.y + dy
-  }
+  if (alca.includes('e')) width = r.width + dx * k
+  if (alca.includes('w')) width = r.width - dx * k
+  if (alca.includes('s')) height = r.height + dy * k
+  if (alca.includes('n')) height = r.height - dy * k
 
   if (proporcional) {
     const horizontal = alca === 'e' || alca === 'w'
@@ -106,18 +102,13 @@ export function redimensionar(r: Retangulo, alca: Alca, dx: number, dy: number, 
       if (Math.abs(dx) >= Math.abs(dy)) height = width / razao
       else width = height * razao
     }
-    if (alca.includes('n')) y = r.y + r.height - height
-    if (alca.includes('w')) x = r.x + r.width - width
   }
 
-  if (width < TAMANHO_MINIMO) {
-    if (alca.includes('w')) x = r.x + r.width - TAMANHO_MINIMO
-    width = TAMANHO_MINIMO
-  }
-  if (height < TAMANHO_MINIMO) {
-    if (alca.includes('n')) y = r.y + r.height - TAMANHO_MINIMO
-    height = TAMANHO_MINIMO
-  }
+  width = Math.max(TAMANHO_MINIMO, width)
+  height = Math.max(TAMANHO_MINIMO, height)
+  if (doCentro) return { x: r.x + (r.width - width) / 2, y: r.y + (r.height - height) / 2, width, height }
+  const x = alca.includes('w') ? r.x + r.width - width : r.x
+  const y = alca.includes('n') ? r.y + r.height - height : r.y
   return { x, y, width, height }
 }
 

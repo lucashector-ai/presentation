@@ -11,6 +11,8 @@ import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from
 import type { Animacao, Camada, Cena, Interacao, CamadaTexto } from '@/lib/scene/schema'
 import { EASING_CSS, adaptarAnimacao, camadaVisivel, interacoesDe, type EstadoRuntime } from '@/lib/scene/motor'
 import { ordenarParaRender } from '@/lib/scene/order'
+import { calcularLayout } from '@/lib/editor/autolayout'
+import { ancestrais, mapaDe } from '@/lib/scene/arvore'
 import { recolorirSvg, svgParaDataUrl } from '@/lib/importar/svg'
 import { pilhaFonte } from '@/lib/design-tokens'
 import { MASCARAS, filtroCss, gradienteCss, sombraCss, transformCss } from './estilos'
@@ -63,7 +65,9 @@ export function chaveMorph(c: Camada): string {
 export function SceneRenderer(props: SceneRendererProps) {
   const { cena, assets, escala, modo, children, className, style, morphDe } = props
   const fundo = cena.backgroundAssetId ? assets[cena.backgroundAssetId] : undefined
-  const camadas = useMemo(() => ordenarParaRender(cena.layers), [cena.layers])
+  // auto layout resolvido também aqui: visualizador e miniaturas mostram o mesmo que o editor
+  const camadas = useMemo(() => ordenarParaRender(calcularLayout(cena.layers)), [cena.layers])
+  const herdado = useMemo(() => herancaDeFrames(camadas), [camadas])
   const mapaMorph = useMemo(() => (morphDe ? new Map(morphDe.layers.map((l) => [chaveMorph(l), l])) : null), [morphDe])
   const fundoCss = cena.backgroundGradient ? gradienteCss(cena.backgroundGradient) : cena.background
   const [fundoAtual, setFundoAtual] = useState(morphDe ? (morphDe.backgroundGradient ? gradienteCss(morphDe.backgroundGradient) : morphDe.background) : fundoCss)
@@ -76,11 +80,40 @@ export function SceneRenderer(props: SceneRendererProps) {
     <div className={className} style={{ width: cena.size.width * escala, height: cena.size.height * escala, position: 'relative', overflow: 'hidden', background: morphDe ? fundoAtual : fundoCss, transition: morphDe ? `background ${props.morphDuracao ?? 600}ms ${props.morphEasing ?? 'ease'}` : undefined, ...style }}>
       <div style={{ width: cena.size.width, height: cena.size.height, transform: `scale(${escala})`, transformOrigin: '0 0', position: 'absolute', left: 0, top: 0 }}>
         {fundo && <img src={modo === 'miniatura' ? fundo.thumbUrl || fundo.url : fundo.url} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: cena.backgroundFit, pointerEvents: 'none' }} />}
-        {camadas.map((c) => (props.ocultar?.has(c.id) ? null : <LayerView key={c.id} camada={c} props={props} origemMorph={mapaMorph?.get(chaveMorph(c))} />))}
+        {camadas.map((c) => (props.ocultar?.has(c.id) ? null : <LayerView key={c.id} camada={c} props={props} origemMorph={mapaMorph?.get(chaveMorph(c))} heranca={herdado.get(c.id)} />))}
         {children}
       </div>
     </div>
   )
+}
+
+/** O que um filho herda dos frames ancestrais: ocultação, opacidade e recorte (clip). */
+interface Heranca { oculta: boolean; opacidade: number; clip?: string }
+function herancaDeFrames(camadas: readonly Camada[]): Map<string, Heranca> {
+  const r = new Map<string, Heranca>()
+  if (!camadas.some((c) => c.parentId)) return r
+  const mapa = mapaDe(camadas)
+  for (const c of camadas) {
+    const anc = ancestrais(c, mapa)
+    if (!anc.length) continue
+    const clips = anc.filter((a) => a.clip)
+    let clip: string | undefined
+    if (clips.length) {
+      // interseção dos frames com clip, em coordenadas locais da camada
+      const x0 = Math.max(...clips.map((a) => a.x))
+      const y0 = Math.max(...clips.map((a) => a.y))
+      const x1 = Math.min(...clips.map((a) => a.x + a.width))
+      const y1 = Math.min(...clips.map((a) => a.y + a.height))
+      const raio = clips[0]!.radius
+      const t = Math.max(0, y0 - c.y)
+      const l = Math.max(0, x0 - c.x)
+      const b = Math.max(0, c.y + c.height - y1)
+      const d = Math.max(0, c.x + c.width - x1)
+      if (t || l || b || d) clip = `inset(${t}px ${d}px ${b}px ${l}px${raio && clips.length === 1 ? ` round ${raio}px` : ''})`
+    }
+    r.set(c.id, { oculta: anc.some((a) => a.hidden), opacidade: anc.reduce((o, a) => o * a.opacity, 1), clip })
+  }
+  return r
 }
 
 function estiloAnimacao(a: Animacao | undefined, reduzir: boolean): CSSProperties | undefined {
@@ -93,10 +126,10 @@ function geometria(c: Camada): CSSProperties {
   return { left: c.x, top: c.y, width: c.width, height: c.height, opacity: c.opacity, transform: transformCss(c) }
 }
 
-function LayerView({ camada: c, props, origemMorph }: { camada: Camada; props: SceneRendererProps; origemMorph?: Camada }) {
+function LayerView({ camada: c, props, origemMorph, heranca }: { camada: Camada; props: SceneRendererProps; origemMorph?: Camada; heranca?: Heranca }) {
   const { modo, runtime, reduzirMovimento = false, semHover = false, mobile = false, aoInteragir, chaveEntrada, morphDe, morphDuracao = 600, morphEasing = 'ease' } = props
   const viewer = modo === 'viewer'
-  const visivel = runtime ? camadaVisivel(c, runtime) : !c.hidden
+  const visivel = (runtime ? camadaVisivel(c, runtime) : !c.hidden) && !heranca?.oculta
   const [morphFim, setMorphFim] = useState(!origemMorph)
   useEffect(() => {
     if (!origemMorph) return
@@ -121,7 +154,8 @@ function LayerView({ camada: c, props, origemMorph }: { camada: Camada; props: S
   const base: CSSProperties = {
     position: 'absolute',
     ...geoAtual,
-    opacity: visivel ? geoAtual.opacity : 0.3,
+    opacity: (visivel ? (geoAtual.opacity as number) : 0.3) * (heranca?.opacidade ?? 1),
+    clipPath: heranca?.clip,
     zIndex: c.z,
     ['--op' as string]: c.opacity,
     ['--rot' as string]: `${c.rotation}deg`,
@@ -171,6 +205,21 @@ function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing }: 
         <div style={{ width: '100%', height: '100%', filter: filtroCss(e, c.shape !== 'rect' && c.shape !== 'ellipse') }}>
           <Forma camada={origemMorph?.type === 'shape' ? { ...c, fill: origemMorph.fill } : c} />
         </div>
+      )
+    case 'frame':
+      return (
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            boxSizing: 'border-box',
+            background: c.gradient ? gradienteCss(c.gradient) : c.fill,
+            border: c.stroke && c.strokeWidth ? `${c.strokeWidth}px solid ${c.stroke}` : undefined,
+            borderRadius: c.radius,
+            boxShadow: sombraCss(e),
+            filter: filtroCss(e, false),
+          }}
+        />
       )
     case 'hotspot':
       return modo === 'editor' ? <div style={{ width: '100%', height: '100%', border: '2px dashed rgba(89,101,242,.9)', background: 'rgba(89,101,242,.08)', borderRadius: 6 }} aria-hidden /> : null
@@ -269,7 +318,8 @@ function Texto({ c, origem, modo, duracao, easing }: { c: CamadaTexto; origem?: 
         textAlign: c.align,
         lineHeight: c.lineHeight,
         letterSpacing: fonte.letterSpacing,
-        whiteSpace: 'pre-wrap',
+        // largura automática (hug) não quebra linha; senão quebra na largura da caixa
+        whiteSpace: c.sizingW === 'hug' ? 'pre' : 'pre-wrap',
         wordBreak: 'break-word',
         userSelect: modo === 'editor' ? 'none' : undefined,
         textShadow: c.effects?.shadow ? `${c.effects.shadow.x}px ${c.effects.shadow.y}px ${c.effects.shadow.blur}px ${c.effects.shadow.color}` : undefined,

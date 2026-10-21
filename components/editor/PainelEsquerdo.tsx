@@ -1,7 +1,8 @@
 'use client'
 import { useRef, useState } from 'react'
-import { Box, ChevronDown, Code2, Copy, Crosshair, Eye, EyeOff, Film, GalleryHorizontal, Image as ImageIcon, Lock, LockOpen, MousePointerClick, PenTool, Quote, Sparkles, Square, Tag, Trash2, Type, Upload, Video, ArrowRight } from 'lucide-react'
+import { Box, ChevronDown, ChevronRight, Code2, Copy, Crosshair, Eye, EyeOff, Film, GalleryHorizontal, Image as ImageIcon, Lock, LockOpen, MousePointerClick, PenTool, Quote, Sparkles, Square, Tag, Trash2, Type, Upload, Video, ArrowRight } from 'lucide-react'
 import type { Camada } from '@/lib/scene/schema'
+import { mapaDe, paiDe } from '@/lib/scene/arvore'
 import type { Editor, AbaEsquerda } from '@/lib/editor/useEditor'
 import type { AssetDemo } from '@/lib/demo/tipos'
 import type { ProgressoUpload } from '@/lib/demo/store'
@@ -90,52 +91,98 @@ function Telas({ editor, assets }: { editor: Editor; assets: AssetDemo[] }) {
 }
 
 function nomeCamada(l: Camada) {
-  return l.name || (l.type === 'text' ? l.text.slice(0, 28) || 'Texto' : l.type === 'svg' ? 'Vetor' : l.type === 'model3d' ? 'Modelo 3D' : l.id)
+  return l.name || (l.type === 'text' ? l.text.slice(0, 28) || 'Texto' : l.type === 'svg' ? 'Vetor' : l.type === 'model3d' ? 'Modelo 3D' : l.type === 'frame' ? (l.layout ? 'Auto layout' : 'Frame') : l.id)
 }
 
+/**
+ * Camadas em árvore (como no Figma): frames expansíveis com os filhos recuados.
+ * Arrastar: metade de cima/baixo da linha = acima/abaixo (mesmo pai); meio de um frame = dentro.
+ */
 function Camadas({ editor }: { editor: Editor }) {
   const { cena, estado, acoes } = editor
   const [arrastando, setArrastando] = useState<string | null>(null)
+  const [destino, setDestino] = useState<{ id: string; onde: 'acima' | 'abaixo' | 'dentro' } | null>(null)
   const [renomeando, setRenomeando] = useState<string | null>(null)
+  const [fechados, setFechados] = useState<ReadonlySet<string>>(new Set())
   if (!cena) return null
-  const ordem = [...cena.layers].sort((a, b) => b.z - a.z)
-  if (!ordem.length) return <p className="p-4 text-[13px] text-texto2">Esta tela ainda não tem camadas. Cole algo (Ctrl+V), arraste arquivos ou use a aba Blocos.</p>
+  if (!cena.layers.length) return <p className="p-4 text-[13px] text-texto2">Esta tela ainda não tem camadas. Cole algo (Ctrl+V), arraste arquivos ou use a aba Blocos.</p>
+  const mapa = mapaDe(cena.layers)
+  const filhos = new Map<string | undefined, Camada[]>()
+  for (const l of cena.layers) {
+    const p = paiDe(l, mapa)?.id
+    filhos.set(p, [...(filhos.get(p) ?? []), l])
+  }
+  for (const lista of filhos.values()) lista.sort((a, b) => b.z - a.z)
+  const alternar = (id: string) => setFechados((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
+
+  const linha = (l: Camada, nivel: number, vistos: Set<string>): JSX.Element | null => {
+    if (vistos.has(l.id)) return null
+    vistos.add(l.id)
+    const Icone = ICONE_TIPO[l.type]
+    const sel = estado.selecao.includes(l.id)
+    const sub = filhos.get(l.id) ?? []
+    const ehFrame = l.type === 'frame'
+    const aberto = ehFrame && !fechados.has(l.id)
+    const alvo = destino?.id === l.id && arrastando && arrastando !== l.id ? destino.onde : null
+    return (
+      <li key={l.id} role="treeitem" aria-label={nomeCamada(l)} aria-selected={sel} aria-level={nivel + 1} aria-expanded={ehFrame ? aberto : undefined}>
+        <div
+          draggable
+          onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.effectAllowed = 'move'; setArrastando(l.id) }}
+          onDragOver={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            const r = e.currentTarget.getBoundingClientRect()
+            const f = (e.clientY - r.top) / r.height
+            const onde = ehFrame && f > 0.3 && f < 0.7 ? 'dentro' : f < 0.5 ? 'acima' : 'abaixo'
+            if (destino?.id !== l.id || destino.onde !== onde) setDestino({ id: l.id, onde })
+          }}
+          onDrop={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            if (arrastando && arrastando !== l.id && destino) acoes.moverNaLista(arrastando, l.id, destino.onde)
+            setArrastando(null)
+            setDestino(null)
+          }}
+          onDragEnd={() => { setArrastando(null); setDestino(null) }}
+          onClick={(e) => (e.shiftKey ? acoes.selecionarExato(sel ? estado.selecao.filter((x) => x !== l.id) : [...estado.selecao, l.id]) : acoes.selecionarExato([l.id]))}
+          onDoubleClick={() => setRenomeando(l.id)}
+          style={{ paddingLeft: 8 + nivel * 14 }}
+          className={cx(
+            'group relative flex h-8 cursor-default items-center gap-1.5 rounded-md pr-2 text-[13px]',
+            sel ? 'bg-acentoSuave text-texto' : 'hover:bg-hover',
+            l.hidden && 'opacity-50',
+            l.groupId && !ehFrame && 'pl-5',
+            alvo === 'dentro' && 'ring-[1.5px] ring-inset ring-acento',
+            arrastando === l.id && 'opacity-40'
+          )}
+        >
+          {alvo === 'acima' && <span className="pointer-events-none absolute -top-px right-1 h-0.5 rounded bg-acento" style={{ left: 8 + nivel * 14 }} />}
+          {alvo === 'abaixo' && <span className="pointer-events-none absolute -bottom-px right-1 h-0.5 rounded bg-acento" style={{ left: 8 + nivel * 14 }} />}
+          {ehFrame ? (
+            <button type="button" aria-label={aberto ? 'Recolher frame' : 'Expandir frame'} onClick={(e) => { e.stopPropagation(); alternar(l.id) }} className="-ml-1 flex h-4 w-4 shrink-0 items-center justify-center text-texto3 hover:text-texto">
+              <ChevronRight className={cx('h-3 w-3 transition-transform', aberto && 'rotate-90')} />
+            </button>
+          ) : nivel > 0 ? <span className="w-3 shrink-0" /> : null}
+          <Icone className={cx('h-3.5 w-3.5 shrink-0', sel ? 'text-acento' : 'text-texto3')} strokeWidth={1.75} />
+          {renomeando === l.id ? (
+            <input autoFocus aria-label="Renomear camada" defaultValue={l.name ?? ''} placeholder={nomeCamada(l)} onBlur={(e) => { acoes.atualizarCamadas([l.id], { name: e.target.value || undefined }); setRenomeando(null) }} onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur() }} className="h-6 min-w-0 flex-1 rounded bg-superficie px-1 outline-none ring-1 ring-acento" />
+          ) : (
+            <span className="min-w-0 flex-1 truncate">{nomeCamada(l)}</span>
+          )}
+          {ehFrame && l.layout && <span className="rotulo-mono shrink-0 !text-[9px] text-texto3" title="Auto layout">{l.layout.direction === 'vertical' ? '↓' : l.layout.direction === 'wrap' ? '↩' : '→'}</span>}
+          {l.interactions.length > 0 && <MousePointerClick className="h-3 w-3 shrink-0 text-acento" aria-label="Tem interação" />}
+          <button type="button" aria-label={l.locked ? 'Destravar' : 'Travar'} onClick={(e) => { e.stopPropagation(); acoes.atualizarCamadas([l.id], { locked: !l.locked }) }} className={cx('shrink-0 text-texto3 hover:text-texto', !l.locked && 'opacity-0 group-hover:opacity-100')}>{l.locked ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}</button>
+          <button type="button" aria-label={l.hidden ? 'Mostrar' : 'Ocultar'} onClick={(e) => { e.stopPropagation(); acoes.atualizarCamadas([l.id], { hidden: !l.hidden }) }} className={cx('shrink-0 text-texto3 hover:text-texto', !l.hidden && 'opacity-0 group-hover:opacity-100')}>{l.hidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}</button>
+        </div>
+        {aberto && sub.length > 0 && <ul role="group">{sub.map((f) => linha(f, nivel + 1, vistos))}</ul>}
+      </li>
+    )
+  }
+  const vistos = new Set<string>()
   return (
-    <ul role="tree" aria-label="Camadas da tela" className="p-2">
-      {ordem.map((l) => {
-        const Icone = ICONE_TIPO[l.type]
-        const sel = estado.selecao.includes(l.id)
-        return (
-          <li
-            key={l.id}
-            role="treeitem"
-            aria-selected={sel}
-            draggable
-            onDragStart={() => setArrastando(l.id)}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={() => {
-              if (!arrastando || arrastando === l.id) return
-              const ids = ordem.map((x) => x.id).filter((id) => id !== arrastando)
-              ids.splice(ids.indexOf(l.id), 0, arrastando)
-              acoes.reordenarCamadas(ids)
-              setArrastando(null)
-            }}
-            onClick={(e) => (e.shiftKey ? acoes.selecionarExato(sel ? estado.selecao.filter((x) => x !== l.id) : [...estado.selecao, l.id]) : acoes.selecionarExato([l.id]))}
-            onDoubleClick={() => setRenomeando(l.id)}
-            className={cx('group flex h-8 cursor-default items-center gap-2 rounded-md px-2 text-[13px]', sel ? 'bg-acentoSuave text-texto' : 'hover:bg-hover', l.hidden && 'opacity-50', l.groupId && 'pl-5')}
-          >
-            <Icone className={cx('h-3.5 w-3.5 shrink-0', sel ? 'text-acento' : 'text-texto3')} strokeWidth={1.75} />
-            {renomeando === l.id ? (
-              <input autoFocus aria-label="Renomear camada" defaultValue={l.name ?? ''} placeholder={nomeCamada(l)} onBlur={(e) => { acoes.atualizarCamadas([l.id], { name: e.target.value || undefined }); setRenomeando(null) }} onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur() }} className="h-6 min-w-0 flex-1 rounded bg-superficie px-1 outline-none ring-1 ring-acento" />
-            ) : (
-              <span className="min-w-0 flex-1 truncate">{nomeCamada(l)}</span>
-            )}
-            {l.interactions.length > 0 && <MousePointerClick className="h-3 w-3 shrink-0 text-acento" aria-label="Tem interação" />}
-            <button type="button" aria-label={l.locked ? 'Destravar' : 'Travar'} onClick={(e) => { e.stopPropagation(); acoes.atualizarCamadas([l.id], { locked: !l.locked }) }} className={cx('shrink-0 text-texto3 hover:text-texto', !l.locked && 'opacity-0 group-hover:opacity-100')}>{l.locked ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}</button>
-            <button type="button" aria-label={l.hidden ? 'Mostrar' : 'Ocultar'} onClick={(e) => { e.stopPropagation(); acoes.atualizarCamadas([l.id], { hidden: !l.hidden }) }} className={cx('shrink-0 text-texto3 hover:text-texto', !l.hidden && 'opacity-0 group-hover:opacity-100')}>{l.hidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}</button>
-          </li>
-        )
-      })}
+    <ul role="tree" aria-label="Camadas da tela" className="p-2" onDragLeave={(e) => { if (e.currentTarget === e.target) setDestino(null) }}>
+      {(filhos.get(undefined) ?? []).map((l) => linha(l, 0, vistos))}
     </ul>
   )
 }
