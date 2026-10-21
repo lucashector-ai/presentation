@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
-import { GeistSans } from 'geist/font/sans'
-import { GeistMono } from 'geist/font/mono'
+// Geist auto-hospedada (@fontsource): o pacote `geist` exige o `next` instalado (e o React 18 dele) e usa next/font.
+import '@fontsource-variable/geist'
+import '@fontsource-variable/geist-mono'
 import './globals.css'
 import { ToastProvider } from '@/components/ui/toast'
 
@@ -14,7 +15,7 @@ export const viewport: Viewport = { width: 'device-width', initialScale: 1, view
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning className={`${GeistSans.variable} ${GeistMono.variable}`}>
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
         {/* tema salvo aplicado antes da pintura (sem flash). Padrão: claro, como no design. */}
         <script dangerouslySetInnerHTML={{ __html: `try{if(localStorage.getItem('tema')==='escuro')document.documentElement.dataset.tema='escuro'}catch(e){}` }} />

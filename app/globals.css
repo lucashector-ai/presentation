@@ -23,6 +23,9 @@
   --cor-aviso: 242 193 78;         /* ipê #F2C14E */
   --cor-guia: 242 89 135;          /* guias inteligentes #F25987 */
   --cor-canvas: 240 239 237;       /* #F0EFED */
+  /* famílias do @fontsource (importadas em app/layout.tsx) */
+  --font-geist-sans: 'Geist Variable';
+  --font-geist-mono: 'Geist Mono Variable';
   color-scheme: light;
 }
 [data-tema='escuro'] {

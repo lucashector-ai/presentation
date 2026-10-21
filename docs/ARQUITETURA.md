@@ -12,7 +12,7 @@ Documento do "primeiro entregável" da instrução mestre (seção 20): stack e 
 | Banco/Auth/Storage | Supabase (Postgres + Auth + Storage privado) | Postgres gerenciado, RLS, bucket privado com URLs assinadas, já usado na casa | Prisma + S3 + Auth próprio: mais código para manter |
 | Renderizador | Camadas DOM posicionadas com `transform: scale()` | Texto selecionável/acessível, vídeos nativos, mesma base no editor e viewer | Canvas raster: acessibilidade e vídeo piores |
 | Testes | Vitest (unitário) + Playwright (E2E) | Rápidos, sem configuração pesada | Jest |
-| Hospedagem | Vercel (sugerido) | Deploy por branch, rollback por promote | Railway/Fly: ok, mas sem preview automático por PR |
+| Hospedagem | Cloudflare Workers via vinext (`wrangler.jsonc`) | Borda global, R2 junto para as mídias, rollback por versão (`wrangler rollback`) | Vercel: o plano inicial; OpenNext no Workers: mais maduro, porém mais pesado |
 
 Regra: o servidor é a autoridade para papéis, acesso, assinatura, cotas e publicação. A UI apenas reflete.
 
@@ -86,5 +86,5 @@ Integridade: toda consulta filtra por `workspace_id` no servidor **e** RLS no ba
 1. **Rotas `/api` nunca rodaram contra um Supabase real.** Primeira tarefa da Sprint 1: criar projeto Supabase de staging, aplicar migrations, escrever testes de integração (auth, multi-tenant, 409, publicação, links) e só então apontar a UI para `lib/api/cliente.ts`.
 2. **Sessão no servidor**: hoje o guard de `/app` é no cliente. Com Supabase Auth real, adotar `@supabase/ssr` (cookies HttpOnly) e `middleware.ts` (ADR 0002).
 3. **Variantes de mídia**: `finalize` marca `ready` sem gerar thumbnails. O viewer usa o original com lazy loading; cenas com muitas imagens 4K podem pesar. Worker (Sprint 2): sharp para thumbs/webp, ffmpeg para poster/transcodificação.
-4. **Rate limiting** em memória por processo é suficiente para o beta; em produção multi-instância, mover para a borda (Vercel WAF) ou Redis.
+4. **Rate limiting** em memória por processo é suficiente para o beta; em produção multi-instância, mover para a borda (Cloudflare WAF / Rate Limiting) ou Redis.
 5. **Decisões a validar antes de cobrar** (seção 20.1): nome e domínio, limites definitivos por plano, mercado/moeda/provedor de pagamento, retenção e termos de conteúdo autoral.

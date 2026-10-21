@@ -27,8 +27,10 @@ A UI roda em **modo demonstração** (`NEXT_PUBLIC_DEMO=1`): um "backend" no nav
 ```bash
 cp .env.example .env.local        # modo demo já vem ligado
 npm install
-npm run dev                        # http://localhost:3000
+npm run dev                        # http://localhost:3000 (vinext: API do Next.js sobre o Vite, servidor no workerd)
 ```
+
+Node 22+. O app roda com [vinext](https://github.com/cloudflare/vinext) no Cloudflare Workers: `app/` e `next.config.js` são os mesmos, mas o pacote `next` não está instalado (o vinext implementa os `next/*`). Variáveis só do servidor ficam em `.dev.vars` (mesmo formato do `.env.local`; nunca versionar).
 
 Contas de demonstração: qualquer e-mail/senha entram. Link público de exemplo: `/p/demo_cafe_aurora_proposta_01_token_fixo_xx`.
 
@@ -58,8 +60,10 @@ Pacotes avulsos (não expiram): 500 por R$19 (≈ 8), 2.000 por R$59 (≈ 33), 1
 
 ```bash
 npm run lint && npm run typecheck && npm run test   # unitários (Vitest)
-npm run build                                        # build de produção
+npm run build                                        # build de produção (dist/)
 npm run dev & npm run test:e2e                       # fluxo ponta a ponta (Playwright, exige navegador instalado: npx playwright install chromium)
+NEXT_PUBLIC_DEMO=1 npm run build && npm run preview  # o Worker de produção no workerd, em http://localhost:8787
+E2E_BASE_URL=http://localhost:8787 npm run test:e2e  # o mesmo fluxo contra o preview
 ```
 
 `npm run verificar` encadeia lint, typecheck, testes e build (é o que a CI executa em `.github/workflows/ci.yml`).
@@ -74,8 +78,8 @@ Novas mudanças de schema: arquivo `000N_descricao.sql` sequencial; nunca editar
 
 ## Como publicar e reverter
 
-- **Vercel** (recomendado, mesmo padrão do Clinical 360): importar o repositório, definir as variáveis acima em *Production* e *Preview*, deploy automático por branch. Reverter = *Promote* do deployment anterior no painel (instantâneo) ou `git revert` + push.
-- Qualquer host Node 20+: `npm run build && npm start`.
+- **Cloudflare Workers** (Worker `mostra`, config em `wrangler.jsonc`, bucket R2 `mostra-midias` no binding `MIDIAS`): `npx wrangler login` uma vez, segredos com `npx wrangler secret put DATABASE_URL` (e os demais do servidor), depois `npm run deploy` (build + `wrangler deploy`). Variáveis `NEXT_PUBLIC_*` entram no build, então precisam estar no ambiente de quem roda o deploy. Reverter = `npx wrangler rollback` (versão anterior, instantâneo) ou `git revert` + deploy.
+- Bindings do Cloudflare só por `lib/cf/ambiente.ts` (fora do Worker, como no Vitest, devolve null).
 - Migrations são aditivas; para reverter uma, escreva a migration inversa (não apague a anterior).
 
 ## Estrutura

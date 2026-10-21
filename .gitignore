@@ -12,3 +12,7 @@ e2e/capturas/
 .next-*/
 .claude/worktrees/
 .neon
+/dist/
+.vinext/
+.wrangler/
+.dev.vars*
