@@ -13,6 +13,7 @@ import { LinhaPintura } from './CampoCor'
 import type { Pintura } from './SeletorCor'
 import { comum, useCamadas, type PropsSecao } from './selecao'
 import { desligarEstilo, gravarCor, ligarEstilo, type PropCor } from '@/lib/editor/estilosCor'
+import { tipoMascara } from '@/lib/scene/mascara'
 
 /** Opacidade anterior de cores escondidas pelo olho (para restaurar), e linhas mantidas visíveis na sessão. */
 const alfaAnterior = new Map<string, number>()
@@ -36,7 +37,7 @@ export function SecaoPreenchimento({ editor }: PropsSecao) {
   const [, atualizar] = useState(0)
   const tipo = sel[0]?.type
   if (!sel.length || (tipo !== 'shape' && tipo !== 'text' && tipo !== 'frame') || !sel.every((c) => c.type === tipo)) return null
-  if (tipo === 'shape' && sel.some((c) => c.type === 'shape' && (c.shape === 'line' || c.shape === 'arrow' || c.isMask))) return null
+  if (tipo === 'shape' && sel.some((c) => c.type === 'shape' && (c.shape === 'line' || c.shape === 'arrow' || (c.isMask && tipoMascara(c) === 'outline')))) return null
   const camadas = sel as ComPreenchimento[]
   const chave = camadas.map((c) => `${c.id}:fill`).join(',')
   const pintura = comum(camadas, (c) => pinturaDe(c as ComPreenchimento))

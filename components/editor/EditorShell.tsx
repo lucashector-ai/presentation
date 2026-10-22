@@ -273,7 +273,7 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
       if (e.code === 'KeyM' && e.ctrlKey && (e.metaKey || e.altKey) && sel.length) {
         e.preventDefault()
         const r = acoes.alternarMascara(sel)
-        mostrar(r === 'criada' ? 'Máscara criada: a forma de baixo recorta as outras camadas.' : r === 'removida' ? 'Máscara removida.' : 'Selecione uma forma e as camadas a recortar.')
+        mostrar(r === 'criada' ? 'Máscara criada: a camada de baixo recorta as outras.' : r === 'removida' ? 'Máscara removida.' : 'Selecione a máscara (forma, texto, imagem ou SVG) embaixo e as camadas a recortar.')
         return
       }
       if (mod) return
