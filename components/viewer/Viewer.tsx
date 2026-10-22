@@ -299,6 +299,11 @@ export function Viewer(props: ViewerProps) {
   const ehPush = transicao?.type === 'push' && !!anterior
   // sentido da transição (deslizar/empurrar e o parallax delas): 1 avançando, −1 voltando
   const sentido = anterior?.volta ? -1 : 1
+  // fade/deslizar/zoom: a tela que sai fica POR CIMA e some (opacidade), a nova só se move por baixo. Mesma mistura
+  // de cores das telas opacas, mas a opacidade animada fica numa camada parada (a tela velha) em vez de na tela que
+  // entra com as entradas tocando dentro — que obrigava o compositor a desenhar a tela nova inteira duas vezes por
+  // quadro durante a transição
+  const sobAnterior = !ehMorph && !ehPush && !!anterior && !!transicao && (transicao.type === 'fade' || transicao.type === 'slide' || transicao.type === 'scale') && runtime.historico.length > 0
   const easing = EASING_CSS[transicao?.easing ?? 'easeInOut']
   const duracao = transicao?.duration ?? 400
   const ocultos = !controles.visiveis
@@ -343,7 +348,7 @@ export function Viewer(props: ViewerProps) {
             return (
               // no morph o que não tem par sai rápido (45% da duração): o texto antigo não fica por baixo do novo
               // empurrar: a tela que sai anda junto com a que entra, pela largura da área (--larg)
-              <div key={`sai-${anterior.chave}`} className={ehPush ? 'cena-saindo cena-saindo-push' : 'cena-saindo'} style={{ position: 'absolute', left: e.offsetX, top: e.offsetY, zIndex: 0, ['--dur' as string]: `${ehMorph ? Math.round(duracao * 0.45) : duracao}ms`, ['--dir' as string]: sentido, ['--plx-dir' as string]: sentido, ['--larg' as string]: `${tamanho.width}px`, animationDelay: saidaMs ? `${saidaMs}ms` : undefined }}>
+              <div key={`sai-${anterior.chave}`} className={ehPush ? 'cena-saindo cena-saindo-push' : 'cena-saindo'} style={{ position: 'absolute', left: e.offsetX, top: e.offsetY, zIndex: sobAnterior ? 2 : 0, ['--dur' as string]: `${ehMorph ? Math.round(duracao * 0.45) : duracao}ms`, ['--dir' as string]: sentido, ['--plx-dir' as string]: sentido, ['--larg' as string]: `${tamanho.width}px`, animationDelay: saidaMs ? `${saidaMs}ms` : undefined }}>
                 {camadaDeCena(anterior.cena, e, !ehMorph)}
                 {/* a tela que sai remonta parada no estado final (animar=false): sem isso as entradas dela tocavam
                     de novo por baixo do fade e o texto dividido inteiro era montado outra vez no meio da transição */}
@@ -355,6 +360,7 @@ export function Viewer(props: ViewerProps) {
           <TelaEntrando
             transicao={!ehMorph && transicao && transicao.type !== 'none' && runtime.historico.length ? transicao.type : undefined}
             espera={!iniciado}
+            sobAnterior={sobAnterior}
             fimEntradas={fimDasEntradas(cena.layers)}
             style={{ position: 'absolute', left: encaixe.offsetX, top: encaixe.offsetY, zIndex: 1, ['--dur' as string]: `${duracao}ms`, ['--dir' as string]: sentido, ['--plx-dir' as string]: sentido, ['--larg' as string]: `${tamanho.width}px` }}
           >
@@ -415,7 +421,7 @@ export function Viewer(props: ViewerProps) {
  * numa camada composta. Estado próprio (e os filhos vêm prontos do Viewer): ao soltar, só este nó re-renderiza,
  * não a cena com as entradas ainda tocando.
  */
-function TelaEntrando({ transicao, espera, fimEntradas, style, children }: { transicao?: string; espera: boolean; fimEntradas: number; style: CSSProperties; children: ReactNode }) {
+function TelaEntrando({ transicao, espera, sobAnterior = false, fimEntradas, style, children }: { transicao?: string; espera: boolean; sobAnterior?: boolean; fimEntradas: number; style: CSSProperties; children: ReactNode }) {
   const [feita, setFeita] = useState(false)
   const [terminou, setTerminou] = useState(false)
   // soltar a classe recalcula o estilo da tela inteira (a tela deixa de ser uma camada composta): espera as
@@ -428,7 +434,7 @@ function TelaEntrando({ transicao, espera, fimEntradas, style, children }: { tra
   }, [terminou, feita, fimEntradas])
   return (
     <div
-      className={[transicao && !feita ? `cena-transicao-${transicao}` : '', espera ? 'animacoes-em-espera' : ''].filter(Boolean).join(' ') || undefined}
+      className={[transicao && !feita ? `cena-transicao-${transicao}${sobAnterior ? ' sob-a-anterior' : ''}` : '', espera ? 'animacoes-em-espera' : ''].filter(Boolean).join(' ') || undefined}
       style={style}
       onAnimationEnd={(e) => { if (e.target === e.currentTarget) setTerminou(true) }}
     >

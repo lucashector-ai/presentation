@@ -236,6 +236,13 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 .cena-transicao-zoom { animation: cena-zoom var(--dur, 350ms) ease-out backwards; }
 .cena-transicao-scale { animation: cena-scale var(--dur, 350ms) cubic-bezier(.2,.8,.2,1) backwards; }
 .cena-saindo { animation: cena-saida var(--dur, 400ms) ease-out both; pointer-events: none; }
+/* visualizador: a tela nova entra POR BAIXO da que sai (que some por cima, ver Viewer) e só se move — a mesma
+   mistura de cores, sem opacidade animada na tela que tem as entradas tocando dentro */
+@keyframes cena-slide-mov { from { transform: translateX(calc(var(--dir, 1) * 6%)) } to { transform: translateX(0) } }
+@keyframes cena-scale-mov { from { transform: scale(.92) } to { transform: scale(1) } }
+.cena-transicao-fade.sob-a-anterior { animation: none; }
+.cena-transicao-slide.sob-a-anterior { animation-name: cena-slide-mov; }
+.cena-transicao-scale.sob-a-anterior { animation-name: cena-scale-mov; }
 /* empurrar: a tela nova entra pela lateral e empurra a anterior (as duas andam juntas, mesma curva); --dir = 1
    avançando, −1 voltando; --larg = largura da área do visualizador (no editor, a da própria tela) */
 @keyframes cena-push { from { transform: translateX(calc(var(--dir, 1) * var(--larg, 100%))) } to { transform: translateX(0) } }
