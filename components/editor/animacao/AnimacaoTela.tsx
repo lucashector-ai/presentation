@@ -32,12 +32,20 @@ const CURVAS_TRANSICAO: { id: Transicao['easing']; rotulo: string }[] = [
   { id: 'linear', rotulo: 'Linear' },
 ]
 
+/**
+ * Botão Prévia/Parar da linha do tempo: só ele acompanha a prévia tocando (o painel inteiro não re-renderiza no
+ * começo e no fim de cada prévia, justo quando o canvas monta a tela animada).
+ */
+function BotaoPreviaTela({ aoClicar }: { aoClicar: () => void }) {
+  const previa = usePreviaAnimacao(true)
+  return <BotaoPrevia aoClicar={aoClicar} tocando={!!previa && !previa.semAtraso} aoParar={pararPrevia} />
+}
+
 export function AnimacaoTela({ editor }: { editor: Editor }) {
   const { cena, acoes, estado } = editor
   const [estilo, setEstilo] = useState<EstiloTela>('suave')
   const [ordem, setOrdem] = useState<OrdemTela>('leitura')
   const [avancado, setAvancado] = useState(false)
-  const previa = usePreviaAnimacao(true)
   if (!cena) return null
   const tr: Transicao = cena.transition ?? { type: 'fade', duration: 500, easing: 'easeInOut' }
   const anterior: Cena | undefined = estado.documento.scenes[editor.indiceCena - 1]
@@ -128,7 +136,7 @@ export function AnimacaoTela({ editor }: { editor: Editor }) {
         )}
       </Secao>
 
-      <Secao titulo="Linha do tempo" acao={<BotaoPrevia aoClicar={() => tocarTela()} tocando={!!previa && !previa.semAtraso} aoParar={pararPrevia} />}>
+      <Secao titulo="Linha do tempo" acao={<BotaoPreviaTela aoClicar={() => tocarTela()} />}>
         <LinhaDoTempo editor={editor} />
         {animadas > 0 && (
           <button type="button" onClick={() => acoes.atualizarCena({ layers: removerAnimacoes(cena.layers) })} className="mt-1 flex items-center gap-1.5 text-[12px] text-texto2 hover:text-perigo">

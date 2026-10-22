@@ -242,6 +242,10 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 .cena-transicao-fade.sob-a-anterior { animation: none; }
 .cena-transicao-slide.sob-a-anterior { animation-name: cena-slide-mov; }
 .cena-transicao-scale.sob-a-anterior { animation-name: cena-scale-mov; }
+/* prévia da transição no editor: sem tela anterior, quem some por cima é uma cortina da cor do canvas */
+@keyframes cena-cortina { from { opacity: 1 } 99.9% { opacity: 0; visibility: visible } to { opacity: 0; visibility: hidden } }
+.cena-cortina { position: absolute; inset: 0; z-index: 2147483000; pointer-events: none; background: rgb(var(--cor-canvas)); animation: cena-cortina var(--dur, 500ms) ease-out both; }
+.cena-transicao-scale > .cena-cortina { animation-timing-function: cubic-bezier(.2, .8, .2, 1); }
 /* empurrar: a tela nova entra pela lateral e empurra a anterior (as duas andam juntas, mesma curva); --dir = 1
    avançando, −1 voltando; --larg = largura da área do visualizador (no editor, a da própria tela) */
 @keyframes cena-push { from { transform: translateX(calc(var(--dir, 1) * var(--larg, 100%))) } to { transform: translateX(0) } }
@@ -250,7 +254,7 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 .cena-saindo.cena-saindo-push { animation-name: cena-saida-push; animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
 
 @media (prefers-reduced-motion: reduce) {
-  .cena-transicao-fade, .cena-transicao-slide, .cena-transicao-zoom, .cena-transicao-scale, .cena-transicao-push, .cena-saindo { animation-duration: 1ms !important; animation-delay: 0ms !important; }
+  .cena-transicao-fade, .cena-transicao-slide, .cena-transicao-zoom, .cena-transicao-scale, .cena-transicao-push, .cena-saindo, .cena-cortina { animation-duration: 1ms !important; animation-delay: 0ms !important; }
 }
 /* painéis do editor em camadas próprias, sempre (ligar e desligar na prévia custava um recálculo e uma
    rasterização dos painéis no começo e no fim dela): o canvas animando não refaz a composição deles */

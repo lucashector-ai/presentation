@@ -124,13 +124,18 @@ function CenaRender(props: PropsInternas) {
     return () => cancelAnimationFrame(r)
   }, [fundoCss])
 
+  // prévia de transição no editor (fade/deslizar/zoom): a tela só se move e uma cortina da cor do canvas some por
+  // cima — a mesma mistura de cores; a tela inteira com opacidade animada (e as entradas tocando dentro) pedia uma
+  // superfície de composição a mais e o canvas era desenhado duas vezes por quadro
+  const cortina = !!classeTransicao && /-(fade|slide|scale)$/.test(classeTransicao)
   return (
-    <div className={[className, classeTransicao].filter(Boolean).join(' ') || undefined} style={{ width: cena.size.width * escala, height: cena.size.height * escala, position: 'relative', overflow: sangria ? 'visible' : 'hidden', background: morphDe ? fundoAtual : fundoCss, transition: morphDe ? `background ${props.morphDuracao ?? 600}ms ${props.morphEasing ?? 'ease'}` : undefined, ...(classeTransicao ? { ['--dur' as string]: `${props.morphDuracao ?? 500}ms` } : {}), ...style }}>
+    <div className={[className, classeTransicao, cortina ? 'sob-a-anterior' : ''].filter(Boolean).join(' ') || undefined} style={{ width: cena.size.width * escala, height: cena.size.height * escala, position: 'relative', overflow: sangria ? 'visible' : 'hidden', background: morphDe ? fundoAtual : fundoCss, transition: morphDe ? `background ${props.morphDuracao ?? 600}ms ${props.morphEasing ?? 'ease'}` : undefined, ...(classeTransicao ? { ['--dur' as string]: `${props.morphDuracao ?? 500}ms` } : {}), ...style }}>
       <div style={{ width: cena.size.width, height: cena.size.height, transform: `scale(${escala})`, transformOrigin: '0 0', position: 'absolute', left: 0, top: 0 }}>
         {fundo && <img src={modo === 'miniatura' ? fundo.thumbUrl || fundo.url : fundo.url} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: cena.backgroundFit, pointerEvents: 'none' }} />}
         {camadas.map((c) => (props.ocultar?.has(c.id) ? null : <LayerView key={c.id} camada={c} props={props} origemMorph={mapaMorph?.get(chaveMorph(c))} heranca={herdado.get(c.id)} gatilhos={gatilhos} mascara={mascaras?.get(c.id)} />))}
         {children}
       </div>
+      {cortina && <div aria-hidden className="cena-cortina" />}
     </div>
   )
 }
