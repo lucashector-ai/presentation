@@ -525,7 +525,7 @@ function TextoContador({ texto, animacao, gradiente, cor, caixa }: { texto: stri
         {info ? (
           <>
             {info.prefixo && <span data-seg="" style={{ ...extra, ...pintura }}>{info.prefixo}</span>}
-            <span ref={numero} data-seg="" style={pintura}>{formatarNumero({ ...info, prefixo: '', sufixo: '' }, 0)}</span>
+            <span ref={numero} data-seg="" style={{ ...pintura, animationName: 'seg-aparece', animationDuration: `${Math.max(1, Math.round(animacao.duration * 0.12))}ms`, animationDelay: `${animacao.delay}ms`, animationTimingFunction: 'linear', animationFillMode: 'both' }}>{formatarNumero({ ...info, prefixo: '', sufixo: '' }, 0)}</span>
             {info.sufixo && <span data-seg="" style={{ ...extra, ...pintura }}>{info.sufixo}</span>}
           </>
         ) : <span data-seg="" style={pintura}>{texto}</span>}

@@ -102,7 +102,7 @@ export function ponteiroSimulado(t: number): [number, number] {
   return [arred(0.5 + 0.45 * Math.sin(a) * amp, 1000), arred(0.5 + 0.35 * Math.sin(2 * a) * amp, 1000)]
 }
 
-const arred = (n: number, f = 100) => Math.round(n * f) / f
+const arred = (n: number, f = 100) => Math.round(n * f) / f || 0
 
 // ---------- um clique: dar profundidade à tela inteira ----------
 

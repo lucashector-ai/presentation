@@ -131,7 +131,11 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
    A letra fica visível assim que começa (o antigo fade durava até 60 ms; o cursor dela aparece junto). */
 @keyframes seg-typewriter { 0% { visibility: hidden } 0.1%, 100% { visibility: visible } }
 @keyframes seg-scramble { 0% { visibility: hidden } 1%, 100% { visibility: visible } }
-@keyframes seg-contador { 0% { opacity: 0 } 12%, 100% { opacity: 1 } }
+/* relógio do contador: não mexe em nada visível. A opacidade no bloco inteiro (com prefixo e sufixo animando
+   dentro) obrigava o compositor a desenhar o contador numa superfície própria durante toda a contagem; o número
+   aparece com a própria animação (seg-aparece), sozinho */
+@keyframes seg-contador { from { visibility: visible } to { visibility: visible } }
+@keyframes seg-aparece { from { opacity: 0 } to { opacity: 1 } }
 @keyframes seg-marca { from { background-size: 0% var(--marca-h, .38em) } to { background-size: 100% var(--marca-h, .38em) } }
 .seg-texto { display: inline-block; animation-fill-mode: both; }
 /* parte esperando a sua vez (o renderizador dá a animação a cada parte pouco antes de ela começar): parada no
@@ -211,7 +215,7 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 @media (prefers-reduced-motion: reduce) {
   .camada-animada { animation-name: anim-fadeIn !important; animation-duration: 150ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; animation-timing-function: linear !important; }
   .camada-animada.camada-saida { animation-name: anim-fadeOut !important; }
-  .seg-texto, .seg-texto-linha, .seg-marca, .seg-contador, .seg-cursor, .camada-desenho *, .seg-progresso-anim, .camada-plx { animation: none !important; }
+  .seg-texto, .seg-texto-linha, .seg-marca, .seg-contador, .seg-contador *, .seg-cursor, .camada-desenho *, .seg-progresso-anim, .camada-plx { animation: none !important; }
   [data-seg][data-espera] { opacity: 1; transform: none; visibility: inherit; filter: none; }
 }
 /* ===== MOSTRA · ANIMAÇÕES DE CAMADA — fim ===== */

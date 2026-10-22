@@ -210,6 +210,9 @@ async function capturarCamadas(page, cdp) {
       try { const { compositingReasonIds } = await cdp.send("LayerTree.compositingReasons", { layerId: l.layerId }); for (const m of compositingReasonIds) motivos.set(m, (motivos.get(m) ?? 0) + 1) } catch (e) { motivos.set("erro " + e.message.slice(0, 40), (motivos.get("erro " + e.message.slice(0, 40)) ?? 0) + 1) }
     }
     console.log(`    camadas compostas: ${camadas.length}`, Object.fromEntries([...motivos.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)))
+    const desenham = camadas.filter((l) => l.drawsContent)
+    const area = desenham.reduce((t, l) => t + l.width * l.height, 0)
+    console.log(`    desenham conteúdo: ${desenham.length} · área somada: ${(area / (1440 * 900)).toFixed(2)} telas · maiores:`, desenham.sort((a, b) => b.width * b.height - a.width * a.height).slice(0, 8).map((l) => `${Math.round(l.width)}x${Math.round(l.height)}`).join(' '))
     if (process.env.DESEMPENHO_CAMADAS === '2') {
       const amostra = camadas.filter((l) => l.backendNodeId).slice(-12)
       for (const l of amostra) {
@@ -276,7 +279,17 @@ async function medir(page, cdp, acao, ms) {
         for (const e of tarefas) { const ini = Math.max(a, e.ts); const fim = Math.min(b, e.ts + (e.dur ?? 0)); if (fim > ini) { const k = nomes.get(`${e.pid}:${e.tid}`) ?? `${e.pid}:${e.tid}`; m.set(k, (m.get(k) ?? 0) + (fim - ini) / 1000) } }
         return [...m.entries()].sort((x, y) => y[1] - x[1]).slice(0, 6).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(' · ')
       }
-      for (const [a, b] of lentos.slice(0, 8)) console.log(`     quadro ${Math.round((b - a) / 1000)} ms:`, ocupado(a, b))
+      const doViz = eventos.filter((e) => e.ph === 'X' && nomes.get(`${e.pid}:${e.tid}`) === 'VizCompositorThread' && !/RunTask/.test(e.name))
+      for (const [a, b] of lentos.slice(0, 8)) {
+        console.log(`     quadro ${Math.round((b - a) / 1000)} ms:`, ocupado(a, b))
+        const m = new Map()
+        const n = new Map()
+        for (const e of doViz) if (e.ts >= a && e.ts < b) { m.set(e.name, (m.get(e.name) ?? 0) + e.dur / 1000); n.set(e.name, (n.get(e.name) ?? 0) + 1) }
+        console.log('       viz:', [...m.entries()].sort((x, y) => y[1] - x[1]).slice(0, 8).map(([k, v]) => `${k} ${v.toFixed(1)} (${n.get(k)}×)`).join(' · '))
+        if (process.env.DESEMPENHO_QUADS) for (const e of doViz) if (e.ts >= a && e.ts < b && e.name === 'SoftwareRenderer::DoDrawQuad' && e.dur > 500) console.log('         quad', (e.dur / 1000).toFixed(1), JSON.stringify(e.args ?? {}).slice(0, 200))
+      }
+      const cont = (nome) => doViz.filter((e) => e.name === nome).length
+      console.log(`     viz no total: ${cont('DirectRenderer::DrawFrame')} quadros desenhados · ${cont('DirectRenderer::DrawRenderPass')} passes · ${cont('SoftwareRenderer::DoDrawQuad')} quads · ${(doViz.filter((e) => e.name === 'SoftwareRenderer::DoDrawQuad').reduce((t, e) => t + e.dur, 0) / 1000).toFixed(0)} ms em quads`)
       if (raf.length > 2) console.log('     média por quadro:', ocupado(raf[0], raf[raf.length - 1]).replace(/(\d+\.\d)/g, (x) => (Number(x) / (raf.length - 1)).toFixed(2)))
     }
     if (process.env.DESEMPENHO_RASTRO === '5') {
