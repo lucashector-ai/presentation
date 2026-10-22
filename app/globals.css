@@ -119,7 +119,7 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 /* desenhar contorno: a camada aparece e os traços do SVG se desenham (--len medido no renderizador) */
 @keyframes anim-draw { 0% { opacity: 0 } 1%, 100% { opacity: var(--op, 1) } }
 @keyframes traco-desenhar { 0% { stroke-dashoffset: var(--len, 0); fill-opacity: 0 } 55% { fill-opacity: 0 } 100% { stroke-dashoffset: 0; fill-opacity: 1 } }
-.camada-desenho :is(path, line, polyline, polygon, rect, circle, ellipse) { stroke-dasharray: var(--len, 0) var(--len, 0); animation: traco-desenhar var(--anim-dur, 800ms) var(--anim-curva, ease) var(--anim-atraso, 0ms) both; }
+.camada-desenho :is(path, line, polyline, polygon, rect, circle, ellipse) { stroke-dasharray: var(--len, 0) var(--len, 0); animation: traco-desenhar var(--anim-dur, 800ms) var(--anim-curva, ease) var(--anim-atraso, 0ms) var(--anim-rep, 1) both; }
 /* texto dividido: cada parte é um <span class="seg-texto"> (variáveis --seg-*: deslocamento, desfoque em em, escala, giro) */
 @keyframes seg-mov { from { opacity: var(--seg-op, 0); transform: translate(var(--seg-dx, 0px), var(--seg-dy, 0px)) rotate(var(--seg-rot, 0deg)) scale(var(--seg-escala, 1)) } to { opacity: 1; transform: translate(0px, 0px) rotate(0deg) scale(1) } }
 @keyframes seg-movBlur { from { opacity: var(--seg-op, 0); transform: translate(var(--seg-dx, 0px), var(--seg-dy, 0px)) rotate(var(--seg-rot, 0deg)) scale(var(--seg-escala, 1)); filter: blur(var(--seg-blur, 0px)) } to { opacity: 1; transform: translate(0px, 0px) rotate(0deg) scale(1); filter: none } }
@@ -158,15 +158,40 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 /* destaque / sublinhado desenhado: o marcador corre por trás das palavras (atravessa as linhas em sequência) */
 .seg-marca { background-image: linear-gradient(var(--marca-cor, currentColor), var(--marca-cor, currentColor)); background-repeat: no-repeat; background-position: 0 var(--marca-y, 88%); background-size: 100% var(--marca-h, .38em); animation-fill-mode: both; }
 .seg-contador { font-variant-numeric: tabular-nums; animation-fill-mode: both; }
+/* contador com indicador: círculo em volta (traço que se desenha, no mesmo tempo e curva do número) ou barra
+   embaixo (escala em x, na GPU). O valor final é o estilo parado: soltar a animação no fim não muda nada. */
+.seg-progresso { position: absolute; inset: 0; z-index: -1; pointer-events: none; overflow: visible; }
+.seg-progresso-anim { animation-fill-mode: both; }
+@keyframes seg-anel { from { stroke-dashoffset: var(--anel-de, 0) } to { stroke-dashoffset: var(--anel-ate, 0) } }
+@keyframes seg-barra { from { transform: scaleX(0) } to { transform: scaleX(var(--barra-ate, 1)) } }
 /* parte que já terminou de entrar: o último quadro é o estilo parado, então a animação sai (cada animação
    terminada com fill-mode both mantinha uma camada composta por letra/palavra; ver soltarParte) */
-:is([data-seg], .seg-marca, .seg-contador)[data-fim] { animation: none !important; }
+:is([data-seg], .seg-marca, .seg-contador, .seg-progresso-anim)[data-fim] { animation: none !important; }
 /* texto completo para leitores de tela: conteúdo gerado não entra na seleção nem no innerText (sem duplicar ao copiar) */
 .texto-acessivel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .texto-acessivel::before { content: attr(data-texto); }
 /* entradas esperando (tela de carregamento, seção do Story ainda fora da janela, câmera do Explorar voando):
    pausadas no 1º quadro; o atraso também não corre */
 .animacoes-em-espera, .animacoes-em-espera * { animation-play-state: paused !important; }
+/* o que acompanha a rolagem (entrada "ao rolar", parallax do Story) segue a rolagem mesmo com a seção esperando */
+.animacoes-em-espera :is(.anim-rolagem, .plx-rolagem) { animation-play-state: running !important; }
+/* efeitos interativos (components/renderer/reativos.tsx): invólucros dentro da camada — parallax (animações de
+   rolagem/transição por fora, mouse por dentro), tilt e luz. Só existem nas camadas que têm o efeito. */
+.camada-plx, .camada-plx-mouse, .camada-tilt { position: absolute; inset: 0; }
+.camada-luz { position: absolute; inset: 0; overflow: hidden; pointer-events: none; opacity: 0; transition: opacity 280ms ease; }
+.camada-luz[data-acesa] { opacity: 1; transition-duration: 160ms; }
+.camada-luz-ponto { position: absolute; left: 0; top: 0; border-radius: 50%; will-change: transform; }
+/* parallax na rolagem do Story: scroll-driven animation (a rolagem dirige a animação, fora da thread principal);
+   ±80 px com profundidade 100 ao longo da passagem da camada pela janela (lib/scene/reativos.ts, PARALLAX_PX) */
+@keyframes plx-rolagem { from { transform: translateY(calc(var(--plx, 0) * 80px)) } to { transform: translateY(calc(var(--plx, 0) * -80px)) } }
+.plx-rolagem { animation: plx-rolagem linear both; animation-timeline: view(); animation-range: cover 0% cover 100%; }
+/* parallax na transição entre telas (deslizar/empurrar): camadas mais perto entram de mais longe, as do fundo
+   ficam para trás; --plx-dir = 1 avançando, −1 voltando */
+@keyframes plx-entra { from { transform: translateX(calc(var(--plx, 0) * var(--plx-dir, 1) * 240px)) } to { transform: translateX(0px) } }
+@keyframes plx-sai { from { transform: translateX(0px) } to { transform: translateX(calc(var(--plx, 0) * var(--plx-dir, 1) * -240px)) } }
+.cena-transicao-slide .camada-plx { animation: plx-entra var(--dur, 500ms) cubic-bezier(.16, 1, .3, 1) both; }
+.cena-transicao-push .camada-plx { animation: plx-entra var(--dur, 500ms) cubic-bezier(.65, 0, .35, 1) both; }
+.cena-saindo-push .camada-plx { animation: plx-sai var(--dur, 500ms) cubic-bezier(.65, 0, .35, 1) both; }
 /* ênfase em loop (começa quando a entrada termina) */
 @keyframes loop-float { 0%, 100% { transform: translateY(0) var(--tf, translate(0)) } 50% { transform: translateY(calc(-14px * var(--amp, 1))) var(--tf, translate(0)) } }
 @keyframes loop-pulse { 0%, 100% { transform: scale(1) var(--tf, translate(0)) } 50% { transform: scale(calc(1 + .05 * var(--amp, 1))) var(--tf, translate(0)) } }
@@ -183,13 +208,13 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 @media (prefers-reduced-motion: reduce) {
   .camada-animada { animation-name: anim-fadeIn !important; animation-duration: 150ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; animation-timing-function: linear !important; }
   .camada-animada.camada-saida { animation-name: anim-fadeOut !important; }
-  .seg-texto, .seg-texto-linha, .seg-marca, .seg-contador, .seg-cursor, .camada-desenho * { animation: none !important; }
+  .seg-texto, .seg-texto-linha, .seg-marca, .seg-contador, .seg-cursor, .camada-desenho *, .seg-progresso-anim, .camada-plx { animation: none !important; }
 }
 /* ===== MOSTRA · ANIMAÇÕES DE CAMADA — fim ===== */
 
 /* transições de cena */
 @keyframes cena-fade { from { opacity: 0 } to { opacity: 1 } }
-@keyframes cena-slide { from { opacity: 0; transform: translateX(6%) } to { opacity: 1; transform: translateX(0) } }
+@keyframes cena-slide { from { opacity: 0; transform: translateX(calc(var(--dir, 1) * 6%)) } to { opacity: 1; transform: translateX(0) } }
 @keyframes cena-zoom { from { opacity: 0; transform: scale(1.04) } to { opacity: 1; transform: scale(1) } }
 @keyframes cena-scale { from { opacity: 0; transform: scale(.92) } to { opacity: 1; transform: scale(1) } }
 @keyframes cena-saida { from { opacity: 1 } to { opacity: 0 } }
@@ -199,10 +224,20 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 .cena-transicao-zoom { animation: cena-zoom var(--dur, 350ms) ease-out both; }
 .cena-transicao-scale { animation: cena-scale var(--dur, 350ms) cubic-bezier(.2,.8,.2,1) both; }
 .cena-saindo { animation: cena-saida var(--dur, 400ms) ease-out both; pointer-events: none; }
+/* empurrar: a tela nova entra pela lateral e empurra a anterior (as duas andam juntas, mesma curva); --dir = 1
+   avançando, −1 voltando; --larg = largura da área do visualizador (no editor, a da própria tela) */
+@keyframes cena-push { from { transform: translateX(calc(var(--dir, 1) * var(--larg, 100%))) } to { transform: translateX(0) } }
+@keyframes cena-saida-push { from { transform: translateX(0) } to { transform: translateX(calc(var(--dir, 1) * -1 * var(--larg, 100%))) } }
+.cena-transicao-push { animation: cena-push var(--dur, 500ms) cubic-bezier(.65, 0, .35, 1) both; }
+.cena-saindo.cena-saindo-push { animation-name: cena-saida-push; animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
 
 @media (prefers-reduced-motion: reduce) {
-  .cena-transicao-fade, .cena-transicao-slide, .cena-transicao-zoom, .cena-transicao-scale, .cena-saindo { animation-duration: 1ms !important; animation-delay: 0ms !important; }
+  .cena-transicao-fade, .cena-transicao-slide, .cena-transicao-zoom, .cena-transicao-scale, .cena-transicao-push, .cena-saindo { animation-duration: 1ms !important; animation-delay: 0ms !important; }
 }
+/* editor durante a prévia: os painéis viram camadas próprias (o canvas animando não refaz a composição deles a
+   cada quadro) e as sobreposições do canvas (seleção, alças, guias) somem enquanto toca */
+html[data-previa-tocando] aside { will-change: transform; }
+html[data-previa-tocando] [data-testid="canvas-area"] > :not([data-testid="canvas"]):not([data-rotulo-tela]) { visibility: hidden; }
 
 /* controles do visualizador: somem ao apresentar (continuam no teclado e reaparecem ao passar o mouse) */
 .viewer-controles { transition: opacity 300ms ease, transform 300ms cubic-bezier(.2,.8,.2,1); }

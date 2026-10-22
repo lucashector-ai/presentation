@@ -733,7 +733,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
       onContextMenu={(e) => { e.preventDefault(); window.dispatchEvent(new CustomEvent('mostra:menu', { detail: { x: e.clientX, y: e.clientY } })) }}
     >
       {/* rótulo da tela */}
-      <div className="mono pointer-events-none absolute text-[11px] text-texto2" style={{ left: telaCena.x, top: telaCena.y - 22 }}>
+      <div data-rotulo-tela="" className="mono pointer-events-none absolute text-[11px] text-texto2" style={{ left: telaCena.x, top: telaCena.y - 22 }}>
         {String(indiceCena + 1).padStart(2, '0')} — {cena.title || 'Sem título'}
       </div>
 

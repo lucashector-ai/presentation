@@ -55,7 +55,7 @@ export function Viewer(props: ViewerProps) {
   const { reduzirMovimento, semHover } = usePreferencias()
   const mobile = tamanho.width > 0 && tamanho.width < 640
   const [runtime, setRuntime] = useState<EstadoRuntime>(() => estadoInicialRuntime(indiceInicial))
-  const [anterior, setAnterior] = useState<{ cena: Cena; chave: number } | null>(null)
+  const [anterior, setAnterior] = useState<{ cena: Cena; chave: number; volta: boolean } | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
   const [pronto, setPronto] = useState(false)
   // a 1ª tela só começa a animar quando a tela de carregamento termina de sumir (senão as entradas tocam escondidas)
@@ -99,7 +99,7 @@ export function Viewer(props: ViewerProps) {
         if ('efeitos' in r && r.efeitos.length) queueMicrotask(() => executarEfeitos(r.efeitos))
         if (novo.indice !== e.indice) {
           const sai = documento.scenes[e.indice]
-          if (sai) setAnterior({ cena: sai, chave: Date.now() })
+          if (sai) setAnterior({ cena: sai, chave: Date.now(), volta: novo.indice < e.indice })
         }
         return novo
       })
@@ -296,6 +296,9 @@ export function Viewer(props: ViewerProps) {
   const sangria = useMemo(() => (encaixe ? sangriaDoEncaixe(encaixe.offsetX, encaixe.offsetY, encaixe.scale) : undefined), [encaixe])
   const comum = { assets, modo: 'viewer' as const, reduzirMovimento, semHover, mobile, aoInteragir, registrarVideo }
   const ehMorph = transicao?.type === 'morph' && !!anterior
+  const ehPush = transicao?.type === 'push' && !!anterior
+  // sentido da transição (deslizar/empurrar e o parallax delas): 1 avançando, −1 voltando
+  const sentido = anterior?.volta ? -1 : 1
   const easing = EASING_CSS[transicao?.easing ?? 'easeInOut']
   const duracao = transicao?.duration ?? 400
   const ocultos = !controles.visiveis
@@ -339,7 +342,8 @@ export function Viewer(props: ViewerProps) {
             const e = encaixar(anterior.cena.size, tamanho, modoEncaixe)
             return (
               // no morph o que não tem par sai rápido (45% da duração): o texto antigo não fica por baixo do novo
-              <div key={`sai-${anterior.chave}`} className="cena-saindo" style={{ position: 'absolute', left: e.offsetX, top: e.offsetY, zIndex: 0, ['--dur' as string]: `${ehMorph ? Math.round(duracao * 0.45) : duracao}ms`, animationDelay: saidaMs ? `${saidaMs}ms` : undefined }}>
+              // empurrar: a tela que sai anda junto com a que entra, pela largura da área (--larg)
+              <div key={`sai-${anterior.chave}`} className={ehPush ? 'cena-saindo cena-saindo-push' : 'cena-saindo'} style={{ position: 'absolute', left: e.offsetX, top: e.offsetY, zIndex: 0, ['--dur' as string]: `${ehMorph ? Math.round(duracao * 0.45) : duracao}ms`, ['--dir' as string]: sentido, ['--plx-dir' as string]: sentido, ['--larg' as string]: `${tamanho.width}px`, animationDelay: saidaMs ? `${saidaMs}ms` : undefined }}>
                 {camadaDeCena(anterior.cena, e, !ehMorph)}
                 {/* a tela que sai remonta parada no estado final (animar=false): sem isso as entradas dela tocavam
                     de novo por baixo do fade e o texto dividido inteiro era montado outra vez no meio da transição */}
@@ -352,7 +356,7 @@ export function Viewer(props: ViewerProps) {
             transicao={!ehMorph && transicao && transicao.type !== 'none' && runtime.historico.length ? transicao.type : undefined}
             espera={!iniciado}
             fimEntradas={fimDasEntradas(cena.layers)}
-            style={{ position: 'absolute', left: encaixe.offsetX, top: encaixe.offsetY, zIndex: 1, ['--dur' as string]: `${duracao}ms` }}
+            style={{ position: 'absolute', left: encaixe.offsetX, top: encaixe.offsetY, zIndex: 1, ['--dur' as string]: `${duracao}ms`, ['--dir' as string]: sentido, ['--plx-dir' as string]: sentido, ['--larg' as string]: `${tamanho.width}px` }}
           >
             {camadaDeCena(cena, encaixe, !ehMorph)}
             <SceneRenderer cena={cena} escala={encaixe.scale} sangria={sangria} runtime={runtime} chaveEntrada={cena.id} morphDe={ehMorph ? anterior?.cena : undefined} morphDuracao={transicao?.duration} morphEasing={easing} style={ehMorph ? { background: 'transparent' } : undefined} {...comum} />

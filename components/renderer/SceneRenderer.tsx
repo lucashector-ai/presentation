@@ -7,7 +7,7 @@
  * Morph: quando `morphDe` é passado, camadas com o mesmo nome (ou ID) na tela anterior começam com a
  * geometria/cor antiga e animam até a nova.
  */
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { Animacao, Camada, Cena, Interacao, CamadaTexto } from '@/lib/scene/schema'
 import { EASING_CSS, camadaVisivel, interacoesDe, type EstadoRuntime } from '@/lib/scene/motor'
 import { ordenarParaRender } from '@/lib/scene/order'
@@ -23,6 +23,8 @@ import { estiloMascara } from '@/lib/scene/mascara'
 import { Tracos, estiloTracoTexto } from './camadas/Tracos'
 import { Desenho, TextoSegmentado, planoAnimacao, usePreviaAnimacao, varsAnimacao, type PedidoPrevia } from './animacao'
 import { atrasosEfetivos, esperaGatilho, interacoesDosGatilhos } from '@/lib/scene/animacoes'
+import { CamadaReativa, rolagemPorCss } from './reativos'
+import { temInterativo } from '@/lib/scene/reativos'
 import { Forma } from './camadas/Forma'
 import { Modelo3d } from './camadas/Modelo3d'
 import { Lottie } from './camadas/Lottie'
@@ -70,6 +72,8 @@ export interface SceneRendererProps {
   sangria?: Sangria
   /** Visualizador: false = camadas paradas no estado final, sem entradas nem loops (ex.: telas de contexto no Explorar). */
   animar?: boolean
+  /** Story: entradas "ao rolar" e o parallax acompanham a rolagem. */
+  rolagem?: boolean
 }
 
 /** Props internas: prévia de animação pedida pelo inspetor (só no modo editor). */
@@ -160,6 +164,30 @@ function geometria(c: Camada): CSSProperties {
   return { left: c.x, top: c.y, width: c.width, height: c.height, opacity: c.opacity, transform: transformCss(c) }
 }
 
+/**
+ * Loop "até sair da tela": vira true (uma vez) quando a camada, depois de ter aparecido, sai da janela. Um
+ * IntersectionObserver por camada com esse loop; nada por quadro.
+ */
+function useSaiuDaJanela(ativo: boolean): [(el: HTMLDivElement | null) => void, boolean] {
+  const [saiu, setSaiu] = useState(false)
+  const io = useRef<IntersectionObserver | null>(null)
+  const ref = (el: HTMLDivElement | null) => {
+    io.current?.disconnect()
+    io.current = null
+    if (!el || !ativo || saiu || typeof IntersectionObserver === 'undefined') return
+    let viu = false
+    const obs = new IntersectionObserver(([e]) => {
+      if (!e) return
+      if (e.isIntersecting) viu = true
+      else if (viu) { obs.disconnect(); setSaiu(true) }
+    })
+    obs.observe(el)
+    io.current = obs
+  }
+  useEffect(() => () => io.current?.disconnect(), [])
+  return [ref, saiu]
+}
+
 /** Densidade de pixels do monitor; 1 no servidor e no primeiro render (evita diferença de hidratação). */
 function useDensidade(): number {
   const [dpr, setDpr] = useState(1)
@@ -179,6 +207,8 @@ function LayerView({ camada: c, props, origemMorph, heranca, gatilhos, mascara }
   const [morphFim, setMorphFim] = useState(!origemMorph)
   // entrada terminada (por chave de animação): sai do estilo para a camada deixar de ser composta
   const [concluida, setConcluida] = useState<string | null>(null)
+  // loop "até sair da tela": para quando a camada sai da janela (no Story, ao rolar para longe)
+  const [refLoop, loopSaiu] = useSaiuDaJanela(viewer && c.loopAnimation?.until === 'offscreen')
   useEffect(() => {
     if (!origemMorph) return
     const r = requestAnimationFrame(() => requestAnimationFrame(() => setMorphFim(true)))
@@ -214,7 +244,7 @@ function LayerView({ camada: c, props, origemMorph, heranca, gatilhos, mascara }
   const chaveAnim = animRuntime ? `rt-${animRuntime.nonce}` : previaAqui ? `pv-${previa?.nonce}` : `in-${chaveEntrada ?? ''}`
   // entrada por clique/hover: parada no 1º quadro até o público agir (a prévia do editor toca direto)
   const aguardar = viewer && !animRuntime && !saindo && !previaAqui && esperaGatilho(c.enterAnimation)
-  const plano = planoAnimacao({ entrada: saindo ? undefined : anim, saida: saindo ? anim : undefined, loop: tocar && !animRuntime ? c.loopAnimation : undefined, reduzir: reduzirMovimento, ehTexto: c.type === 'text', desenhavel: c.type === 'shape' && c.shape !== 'rect' && c.shape !== 'ellipse', aguardar, concluida: concluida === chaveAnim })
+  const plano = planoAnimacao({ entrada: saindo ? undefined : anim, saida: saindo ? anim : undefined, loop: tocar && !animRuntime && !loopSaiu ? c.loopAnimation : undefined, reduzir: reduzirMovimento, ehTexto: c.type === 'text', desenhavel: c.type === 'shape' && c.shape !== 'rect' && c.shape !== 'ellipse', aguardar, concluida: concluida === chaveAnim, rolagem: viewer && !!props.rolagem && rolagemPorCss() })
   const geoAtual = origemMorph && !morphFim ? geometria(origemMorph) : geometria(c)
   const e = c.effects
 
@@ -258,20 +288,30 @@ function LayerView({ camada: c, props, origemMorph, heranca, gatilhos, mascara }
         : {}
 
   return (
-    <div key={chaveAnim} data-layer-id={c.id} className={classes || undefined} style={base} onAnimationEnd={plano.soltavel ? (ev) => { if (ev.target === ev.currentTarget && !ev.animationName.startsWith('loop-')) setConcluida(chaveAnim) } : undefined} {...eventos}>
-      <Conteudo camada={c} props={props} origemMorph={morphFim ? undefined : origemMorph} morphDuracao={morphDuracao} morphEasing={morphEasing} animTexto={plano.texto} desenhar={plano.desenho} />
-      {c.strokes && !(c.type === 'shape' && c.isMask) && <Tracos camada={c} />}
+    <div key={chaveAnim} ref={refLoop} data-layer-id={c.id} className={classes || undefined} style={base} onAnimationEnd={plano.soltavel ? (ev) => { if (ev.target === ev.currentTarget && !ev.animationName.startsWith('loop-')) setConcluida(chaveAnim) } : undefined} {...eventos}>
+      {temInterativo(c) && c.interactiveEffects ? (
+        // parallax, tilt e luz: invólucros próprios dentro da camada (ver components/renderer/reativos.tsx)
+        <CamadaReativa efeitos={c.interactiveEffects} modo={props.animar === false ? 'miniatura' : modo} reduzir={reduzirMovimento} semHover={semHover} rolagem={!!props.rolagem} largura={c.width} altura={c.height} raio={'radius' in c ? raioCss(c) : undefined} simular={previaAqui && previa?.interativo ? previa.nonce : undefined}>
+          <Conteudo camada={c} props={props} origemMorph={morphFim ? undefined : origemMorph} morphDuracao={morphDuracao} morphEasing={morphEasing} animTexto={plano.texto} rolagemTexto={plano.rolagem} desenhar={plano.desenho} />
+          {c.strokes && !(c.type === 'shape' && c.isMask) && <Tracos camada={c} />}
+        </CamadaReativa>
+      ) : (
+        <>
+          <Conteudo camada={c} props={props} origemMorph={morphFim ? undefined : origemMorph} morphDuracao={morphDuracao} morphEasing={morphEasing} animTexto={plano.texto} rolagemTexto={plano.rolagem} desenhar={plano.desenho} />
+          {c.strokes && !(c.type === 'shape' && c.isMask) && <Tracos camada={c} />}
+        </>
+      )}
     </div>
   )
 }
 
-function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, animTexto, desenhar }: { camada: Camada; props: SceneRendererProps; origemMorph?: Camada; morphDuracao: number; morphEasing: string; animTexto?: Animacao; desenhar?: boolean }) {
+function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, animTexto, rolagemTexto, desenhar }: { camada: Camada; props: SceneRendererProps; origemMorph?: Camada; morphDuracao: number; morphEasing: string; animTexto?: Animacao; rolagemTexto?: string; desenhar?: boolean }) {
   const { assets, modo, mobile = false, registrarVideo, interativoNoEditor } = props
   const e = c.effects
   const interativo = modo === 'viewer' || !!interativoNoEditor
   switch (c.type) {
     case 'text':
-      return <Texto c={c} origem={origemMorph?.type === 'text' ? origemMorph : undefined} modo={modo} duracao={morphDuracao} easing={morphEasing} animTexto={animTexto} />
+      return <Texto c={c} origem={origemMorph?.type === 'text' ? origemMorph : undefined} modo={modo} duracao={morphDuracao} easing={morphEasing} animTexto={animTexto} rolagem={rolagemTexto} />
     case 'shape':
       return (
         <Desenho ativo={!!desenhar} style={{ width: '100%', height: '100%', filter: filtroCss(e, (c.shape !== 'rect' && c.shape !== 'ellipse') || (c.shape === 'rect' && temSuavizacao(c))) }}>
@@ -376,7 +416,7 @@ function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, an
   }
 }
 
-function Texto({ c, origem, modo, duracao, easing, animTexto }: { c: CamadaTexto; origem?: CamadaTexto; modo: ModoRender; duracao: number; easing: string; animTexto?: Animacao }) {
+function Texto({ c, origem, modo, duracao, easing, animTexto, rolagem }: { c: CamadaTexto; origem?: CamadaTexto; modo: ModoRender; duracao: number; easing: string; animTexto?: Animacao; rolagem?: string }) {
   const fonte = origem ?? c
   const gradiente = c.gradient ? gradienteCss(c.gradient) : undefined
   return (
@@ -397,10 +437,13 @@ function Texto({ c, origem, modo, duracao, easing, animTexto }: { c: CamadaTexto
         textShadow: textShadowCss(projetadas(c.effects)),
         filter: desfoqueDe(c.effects) ? `blur(${desfoqueDe(c.effects)}px)` : undefined,
         ...estiloTracoTexto(c),
+        // texto animado por partes: o que muda dentro dele (letras aparecendo, sorteio, contador) não refaz o
+        // layout nem o estilo do resto da tela (sem contenção de pintura: as partes sobem de fora da caixa)
+        ...(animTexto ? { contain: 'layout style' } : {}),
       }}
     >
       {animTexto ? (
-        <CorteTexto c={c}><TextoSegmentado texto={c.text} animacao={animTexto} gradiente={gradiente} cor={c.gradient?.stops[0]?.color ?? c.color} /></CorteTexto>
+        <CorteTexto c={c}><TextoSegmentado texto={c.text} animacao={animTexto} gradiente={gradiente} cor={c.gradient?.stops[0]?.color ?? c.color} caixa={c} rolagem={rolagem} /></CorteTexto>
       ) : (
         <CorpoTexto c={c} gradiente={gradiente} />
       )}

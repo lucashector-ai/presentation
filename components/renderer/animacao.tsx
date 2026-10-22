@@ -87,7 +87,7 @@ function useGradienteContinuo(ref: RefObject<HTMLElement | null>, gradiente: str
  */
 export function soltarParte(e: React.AnimationEvent) {
   const el = e.target as HTMLElement
-  if (el.hasAttribute('data-fim') || !el.matches('[data-seg], .seg-marca, .seg-contador, .seg-cursor')) return
+  if (el.hasAttribute('data-fim') || !el.matches('[data-seg], .seg-marca:not(.anim-rolagem), .seg-contador, .seg-cursor, .seg-progresso-anim')) return
   el.setAttribute('data-fim', '')
 }
 
@@ -149,9 +149,9 @@ function progressoCss(a: Animation | null): number | null {
  *   canvas e devolvido como margem, então o espaçamento fica igual ao do texto parado.
  * - Linha por linha: mede onde o navegador quebrou as linhas (antes de pintar) e anima cada linha renderizada.
  */
-export function TextoSegmentado({ texto, animacao, gradiente, cor }: { texto: string; animacao: Animacao; gradiente?: string; cor?: string }) {
-  if (animacao.type === 'counter') return <TextoContador texto={texto} animacao={animacao} gradiente={gradiente} />
-  if (animacao.type === 'highlight' || animacao.type === 'underline') return <TextoMarcado texto={texto} animacao={animacao} gradiente={gradiente} cor={cor} />
+export function TextoSegmentado({ texto, animacao, gradiente, cor, caixa, rolagem }: { texto: string; animacao: Animacao; gradiente?: string; cor?: string; caixa?: { width: number; height: number }; rolagem?: string }) {
+  if (animacao.type === 'counter') return <TextoContador texto={texto} animacao={animacao} gradiente={gradiente} cor={cor} caixa={caixa} />
+  if (animacao.type === 'highlight' || animacao.type === 'underline') return <TextoMarcado texto={texto} animacao={animacao} gradiente={gradiente} cor={cor} rolagem={rolagem} />
   // a chave refaz a medição das linhas quando o texto ou a divisão mudam
   return <TextoDividido key={`${divisao(animacao)}|${texto}`} texto={texto} animacao={animacao} gradiente={gradiente} cor={cor} />
 }
@@ -422,8 +422,9 @@ function TextoDividido({ texto, animacao, gradiente, cor }: { texto: string; ani
  * separador de milhar — "R$ 2,4 mi", "1.250", "38%"). Prefixo e sufixo entram juntos no fim (incremento
  * segmentado). A curva da camada vale (com mola, o número passa do valor e volta).
  */
-function TextoContador({ texto, animacao, gradiente }: { texto: string; animacao: Animacao; gradiente?: string }) {
+function TextoContador({ texto, animacao, gradiente, cor, caixa }: { texto: string; animacao: Animacao; gradiente?: string; cor?: string; caixa?: { width: number; height: number } }) {
   const info = useMemo(() => analisarNumero(texto), [texto])
+  const vezes = Math.max(1, animacao.repeat ?? 1)
   const ref = useRef<HTMLSpanElement>(null)
   const numero = useRef<HTMLSpanElement>(null)
   const curva = curvaCss(animacao)
@@ -456,25 +457,29 @@ function TextoContador({ texto, animacao, gradiente }: { texto: string; animacao
     const p0 = progressoCss(relogio)
     escrever(p0 ?? 1)
     if (p0 !== null && p0 > 0 && p0 < 1 && relogio?.playState === 'running') correr(performance.now() - p0 * duracao)
-    const comecou = (e: AnimationEvent) => { if (e.target === el) correr(e.timeStamp - e.elapsedTime * 1000) }
+    const comecou = (e: AnimationEvent) => { if (e.target === el) correr(e.timeStamp - (e.elapsedTime * 1000) % duracao) }
     const acabou = (e: AnimationEvent) => { if (e.target !== el) return; cancelAnimationFrame(raf); raf = 0; escrever(1) }
     el.addEventListener('animationstart', comecou)
+    // repetir: cada ciclo do relógio recomeça a contagem
+    el.addEventListener('animationiteration', comecou)
     el.addEventListener('animationend', acabou)
     return () => {
       cancelAnimationFrame(raf)
       el.removeEventListener('animationstart', comecou)
+      el.removeEventListener('animationiteration', comecou)
       el.removeEventListener('animationend', acabou)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [info, duracao, curva])
   useGradienteContinuo(ref, gradiente, [info])
   const pintura = pinturaDe(gradiente)
-  const relogio: CSSProperties = { animationName: 'seg-contador', animationDuration: `${animacao.duration}ms`, animationDelay: `${animacao.delay}ms`, animationTimingFunction: 'linear' }
+  const relogio: CSSProperties = { animationName: 'seg-contador', animationDuration: `${animacao.duration}ms`, animationDelay: `${animacao.delay}ms`, animationTimingFunction: 'linear', animationIterationCount: vezes }
   // prefixo/sufixo: entram no último terço, junto com o número chegando
   const extra: CSSProperties = { display: 'inline-block', animationName: 'seg-mov', animationDuration: `${Math.round(animacao.duration * 0.35)}ms`, animationDelay: `${animacao.delay + Math.round(animacao.duration * 0.55)}ms`, animationTimingFunction: curvaCss({ easing: 'easeOut' }), animationFillMode: 'both', whiteSpace: 'pre', ['--seg-dy' as string]: '.2em' }
   return (
     <>
       <span className="texto-acessivel" data-texto={texto} />
+      {animacao.progress && info && caixa && <IndicadorProgresso animacao={animacao} info={info} cor={cor} caixa={caixa} vezes={vezes} />}
       <span ref={ref} aria-hidden className="seg-contador" style={relogio} onAnimationEnd={soltarParte}>
         {info ? (
           <>
@@ -488,8 +493,40 @@ function TextoContador({ texto, animacao, gradiente }: { texto: string; animacao
   )
 }
 
+/**
+ * Indicador do contador: círculo em volta do número (traço que se desenha) ou barra embaixo (escala em x, na GPU),
+ * no MESMO tempo, atraso e curva do número — os dois chegam juntos. O valor cheio é `progressMax` (padrão: 100
+ * quando o texto tem "%", senão o próprio número). Fica dentro da caixa da camada, atrás do texto.
+ */
+function IndicadorProgresso({ animacao, info, cor, caixa, vezes }: { animacao: Animacao; info: NonNullable<ReturnType<typeof analisarNumero>>; cor?: string; caixa: { width: number; height: number }; vezes: number }) {
+  const max = animacao.progressMax ?? (/%/.test(info.sufixo + info.prefixo) ? 100 : info.valor || 1)
+  const fracao = Math.max(0, Math.min(1, info.valor / max))
+  const corInd = animacao.progressColor ?? cor ?? 'currentColor'
+  const tempo: CSSProperties = { animationDuration: `${animacao.duration}ms`, animationDelay: `${animacao.delay}ms`, animationTimingFunction: curvaCss(animacao), animationIterationCount: vezes }
+  if (animacao.progress === 'bar') {
+    const esp = animacao.progressWidth ?? Math.max(4, Math.round(caixa.height * 0.06))
+    return (
+      <span aria-hidden className="seg-progresso" style={{ top: 'auto', height: esp }}>
+        <span style={{ position: 'absolute', inset: 0, borderRadius: esp, background: corInd, opacity: 0.16 }} />
+        <span className="seg-progresso-anim" onAnimationEnd={soltarParte} style={{ position: 'absolute', inset: 0, borderRadius: esp, background: corInd, transformOrigin: 'left center', transform: `scaleX(${fracao})`, animationName: 'seg-barra', ['--barra-ate' as string]: fracao, ...tempo }} />
+      </span>
+    )
+  }
+  const lado = Math.min(caixa.width, caixa.height)
+  const esp = animacao.progressWidth ?? Math.max(3, Math.round(lado * 0.05))
+  const r = Math.max(1, lado / 2 - esp / 2)
+  const volta = 2 * Math.PI * r
+  const fim = volta * (1 - fracao)
+  return (
+    <svg aria-hidden className="seg-progresso" width={caixa.width} height={caixa.height} viewBox={`0 0 ${caixa.width} ${caixa.height}`}>
+      <circle cx={caixa.width / 2} cy={caixa.height / 2} r={r} fill="none" stroke={corInd} strokeOpacity={0.16} strokeWidth={esp} />
+      <circle className="seg-progresso-anim" onAnimationEnd={soltarParte} cx={caixa.width / 2} cy={caixa.height / 2} r={r} fill="none" stroke={corInd} strokeWidth={esp} strokeLinecap="round" strokeDasharray={`${volta} ${volta}`} strokeDashoffset={fim} transform={`rotate(-90 ${caixa.width / 2} ${caixa.height / 2})`} style={{ animationName: 'seg-anel', ['--anel-de' as string]: volta, ['--anel-ate' as string]: fim, ...tempo }} />
+    </svg>
+  )
+}
+
 /** Destaque (marca-texto) e sublinhado desenhado: o marcador corre por trás das palavras escolhidas. */
-function TextoMarcado({ texto, animacao, gradiente, cor }: { texto: string; animacao: Animacao; gradiente?: string; cor?: string }) {
+function TextoMarcado({ texto, animacao, gradiente, cor, rolagem }: { texto: string; animacao: Animacao; gradiente?: string; cor?: string; rolagem?: string }) {
   const { palavras, total } = useMemo(() => dividirTexto(texto, 'palavra'), [texto])
   const ref = useRef<HTMLSpanElement>(null)
   useGradienteContinuo(ref, gradiente, [palavras])
@@ -516,16 +553,19 @@ function TextoMarcado({ texto, animacao, gradiente, cor }: { texto: string; anim
     ['--marca-h' as string]: destaque ? '.42em' : '.07em',
     ['--marca-y' as string]: destaque ? '86%' : '94%',
     animationName: 'seg-marca',
-    animationDuration: `${animacao.duration}ms`,
-    animationDelay: `${animacao.delay}ms`,
+    animationDuration: rolagem ? 'auto' : `${animacao.duration}ms`,
+    animationDelay: rolagem ? '0ms' : `${animacao.delay}ms`,
     animationTimingFunction: curvaCss(animacao),
+    animationIterationCount: rolagem ? 1 : Math.max(1, animacao.repeat ?? 1),
+    // "ao rolar" (Story): o marcador acompanha a rolagem
+    ...(rolagem ? ({ animationTimeline: 'view()', animationRange: rolagem } as CSSProperties) : {}),
   }
   return (
     <>
       <span className="texto-acessivel" data-texto={texto} />
       <span ref={ref} aria-hidden onAnimationEnd={soltarParte}>
         {antes}
-        <span className="seg-marca" style={marca}>{dentro}</span>
+        <span className={rolagem ? 'seg-marca anim-rolagem' : 'seg-marca'} style={marca} onAnimationEnd={rolagem ? (e) => e.stopPropagation() : undefined}>{dentro}</span>
         {depois}
       </span>
     </>
@@ -546,6 +586,8 @@ export interface PedidoPrevia {
   transicao?: Transicao
   /** Tela anterior (para a prévia do morph). */
   morphDe?: Cena
+  /** Toca os efeitos interativos (parallax, tilt, luz) com um ponteiro simulado. */
+  interativo?: boolean
   /** performance.now() do pedido (a linha do tempo usa para o cursor). */
   inicio: number
   /** Quanto tempo a prévia fica ativa (ms). 0 = parar. */
@@ -555,8 +597,22 @@ export interface PedidoPrevia {
 const EVENTO = 'mostra:previa-animacao'
 let contador = 0
 
+let fimMarca: number | undefined
+/**
+ * Marca a página enquanto uma prévia toca (`html[data-previa-tocando]`): o CSS deixa os painéis do editor em
+ * camadas próprias e esconde as sobreposições do canvas. Escrita direta no DOM, sem re-renderizar o editor.
+ */
+function marcarPrevia(ms: number) {
+  const html = document.documentElement
+  window.clearTimeout(fimMarca)
+  if (!ms) return void html.removeAttribute('data-previa-tocando')
+  html.setAttribute('data-previa-tocando', '')
+  fimMarca = window.setTimeout(() => html.removeAttribute('data-previa-tocando'), ms + 150)
+}
+
 export function pedirPrevia(p: Omit<PedidoPrevia, 'nonce' | 'inicio'>) {
   if (typeof window === 'undefined') return
+  marcarPrevia(p.duracao)
   window.dispatchEvent(new CustomEvent<PedidoPrevia>(EVENTO, { detail: { ...p, nonce: ++contador, inicio: performance.now() } }))
 }
 
