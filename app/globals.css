@@ -131,10 +131,9 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
    A letra fica visível assim que começa (o antigo fade durava até 60 ms; o cursor dela aparece junto). */
 @keyframes seg-typewriter { 0% { visibility: hidden } 0.1%, 100% { visibility: visible } }
 @keyframes seg-scramble { 0% { visibility: hidden } 1%, 100% { visibility: visible } }
-/* relógio do contador: não mexe em nada visível. A opacidade no bloco inteiro (com prefixo e sufixo animando
-   dentro) obrigava o compositor a desenhar o contador numa superfície própria durante toda a contagem; o número
-   aparece com a própria animação (seg-aparece), sozinho */
-@keyframes seg-contador { from { visibility: visible } to { visibility: visible } }
+/* contador: o número aparece com a própria animação (seg-aparece), sozinho — opacidade no bloco inteiro (com
+   prefixo e sufixo animando dentro) obrigava o compositor a desenhar o contador numa superfície própria durante
+   toda a contagem. O relógio da contagem é JS (relógio do quadro, a partir da liberação da tela). */
 @keyframes seg-aparece { from { opacity: 0 } to { opacity: 1 } }
 @keyframes seg-marca { from { background-size: 0% var(--marca-h, .38em) } to { background-size: 100% var(--marca-h, .38em) } }
 .seg-texto { display: inline-block; animation-fill-mode: both; }

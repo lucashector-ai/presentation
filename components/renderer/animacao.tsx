@@ -141,21 +141,12 @@ const MARCA_INICIO_MS = 20
 
 const pinturaDe = (gradiente?: string): CSSProperties | undefined => (gradiente ? { backgroundImage: gradiente, backgroundRepeat: 'no-repeat', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', WebkitTextFillColor: 'transparent' } : undefined)
 
-/**
- * Relógio do contador e do decodificar. A animação CSS da parte continua sendo o relógio (atraso, pausa da tela
- * de carregamento/Story/Explorar e prévia valem igual), mas ela só é CONSULTADA na montagem: `getAnimations()`,
+/*
+ * Relógio do contador, do decodificar e das partes: o tempo vem da liberação da tela (quandoLiberar) e do relógio
+ * do quadro (requestAnimationFrame / document.timeline). Nada consulta o estilo por quadro: `getAnimations()`,
  * `playState` e `getComputedTiming()` forçam o recálculo de estilo da página quando há algo pendente, e
- * consultá-los a cada quadro (intercalados com escritas no DOM) recalculava o estilo uma vez por letra —
- * ~240 ms por quadro com 300 letras. Depois da montagem, o andamento vem dos eventos `animationstart` /
- * `animationend` e do relógio do quadro (requestAnimationFrame).
+ * consultá-los a cada quadro (intercalados com escritas no DOM) recalculava o estilo uma vez por letra.
  */
-const animacaoCss = (el: Element): Animation | null => el.getAnimations?.()[0] ?? null
-/** Progresso (0–1, linear no tempo) de uma animação CSS; null = sem animação (movimento reduzido) ou substituída. */
-function progressoCss(a: Animation | null): number | null {
-  if (!a || a.playState === 'idle') return null
-  const p = a.effect?.getComputedTiming().progress
-  return typeof p === 'number' ? p : a.playState === 'finished' ? 1 : 0
-}
 
 /**
  * Texto animado (camadas de texto). Divide em linhas, palavras ou letras e anima cada parte, ou desenha
@@ -514,8 +505,10 @@ function TextoContador({ texto, animacao, gradiente, cor, caixa }: { texto: stri
   const numero = useRef<HTMLSpanElement>(null)
   const curva = curvaCss(animacao)
   const duracao = animacao.duration
-  // o número acompanha o relógio (animação CSS do contêiner): começa no `animationstart` (depois do atraso, e só
-  // quando a tela deixa de esperar) e segue o tempo do quadro; nenhuma consulta ao estilo por quadro
+  // o número segue o relógio do quadro a partir da liberação da tela (quandoLiberar: tela de carregamento, Story
+  // fora da janela, câmera do Explorar) mais o atraso; nenhuma consulta ao estilo por quadro e nenhuma animação de
+  // relógio no contêiner (uma animação sem efeito visível rodava na thread principal e era reavaliada para a
+  // composição a cada quadro)
   useEfeitoLayout(() => {
     const el = ref.current
     const alvo = numero.current
@@ -530,42 +523,36 @@ function TextoContador({ texto, animacao, gradiente, cor, caixa }: { texto: stri
       // só escreve quando o número muda (o mesmo texto ainda invalidaria o layout da linha)
       if (texto !== ultimo) { alvo.textContent = texto; ultimo = texto }
     }
+    // movimento reduzido: o valor final; miniatura congelada da galeria: o número do instante em que ela para
+    if (movimentoReduzido()) return void escrever(1)
+    if (el.closest('[data-congelada]')) return void escrever(0.45)
+    escrever(0)
     const tique = (t: number) => {
-      const p = Math.min(1, Math.max(0, (t - inicio) / duracao))
+      const decorrido = t - inicio
+      // repetir: cada ciclo recomeça a contagem; depois do último, o valor final
+      const p = decorrido < 0 ? 0 : decorrido >= duracao * vezes ? 1 : (decorrido % duracao) / duracao
       escrever(p)
-      raf = p < 1 ? requestAnimationFrame(tique) : 0
+      raf = decorrido < duracao * vezes ? requestAnimationFrame(tique) : 0
     }
-    const correr = (desde: number) => { inicio = desde; cancelAnimationFrame(raf); raf = requestAnimationFrame(tique) }
-    // estado na montagem (uma leitura): sem animação (movimento reduzido) = valor final; congelada (miniatura da
-    // galeria) = o número daquele instante; remontagem no meio da contagem = continua de onde está
-    const relogio = animacaoCss(el)
-    const p0 = progressoCss(relogio)
-    escrever(p0 ?? 1)
-    if (p0 !== null && p0 > 0 && p0 < 1 && relogio?.playState === 'running') correr(performance.now() - p0 * duracao)
-    const comecou = (e: AnimationEvent) => { if (e.target === el) correr(e.timeStamp - (e.elapsedTime * 1000) % duracao) }
-    const acabou = (e: AnimationEvent) => { if (e.target !== el) return; cancelAnimationFrame(raf); raf = 0; escrever(1) }
-    el.addEventListener('animationstart', comecou)
-    // repetir: cada ciclo do relógio recomeça a contagem
-    el.addEventListener('animationiteration', comecou)
-    el.addEventListener('animationend', acabou)
+    const parar = quandoLiberar(el, () => {
+      inicio = performance.now() + animacao.delay
+      raf = requestAnimationFrame(tique)
+    })
     return () => {
+      parar()
       cancelAnimationFrame(raf)
-      el.removeEventListener('animationstart', comecou)
-      el.removeEventListener('animationiteration', comecou)
-      el.removeEventListener('animationend', acabou)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [info, duracao, curva])
+  }, [info, duracao, curva, vezes, animacao.delay])
   useGradienteContinuo(ref, gradiente, [info])
   const pintura = pinturaDe(gradiente)
-  const relogio: CSSProperties = { animationName: 'seg-contador', animationDuration: `${animacao.duration}ms`, animationDelay: `${animacao.delay}ms`, animationTimingFunction: 'linear', animationIterationCount: vezes }
   // prefixo/sufixo: entram no último terço, junto com o número chegando
   const extra: CSSProperties = { display: 'inline-block', animationName: 'seg-mov', animationDuration: `${Math.round(animacao.duration * 0.35)}ms`, animationDelay: `${animacao.delay + Math.round(animacao.duration * 0.55)}ms`, animationTimingFunction: curvaCss({ easing: 'easeOut' }), animationFillMode: 'both', whiteSpace: 'pre', ['--seg-dy' as string]: '.2em' }
   return (
     <>
       <span className="texto-acessivel" data-texto={texto} />
       {animacao.progress && info && caixa && <IndicadorProgresso animacao={animacao} info={info} cor={cor} caixa={caixa} vezes={vezes} />}
-      <span ref={ref} aria-hidden className="seg-contador" style={relogio} onAnimationEnd={soltarParte}>
+      <span ref={ref} aria-hidden className="seg-contador" onAnimationEnd={soltarParte}>
         {info ? (
           <>
             {info.prefixo && <span data-seg="" style={{ ...extra, ...pintura }}>{info.prefixo}</span>}
