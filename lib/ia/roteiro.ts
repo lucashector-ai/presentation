@@ -8,6 +8,7 @@ import { FORMATOS, SCHEMA_VERSION, type DocumentoProjeto, type ModoProjeto } fro
 import { parseDocumento } from '@/lib/scene/migrar'
 import { COMPONENTES, TEMAS, TIPOS_DADOS, TIPOS_TELA, regrasDe, resolverTema, type Marca, type TemaEscolhido, type TemaId, type TemaVisual, type TipoTela } from './designSystem'
 import { desenharLocal } from './desenhoLocal'
+import { entrelinhaNaGrade, naGrade } from './grade8'
 import { montarTela, type Estilo, type FotoMontagem, type LogoMontagem, type TelaDesenhada } from './montagem'
 import { garantirMarcaNasCamadas } from '@/lib/marca/conferir'
 
@@ -147,17 +148,17 @@ export function montarDocumento(roteiro: Roteiro, opcoes: OpcoesDocumento): Docu
       layers: m.layers as Record<string, unknown>[],
     }
   })
-  // modo explorar: a capa ganha um menu de hotspots para as outras telas (lado direito, reservado na montagem)
+  // modo explorar: a capa ganha um menu de hotspots para as outras telas (lado direito, reservado na montagem, na grade de 8)
   if (explorar) {
     const capa = telas[0]!
     const tinta = String(capa.layers.find((l) => String(l.id).startsWith('titulo-'))?.color ?? tema.claro.tinta)
     const destinos = telas.slice(1, 7)
     destinos.forEach((d, k) => {
-      capa.layers.push({ id: uid('menu'), type: 'text', text: `${String(k + 2).padStart(2, '0')}  ${d.title}`, x: size.width * 0.6, y: size.height * 0.2 + k * 96, width: size.width * 0.34, height: 72, fontFamily: tema.fontes.texto, fontSize: 34, fontWeight: 500, color: tinta, z: capa.layers.length, ariaLabel: `Ir para ${d.title}`, interactions: [{ trigger: 'click', do: { action: 'goToScene', targetSceneId: d.id }, transition: { type: 'scale', duration: 700 } }] })
+      capa.layers.push({ id: uid('menu'), type: 'text', text: `${String(k + 2).padStart(2, '0')}  ${d.title}`, x: naGrade(size.width * 0.6), y: naGrade(size.height * 0.2) + k * 96, width: naGrade(size.width * 0.34), height: 72, fontFamily: tema.fontes.texto, fontSize: 34, lineHeight: entrelinhaNaGrade(34, 1.15), fontWeight: 500, color: tinta, z: capa.layers.length, ariaLabel: `Ir para ${d.title}`, interactions: [{ trigger: 'click', do: { action: 'goToScene', targetSceneId: d.id }, transition: { type: 'scale', duration: 700 } }] })
     })
     for (const d of destinos) {
       const cor = String(d.layers.find((l) => String(l.id).startsWith('titulo-'))?.color ?? tema.claro.tinta)
-      d.layers.push({ id: uid('voltar'), type: 'text', text: '← Início', x: size.width - 340, y: 40, width: 240, height: 50, fontFamily: tema.fontes.texto, fontSize: 28, color: cor, align: 'right', z: d.layers.length, ariaLabel: 'Voltar ao início', interactions: [{ trigger: 'click', do: { action: 'goToScene', targetSceneId: capa.id } }] })
+      d.layers.push({ id: uid('voltar'), type: 'text', text: '← Início', x: size.width - 336, y: 40, width: 240, height: 48, fontFamily: tema.fontes.texto, fontSize: 28, lineHeight: entrelinhaNaGrade(28, 1.15), color: cor, align: 'right', z: d.layers.length, ariaLabel: 'Voltar ao início', interactions: [{ trigger: 'click', do: { action: 'goToScene', targetSceneId: capa.id } }] })
     }
   }
   // manual da marca aplicado: fontes e cores da marca garantidas em todas as camadas (lib/marca/conferir.ts)
