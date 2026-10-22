@@ -451,6 +451,114 @@ await passo('Texto: corte vertical (opções de texto) deixa a caixa justa nas m
   await painel.waitFor({ state: 'detached' })
 })
 
+// ---------- fontes do Google (catálogo, carregamento pela mesma origem, apresentação e exportação)
+const pedidosFontes = []
+page.on('request', (r) => { if (/fonts\.(googleapis|gstatic)\.com|\/fontes\//.test(r.url())) pedidosFontes.push(r.url()) })
+/** Largura da "tinta" de um texto numa fonte (canvas 2D), para comparar com a fonte de reserva. */
+/** Carrega (se preciso) e confirma que todas as faces da fonte estão prontas. */
+const fonteCarregada = (p, fonte) => p.waitForFunction((f) => document.fonts.load(f).then((fs) => fs.length > 0 && fs.every((x) => x.status === 'loaded')), fonte, { timeout: 15000 })
+const larguraTexto = (p, texto, fonte) => p.evaluate(([t, f]) => { const c = document.createElement('canvas').getContext('2d'); c.font = f; const m = c.measureText(t); return m.actualBoundingBoxLeft + m.actualBoundingBoxRight }, [texto, fonte])
+
+await passo('Fonte do Google: catálogo completo no seletor (busca, categoria, prévias leves) → Playfair Display no canvas', async () => {
+  await page.getByRole('tab', { name: 'Telas' }).click()
+  await telas().nth(0).click()
+  await page.getByRole('tab', { name: 'Blocos' }).click()
+  await page.getByRole('button', { name: 'Texto', exact: true }).click()
+  await page.getByLabel('Conteúdo do texto').fill('Google 2026')
+  await page.evaluate(() => document.activeElement?.blur())
+  await page.getByRole('radiogroup', { name: 'Redimensionar texto' }).getByRole('radio', { name: /^Auto horizontal/ }).click()
+  const gatilho = page.getByRole('button', { name: /^Fonte: / })
+  await gatilho.click()
+  const dlg = page.getByRole('dialog', { name: 'Escolher fonte' })
+  const busca = dlg.getByLabel('Buscar fonte')
+  await page.waitForFunction(() => /^Buscar entre [\d.]+ fontes$/.test(document.querySelector('[aria-label="Buscar fonte"]')?.getAttribute('placeholder') ?? ''))
+  const total = Number((await busca.getAttribute('placeholder')).replace(/\D/g, ''))
+  if (total < 1800) throw new Error(`catálogo com ${total} fontes`)
+  // lista virtualizada: só as linhas visíveis existem
+  const noDom = await dlg.getByRole('option').count()
+  if (noDom > 60) throw new Error(`lista não virtualizada: ${noDom} opções no DOM`)
+  // cada nome escrito na própria fonte, só com os glifos do nome (text=), pela mesma origem
+  await page.waitForFunction(() => [...document.fonts].some((f) => f.family.replace(/["']/g, '').startsWith('mp-') && f.status === 'loaded'), null, { timeout: 15000 })
+  if (!pedidosFontes.some((u) => u.includes('/fontes/css?') && u.includes('&t='))) throw new Error('prévias sem text= (carregariam a fonte inteira)')
+  await dlg.getByRole('button', { name: 'Manuscrita' }).click()
+  await dlg.getByText(/^Manuscrita · \d+$/).waitFor()
+  await dlg.getByRole('button', { name: 'Todas', exact: true }).click()
+  await busca.fill('playfair disp')
+  await dlg.getByRole('option').first().filter({ hasText: 'Playfair Display' }).waitFor()
+  await page.screenshot({ path: `${SHOTS}/16-fontes-busca.png` })
+  await page.keyboard.press('Enter')
+  await dlg.waitFor({ state: 'detached' })
+  if ((await gatilho.getAttribute('aria-label')) !== 'Fonte: Playfair Display') throw new Error(`fonte escolhida: ${await gatilho.getAttribute('aria-label')}`)
+  // aplicada no canvas e carregada (só a variante usada)
+  await fonteCarregada(page, '500 48px "Playfair Display"')
+  const ff = await page.getByTestId('canvas').getByText('Google 2026').evaluate((el) => getComputedStyle(el).fontFamily)
+  if (!ff.includes('Playfair Display')) throw new Error(`canvas com ${ff}`)
+  const folha = pedidosFontes.find((u) => /\/fontes\/css\?f=Playfair\+Display%3A500$/.test(u))
+  if (!folha) throw new Error(`folha da Playfair não pedida só com o peso usado: ${pedidosFontes.filter((u) => u.includes('Playfair')).join(' ')}`)
+  if (pedidosFontes.some((u) => /fonts\.(googleapis|gstatic)\.com/.test(u))) throw new Error('o navegador falou direto com o Google (deveria ser pela mesma origem)')
+  // pesos que a família tem (400–900)
+  const pesos = await page.getByLabel('Peso').locator('option').allTextContents()
+  if (pesos.includes('Light') || !pesos.includes('Black')) throw new Error(`pesos oferecidos: ${pesos.join(', ')}`)
+  // "Fontes do documento" no topo do seletor
+  await gatilho.click()
+  await dlg.getByText('Fontes do documento').waitFor()
+  await dlg.getByRole('option', { name: /Playfair Display/ }).first().waitFor()
+  await page.keyboard.press('Escape')
+  await dlg.waitFor({ state: 'detached' })
+  await esperarSalvo()
+})
+
+await passo('Fonte do Google na apresentação (página nova, carregada do zero)', async () => {
+  const p2 = await ctx.newPage()
+  await p2.goto(page.url().replace(/\/edit.*$/, '/apresentar'))
+  await p2.locator('.viewer-controles').getByText(/^01 \/ \d+$/).waitFor()
+  const t = p2.getByText('Google 2026', { exact: true })
+  await t.waitFor()
+  await fonteCarregada(p2, '500 48px "Playfair Display"')
+  const ff = await t.evaluate((el) => getComputedStyle(el).fontFamily)
+  if (!ff.includes('Playfair Display')) throw new Error(`apresentação com ${ff}`)
+  // a largura desenhada é a da Playfair (não a da reserva)
+  const tam = await t.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
+  const desenhada = await t.evaluate((el) => { const r = document.createRange(); r.selectNodeContents(el); return r.getBoundingClientRect().width })
+  const escala = await t.evaluate((el) => el.getBoundingClientRect().width / el.offsetWidth || 1)
+  const pf = await larguraTexto(p2, 'Google 2026', `500 ${tam}px "Playfair Display"`) * escala
+  if (Math.abs(desenhada - pf) / pf > 0.1) throw new Error(`largura na apresentação ${desenhada.toFixed(1)} ≠ Playfair ${pf.toFixed(1)}`)
+  await p2.screenshot({ path: `${SHOTS}/17-fontes-apresentacao.png` })
+  await p2.close()
+})
+
+await passo('Exportar PNG com a fonte do Google embutida (largura do texto ≠ fonte de reserva)', async () => {
+  await page.getByTestId('canvas').getByText('Google 2026').click()
+  await page.getByRole('button', { name: 'Adicionar exportação' }).click()
+  await page.getByLabel('Escala da exportação').selectOption('1')
+  const tam = Number(await page.getByLabel('Tamanho da fonte').inputValue())
+  const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 30000 }), page.getByRole('button', { name: /^Exportar / }).click()])
+  const png = fs.readFileSync(await dl.path())
+  // largura da tinta no PNG (pixels opacos) × a mesma medida na Playfair e na fonte de reserva (Geist)
+  const tinta = await page.evaluate(async (b64) => {
+    const img = new Image()
+    img.src = `data:image/png;base64,${b64}`
+    await img.decode()
+    const c = document.createElement('canvas')
+    c.width = img.naturalWidth
+    c.height = img.naturalHeight
+    const g = c.getContext('2d')
+    g.drawImage(img, 0, 0)
+    const d = g.getImageData(0, 0, c.width, c.height).data
+    let min = c.width, max = -1
+    for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) if (d[(y * c.width + x) * 4 + 3] > 96) { if (x < min) min = x; if (x > max) max = x }
+    return max - min + 1
+  }, png.toString('base64'))
+  const reserva = await page.evaluate(() => getComputedStyle(document.body).getPropertyValue('--font-geist-sans').trim() || 'sans-serif')
+  const pf = await larguraTexto(page, 'Google 2026', `500 ${tam}px "Playfair Display"`)
+  const fb = await larguraTexto(page, 'Google 2026', `500 ${tam}px ${reserva}`)
+  // "Google 2026": ~11% mais estreito na Playfair do que na Geist (algarismos e o G bem diferentes)
+  if (Math.abs(pf - fb) / pf < 0.06) throw new Error(`Playfair (${pf.toFixed(1)}) e reserva (${fb.toFixed(1)}) parecidas demais para comparar`)
+  if (Math.abs(tinta - pf) / pf > 0.03 || Math.abs(tinta - fb) < Math.abs(tinta - pf)) throw new Error(`PNG com ${tinta}px de texto; Playfair ${pf.toFixed(1)}, reserva ${fb.toFixed(1)}`)
+  console.log(`   PNG: texto com ${tinta}px · Playfair ${pf.toFixed(1)}px · reserva (Geist) ${fb.toFixed(1)}px`)
+  await page.getByRole('button', { name: 'Fechar exportação' }).click()
+})
+
 const LOGO = `${SHOTS}/logo-aurora.svg`
 fs.writeFileSync(LOGO, '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120" width="400" height="120"><circle cx="60" cy="60" r="44" fill="#E4572E"/><rect x="38" y="38" width="44" height="44" rx="6" fill="#1F3B4D"/><rect x="130" y="34" width="250" height="22" rx="11" fill="#1F3B4D"/><rect x="130" y="66" width="160" height="22" rx="11" fill="#F2C14E"/></svg>')
 
@@ -473,6 +581,26 @@ await passo('Criar com IA: atalho do painel (20 telas) → marca com logo, palet
   const logoNaPrevia = await page.locator('[data-layer-id^="logo-"] img').count()
   if (!logoNaPrevia) throw new Error('logo não aparece na prévia da capa')
   await page.screenshot({ path: `${SHOTS}/13-criar-marca.png` })
+})
+
+await passo('Criar com IA: qualquer fonte do Google no kit de marca (títulos e textos)', async () => {
+  await page.getByRole('button', { name: /^Fonte dos títulos: / }).click()
+  const dlg = page.getByRole('dialog', { name: 'Escolher fonte dos títulos' })
+  await dlg.getByLabel('Buscar fonte').fill('abril fatface')
+  await dlg.getByRole('option').first().filter({ hasText: 'Abril Fatface' }).waitFor()
+  await page.keyboard.press('Enter')
+  await page.getByRole('button', { name: /^Fonte dos textos: / }).click()
+  const dlg2 = page.getByRole('dialog', { name: 'Escolher fonte dos textos' })
+  await dlg2.getByLabel('Buscar fonte').fill('Lora')
+  await dlg2.getByRole('option').first().filter({ hasText: 'Lora' }).waitFor()
+  await page.keyboard.press('Enter')
+  await page.getByText('Par próprio:').waitFor()
+  // a prévia da capa já usa a fonte dos títulos, carregada
+  await page.locator('[style*="Abril Fatface"]').first().waitFor()
+  await fonteCarregada(page, '16px "Abril Fatface"')
+  await page.getByRole('button', { name: /^Atualizar o kit/ }).click()
+  await page.waitForTimeout(500)
+  await page.screenshot({ path: `${SHOTS}/13b-criar-marca-fontes.png` })
 })
 
 await passo('Criar com IA: material (números), galeria de estilos com filtro e busca, tamanho e revisão com custo', async () => {
@@ -523,12 +651,24 @@ await passo('Criar com IA: 20 telas com o logo; trocar o estilo depois é gráti
   await page.getByTestId('canvas').locator('img').first().waitFor({ timeout: 10000 })
 })
 
+await passo('Criar com IA: as fontes do kit (Abril Fatface + Lora) estão nas telas geradas', async () => {
+  const familias = await page.getByTestId('canvas').locator('[data-layer-id] *').evaluateAll((els) => [...new Set(els.map((e) => getComputedStyle(e).fontFamily))])
+  if (!familias.some((f) => f.includes('Abril Fatface'))) throw new Error(`títulos sem a fonte do kit: ${familias.join(' | ')}`)
+  if (!familias.some((f) => f.includes('Lora'))) throw new Error(`textos sem a fonte do kit: ${familias.join(' | ')}`)
+  await fonteCarregada(page, '16px "Abril Fatface"')
+})
+
 await passo('Criar com IA: o kit de marca fica salvo no espaço para a próxima apresentação', async () => {
   await page.goto(`${BASE}/app/criar?prompt=Outra%20apresenta%C3%A7%C3%A3o`, { waitUntil: 'networkidle' })
   await page.getByRole('button', { name: 'Usar o kit Aurora' }).click()
   if ((await page.getByLabel('Nome da marca').inputValue()) !== 'Aurora') throw new Error('kit não aplicou o nome')
   if ((await page.getByLabel('Código da cor 1').inputValue()).toUpperCase() !== '#E4572E') throw new Error('kit não aplicou as cores')
   await page.getByAltText(/^Logo/).first().waitFor()
+})
+
+await passo('Criar com IA: o kit traz de volta as fontes do Google escolhidas', async () => {
+  if ((await page.getByRole('button', { name: /^Fonte dos títulos: / }).getAttribute('aria-label')) !== 'Fonte dos títulos: Abril Fatface') throw new Error('kit não trouxe a fonte dos títulos')
+  if ((await page.getByRole('button', { name: /^Fonte dos textos: / }).getAttribute('aria-label')) !== 'Fonte dos textos: Lora') throw new Error('kit não trouxe a fonte dos textos')
 })
 
 await passo('AC-14 Reduced motion respeitado (animações encurtadas)', async () => {

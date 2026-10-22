@@ -40,8 +40,10 @@ type Buscar = (req: Request) => Promise<Response>
 
 const cacheDaBorda = (): Cache | undefined => (globalThis as unknown as { caches?: { default?: Cache } }).caches?.default
 
+const SEGURANCA = { 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer' }
+
 function cssVazio(motivo: string, cache = 'public, max-age=3600'): Response {
-  return new Response(`/* ${motivo} */\n`, { status: 200, headers: { 'content-type': 'text/css; charset=utf-8', 'cache-control': cache } })
+  return new Response(`/* ${motivo} */\n`, { status: 200, headers: { 'content-type': 'text/css; charset=utf-8', 'cache-control': cache, ...SEGURANCA } })
 }
 
 /** Atende GET /fontes/css e /fontes/arquivo/… (null = não é rota de fontes). */
@@ -78,10 +80,10 @@ export async function atenderFontes(request: Request, ctx?: Contexto, buscar: Bu
     }
     if (ehCss) {
       const css = reescreverCss(await r.text())
-      resposta = new Response(css, { status: 200, headers: { 'content-type': 'text/css; charset=utf-8', 'cache-control': CACHE_CSS } })
+      resposta = new Response(css, { status: 200, headers: { 'content-type': 'text/css; charset=utf-8', 'cache-control': CACHE_CSS, ...SEGURANCA } })
     } else {
       const tipo = r.headers.get('content-type') ?? ''
-      resposta = new Response(r.body, { status: 200, headers: { 'content-type': /^font\/|^application\/(font|x-font|octet-stream)/.test(tipo) ? tipo : 'font/woff2', 'cache-control': CACHE_ARQUIVO, 'access-control-allow-origin': '*' } })
+      resposta = new Response(r.body, { status: 200, headers: { 'content-type': /^font\/|^application\/(font|x-font|octet-stream)/.test(tipo) ? tipo : 'font/woff2', 'cache-control': CACHE_ARQUIVO, 'access-control-allow-origin': '*', ...SEGURANCA } })
     }
   } catch (e) {
     console.error(JSON.stringify({ nivel: 'aviso', origem: 'fontes', mensagem: e instanceof Error ? e.message.slice(0, 200) : 'falha' }))

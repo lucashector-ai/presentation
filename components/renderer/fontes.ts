@@ -5,7 +5,8 @@
  *
  * Só as famílias e as variantes (peso × itálico) usadas pelas camadas de texto são pedidas, numa folha da mesma
  * origem (/fontes/css, proxy do Worker em lib/fontes/proxy.ts). Cada variante é pedida uma vez por página.
- * Fontes locais (Geist, Geist Mono, Georgia, system-ui) e as enviadas pelo espaço não passam por aqui.
+ * Fontes locais (Geist, Geist Mono, Georgia, system-ui) não passam por aqui; famílias fora do catálogo do Google
+ * (coladas do Figma, do sistema) recebem uma folha vazia e seguem para a reserva da pilha CSS.
  */
 import { useEffect, useMemo } from 'react'
 import type { Cena, DocumentoProjeto } from '@/lib/scene/schema'
@@ -16,11 +17,7 @@ import { chaveVariante, lerVariante, urlFolha, type Variante } from '@/lib/fonte
 export type UsoFontes = Map<string, Set<string>>
 
 const GENERICAS = /^(serif|sans-serif|monospace|cursive|fantasy|system-ui|ui-[a-z-]+|inherit|initial)$/i
-/** Famílias registradas no navegador por outro caminho (fontes enviadas pelo espaço): o proxy não as conhece. */
-const proprias = new Set<string>()
-export function registrarFontePropria(familia: string) { proprias.add(familia) }
-
-export const precisaCarregar = (familia: string) => !!familia && !NOMES_LOCAIS.has(familia) && !GENERICAS.test(familia) && !proprias.has(familia)
+export const precisaCarregar = (familia: string) => !!familia && !NOMES_LOCAIS.has(familia) && !GENERICAS.test(familia)
 
 function somar(uso: UsoFontes, familia: string, v: Variante) {
   if (!precisaCarregar(familia)) return

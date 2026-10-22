@@ -22,6 +22,7 @@ SaaS privado para designers, diretores de arte e estúdios: cole artes do Figma 
 | Banco (Neon Postgres, `db/migrations`), login (Neon Auth: e-mail/senha + Google), mídias (Cloudflare R2) e rotas `/api` | ✅ exercitados de ponta a ponta contra o Neon (cadastro, login, projeto, cenas, upload, publicação, link de convidado, créditos, isolamento entre usuários) — ver ADR 0010 |
 | UI ligada ao backend real: camada de dados única (`lib/dados`) com duas implementações — demo (`lib/demo/store.ts`, `NEXT_PUBLIC_DEMO=1`) e real (rotas `/api`, sessão por cookie) | ✅ painel, editor (autosave com revisão, 409, offline), mídias, publicação, links, página pública, lixeira, créditos/plano e IA — provado por `e2e/real.mjs` |
 | Colaboração em tempo real: sala por projeto (Durable Object + WebSocket em hibernação), presença (avatares, cursores com nome, seleções, tela de cada um), edição simultânea com LWW por propriedade, desfazer por pessoa, offline com sincronização ao voltar; equipe (convite por e-mail ou link, editor/visualizador, remover) | ✅ ver ADR 0011 — provado por `e2e/colaboracao.mjs` (dois navegadores, duas contas) |
+| Fontes do Google: catálogo completo (1.894 famílias com português, `lib/fontes/catalogo-google.json`, gerado por `node scripts/gerar-catalogo-fontes.mjs` a partir do pacote `google-font-metadata` fixado) no seletor do editor e no kit de marca (busca, categorias, prévias só com os glifos do nome, lista virtualizada, "Fontes do documento" e "Recentes"); carregadas sob demanda, só as variantes usadas, pela mesma origem (proxy no Worker `/fontes/*` com cache da borda), iguais no editor, apresentação, miniaturas, link público e exportação PNG/PDF (fontes embutidas); colar do Figma e SVG mapeiam nomes para o catálogo (SVG com as fontes recortadas embutidas) | ✅ `lib/fontes/`, `components/fontes/SeletorFonte.tsx`, `components/renderer/fontes.ts` |
 | Worker de thumbnails/transcodificação, billing (Stripe), e-mail transacional | ⏳ não iniciados |
 
 As telas só falam com `dados` (`lib/dados/index.ts`) e leem o estado com `useDados`/`useCarregar`/`useProjetoCompleto`; nenhuma decide sozinha se está no modo demo. O build escolhe a implementação:
@@ -114,7 +115,8 @@ app/                      rotas (App Router)
   p/[token]/              visualizador público não listado
   api/                    rotas HTTP (contratos em lib/api/contratos.ts)
 components/
-  renderer/               SceneRenderer — ÚNICO renderizador (editor, miniaturas, preview, viewer)
+  renderer/               SceneRenderer — ÚNICO renderizador (editor, miniaturas, preview, viewer); fontes.ts carrega as fontes usadas
+  fontes/                 SeletorFonte (catálogo do Google: busca, categorias, prévias, virtualizado)
   viewer/                 Viewer (Slides/Story/Explorar), Apresentador, página pública
   editor/                 EditorShell, PainelEsquerdo (telas/camadas/arquivos/blocos), Canvas, inspetor/ (Design, Animação, Interações)
   compartilhar/           links privados
@@ -133,11 +135,13 @@ lib/
   importar/               SVG (sanitização, cores), arquivos (GLB/glTF/Lottie), área de transferência
   ia/                     roteiro + motor de layout, gerador local, prompt e chamada ao Claude
   share/                  tokens, hash de senha (PBKDF2), estado do link, limite de tentativas
+  fontes/                 catálogo do Google Fonts (JSON gerado + busca/variantes), URLs e proxy do Worker (/fontes/*), SVG com fontes embutidas
   midia/                  detecção de MIME real (bytes mágicos; SVG/glTF/Lottie validados pelo conteúdo)
   planos.ts               planos e entitlements (aplicados no servidor)
   design-tokens.ts        tokens (espelham app/globals.css)
 db/migrations/            schema relacional e funções transacionais (Neon); db/migrar.mjs aplica
 docs/                     ARQUITETURA.md, CRITERIOS-ACEITE.md, adr/
+scripts/                  gerar-catalogo-fontes.mjs (regenera lib/fontes/catalogo-google.json; versão do pacote fixada)
 e2e/                      fluxos ponta a ponta com Playwright: fluxo.mjs (demo) e real.mjs (Neon de verdade)
 ```
 
