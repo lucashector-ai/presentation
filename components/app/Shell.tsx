@@ -11,6 +11,7 @@ import { estadoDoLink } from '@/lib/share/token'
 import { Atrasado, Carregando, Marca, cx } from '@/components/ui'
 import { CreditosProvider, useCreditos } from './Creditos'
 import { BuscaRapida } from './BuscaRapida'
+import { ProgressoNavegacao } from './ProgressoNavegacao'
 
 /** Rotas de tela cheia (sem barra lateral): editor, apresentação e o assistente de novo projeto. */
 const SEM_CHROME = /\/edit$|\/apresentar$|\/apresentador$|\/app\/novo$/
@@ -57,7 +58,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     const escuro = /\/apresentar$|\/apresentador$/.test(caminho)
     return <div className={cx('flex min-h-dvh items-center justify-center', escuro ? 'bg-[#111] text-white/60' : 'bg-fundo')} aria-busy="true">{!MODO_DEMO && <Atrasado ms={600}><Carregando texto="Abrindo sua conta…" /></Atrasado>}</div>
   }
-  return <CreditosProvider>{SEM_CHROME.test(caminho) ? children : <Moldura caminho={caminho}>{children}</Moldura>}</CreditosProvider>
+  return <CreditosProvider><ProgressoNavegacao />{SEM_CHROME.test(caminho) ? children : <Moldura caminho={caminho}>{children}</Moldura>}</CreditosProvider>
 }
 
 function Moldura({ caminho, children }: { caminho: string; children: React.ReactNode }) {

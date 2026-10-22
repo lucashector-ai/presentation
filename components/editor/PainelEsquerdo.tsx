@@ -1,5 +1,5 @@
 'use client'
-import { useRef, useState, type JSX } from 'react'
+import { useMemo, useRef, useState, type JSX } from 'react'
 import { Box, ChevronDown, ChevronRight, Code2, Copy, Crosshair, Eye, EyeOff, Film, GalleryHorizontal, Image as ImageIcon, Lock, LockOpen, MousePointerClick, PenTool, Quote, Sparkles, Square, Tag, Trash2, Type, Upload, Video, ArrowRight } from 'lucide-react'
 import { IconeAutoLayout, IconeMascara } from './inspetor/icones'
 import { NOMES_TIPO_MASCARA, ehMascara, tipoMascara } from '@/lib/scene/mascara'
@@ -41,7 +41,8 @@ function Telas({ editor, assets }: { editor: Editor; assets: AssetDemo[] }) {
   const { estado, acoes } = editor
   const [arrastando, setArrastando] = useState<number | null>(null)
   const [sobre, setSobre] = useState<number | null>(null)
-  const mapa = Object.fromEntries(assets.map((a) => [a.id, a]))
+  // mapa estável: as miniaturas (memo) só re-renderizam quando a própria tela muda
+  const mapa = useMemo(() => Object.fromEntries(assets.map((a) => [a.id, a])), [assets])
   const cenas = estado.documento.scenes
   return (
     <div className="p-3">
