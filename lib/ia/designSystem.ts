@@ -362,6 +362,14 @@ export const REGRAS_PADRAO: Regras = {
 }
 export const regrasDe = (t: TemaVisual): Regras => ({ ...REGRAS_PADRAO, ...t.regras, variantes: { ...t.regras?.variantes } })
 
+/**
+ * Regra do 8: todo espaçamento das telas geradas (margens, gaps, paddings, vãos entre blocos, colunas, posições e
+ * tamanhos) é múltiplo de 8 px. A montagem usa a escala e termina com o passo de `grade8.ts`, que garante o resto.
+ */
+export const GRADE = 8
+/** Escala de espaçamento do design system (gaps, paddings e respiros): só múltiplos de 8. */
+export const ESCALA_ESPACO = [8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128] as const
+
 export interface Superficie {
   fundo: string
   tinta: string

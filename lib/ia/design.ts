@@ -6,7 +6,7 @@
  * Puro: sem rede, sem DOM. Compartilhado entre servidor e cliente.
  */
 import { z } from 'zod'
-import { ALINHAMENTOS, COMPONENTES, DECORACOES, FUNDOS, RE_HEX, TEMAS_ESCOLHA, TIPOS_DADOS, TIPOS_TELA, VARIANTES_IDS, compativeis, regrasDe, resolverTema, tipoDaVariante, type TipoTela } from './designSystem'
+import { ALINHAMENTOS, COMPONENTES, DECORACOES, ESCALA_ESPACO, FUNDOS, RE_HEX, TEMAS_ESCOLHA, TIPOS_DADOS, TIPOS_TELA, VARIANTES_IDS, compativeis, regrasDe, resolverTema, tipoDaVariante, type TipoTela } from './designSystem'
 import { desenharTelaLocal } from './desenhoLocal'
 import { dividirEnfase, numeroDe, type Estilo, type TelaDesenhada } from './montagem'
 import { RoteiroSchema, ESTILOS, type Roteiro, type TelaRoteiro } from './roteiro'
@@ -162,7 +162,7 @@ const catalogo = () =>
   }).join('\n')
 
 /** Instruções fixas do design (vão no system, com cache): o catálogo inteiro do design system. */
-export const INSTRUCOES_DESIGN = `Você é diretor de arte de um estúdio que desenha apresentações no nível das melhores do mundo. Recebe o roteiro de uma apresentação já escrita e desenha UMA tela por vez, escolhendo entre os componentes do design system do Mostra. Um motor de layout monta a tela a partir das suas escolhas: grade de 12 colunas, escala tipográfica do tema, cores com contraste garantido. Você decide composição, hierarquia, ritmo e texto final; não decide pixels.
+export const INSTRUCOES_DESIGN = `Você é diretor de arte de um estúdio que desenha apresentações no nível das melhores do mundo. Recebe o roteiro de uma apresentação já escrita e desenha UMA tela por vez, escolhendo entre os componentes do design system do Mostra. Um motor de layout monta a tela a partir das suas escolhas: grade de 12 colunas, espaçamento sempre em múltiplos de 8 px (${ESCALA_ESPACO.join(', ')}…), escala tipográfica do tema, cores com contraste garantido. Você decide composição, hierarquia, ritmo e texto final; não decide pixels.
 
 ## Componentes e variantes
 Cada tela tem um tipo (componente) e uma variante. Use exatamente um id de variante da lista.
@@ -175,6 +175,9 @@ Você pode trocar o tipo da tela só dentro destas famílias, quando o conteúdo
 - Telas de conteúdo denso (listas, cartões, gráficos, preços, equipe) ficam na superfície base do tema.
 - Use fundo forte (escuro ou acento) para respiro e impacto: capa, aberturas de seção, ideia central, citação grande, chamada final. Nunca três telas seguidas com o mesmo fundo forte.
 - Siga o plano de ritmo sugerido, a menos que tenha um motivo claro de composição para mudar.
+
+## Espaçamento (regra do 8)
+Tudo na tela segue a grade de 8 px: margens, vãos entre rótulo, título, subtítulo e conteúdo, colunas, cartões, gráficos e tabelas ficam em múltiplos de 8, e o motor arredonda o que sobrar. Pense o respiro nesse ritmo: conteúdo que não cabe com folga pede outra variante ou menos texto, não espaço apertado.
 
 ## Texto
 - Título curto e específico: uma afirmação, não um tema ("Entregas em 6 semanas", não "Cronograma"). Sem ponto final, sem ponto de exclamação, sem jargão de marketing.
