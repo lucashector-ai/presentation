@@ -333,6 +333,17 @@ export function PainelAjustes({ anim, camada, camadasDaTela, saida, aoMudar, aoP
           {finos && (
             <div className="space-y-2 border-t border-borda px-2.5 pb-2.5 pt-2">
               {tempo}
+              {quando === 'scroll' && !saida && (() => {
+                const [ini, fim] = anim.scrollRange ?? TRECHO_ROLAGEM_PADRAO
+                return (
+                  <>
+                    <Rotulo>Começa (% da passagem pela tela)</Rotulo>
+                    <Deslizante rotulo="Começa em porcentagem da passagem pela tela" valor={ini} min={0} max={Math.max(0, fim - 5)} passo={5} aoMudar={(v) => mudar({ scrollRange: [v, fim] })} formatar={(v) => `${v}%`} />
+                    <Rotulo>Termina (% da passagem pela tela)</Rotulo>
+                    <Deslizante rotulo="Termina em porcentagem da passagem pela tela" valor={fim} min={Math.min(100, ini + 5)} max={100} passo={5} aoMudar={(v) => mudar({ scrollRange: [ini, v] })} formatar={(v) => `${v}%`} />
+                  </>
+                )
+              })()}
               {tem('distance') && (
                 <>
                   <Rotulo>Distância em px</Rotulo>
