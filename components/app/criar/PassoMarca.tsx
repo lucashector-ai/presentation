@@ -1,6 +1,7 @@
 'use client'
 /**
- * Passo "Marca": logo (paleta extraída no navegador), cores (do logo, do pedido ou paletas prontas), par de fontes
+ * Passo "Marca": manual da marca (PDF, imagens, tokens, CSS ou .pptx, lido no navegador; ver ManualMarca.tsx),
+ * logo (paleta extraída no navegador), cores (do logo, do pedido ou paletas prontas), par de fontes
  * (da biblioteca ou quaisquer famílias do Google, pelo seletor do catálogo) e nome. Tudo aplicado na montagem, sem IA. Kits de marca salvos no espaço para reusar.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -18,6 +19,7 @@ import { pilhaFonte } from '@/lib/design-tokens'
 import { analisarLogo } from './logo'
 import type { MarcaEscolhida } from './estado'
 import { Amostras, Secao, SeloCusto } from './ui'
+import { ManualMarca } from './ManualMarca'
 
 const ACEITA_LOGO = 'image/png,image/jpeg,image/webp,image/svg+xml,image/gif,.svg'
 
@@ -85,13 +87,14 @@ export function PassoMarca({ marca, aoMudar, prompt, kits, aoSalvarKit, aoExclui
   return (
     <div className="flex flex-col gap-4">
       {kits.length > 0 && (
-        <Secao titulo="Kits de marca salvos" dica="Logo, cores e fontes de antes, com um clique." selo={<SeloCusto />} id="titulo-kits">
+        <Secao titulo="Kits de marca salvos" dica="Logo, cores, fontes e manual de antes, com um clique." selo={<SeloCusto />} id="titulo-kits">
           <div className="flex flex-wrap gap-2">
             {kits.map((k) => (
               <span key={k.id} className={cx('flex items-center gap-1 rounded-full border-[1.5px] bg-white py-1 pl-1.5 pr-1 text-[13px]', marca.kitId === k.id ? 'border-violeta' : 'border-[#E7E5E4]')}>
                 <button type="button" onClick={() => aplicarKit(k)} className="flex items-center gap-2 rounded-full px-1.5 py-0.5 font-medium hover:text-acento" aria-label={`Usar o kit ${k.nome}`}>
                   {k.cores.length ? <Amostras cores={k.cores} tamanho={16} /> : <Bookmark className="h-3.5 w-3.5" />}
                   {k.nome}
+                  {k.perfil && <span className="mono rounded-full bg-[#EEF5EC] px-1.5 py-px text-[10px] uppercase tracking-[0.04em] text-[#2F6B45]" title="Kit com o manual da marca">manual</span>}
                 </button>
                 <button type="button" onClick={() => void aoExcluirKit(k)} aria-label={`Apagar o kit ${k.nome}`} className="flex h-6 w-6 items-center justify-center rounded-full text-texto3 hover:bg-[#FBF0EE] hover:text-[#C0392B]"><X className="h-3 w-3" /></button>
               </span>
@@ -102,6 +105,7 @@ export function PassoMarca({ marca, aoMudar, prompt, kits, aoSalvarKit, aoExclui
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="flex min-w-0 flex-col gap-4">
+          <ManualMarca marca={marca} aoMudar={aoMudar} prompt={prompt} aoUsarLogo={enviarLogo} />
           <Secao titulo="Logo" dica="Entra na capa e no encerramento (e, se quiser, discreto no rodapé). As cores dele viram paletas." selo={<SeloCusto />} id="titulo-logo">
             <div className="flex flex-wrap items-center gap-3">
               {marca.logo ? (

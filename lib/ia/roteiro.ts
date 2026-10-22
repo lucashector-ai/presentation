@@ -9,6 +9,7 @@ import { parseDocumento } from '@/lib/scene/migrar'
 import { COMPONENTES, TEMAS, TIPOS_DADOS, TIPOS_TELA, regrasDe, resolverTema, type Marca, type TemaEscolhido, type TemaId, type TemaVisual, type TipoTela } from './designSystem'
 import { desenharLocal } from './desenhoLocal'
 import { montarTela, type Estilo, type FotoMontagem, type LogoMontagem, type TelaDesenhada } from './montagem'
+import { garantirMarcaNasCamadas } from '@/lib/marca/conferir'
 
 export { TEMAS, TIPOS_TELA, type TemaId, type TipoTela }
 export type { Estilo }
@@ -159,6 +160,8 @@ export function montarDocumento(roteiro: Roteiro, opcoes: OpcoesDocumento): Docu
       d.layers.push({ id: uid('voltar'), type: 'text', text: '← Início', x: size.width - 340, y: 40, width: 240, height: 50, fontFamily: tema.fontes.texto, fontSize: 28, color: cor, align: 'right', z: d.layers.length, ariaLabel: 'Voltar ao início', interactions: [{ trigger: 'click', do: { action: 'goToScene', targetSceneId: capa.id } }] })
     }
   }
+  // manual da marca aplicado: fontes e cores da marca garantidas em todas as camadas (lib/marca/conferir.ts)
+  garantirMarcaNasCamadas(telas, tema, opcoes.marca)
   const estilosCor = ESTILOS_COR.map((e) => ({ id: e.id, name: e.nome, color: e.cor(tema).slice(0, 7).toUpperCase() }))
   const mapa = new Map<string, string>()
   for (const e of estilosCor) if (!mapa.has(e.color)) mapa.set(e.color, e.id)

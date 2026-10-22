@@ -6,7 +6,7 @@
  * o teste `lib/ia/economia.test.ts` falha se algum preço em créditos deixar de cobrir o custo.
  */
 
-export type EtapaIA = 'roteiro' | 'design' | 'tela' | 'texto' | 'pdf'
+export type EtapaIA = 'roteiro' | 'design' | 'tela' | 'texto' | 'pdf' | 'marca'
 export type Esforco = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
 export interface ModeloIA {
@@ -41,6 +41,8 @@ export const MODELO_POR_ETAPA: Record<EtapaIA, ModeloIA> = {
   tela: MODELOS.sonnet,
   texto: MODELOS.haiku,
   pdf: MODELOS.sonnet,
+  // resumo do manual da marca: extração estruturada de um texto já filtrado (as cores e fontes vêm sem IA)
+  marca: MODELOS.haiku,
 }
 
 /** Modelo do desenho das telas pela qualidade pedida: premium (Opus) ou padrão (Sonnet, metade do custo). */
@@ -57,6 +59,7 @@ export const CONFIG_ETAPA: Record<EtapaIA, { esforco: Esforco; maxTokens: number
   texto: { esforco: 'low', maxTokens: 8000 },
   // transcrição: pouco raciocínio, saída longa (até ≈ 1.500 tokens por página × 40 páginas), em streaming
   pdf: { esforco: 'low', maxTokens: 64000 },
+  marca: { esforco: 'low', maxTokens: 6000 },
 }
 
 /** `cacheEscrita` é o total gravado no cache; `cacheEscrita1h` é a parte dele gravada com TTL de 1 hora (preço 2×). */

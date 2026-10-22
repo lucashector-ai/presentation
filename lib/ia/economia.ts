@@ -10,7 +10,8 @@ import { INSTRUCOES_SISTEMA } from './prompt'
 import { INSTRUCOES_TELA } from './tela'
 import { INSTRUCOES_TEXTO } from './texto'
 import { INSTRUCOES_PDF } from './pdf'
-import { CUSTO_CREDITOS, DESCONTO_ANUAL, DIVISAO_TELA, LEITURA_PDF_CREDITOS, MATERIAL_CREDITOS, PACOTES_AVULSOS, PLANOS, custoApresentacao, custoDesenho, custoLeituraPdf, custoRoteiro, type PlanoId } from '@/lib/planos'
+import { INSTRUCOES_MANUAL } from '@/lib/marca/resumo'
+import { CUSTO_CREDITOS, DESCONTO_ANUAL, DIVISAO_TELA, LEITURA_PDF_CREDITOS, MANUAL_MARCA_CREDITOS, MATERIAL_CREDITOS, PACOTES_AVULSOS, PLANOS, custoApresentacao, custoDesenho, custoLeituraPdf, custoResumoManual, custoRoteiro, type PlanoId } from '@/lib/planos'
 
 // ---------------------------------------------------------------- premissas
 
@@ -71,6 +72,12 @@ export const ESTIMATIVA = {
    * numa página cheia de texto) + o pensamento em esforço baixo + o JSON por página.
    */
   pdf: { sistema: tokens(INSTRUCOES_PDF), pedido: 120, imagemPorPagina: 4784, textoPorPagina: 1600, saidaBase: 200, saidaPorPagina: 1100 },
+  /**
+   * Resumo do manual da marca (Haiku, esforço baixo): system + o que já foi achado sem IA + os trechos do manual
+   * (até 24 mil caracteres); saída = o perfil em JSON (≈ 1.200 tokens) + pensamento curto. Sem cache (cada
+   * manual é resumido uma vez).
+   */
+  marca: { sistema: Math.max(tokens(INSTRUCOES_MANUAL), 900), pedido: 400, saida: 2500 },
 } as const
 
 // ---------------------------------------------------------------- custo por ação (USD)
@@ -126,6 +133,13 @@ export function custoLeituraPdfUsd(paginas: number): CustoEtapa {
   const e = ESTIMATIVA.pdf
   const uso = { entrada: e.sistema + e.pedido + (e.imagemPorPagina + e.textoPorPagina) * paginas, saida: e.saidaBase + e.saidaPorPagina * paginas, cacheLeitura: 0, cacheEscrita: 0, cacheEscrita1h: 0 }
   return { etapa: 'pdf', modelo: MODELO_POR_ETAPA.pdf.id, uso, usd: custoUsd(MODELO_POR_ETAPA.pdf, uso) }
+}
+
+/** Resumo do manual da marca pelo Claude com `caracteres` de trechos enviados. */
+export function custoResumoManualUsd(caracteres: number): CustoEtapa {
+  const e = ESTIMATIVA.marca
+  const uso = { entrada: e.sistema + e.pedido + tokens(Math.min(caracteres, MANUAL_MARCA_CREDITOS.maxCaracteres)), saida: e.saida, cacheLeitura: 0, cacheEscrita: 0, cacheEscrita1h: 0 }
+  return { etapa: 'marca', modelo: MODELO_POR_ETAPA.marca.id, uso, usd: custoUsd(MODELO_POR_ETAPA.marca, uso) }
 }
 
 export const custoApresentacaoUsd =(telas: number, caracteresMaterial = 0) => custoRoteiroUsd(telas, caracteresMaterial).usd + custoDesenhoUsd(telas).usd
@@ -200,9 +214,10 @@ export function tabelaAcoes(telasLista = [6, 8, 10, 12, 20]) {
     redesenhar1Frio: { acao: 'Redesenhar 1 tela com a plataforma parada há mais de 1 hora (cache todo frio)', usd: custoDesenhoUsd(1, 10, { sistemaFrio: true }).usd, creditos: DIVISAO_TELA.desenho, necessarios: creditosNecessarios(custoDesenhoUsd(1, 10, { sistemaFrio: true }).usd) },
     refazer: { acao: 'Refazer uma tela', usd: custoRefazerTelaUsd().usd, creditos: CUSTO_CREDITOS.refazerTela, necessarios: creditosNecessarios(custoRefazerTelaUsd().usd) },
     reescrever: { acao: 'Reescrever o texto de uma tela', usd: custoReescreverUsd().usd, creditos: CUSTO_CREDITOS.reescrever, necessarios: creditosNecessarios(custoReescreverUsd().usd) },
+    resumoManual: [4000, 12000, 24000].map((n) => ({ acao: `Resumir manual da marca (${n.toLocaleString('pt-BR')} caracteres)`, usd: custoResumoManualUsd(n).usd, creditos: custoResumoManual(n), necessarios: creditosNecessarios(custoResumoManualUsd(n).usd) })),
     leituraPdf: [1, 5, 10, 20, 40].map((n) => ({ acao: `Ler ${n} ${n === 1 ? 'página escaneada' : 'páginas escaneadas'} de PDF`, usd: custoLeituraPdfUsd(n).usd, creditos: custoLeituraPdf(n), necessarios: creditosNecessarios(custoLeituraPdfUsd(n).usd) })),
     planos: (Object.keys(PLANOS) as PlanoId[]).flatMap((id) => (['mensal', 'anual'] as const).map((c) => margemDoPlano(id, c))),
     pacotes: PACOTES_AVULSOS.map((p) => margemDoPacote(p.creditos, p.precoBRL)),
-    premissas: { CAMBIO_BRL_POR_USD, USD_POR_CREDITO, FOLGA, DEDUCOES_RECEITA, TETO_IA_SOBRE_RECEITA, DESCONTO_ANUAL, MATERIAL_CREDITOS, LEITURA_PDF_CREDITOS, CONFIG_ETAPA },
+    premissas: { CAMBIO_BRL_POR_USD, USD_POR_CREDITO, FOLGA, DEDUCOES_RECEITA, TETO_IA_SOBRE_RECEITA, DESCONTO_ANUAL, MATERIAL_CREDITOS, LEITURA_PDF_CREDITOS, MANUAL_MARCA_CREDITOS, CONFIG_ETAPA },
   }
 }

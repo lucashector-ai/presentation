@@ -1,9 +1,12 @@
 import { chromium } from 'playwright'
 import fs from 'node:fs'
 import { createCanvas, loadImage } from '@napi-rs/canvas'
+import { jsPDF } from 'jspdf'
+import { gerarManualFicticio } from '../lib/marca/fixtures/manual-ficticio.mjs'
 
 /**
- * Fluxo ponta a ponta (seção 17.2): conta → projeto → upload → editor → preview → publicar → link → convidado → revogar.
+ * Fluxo ponta a ponta (seção 17.2): conta → projeto → upload → editor → preview → publicar → link → convidado → revogar
+ * (e o Criar com IA: marca, manual da marca, material, estilos e geração).
  * Rodar com o app no ar (npm run dev, NEXT_PUBLIC_DEMO=1): npm run test:e2e
  * Outro endereço (ex.: o preview do Worker, npm run preview): E2E_BASE_URL=http://localhost:8787 npm run test:e2e
  * Capturas em e2e/capturas/ (ignoradas pelo git).
@@ -912,6 +915,64 @@ await passo('Criar com IA: briefing longo colado no painel vai inteiro; 15 telas
   if (await page.getByText(/arraste sua imagem|\[data\]|\[Nome\]/).count()) throw new Error('placeholder numa tela gerada')
   await page.screenshot({ path: `${SHOTS}/18-criar-15-telas.png`, fullPage: true })
   await page.getByText('Salvando o projeto…').waitFor({ state: 'hidden', timeout: 20000 }).catch(() => {})
+})
+
+// ---------- manual da marca (PDF fictício gerado aqui): leitura sem IA, revisão, resumo simulado, kit e telas
+const MANUAL_PDF = `${SHOTS}/manual-vela.pdf`
+fs.writeFileSync(MANUAL_PDF, gerarManualFicticio({ jsPDF, createCanvas }))
+
+await passo('Criar com IA: manual da marca (PDF) no passo da marca → cores com papéis, fontes, logo e regras reconhecidos; aplicado e salvo no kit', async () => {
+  await page.goto(`${BASE}/app/criar?prompt=${encodeURIComponent('Plano 2027 da Vela Energia para a diretoria')}&telas=6`, { waitUntil: 'networkidle' })
+  await page.getByRole('heading', { name: 'A sua marca, antes de gerar' }).waitFor()
+  await page.getByLabel('Arquivos do manual da marca').setInputFiles(MANUAL_PDF)
+  const rev = page.getByRole('region', { name: 'Revisão do manual da marca' })
+  await rev.waitFor({ timeout: 30000 })
+  if ((await rev.getByLabel('Papel da cor #0B4F8A').inputValue()) !== 'principal') throw new Error('papel principal')
+  if ((await rev.getByLabel('Papel da cor #0E1726').inputValue()) !== 'fundoEscuro') throw new Error('papel fundo escuro')
+  if ((await rev.getByRole('button', { name: /^Fonte do manual: títulos: / }).getAttribute('aria-label')) !== 'Fonte do manual: títulos: Montserrat') throw new Error('fonte títulos')
+  await rev.getByTestId('aviso-fonte-textos').getByText('Helvetica Neue', { exact: false }).waitFor()
+  await rev.getByRole('list', { name: 'Não faz' }).getByText('Não use gradientes nas cores da marca.').waitFor()
+  await rev.getByRole('list', { name: 'Tom de voz' }).getByText(/otimismo/).waitFor()
+  if (!/barato/.test(await rev.getByTestId('termos-evitar').innerText())) throw new Error('termos')
+  await rev.getByRole('button', { name: 'Usar a imagem 1 do manual como logo' }).click()
+  await page.getByAltText(/^Logo/).first().waitFor({ timeout: 15000 })
+  const antes = await saldoNoCabecalho()
+  await rev.getByRole('button', { name: /^Resumir com IA · 1 crédito/ }).click()
+  await page.getByText(/Resumo simulado \(demonstração\) · 1 crédito/).waitFor({ timeout: 15000 })
+  if (antes - (await saldoNoCabecalho()) !== 1) throw new Error(`resumo cobrou ${antes - (await saldoNoCabecalho())}`)
+  await page.screenshot({ path: `${SHOTS}/19-criar-manual-revisao.png`, fullPage: true })
+  await rev.getByRole('button', { name: 'Aplicar à marca' }).click()
+  await page.getByTestId('manual-aplicado').waitFor()
+  if ((await page.getByLabel('Código da cor 1').inputValue()).toUpperCase() !== '#0B4F8A') throw new Error('cor 1')
+  if ((await page.getByLabel('Código da cor 2').inputValue()).toUpperCase() !== '#0E1726') throw new Error('cor 2')
+  if ((await page.getByRole('button', { name: /^Fonte dos títulos: / }).getAttribute('aria-label')) !== 'Fonte dos títulos: Montserrat') throw new Error('fonte aplicada')
+  if ((await page.getByLabel('Nome da marca').inputValue()) !== 'Vela Energia') throw new Error('nome: ' + await page.getByLabel('Nome da marca').inputValue())
+  await page.getByRole('button', { name: 'Salvar como kit de marca' }).click()
+  await page.getByRole('button', { name: 'Usar o kit Vela Energia' }).waitFor()
+  await page.screenshot({ path: `${SHOTS}/19b-criar-manual-aplicado.png`, fullPage: true })
+})
+
+await passo('Criar com IA: com o manual, as telas geradas no demo usam as cores e as fontes da marca; o kit traz o manual de volta', async () => {
+  await page.getByRole('button', { name: 'Ir para revisar' }).click()
+  await page.getByRole('button', { name: 'Gerar roteiro →' }).click()
+  await page.getByText('Roteiro · 6 telas').waitFor({ timeout: 60000 })
+  await page.getByRole('button', { name: 'Gerar apresentação' }).click()
+  await page.getByText('Pronto · 6 telas').waitFor({ timeout: 90000 })
+  await page.waitForTimeout(800)
+  const r = await page.locator('[data-layer-id]').evaluateAll((els) => {
+    const fontes = new Set(); const cores = new Set()
+    for (const e of els) for (const x of [e, ...e.querySelectorAll('*')]) { const st = getComputedStyle(x); if ((x.textContent || '').trim() && x.children.length === 0) fontes.add(st.fontFamily.split(',')[0].replace(/"/g, '').trim()); cores.add(st.backgroundColor); cores.add(st.color); cores.add(st.fill) }
+    return { fontes: [...fontes], cores: [...cores] }
+  })
+  if (!r.fontes.includes('Montserrat')) throw new Error('sem Montserrat')
+  if (r.fontes.some((f) => /Geist/.test(f))) throw new Error('fonte fora da marca: ' + r.fontes)
+  if (!r.cores.includes('rgb(11, 79, 138)')) throw new Error('sem a cor principal')
+  await page.screenshot({ path: `${SHOTS}/19c-criar-manual-telas.png`, fullPage: true })
+  await page.getByText('Salvando o projeto…').waitFor({ state: 'hidden', timeout: 20000 }).catch(() => {})
+  await page.goto(`${BASE}/app/criar?prompt=${encodeURIComponent('Outra apresentação da Vela')}`, { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Usar o kit Vela Energia' }).click()
+  await page.getByTestId('manual-aplicado').waitFor()
+  await page.screenshot({ path: `${SHOTS}/19d-criar-kit-com-manual.png` })
 })
 
 await passo('AC-14 Reduced motion respeitado (animações encurtadas)', async () => {

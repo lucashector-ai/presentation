@@ -24,6 +24,7 @@ web-app (Next.js)
   editor                               components/editor, lib/editor
   shared-renderer                      components/renderer + lib/scene (schema, motor, transform, order)
   viewer (slides / story)              components/viewer
+  manual da marca (Criar com IA)       lib/marca (leitura sem IA, perfil, prompt, conferência), components/app/criar/ManualMarca.tsx
   billing + settings                   components/app/Configuracoes, lib/planos
 api (app/api)
   auth + permissions + project CRUD    projects/, lib/api/servidor.ts
@@ -37,6 +38,21 @@ infrastructure
   worker / fila                        PENDENTE (thumbnails, transcodificação) — ver §7
   telemetria + backups + CI            .github/workflows/ci.yml; restore/branches do Neon; logs estruturados por requestId
 ```
+
+### Manual da marca
+
+O passo da marca aceita o manual da marca (PDF, imagens de páginas ou slides antigos) e o design system técnico
+(tokens JSON W3C/Tokens Studio/Style Dictionary, CSS com variáveis, tema de um .pptx). A leitura é no navegador e
+sem IA (`lib/marca/extrair.ts`, `tokens.ts`, `pptx.ts`, `pdf.ts`): cores com papéis, fontes casadas com o catálogo
+do Google (a comercial vira a mais parecida, com aviso), candidatos a logo e regras. O resumo pelo Claude é
+opcional e pago (`/api/ai/marca`). A pessoa revisa e o perfil (`lib/marca/perfil.ts`) fica no kit de marca
+(`brand_kits.brand_profile`, migration 0007). Na geração, o perfil entra nos prompts do roteiro e do design dentro
+de `<manual_marca>` (dado, nunca instrução), ajusta o estilo (`lib/marca/aplicar.ts`) e a montagem garante as
+fontes e as cores da marca em todas as camadas (`lib/marca/conferir.ts`).
+
+**Prioridade:** o pedido escrito pela pessoa manda sobre o manual. Cores com hex no pedido ficam no lugar das do
+manual ao aplicar; o prompt diz ao modelo para seguir o pedido quando os dois conflitarem; a conferência das
+camadas aceita as cores que estão no tema (inclusive as do pedido).
 
 ## 3. Mapa de telas (seção 4.1)
 

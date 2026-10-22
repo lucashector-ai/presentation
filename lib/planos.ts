@@ -125,6 +125,23 @@ export function custoLeituraPdf(paginas: number): number {
   return n > 0 ? LEITURA_PDF_CREDITOS.base + n * LEITURA_PDF_CREDITOS.porPagina : 0
 }
 
+/**
+ * Manual da marca (Criar com IA, passo da marca). Ler o manual é grátis e sem IA, no navegador: PDF (texto e OCR
+ * das páginas escaneadas, até `paginasPdfImportar` páginas do plano), imagens, tokens JSON, CSS e o tema de um
+ * .pptx. O resumo opcional pelo Claude (rota /api/ai/marca) manda só os trechos do manual que falam de marca, até
+ * `maxCaracteres`, e cobra 1 crédito a cada `caracteresPorBloco` enviados (mínimo 1; conta em docs/economia-ia.md,
+ * coberta pelo teste de economia). O custo aparece antes, no botão.
+ */
+export const MANUAL_MARCA_CREDITOS = { caracteresPorBloco: 12000, creditos: 1, maxCaracteres: 24000 } as const
+/** Imagens (páginas do manual ou slides antigos) lidas de uma vez no passo da marca. */
+export const MAX_IMAGENS_MANUAL = 10
+
+/** Créditos do resumo do manual pela IA para `caracteres` de texto enviado. */
+export function custoResumoManual(caracteres: number): number {
+  const n = Math.min(Math.max(0, Math.round(caracteres)), MANUAL_MARCA_CREDITOS.maxCaracteres)
+  return Math.max(1, Math.ceil(n / MANUAL_MARCA_CREDITOS.caracteresPorBloco)) * MANUAL_MARCA_CREDITOS.creditos
+}
+
 /** Tamanho de referência usado para traduzir créditos em apresentações ("≈ 16 apresentações de 10 telas"). */
 export const TELAS_REFERENCIA = 10
 

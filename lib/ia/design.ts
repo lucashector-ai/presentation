@@ -11,6 +11,8 @@ import { desenharTelaLocal } from './desenhoLocal'
 import { dividirEnfase, numeroDe, type Estilo, type TelaDesenhada } from './montagem'
 import { RoteiroSchema, ESTILOS, type Roteiro, type TelaRoteiro } from './roteiro'
 import { DESCRICAO_TOM, TIPOS, TIPOS_PEDIDO, TONS } from './tiposApresentacao'
+import { blocoMarcaDesign } from '@/lib/marca/prompt'
+import { PerfilMarcaSchema } from '@/lib/marca/perfil'
 
 export const MAX_TELAS_POR_PEDIDO_DESIGN = 6
 
@@ -25,6 +27,8 @@ export const MarcaSchema = z.object({
   fontes: z.object({ titulo: z.string().trim().max(80), texto: z.string().trim().max(80) }).nullable().optional(),
   /** Papéis de cor (fundo claro, cartão, positivo, negativo), por exemplo os hex citados no pedido. */
   papeis: z.object({ claro: CorHex.optional(), cartao: CorHex.optional(), positivo: CorHex.optional(), negativo: CorHex.optional() }).nullable().optional(),
+  /** Perfil do manual da marca (tom, regras, paleta com papéis, tipografia por nível): entra nos prompts e na montagem. */
+  perfil: PerfilMarcaSchema.nullable().optional(),
 })
 
 export const PedidoDesignSchema = z.object({
@@ -220,7 +224,8 @@ export function mensagemDeck(p: PedidoDesign): string {
     return `${i + 1}. [${t.tipo}] ${t.rotulo ? `(${seguro(t.rotulo)}) ` : ''}${seguro(t.titulo)}${t.texto ? `\n   texto: ${seguro(t.texto)}` : ''}${itens}${direcao}`
   }).join('\n')
   const ritmo = plano.map((d, i) => `${i + 1}. ${d.variante} · fundo ${d.fundo}`).join('\n')
-  return `<briefing>\n${briefing}\n</briefing>\n\n<roteiro titulo="${seguro(p.roteiro.titulo).replace(/"/g, "'")}">\n${roteiro}\n</roteiro>\n\n<plano>\nPlano de ritmo sugerido (variante e fundo por tela):\n${ritmo}\n</plano>`
+  const manual = blocoMarcaDesign(p.marca.perfil, tema)
+  return `<briefing>\n${briefing}\n</briefing>${manual ? `\n\n${manual}` : ''}\n\n<roteiro titulo="${seguro(p.roteiro.titulo).replace(/"/g, "'")}">\n${roteiro}\n</roteiro>\n\n<plano>\nPlano de ritmo sugerido (variante e fundo por tela):\n${ritmo}\n</plano>`
 }
 
 /** Segundo bloco (varia por tela, fora do cache). */

@@ -7,6 +7,7 @@ import { COMPONENTES, TEMAS, TIPOS_TELA, regrasDe, temaPorId } from './designSys
 import { NOMES_IDIOMA, tipoEfetivo, tomEfetivo, type PedidoRoteiro } from './pedido'
 import { DESCRICAO_TOM, TIPOS, TIPOS_APRESENTACAO, arcoResumido } from './tiposApresentacao'
 import { analisarPedido, type TelaPedida } from './analisePedido'
+import { blocoMarcaRoteiro } from '@/lib/marca/prompt'
 
 const componentes = TIPOS_TELA.map((t) => {
   const c = COMPONENTES[t]
@@ -96,6 +97,9 @@ export function mensagemUsuario(p: PedidoRoteiro): string {
   }
   if (p.marca.nome) partes.push(`Marca: <marca>${seguro(p.marca.nome)}</marca>.`)
   if (p.marca.cores.length) partes.push(`Cores da marca (já aplicadas pelo design system; use estas se houver tela de paleta): ${p.marca.cores.join(', ')}.`)
+  // manual da marca (tom, termos, regras): dado da marca, com o pedido mandando quando os dois conflitam
+  const manual = blocoMarcaRoteiro(p.marca.perfil)
+  if (manual) partes.push(manual)
   if (estrutura.length) {
     const cabe = estrutura.length === p.telas
     partes.push(cabe
