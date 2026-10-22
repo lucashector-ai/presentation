@@ -454,11 +454,13 @@ await passo('Texto: corte vertical (opções de texto) deixa a caixa justa nas m
 const LOGO = `${SHOTS}/logo-aurora.svg`
 fs.writeFileSync(LOGO, '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120" width="400" height="120"><circle cx="60" cy="60" r="44" fill="#E4572E"/><rect x="38" y="38" width="44" height="44" rx="6" fill="#1F3B4D"/><rect x="130" y="34" width="250" height="22" rx="11" fill="#1F3B4D"/><rect x="130" y="66" width="160" height="22" rx="11" fill="#F2C14E"/></svg>')
 
-await passo('Criar com IA: atalho do painel (20 telas) → marca com logo, paleta do logo e kit salvo', async () => {
+/** Cartão "Criar com IA" do painel (uma linha opcional de ideia + botão). */
+const cartaoIa = () => page.locator('form', { has: page.locator('#painel-ideia') })
+
+await passo('Criar com IA: atalho do painel (ideia em uma linha) → marca com logo, paleta do logo e kit salvo', async () => {
   await page.goto(`${BASE}/app`, { waitUntil: 'networkidle' })
-  await page.locator('#painel-prompt').fill('Pitch da Aurora, startup de energia solar por assinatura para pequenos comércios')
-  await page.getByRole('radiogroup', { name: 'Telas' }).getByRole('radio', { name: '20', exact: true }).click()
-  await page.getByRole('button', { name: 'Continuar', exact: true }).click()
+  await page.locator('#painel-ideia').fill('Pitch da Aurora, startup de energia solar por assinatura para pequenos comércios')
+  await cartaoIa().getByRole('button', { name: 'Criar com IA' }).click()
   await page.waitForURL(/\/app\/criar\?/)
   await page.getByRole('heading', { name: 'A sua marca, antes de gerar' }).waitFor()
   await page.getByLabel('Arquivo do logo').setInputFiles(LOGO)
@@ -491,8 +493,11 @@ await passo('Criar com IA: material (números), galeria de estilos com filtro e 
   await galeria.getByRole('radio', { name: 'Luxo', exact: true }).click()
   await page.getByLabel('Prévia do estilo escolhido').waitFor()
   await page.getByRole('button', { name: 'Continuar →' }).click()
-  if ((await page.getByRole('radio', { name: '20 telas', exact: true }).getAttribute('aria-checked')) !== 'true') throw new Error('20 telas do atalho do painel não vieram')
+  await page.getByRole('radio', { name: '20 telas', exact: true }).click()
+  if ((await page.getByRole('radio', { name: '20 telas', exact: true }).getAttribute('aria-checked')) !== 'true') throw new Error('20 telas não selecionado')
   await page.getByRole('button', { name: 'Continuar →' }).click()
+  // a ideia escrita no cartão do painel chegou ao briefing
+  if (!/Pitch da Aurora/.test(await page.getByRole('button', { name: 'Editar briefing' }).locator('..').innerText())) throw new Error('a ideia do cartão do painel não chegou ao briefing')
   await page.getByRole('heading', { name: 'Revisar e gerar' }).waitFor()
   const resumo = await page.locator('aside').filter({ hasText: 'Total' }).innerText()
   if (!/Design de 20 telas/.test(resumo) || !/grátis/.test(resumo)) throw new Error(`resumo de custo: ${resumo}`)
@@ -529,6 +534,65 @@ await passo('Criar com IA: o kit de marca fica salvo no espaço para a próxima 
   if ((await page.getByLabel('Nome da marca').inputValue()) !== 'Aurora') throw new Error('kit não aplicou o nome')
   if ((await page.getByLabel('Código da cor 1').inputValue()).toUpperCase() !== '#E4572E') throw new Error('kit não aplicou as cores')
   await page.getByAltText(/^Logo/).first().waitFor()
+})
+
+const BRIEFING = fs.readFileSync(new URL('../lib/ia/fixtures/prompt-nexora-resultados.md', import.meta.url), 'utf8')
+
+await passo('Painel: cartão "Criar com IA" sem nada sobreposto em 390, 768, 1024 e 1440 px', async () => {
+  await page.goto(`${BASE}/app`, { waitUntil: 'networkidle' })
+  for (const w of [390, 768, 1024, 1440]) {
+    await page.setViewportSize({ width: w, height: 900 })
+    await page.waitForTimeout(200)
+    const caixa = await cartaoIa().boundingBox()
+    const filhos = await cartaoIa().evaluate((f) => [...f.querySelectorAll('h2, p, input, button, span.mono')].filter((e) => getComputedStyle(e).display !== 'none').map((e) => { const r = e.getBoundingClientRect(); return { n: e.tagName, x: r.x, y: r.y, w: r.width, h: r.height } }))
+    for (const a of filhos) {
+      if (a.x < caixa.x - 1 || a.x + a.w > caixa.x + caixa.width + 1 || a.y + a.h > caixa.y + caixa.height + 1) throw new Error(`${w}px: ${a.n} sai do cartão`)
+      for (const b of filhos) if (a !== b && Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > 1 && Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) > 1) throw new Error(`${w}px: ${a.n} sobre ${b.n}`)
+    }
+    if (await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) throw new Error(`${w}px: rolagem horizontal`)
+  }
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.screenshot({ path: `${SHOTS}/16-painel-cartao-ia.png` })
+})
+
+await passo('Criar com IA: briefing longo colado no painel vai inteiro; 15 telas, cores e estrutura reconhecidas; dados nas telas', async () => {
+  // colar um briefing longo na linha do cartão leva o texto inteiro para o editor grande (nada é cortado)
+  await page.locator('#painel-ideia').focus()
+  await page.evaluate((t) => {
+    const dt = new DataTransfer()
+    dt.setData('text/plain', t)
+    document.querySelector('#painel-ideia').dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))
+  }, BRIEFING)
+  await page.waitForURL(/\/app\/criar\?colado=1/)
+  const editor = page.locator('#criar-prompt')
+  await page.waitForFunction((n) => document.querySelector('#criar-prompt')?.value.length === n, BRIEFING.trim().length, { timeout: 10000 })
+  if (!(await page.getByText(`${BRIEFING.trim().length.toLocaleString('pt-BR')} / 30.000 caracteres`).count())) throw new Error('contador de caracteres do pedido')
+  // o editor cresce e rola: mais alto que o campo antigo, sem passar do teto
+  const alt = (await editor.boundingBox()).height
+  if (alt < 300 || alt > 660) throw new Error(`altura do editor: ${alt}`)
+  if (!(await editor.evaluate((el) => el.scrollHeight > el.clientHeight))) throw new Error('o editor deveria rolar com o briefing longo')
+  await page.getByText('Estrutura de 15 telas reconhecida no pedido').waitFor()
+  await page.screenshot({ path: `${SHOTS}/17-criar-briefing-longo.png` })
+  await page.getByRole('button', { name: 'Continuar →' }).click()
+  await page.getByRole('heading', { name: 'A sua marca, antes de gerar' }).waitFor()
+  // as cores em hex do texto viram a marca, com papéis, sem digitar de novo
+  if ((await page.getByLabel('Código da cor 1').inputValue()).toUpperCase() !== '#006BFF') throw new Error('cor principal do pedido')
+  if ((await page.getByLabel('Código da cor 2').inputValue()).toUpperCase() !== '#071A3D') throw new Error('fundo escuro do pedido')
+  await page.getByLabel('Papéis de cor do pedido').getByText('#16A765').waitFor()
+  if ((await page.getByLabel('Nome da marca').inputValue()) !== 'Nexora Soluções') throw new Error('nome da marca do pedido')
+  await nav().getByRole('button', { name: /Tamanho/ }).click()
+  if ((await page.getByRole('radio', { name: '15 telas', exact: true }).getAttribute('aria-checked')) !== 'true') throw new Error('15 telas do pedido não pré-selecionadas')
+  await page.getByRole('button', { name: 'Ir para revisar' }).click()
+  await page.getByRole('button', { name: 'Gerar roteiro →' }).click()
+  await page.getByText('Roteiro · 15 telas').waitFor({ timeout: 60000 })
+  if ((await page.getByLabel('Título da tela 15').inputValue()) !== 'O próximo resultado começa agora') throw new Error('título do encerramento pedido')
+  if ((await page.getByLabel('Tipo da tela 8').inputValue()) !== 'funil') throw new Error('a tela 8 deveria ser o funil')
+  await page.getByRole('button', { name: 'Gerar apresentação' }).click()
+  await page.getByText('Pronto · 15 telas').waitFor({ timeout: 90000 })
+  for (const t of ['↓ 41,9%  maior perda', '41,1%', '91,9%', 'Ana Souza']) await page.getByText(t, { exact: true }).first().waitFor({ timeout: 5000 })
+  if (await page.getByText(/arraste sua imagem|\[data\]|\[Nome\]/).count()) throw new Error('placeholder numa tela gerada')
+  await page.screenshot({ path: `${SHOTS}/18-criar-15-telas.png`, fullPage: true })
+  await page.getByText('Salvando o projeto…').waitFor({ state: 'hidden', timeout: 20000 }).catch(() => {})
 })
 
 await passo('AC-14 Reduced motion respeitado (animações encurtadas)', async () => {

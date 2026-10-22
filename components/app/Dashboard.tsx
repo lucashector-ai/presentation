@@ -280,7 +280,7 @@ function CriarComIARapido() {
           <h2 id="titulo-criar-ia" className="flex items-center gap-2 text-[16px] font-semibold tracking-[-0.01em]"><span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-acento" />Criar apresentação com IA</h2>
           <p className="mt-1 max-w-[520px] text-[13px] leading-snug text-texto2">Descreva a ideia ou cole um briefing completo (estrutura de telas, dados, cores e regras) na próxima tela. Você revisa o roteiro antes do design.</p>
         </div>
-        <span className="mono shrink-0 pt-1 text-[11px] text-texto3">saldo: {textoTelas(saldo)}</span>
+        <span className="mono hidden shrink-0 pt-1 text-[11px] text-texto3 sm:block">saldo: {textoTelas(saldo)}</span>
       </div>
       <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
         <label htmlFor="painel-ideia" className="sr-only">Ideia da apresentação, opcional</label>
@@ -296,7 +296,7 @@ function CriarComIARapido() {
             if (colado.length > 200 || colado.includes('\n')) { e.preventDefault(); abrir(`${ideia}${colado}`) }
           }}
           placeholder="Ideia em uma linha (opcional)"
-          className="h-11 w-full min-w-0 flex-1 rounded-full border-[1.5px] border-borda bg-white px-4 text-[15px] outline-none placeholder:text-texto3 focus:border-grafite"
+          className="h-11 w-full min-w-0 shrink-0 rounded-full border-[1.5px] border-borda bg-white px-4 text-[15px] outline-none placeholder:text-texto3 focus:border-grafite sm:w-auto sm:flex-1"
         />
         <button type="submit" className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-full border-2 border-grafite bg-violeta px-5 text-[14px] font-semibold text-white hover:bg-[#4A55E0]">
           <Sparkles className="h-4 w-4" />Criar com IA<ArrowRight className="h-4 w-4" />

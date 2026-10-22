@@ -414,10 +414,11 @@ export function CriarComIA() {
 
   // prévia da capa com a marca e o estilo atuais (marca, revisar)
   const previaCapa = useMemo(() => {
-    const t = briefing.prompt.trim() ? briefing.prompt.split(/[.,\n]/)[0]!.slice(0, 60) : 'Sua apresentação'
+    // o título da capa pedido na estrutura ("Título: …"), senão a primeira frase do pedido (sem o "| Marca")
+    const t = analise.estrutura[0]?.titulo || (briefing.prompt.trim() ? briefing.prompt.split(/[.,\n]|\s[|·—–]\s/)[0]!.slice(0, 60) : 'Sua apresentação')
     const doc = montarDocumento({ titulo: t, telas: [{ tipo: 'capa', rotulo: marcaMont.nome.slice(0, 30), titulo: t, texto: 'Proposta · 2026', itens: [], notas: '' }] }, { modo: 'slides', tema: temaEfetivo, estilo: estiloEf, marca: marcaMont, logo: logoMont })
     return doc.scenes[0]!
-  }, [briefing.prompt, temaEfetivo, estiloEf, marcaMont, logoMont])
+  }, [briefing.prompt, analise, temaEfetivo, estiloEf, marcaMont, logoMont])
   useFontesDoDocumento({ scenes: [previaCapa] })
 
   const temRoteiro = !!roteiro

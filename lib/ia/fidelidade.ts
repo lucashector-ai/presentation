@@ -19,12 +19,12 @@ export const temPreenchimento = (s: string) => new RegExp(RE_PREENCHER.source, '
 const limparCampo = (s: string) => s.replace(RE_PREENCHER, '').replace(/\s+([,.;:·])/g, '$1').replace(/([·,;:])\s*(?=[·,;:]|$)/g, '').replace(/^\s*[·,;:—–-]\s*/, '').replace(/\s{2,}/g, ' ').trim()
 const semPreenchimento = (s: string) => (temPreenchimento(s) ? s.split('|').map(limparCampo).join('|') : s)
 
-/** A tela do roteiro corresponde à tela pedida? (palavras do nome/título pedido no título ou rótulo da tela) */
-function corresponde(t: TelaRoteiro, p: TelaPedida): boolean {
-  if (p.titulo && t.titulo.trim().toLowerCase() === p.titulo.trim().toLowerCase()) return true
+/** Quanto a tela do roteiro parece a tela pedida (0 a 1; título pedido igual = 1). */
+function semelhanca(t: TelaRoteiro, p: TelaPedida): number {
+  if (p.titulo && t.titulo.trim().toLowerCase() === p.titulo.trim().toLowerCase()) return 1
   const alvo = new Set(radicais(`${t.titulo} ${t.rotulo} ${t.texto}`))
   const q = radicais(`${p.nome} ${p.titulo}`)
-  return q.length > 0 && q.filter((x) => alvo.has(x)).length / q.length >= 0.5
+  return q.length ? q.filter((x) => alvo.has(x)).length / q.length : 0
 }
 
 export function ajustarRoteiroAoPedido(r0: Roteiro, p: PedidoRoteiro, tipo: TipoApresentacao): Roteiro {
@@ -35,13 +35,19 @@ export function ajustarRoteiroAoPedido(r0: Roteiro, p: PedidoRoteiro, tipo: Tipo
   // telas a menos com estrutura explícita do tamanho pedido: encaixa as que faltam, na ordem do pedido
   if (estrutura.length === p.telas && telas.length < p.telas) {
     const locais = roteiroDaEstrutura(p.prompt, { marca: p.marca.nome })?.telas ?? []
-    const saida: TelaRoteiro[] = []
-    let j = 0
-    estrutura.forEach((e, i) => {
-      if (j < telas.length && (corresponde(telas[j]!, e) || telas.length - j >= estrutura.length - i)) saida.push(telas[j++]!)
-      else if (locais[i]) saida.push({ rotulo: '', ...locais[i]!, itens: locais[i]!.itens.slice(0, 8) } as TelaRoteiro)
-    })
-    telas = saida.slice(0, p.telas)
+    // alinhamento em ordem (todas as telas do modelo usadas, cada uma numa tela pedida): o que sobra na estrutura é o
+    // que o modelo esqueceu. Pontua a semelhança de nome/título e a capa/encerramento nas pontas.
+    const n = estrutura.length
+    const m = telas.length
+    const nota = (i: number, j: number) => semelhanca(telas[j]!, estrutura[i]!) + (telas[j]!.tipo === 'capa' && i === 0 ? 1 : 0) + (telas[j]!.tipo === 'encerramento' && i === n - 1 ? 1 : 0)
+    const f: number[][] = Array.from({ length: n + 1 }, () => Array<number>(m + 1).fill(-Infinity))
+    for (let i = 0; i <= n; i++) f[i]![0] = 0
+    for (let i = 1; i <= n; i++) for (let j = 1; j <= Math.min(i, m); j++) f[i]![j] = Math.max(f[i - 1]![j]!, f[i - 1]![j - 1]! + nota(i - 1, j - 1))
+    const usada: (number | null)[] = Array(n).fill(null)
+    for (let i = n, j = m; i > 0; i--) {
+      if (j > 0 && f[i]![j] === f[i - 1]![j - 1]! + nota(i - 1, j - 1)) { usada[i - 1] = j - 1; j-- }
+    }
+    telas = usada.map((j, i) => (j !== null ? telas[j]! : locais[i] ? ({ rotulo: '', ...locais[i]!, itens: locais[i]!.itens.slice(0, 8) } as TelaRoteiro) : null)).filter((t): t is TelaRoteiro => !!t).slice(0, p.telas)
   }
   // títulos e subtítulos dados no pedido ficam exatamente como pedidos (uma tela para cada tela pedida)
   if (estrutura.length === telas.length) {

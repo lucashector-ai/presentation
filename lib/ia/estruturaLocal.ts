@@ -115,6 +115,12 @@ function numerosNaFrase(s: string): [string, string][] {
   return saida
 }
 
+/** Forma compacta na unidade da lista: com valores em milhões, os de centenas de mil também viram "mi". */
+const compactarLista = (valores: string[]) => {
+  const emMilhoes = valores.some((v) => Math.abs(valorDe(v) ?? 0) >= 1e6)
+  return (v: string) => compactar(v, emMilhoes ? 1e5 : 1e6)
+}
+
 // ---------------------------------------------------------------- uma tela
 
 const tela = (tipo: TipoTela, rotulo: string, titulo: string, texto = '', itens: string[] = [], notas = ''): Tela => ({ tipo, rotulo, titulo, texto, itens, notas })
@@ -162,6 +168,7 @@ function montarTelaPedida(t: TelaPedida, i: number, total: number, ctx: Ctx): Te
     const bloco = acharBloco(dados, t).filter((d) => d.posicao !== null)
     if (bloco.length >= 2) {
       const colunas: string[] = []
+      const cl = compactarLista(bloco.flatMap((d) => d.valor.split(/,\s*/)))
       const linhas = bloco.map((d) => {
         const partes = d.valor.split(/,\s*/)
         const celulas = partes.map((p, k) => {
@@ -169,7 +176,7 @@ function montarTelaPedida(t: TelaPedida, i: number, total: number, ctx: Ctx): Te
           if (!vl) return p.trim()
           const [v, leg] = vl
           colunas[k] ??= leg || (/R\$/.test(v) ? 'Receita' : 'Valor')
-          return v
+          return /R\$|US\$|€/.test(v) ? cl(p.trim()) : v
         })
         return [String(d.posicao), d.rotulo, ...celulas].join('|')
       })
@@ -207,7 +214,8 @@ function montarTelaPedida(t: TelaPedida, i: number, total: number, ctx: Ctx): Te
     if (valorDe(meta) !== null && valorDe(real) !== null) {
       const analise = /an[aá]lise curta sobre (?:a |o )?([^.]+)/i.exec(t.direcao.join(' '))?.[1]
       const gap = valorDe(meta)! - valorDe(real)!
-      const texto = `${gap > 0 ? `Gap de ${formatarComo(gap, meta)} até a meta` : `Meta superada em ${formatarComo(-gap, meta)}`}.${analise ? ` Leitura: ${analise}.` : ''}`
+      // o gap e o % atingido a tela calcula e mostra; o texto fica com a leitura pedida
+      const texto = analise ? `Leitura: ${analise}.` : gap > 0 ? 'Abaixo da meta do período.' : 'Acima da meta do período.'
       return tela('comparativo', 'Meta e realizado', titulo, texto, [`Meta|${meta}`, `Realizado|${real}`], notas)
     }
   }
@@ -235,7 +243,8 @@ function montarTelaPedida(t: TelaPedida, i: number, total: number, ctx: Ctx): Te
       const texto = participacao
         ? `${maior.rotulo} responde por ${formatarPct((valorDe(maior.valor)! / soma) * 100)} do total de ${formatarComo(soma, compactar(maior.valor))}.`
         : `De ${compactar(bloco[0]!.valor)} em ${bloco[0]!.rotulo.toLowerCase()} para ${compactar(bloco[bloco.length - 1]!.valor)} em ${bloco[bloco.length - 1]!.rotulo.toLowerCase()}: ${formatarPct((valorDe(bloco[bloco.length - 1]!.valor)! / valorDe(bloco[0]!.valor)! - 1) * 100, true)} no período.`
-      return tela('grafico', participacao ? 'Segmentos' : 'Evolução', titulo, texto, bloco.map((d) => `${compactar(d.valor)}|${d.rotulo}`), notas)
+      const cl = compactarLista(bloco.map((d) => d.valor))
+      return tela('grafico', participacao ? 'Segmentos' : 'Evolução', titulo, texto, bloco.map((d) => `${cl(d.valor)}|${d.rotulo}`), notas)
     }
   }
   // plano de ação
@@ -252,7 +261,8 @@ function montarTelaPedida(t: TelaPedida, i: number, total: number, ctx: Ctx): Te
       }
       if (/menor partic|menos partic/i.test(it)) {
         const seg = dados.filter((d) => /segment/i.test(d.bloco) && valorDe(d.valor) !== null).sort((x, y) => valorDe(x.valor)! - valorDe(y.valor)!).slice(0, 2)
-        if (seg.length) return `${it}|${seg.map((d) => `${d.rotulo}: ${compactar(d.valor)}`).join(' · ')}`
+        const cl = compactarLista(dados.filter((d) => /segment/i.test(d.bloco)).map((d) => d.valor))
+        if (seg.length) return `${it}|${seg.map((d) => `${d.rotulo}: ${cl(d.valor)}`).join(' · ')}`
       }
       const d = dado(it, 0.34)
       return d ? `${it}|${d.rotulo}: ${compactar(d.valor)}` : `${it}|`

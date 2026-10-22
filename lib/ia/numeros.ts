@@ -79,11 +79,12 @@ export function formatarPct(p: number, sinal = false): string {
 
 /**
  * Forma compacta sem perder informação: "R$ 12.400.000" → "R$ 12,4 mi", "R$ 1.820.000" → "R$ 1,82 mi"; valores
- * abaixo de 1 milhão (ou que perderiam dígitos) ficam como estão.
+ * abaixo de `minimo` (1 milhão; numa lista com milhões, 100 mil, para a lista toda ficar na mesma unidade) ou que
+ * perderiam dígitos ficam como estão.
  */
-export function compactar(s: string): string {
+export function compactar(s: string, minimo = 1e6): string {
   const l = lerNumero(s)
-  if (!l || l.escala !== 1 || Math.abs(l.valor) < 1e6) return s.trim()
+  if (!l || l.escala !== 1 || Math.abs(l.valor) < minimo) return s.trim()
   const escala = Math.abs(l.valor) >= 1e9 ? 1e9 : 1e6
   const base = l.valor / escala
   const casas = [0, 1, 2, 3].find((c) => Math.abs(Number(base.toFixed(c)) - base) < 1e-9)
