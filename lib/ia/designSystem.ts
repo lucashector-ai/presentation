@@ -6,6 +6,8 @@
  */
 
 import { FONTES_APRESENTACAO } from '@/lib/design-tokens'
+import { aplicarPerfilAoTema } from '@/lib/marca/aplicar'
+import type { PerfilMarca } from '@/lib/marca/perfil'
 
 // ---------------------------------------------------------------- tipos de tela (componentes)
 
@@ -650,6 +652,8 @@ export interface Marca {
   aplicarCores?: boolean
   /** Par de fontes fixado pela marca (ausente = as fontes do estilo). */
   fontes?: { titulo: string; texto: string } | null
+  /** Perfil do manual da marca (lib/marca/perfil.ts): grafismos, densidade e faz/não faz ajustam o estilo. */
+  perfil?: PerfilMarca | null
 }
 
 /**
@@ -737,7 +741,8 @@ export function aplicarMarca(base: TemaVisual, marca: Marca | undefined): TemaVi
   if (par) t = { ...t, fontes: { ...t.fontes, titulo: par.titulo, texto: par.texto, pesoTitulo: par.pesoTitulo, italicoCitacao: par.italicoCitacao } }
   // qualquer família do Google escolhida no kit: peso e itálico do estilo (o carregador ajusta ao que a família tem)
   else if (marca.fontes?.titulo.trim() && marca.fontes.texto.trim()) t = { ...t, fontes: { ...t.fontes, titulo: marca.fontes.titulo.trim(), texto: marca.fontes.texto.trim() } }
-  return t
+  // manual da marca: grafismos, gradientes, sombras, cantos e densidade (lib/marca/aplicar.ts)
+  return marca.perfil ? aplicarPerfilAoTema(t, marca.perfil) : t
 }
 
 /** O estilo escolhido com a marca aplicada ("marca" = tema montado só das cores da marca, legado). */

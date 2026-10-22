@@ -3,6 +3,7 @@
  * devolvem o envelope { data, error, requestId }. Compartilhado entre servidor e cliente.
  */
 import { z } from 'zod'
+import { PerfilMarcaSchema } from '@/lib/marca/perfil'
 import { CenaSchema, DocumentoProjetoSchema, ModoProjetoSchema } from '@/lib/scene/schema'
 import { ehMimeTexto, MAX_BYTES_TEXTO } from '@/lib/midia/mime'
 
@@ -247,6 +248,8 @@ export const KitMarcaReq = z.object({
   logo: LogoKitSchema.nullable().default(null),
   /** Logo também discreto no rodapé das telas de conteúdo. */
   logoRodape: z.boolean().default(false),
+  /** Perfil do manual da marca (paleta com papéis, tipografia por nível, tom, regras), revisado pela pessoa. */
+  perfil: PerfilMarcaSchema.nullable().default(null),
 })
 export const KitMarcaSchema = KitMarcaReq.extend({ id: z.string(), criadoEm: z.string(), atualizadoEm: z.string() })
 export type KitMarca = z.infer<typeof KitMarcaSchema>

@@ -447,6 +447,7 @@ export const fonteReal: FonteDados = {
     texto: (pedido, sinal) => chamar(() => api.ia.texto(pedido, sinal)),
     tela: (pedido, sinal) => chamar(() => api.ia.tela(pedido, sinal)),
     pdf: (pdf, paginas, sinal) => chamar(() => api.ia.pdf(pdf, paginas, sinal)),
+    marca: (pedido, sinal) => chamar(() => api.ia.marca(pedido, sinal)),
   },
   registrarUsoIa: () => recarregar('conta'),
 

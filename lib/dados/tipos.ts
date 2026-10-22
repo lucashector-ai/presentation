@@ -13,6 +13,7 @@ import type { PedidoRoteiro, RespostaRoteiro } from '@/lib/ia/pedido'
 import type { RespostaPdf } from '@/lib/ia/pdf'
 import type { PedidoTextoSchema, RespostaTexto } from '@/lib/ia/texto'
 import type { PedidoTelaSchema, RespostaTela } from '@/lib/ia/tela'
+import type { PedidoResumoManual, RespostaResumoManual } from '@/lib/marca/resumo'
 import type { z } from 'zod'
 import type { Convite, ConviteInfoRes, EquipeRes, KitMarca, Membro, NovoKitMarca, WorkspaceItem } from '@/lib/api/contratos'
 
@@ -115,6 +116,8 @@ export interface FonteDados {
     tela(pedido: z.input<typeof PedidoTelaSchema>, sinal?: AbortSignal): Promise<RespostaTela>
     /** A IA lê as páginas escaneadas de um PDF (o PDF montado no navegador só com elas). */
     pdf(pdf: Uint8Array, paginas: number[], sinal?: AbortSignal): Promise<RespostaPdf>
+    /** A IA resume o manual da marca num perfil (os trechos e o perfil sem IA vêm do navegador). */
+    marca(pedido: PedidoResumoManual, sinal?: AbortSignal): Promise<RespostaResumoManual>
   }
   /** Depois de uma resposta da IA: demo debita o saldo fictício; real relê o saldo que a rota já debitou. */
   registrarUsoIa(uso: { custo: number; motivo: string; gerador: 'claude' | 'local'; houveResultado: boolean }): void

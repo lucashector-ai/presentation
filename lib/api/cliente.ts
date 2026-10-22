@@ -13,6 +13,7 @@ import type { PedidoDesignSchema, RespostaDesign } from '@/lib/ia/design'
 import type { RespostaPdf } from '@/lib/ia/pdf'
 import type { PedidoTextoSchema, RespostaTexto } from '@/lib/ia/texto'
 import type { PedidoTelaSchema, RespostaTela } from '@/lib/ia/tela'
+import type { PedidoResumoManual, RespostaResumoManual } from '@/lib/marca/resumo'
 
 export class ErroApiCliente extends Error {
   constructor(public code: string, message: string, public details?: unknown, public status?: number) {
@@ -79,6 +80,8 @@ export const api = {
     /** IA lê páginas escaneadas: corpo = PDF montado no navegador só com elas; `paginas` = números no original. */
     pdf: (pdf: Uint8Array, paginas: number[], sinal?: AbortSignal) =>
       chamar<RespostaPdf>(`/api/ai/pdf?paginas=${paginas.join(',')}`, { method: 'POST', body: new Blob([new Uint8Array(pdf)], { type: 'application/pdf' }), headers: { 'content-type': 'application/pdf' }, signal: sinal }),
+    /** Resumo do manual da marca (trechos já filtrados no navegador + o perfil lido sem IA). */
+    marca: (b: PedidoResumoManual, sinal?: AbortSignal) => chamar<RespostaResumoManual>('/api/ai/marca', { method: 'POST', body: JSON.stringify(b), signal: sinal }),
   },
   projetos: {
     listar: (q: { q?: string; status?: 'all' | 'draft' | 'published' | 'archived' | 'trash'; cursor?: string; limit?: string } = {}) => chamar<{ items: ProjetoResumo[]; nextCursor: string | null; total: number }>(`/api/projects?${new URLSearchParams(q as Record<string, string>)}`),

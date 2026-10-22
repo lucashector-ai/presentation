@@ -4,6 +4,9 @@
  *   se o modelo devolveu telas a menos, as que faltam entram no lugar certo, montadas dos dados do pedido;
  * - nada de campos para preencher ("[data]", "[Nome]") nem de telas de imagem sem foto quando o pedido não tem
  *   imagens; nada de paleta/tipografia fora de identidade visual.
+ * A mesma conferência vale para o design: com o manual da marca aplicado, `garantirMarcaNasCamadas`
+ * (lib/marca/conferir.ts, chamado no fim de `montarDocumento`) garante as fontes e as cores da marca em todas as
+ * camadas geradas, pela IA ou pelo desenho local.
  * Puro: sem rede, sem DOM.
  */
 import { analisarPedido, type TelaPedida } from './analisePedido'
@@ -71,3 +74,5 @@ export function ajustarRoteiroAoPedido(r0: Roteiro, p: PedidoRoteiro, tipo: Tipo
   })
   return RoteiroSchema.parse({ titulo: semPreenchimento(r0.titulo) || r0.titulo, telas })
 }
+
+export { garantirMarcaNasCamadas } from '@/lib/marca/conferir'
