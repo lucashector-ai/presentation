@@ -321,7 +321,10 @@ export function Viewer(props: ViewerProps) {
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
       onClick={cliqueFundo}
-      style={{ background: modo === 'story' ? '#111' : cena?.background ?? '#000', transition: `background ${duracao}ms` }}
+      // nos slides o fundo da raiz fica escondido atrás das telas (o fundo estendido cobre as faixas): sem transição
+      // de cor nele — ela repintava a área inteira a cada quadro durante a troca de tela. No Explorar ele aparece
+      // em volta do mapa e acompanha a tela atual.
+      style={{ background: modo === 'story' ? '#111' : cena?.background ?? '#000', transition: modo === 'explorar' ? `background ${duracao}ms` : undefined }}
     >
       <div ref={anuncio} className="sr-only" aria-live="polite" />
 
@@ -331,7 +334,9 @@ export function Viewer(props: ViewerProps) {
         aria-hidden={pronto || undefined}
         style={{ opacity: pronto ? 0 : 1, visibility: pronto ? 'hidden' : 'visible', transition: `opacity ${SUMIR_CARREGAMENTO_MS}ms ease, visibility 0s linear ${SUMIR_CARREGAMENTO_MS}ms`, pointerEvents: pronto ? 'none' : undefined }}
       >
-        <Marca className="animate-pulse text-[28px]" />
+        {/* o pulso só enquanto carrega: escondida, a animação infinita seguia rodando na thread principal (não é
+            composta num elemento invisível) e mantinha o ciclo de quadros acordado durante toda a apresentação */}
+        <Marca className={pronto ? 'text-[28px]' : 'animate-pulse text-[28px]'} />
         <p className="text-sm text-white/60">Preparando apresentação…</p>
       </div>
 
