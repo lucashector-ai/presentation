@@ -11,6 +11,7 @@ import type { Cena, DocumentoProjeto } from '@/lib/scene/schema'
 import { SceneRenderer, type AssetsResolvidos } from '@/components/renderer/SceneRenderer'
 import { carregarFontes, fontesDoDocumento } from '@/components/renderer/fontes'
 import { escalaSegura, paginaPdf, type FormatoImagem } from './medidas'
+import { prepararMascaras } from '@/lib/scene/mascaraRecursos'
 
 export interface OpcoesRaster {
   escala: number
@@ -55,6 +56,8 @@ export async function rasterizarCena(cena: Cena, assets: AssetsResolvidos, { esc
   document.body.appendChild(host)
   const raiz = createRoot(host)
   try {
+    // máscaras de texto/imagem: fontes e arquivos embutidos prontos antes do primeiro render
+    await prepararMascaras(cena.layers, assets)
     flushSync(() => raiz.render(<SceneRenderer cena={cena} assets={originais(assets)} escala={1} modo="miniatura" />))
     const alvo = host.firstElementChild as HTMLElement | null
     if (!alvo) throw new Error('Nada para exportar.')

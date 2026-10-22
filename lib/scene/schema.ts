@@ -347,6 +347,10 @@ export const AutoLayoutSchema = z.object({
 })
 export type AutoLayout = z.infer<typeof AutoLayoutSchema>
 
+/** Tipos de máscara (painel "Tipo de máscara": Alfa · Contorno · Luminância). */
+export const TIPOS_MASCARA = ['alpha', 'outline', 'luminance'] as const
+export type TipoMascara = (typeof TIPOS_MASCARA)[number]
+
 const CamadaBase = z.object({
   id: IdSchema,
   name: z.string().max(80).optional(),
@@ -397,8 +401,19 @@ const CamadaBase = z.object({
   cornerSmoothing: z.number().min(0).max(1).optional(),
   /** Restrições em relação ao pai (frame sem auto layout ou a tela). Ausente = esquerda/topo. */
   constraints: RestricoesSchema.optional(),
-  /** Camada recortada pela forma-máscara `maskId` (uma forma com `isMask` acima dela). */
+  /** Camada recortada pela máscara `maskId` (uma camada com `isMask` abaixo dela). */
   maskId: IdSchema.optional(),
+  /**
+   * Camada usada como máscara (⌃⌘M, como "Use as mask" do Figma): não é desenhada; recorta as camadas com
+   * `maskId` igual ao seu id. Formas, textos, imagens e SVG. Aditivo (antes só existia em formas).
+   */
+  isMask: z.boolean().optional(),
+  /**
+   * Tipo de máscara (como no Figma): `alpha` = usa a transparência da camada (e a opacidade); `outline` = só a
+   * silhueta, opaca; `luminance` = claro mostra, escuro esconde. Ausente = `outline` nas formas (como as
+   * máscaras antigas) e `alpha` nos demais tipos. Ver lib/scene/mascara.ts (`tipoMascara`).
+   */
+  maskType: z.enum(TIPOS_MASCARA).optional(),
 })
 
 export const EncaixeSchema = z.enum(['contain', 'cover', 'fill'])
@@ -557,8 +572,6 @@ export const CamadaFormaSchema = CamadaBase.extend({
   pattern: z.enum(['none', 'stripes', 'dots', 'grid']).default('none'),
   /** Caminho editável (aditivo). Com `shape: 'path'` o renderizador desenha este caminho. */
   vetor: VetorSchema.optional(),
-  /** Forma usada como máscara: não é desenhada; recorta as camadas com `maskId` igual ao seu id. */
-  isMask: z.boolean().optional(),
   /** Polígono: número de lados; estrela: número de pontas (ausente = 3 no polígono, 5 na estrela). */
   count: z.number().int().min(3).max(60).optional(),
   /** Estrela: raio interno em fração do externo (ausente = 0,4). */

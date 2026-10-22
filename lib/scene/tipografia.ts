@@ -202,6 +202,16 @@ export function aplicarEstilo(el: HTMLElement, estilo: CSSProperties): void {
   }
 }
 
+/** Objeto de estilo do React → texto CSS para o atributo `style` (números viram px, como no React). */
+export function estiloParaCss(estilo: CSSProperties): string {
+  const partes: string[] = []
+  for (const [k, v] of Object.entries(estilo)) {
+    if (v === undefined || v === null || v === '') continue
+    partes.push(`${kebab(k)}:${typeof v === 'number' && !SEM_UNIDADE.has(k) ? `${v}px` : String(v)}`)
+  }
+  return partes.join(';')
+}
+
 /** Monta o corpo do texto no DOM (filhos do medidor), igual ao que o renderizador desenha. */
 export function montarCorpo(doc: Document, c: CamadaTexto): HTMLElement {
   const t = corpoTexto(c)

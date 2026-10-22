@@ -7,6 +7,7 @@ import { serializarCamadas } from '@/lib/importar/clipboard'
 import { CUSTO_CREDITOS } from '@/lib/planos'
 import { abrirIA } from './ia/PainelIA'
 import { abrirPreencher } from './PreencherGrade'
+import { serveDeMascara } from '@/lib/scene/mascara'
 
 interface Item { rotulo: string; atalho?: string; acao: () => void; desativado?: boolean; perigo?: boolean }
 
@@ -58,7 +59,7 @@ export function MenuContexto({ editor, x, y, aoFechar, avisar }: { editor: Edito
     [
       { rotulo: 'Preencher…', atalho: '⌃⌥', desativado: !tem, acao: () => abrirPreencher(x, y) },
       { rotulo: 'Editar vetor', atalho: '↵', desativado: !(sel.length === 1 && (sel[0]!.type === 'shape' || sel[0]!.type === 'svg') && !sel[0]!.locked), acao: () => window.dispatchEvent(new CustomEvent('mostra:editar-vetor', { detail: { id: ids[0] } })) },
-      { rotulo: sel.some((l) => (l.type === 'shape' && l.isMask) || l.maskId) ? 'Remover máscara' : 'Usar como máscara', atalho: '⌃⌘M', desativado: !(sel.some((l) => (l.type === 'shape' && l.isMask) || l.maskId) || (sel.length >= 2 && sel.some((l) => l.type === 'shape' && l.shape !== 'line' && l.shape !== 'arrow'))), acao: () => acoes.alternarMascara(ids) },
+      { rotulo: sel.some((l) => l.isMask || l.maskId) ? 'Remover máscara' : 'Usar como máscara', atalho: '⌃⌘M', desativado: !(sel.some((l) => l.isMask || l.maskId) || (sel.length >= 2 && sel.some(serveDeMascara))), acao: () => acoes.alternarMascara(ids) },
     ],
     [
       { rotulo: textoSelecionado ? '✦ Reescrever texto com IA' : '✦ Reescrever textos da tela', atalho: `${CUSTO_CREDITOS.reescrever} cr`, desativado: !temTexto, acao: () => abrirIA('texto') },

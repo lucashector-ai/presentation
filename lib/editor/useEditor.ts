@@ -141,7 +141,9 @@ export function clonarCamadas(camadas: Camada[], existentes: { id: string }[], d
     const groupId = c.groupId ? (grupos.get(c.groupId) ?? (grupos.set(c.groupId, novoId('grupo', usados)), grupos.get(c.groupId))) : undefined
     const interactions = c.interactions.map((it) => (it.do.action === 'toggleLayer' || it.do.action === 'animate' || it.do.action === 'toggleVideo') && mapa.has(it.do.targetLayerId) ? ({ ...it, do: { ...it.do, targetLayerId: mapa.get(it.do.targetLayerId)! } } as Interacao) : it)
     const parentId = c.parentId ? (mapa.get(c.parentId) ?? c.parentId) : undefined
-    return { ...structuredClone(c), id: mapa.get(c.id)!, groupId, parentId, interactions, x: c.x + deslocamento, y: c.y + deslocamento, z: 100_000 + i }
+    // máscara copiada junto: as cópias recortadas apontam para a cópia da máscara
+    const maskId = c.maskId ? (mapa.get(c.maskId) ?? c.maskId) : undefined
+    return { ...structuredClone(c), id: mapa.get(c.id)!, groupId, parentId, maskId, interactions, x: c.x + deslocamento, y: c.y + deslocamento, z: 100_000 + i }
   })
 }
 

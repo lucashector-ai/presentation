@@ -215,6 +215,8 @@ interface Interna extends Geom {
   svg?: { conteudo: string; doc: DocSvg; vb: Caixa; extra?: M }
   imagem?: { bytes: Uint8Array; mime: string }
   imagemFaltando?: boolean
+  /** Índice (em `saida`) da camada-máscara que recorta esta camada. */
+  mascara?: number
 }
 
 interface Estado {
@@ -849,6 +851,39 @@ class Conversor {
     }
   }
 
+  /**
+   * Irmãos de baixo para cima. Um nó `mask` (como no Figma) recorta os irmãos acima dele: vira uma camada com
+   * `isMask` + `maskType` (forma, texto, imagem ou vetor) e as camadas geradas pelos irmãos ganham `maskId`.
+   */
+  private filhosComMascaras(filhos: No[], est: Estado) {
+    let mascara: number | undefined
+    for (const f of filhos) {
+      if (f.nc.mask && visivel(f.nc)) {
+        const antes = this.saida.length
+        this.no({ ...f, nc: { ...f.nc, mask: false } }, est)
+        const novas = this.saida.slice(antes)
+        const tipo = novas[0]?.props.type
+        const serve = novas.length === 1 && (tipo === 'text' || tipo === 'image' || tipo === 'svg' || (tipo === 'shape' && novas[0]!.props.shape !== 'line' && novas[0]!.props.shape !== 'arrow' && !novas[0]!.imagemFaltando))
+        if (serve) {
+          const m = novas[0]!
+          m.props.isMask = true
+          m.props.maskType = f.nc.maskType === 'LUMINANCE' ? 'luminance' : f.nc.maskType === 'OUTLINE' ? 'outline' : 'alpha'
+          if (mascara !== undefined) this.ctx.avisos.add('Máscaras do Figma dentro de outras máscaras ficaram só com a de dentro.')
+          mascara = antes
+        } else {
+          // máscara que vira várias camadas (texto com vários estilos, grupo): a Mostra não mascara com elas
+          this.saida.length = antes
+          this.ctx.avisos.add('Máscaras do Figma em frames com texto foram aproximadas.')
+          mascara = undefined
+        }
+        continue
+      }
+      const antes = this.saida.length
+      this.no(f, est)
+      if (mascara !== undefined) for (const i of this.saida.slice(antes)) i.mascara ??= mascara
+    }
+  }
+
   no(no: No, est: Estado) {
     const nc = no.nc
     if (!visivel(nc)) return
@@ -877,7 +912,7 @@ class Conversor {
       }
       const estFilhos: Estado = { W, opacidade: est.opacidade * (nc.opacity ?? 1), recorte, raiz: est.raiz }
       // contorno do frame fica por cima dos filhos no Figma; aqui o fundo leva o contorno (aproximação)
-      for (const f of no.filhos) this.no(f, estFilhos)
+      this.filhosComMascaras(no.filhos, estFilhos)
       return
     }
     if (tipo === 'RECTANGLE' || tipo === 'ROUNDED_RECTANGLE') return this.forma(no, est, W, 'rect')
@@ -976,6 +1011,7 @@ export function converterMensagem(msg: MensagemFigma, opcoes: OpcoesConversao): 
       z: n,
       ...(i.espelhoX ? { flipX: true } : {}),
       ...((porRaiz.get(i.raiz) ?? 0) > 1 ? { groupId: `figmagrupo-${i.raiz + 1}` } : {}),
+      ...(i.mascara !== undefined ? { maskId: `figma-${i.mascara + 1}` } : {}),
     }
     if (camada.type === 'text') camada.fontSize = limitar(Math.round((camada.fontSize as number) * 100) / 100, 6, 800)
     return { camada, ...(i.imagem ? { imagem: i.imagem } : {}), ...(i.imagemFaltando ? { imagemFaltando: true } : {}) }
