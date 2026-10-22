@@ -7,7 +7,7 @@
  * Morph: quando `morphDe` é passado, camadas com o mesmo nome (ou ID) na tela anterior começam com a
  * geometria/cor antiga e animam até a nova.
  */
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { Animacao, Camada, Cena, Interacao, CamadaTexto } from '@/lib/scene/schema'
 import { EASING_CSS, camadaVisivel, interacoesDe, type EstadoRuntime } from '@/lib/scene/motor'
 import { ordenarParaRender } from '@/lib/scene/order'
@@ -84,7 +84,12 @@ export function chaveMorph(c: Camada): string {
   return c.name?.trim() ? `n:${c.name.trim().toLowerCase()}` : `i:${c.id}`
 }
 
-export function SceneRenderer(props: SceneRendererProps) {
+/**
+ * Memorizado: quem o usa re-renderiza por outros motivos (o visualizador ao tirar a tela que saiu do DOM, ao
+ * trocar o estado dos controles) e a tela com as entradas tocando não precisa ser reconciliada de novo — com
+ * texto dividido isso eram centenas de partes no meio da animação.
+ */
+export const SceneRenderer = memo(function SceneRenderer(props: SceneRendererProps) {
   // prévia do inspetor: no editor, toca entradas/saídas/transição sem sair do modo de edição
   const previa = usePreviaAnimacao(props.modo === 'editor')
   const tr = previa?.transicao
@@ -93,7 +98,7 @@ export function SceneRenderer(props: SceneRendererProps) {
     return <CenaRender key={`pv-${previa.nonce}`} {...props} previa={previa} morphDe={morph ? previa.morphDe : undefined} morphDuracao={tr.duration} morphEasing={EASING_CSS[tr.easing]} classeTransicao={morph ? undefined : `cena-transicao-${tr.type === 'morph' ? 'fade' : tr.type}`} />
   }
   return <CenaRender {...props} previa={previa} />
-}
+})
 
 function CenaRender(props: PropsInternas) {
   const { cena, assets, escala, modo, children, className, style, morphDe, classeTransicao, sangria } = props

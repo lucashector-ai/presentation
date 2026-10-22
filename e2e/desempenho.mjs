@@ -410,6 +410,8 @@ const CENARIOS = [
 const browser = await chromium.launch()
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'pt-BR' })
 const page = await ctx.newPage()
+// diagnóstico: script injetado em toda página antes do app (ex.: ligar um modo alternativo para comparar)
+if (process.env.DESEMPENHO_JS) await page.addInitScript(process.env.DESEMPENHO_JS)
 const erros = []
 page.on('pageerror', (e) => erros.push(e.message))
 
