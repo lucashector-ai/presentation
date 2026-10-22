@@ -114,8 +114,10 @@ export function quandoLiberar(el: Element, aoLiberar: () => void): () => void {
   return () => mo.disconnect()
 }
 
-/** Quanto antes do início cada parte do texto ganha a sua animação (um pouco mais que um quadro). */
+/** Folga entre a parte ganhar a animação e começar a se mover (um pouco mais que um quadro). */
 const ANTECEDENCIA_MS = 40
+/** Grade de tempo dos lotes de animações das partes (ver o efeito das partes em TextoDividido). */
+const LOTE_MS = 100
 
 /**
  * Estado de espera das partes (o 1º quadro de cada conjunto de keyframes) como variáveis CSS do bloco: a regra
@@ -249,12 +251,12 @@ function TextoDividido({ texto, animacao, gradiente, cor }: { texto: string; ani
 
   // Partes animadas pela Web Animations API (keyframes resolvidos, um conjunto para todas): sem eventos de
   // animação por parte e fora do recálculo das animações CSS. Início escalonado: cada parte só ganha a sua
-  // animação ~um quadro antes de começar (com o relógio de todas, `startTime` comum, o tempo é exato) e a perde
-  // quando termina (sem preenchimento para a frente: volta ao estilo parado, que é o último quadro). Até lá ela
-  // espera no 1º quadro por CSS (`data-espera` + variáveis `--seg-de-*`), sem camada própria. Antes TODAS as
-  // partes viravam camadas compostas desde o início (inclusive as que esperavam o atraso) e cada quadro refazia
-  // a composição de ~100 camadas; agora só as que estão em movimento. Com "repetir", cada parte anima dentro do
-  // ciclo da entrada inteira (a sequência toda repete).
+  // animação pouco antes de começar (com o relógio de todas, `startTime` comum, o tempo é exato) e a perde logo
+  // depois de terminar (o último quadro é o estilo parado). Até lá ela espera no 1º quadro por CSS
+  // (`data-espera` + variáveis `--seg-de-*`), sem camada própria. Antes TODAS as partes viravam camadas
+  // compostas desde o início (inclusive as que esperavam o atraso) e cada quadro refazia a composição de ~100
+  // camadas; agora só as que estão em movimento. Com "repetir", cada parte anima dentro do ciclo da entrada
+  // inteira (a sequência toda repete).
   const quadros = useMemo(() => quadrosDasPartes(animacao, n), [animacao, n])
   const assinatura = JSON.stringify(quadros)
   const repetir = inline ? 1 : Math.max(1, animacao.repeat ?? 1)
@@ -268,14 +270,15 @@ function TextoDividido({ texto, animacao, gradiente, cor }: { texto: string; ani
       return
     }
     const conjuntos = JSON.parse(assinatura) as Keyframe[][]
+    const fim = (p: HTMLElement) => (repetir > 1 ? animacao.delay + animacao.duration * repetir : Number(p.dataset.t ?? 0) + Math.max(1, Number(p.dataset.d ?? 0)))
     const criar = (p: HTMLElement, inicio?: number): Animation[] => {
       const t = Number(p.dataset.t ?? 0)
       const d = Math.max(1, Number(p.dataset.d ?? 0))
       p.removeAttribute('data-espera')
       return conjuntos.map((q) => {
         const a = repetir > 1
-          ? p.animate(quadrosNoCiclo(q, (t - animacao.delay) / animacao.duration, d / animacao.duration, curva), { duration: animacao.duration, delay: animacao.delay, iterations: repetir, easing: 'linear', fill: 'backwards' })
-          : p.animate(q, { duration: d, delay: t, easing: curva, fill: 'backwards' })
+          ? p.animate(quadrosNoCiclo(q, (t - animacao.delay) / animacao.duration, d / animacao.duration, curva), { duration: animacao.duration, delay: animacao.delay, iterations: repetir, easing: 'linear', fill: 'both' })
+          : p.animate(q, { duration: d, delay: t, easing: curva, fill: 'both' })
         if (inicio !== undefined) a.startTime = inicio
         return a
       })
@@ -286,27 +289,48 @@ function TextoDividido({ texto, animacao, gradiente, cor }: { texto: string; ani
       return () => todas.forEach((a) => a.cancel())
     }
     const fila = partes.map((p) => ({ p, t: Number(p.dataset.t ?? 0) })).sort((a, b) => a.t - b.t)
-    const vivas: Animation[] = []
+    const vivas: { fim: number; anims: Animation[] }[] = []
     let inicio = 0
     let prox = 0
     let raf = 0
+    let marco = -1
     // máquina de escrever e decodificar: a letra só aparece (sem movimento) — basta tirar a espera no quadro em que
     // ela começa; nenhuma animação por letra (o cursor, uma animação só, segue o mesmo relógio)
     const seca = inline
+    // Em lotes, numa grade de tempo comum a todos os textos da página (LOTE_MS): cada parte ganha a animação no
+    // último marco antes de começar e a perde no 1º marco depois de terminar. Cada camada composta que nasce ou
+    // some obriga o navegador a refazer a composição da página inteira naquele quadro; parte a parte, com
+    // vários blocos de texto, isso acontecia em quase todo quadro. Na grade, ~10 vezes por segundo.
+    const processar = (agora: number, forcar: boolean) => {
+      const m = Math.floor(agora / LOTE_MS)
+      if (!forcar && m === marco) return
+      marco = m
+      const ate = (m + 1) * LOTE_MS + ANTECEDENCIA_MS
+      while (prox < fila.length && inicio + fila[prox]!.t <= ate) {
+        const p = fila[prox++]!.p
+        vivas.push({ fim: inicio + fim(p), anims: criar(p, inicio) })
+      }
+      for (let i = vivas.length - 1; i >= 0; i--) {
+        if (vivas[i]!.fim > agora) continue
+        vivas[i]!.anims.forEach((a) => a.cancel())
+        vivas.splice(i, 1)
+      }
+    }
     const tique = () => {
       const agora = Number(document.timeline.currentTime ?? performance.now())
       if (seca) while (prox < fila.length && inicio + fila[prox]!.t <= agora) fila[prox++]!.p.removeAttribute('data-espera')
-      else while (prox < fila.length && inicio + fila[prox]!.t - ANTECEDENCIA_MS <= agora) vivas.push(...criar(fila[prox++]!.p, inicio))
-      raf = prox < fila.length ? requestAnimationFrame(tique) : 0
+      else processar(agora, false)
+      raf = prox < fila.length || vivas.length ? requestAnimationFrame(tique) : 0
     }
     const parar = quandoLiberar(el, () => {
       inicio = Number(document.timeline.currentTime ?? performance.now())
+      if (!seca) processar(inicio, true)
       tique()
     })
     return () => {
       parar()
       cancelAnimationFrame(raf)
-      vivas.forEach((a) => a.cancel())
+      vivas.forEach((v) => v.anims.forEach((a) => a.cancel()))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assinatura, linhas, palavras, porLinha, repetir, curva, animacao.delay, animacao.duration, duracaoParte, passo])
