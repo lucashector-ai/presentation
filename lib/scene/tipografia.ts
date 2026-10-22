@@ -62,6 +62,27 @@ export function corteVertical(c: Fonte): { topo: number; base: number } {
 
 const arred = (v: number) => Math.round(v * 100) / 100
 
+/**
+ * Quanto as letras passam da caixa (px) em cima e embaixo, pelas métricas da fonte: a área de conteúdo
+ * (ascendente + descendente) que não cabe na entrelinha — com entrelinha 1,0 na Geist, .15em de cada lado —, mais
+ * o que o corte vertical tirou. Usado para exportar a camada de texto sem cortar acentos e descendentes.
+ */
+export function tintaAlemDaCaixa(c: Fonte): { topo: number; base: number } {
+  const m = metricasDaFonte(c.fontFamily)
+  const extra = Math.max(0, ((m.ascent + m.descent) * c.fontSize - c.lineHeight * c.fontSize) / 2)
+  const k = corteVertical(c)
+  return { topo: arred(k.topo + extra), base: arred(k.base + extra) }
+}
+
+/**
+ * Folga (px) para a tinta das letras passar da caixa onde algo PRECISA recortar o texto (animações que revelam,
+ * área de edição): com entrelinha 1,0 a tinta passa ~.15em da linha (ascendente + descendente ≈ 1,3em) e os
+ * acentos das maiúsculas um pouco mais; .35em cobre as fontes da biblioteca até entrelinha ~0,8.
+ */
+export function folgaTinta(c: Pick<CamadaTexto, 'fontSize'>): number {
+  return Math.ceil(c.fontSize * 0.35)
+}
+
 /** Parágrafos (linhas separadas por Enter) quando a camada precisa deles; null = texto corrido (o caso comum). */
 export function paragrafosDe(c: Pick<CamadaTexto, 'text' | 'listStyle' | 'paragraphSpacing'>): string[] | null {
   const lista = !!c.listStyle && c.listStyle !== 'none'
@@ -131,8 +152,9 @@ export function estiloCaixaTexto(c: CamadaTexto): CSSProperties {
     flexDirection: 'column',
     justifyContent: c.valign === 'middle' ? 'center' : c.valign === 'bottom' ? 'flex-end' : 'flex-start',
     padding: c.padding,
-    // com corte vertical as letras passam da caixa (acentos em cima, descendentes embaixo), como no Figma
-    overflow: c.leadingTrim === 'cap' && !trunca ? 'visible' : 'hidden',
+    // as letras podem passar da caixa (acentos em cima, descendentes embaixo, itálico de lado), como no Figma:
+    // com entrelinha justa (≤ 1,2) a tinta da fonte é maior que a linha. Só "Truncar texto" corta.
+    overflow: trunca ? 'hidden' : 'visible',
     fontFamily: pilhaFonte(c.fontFamily),
     fontWeight: c.fontWeight,
     fontStyle: c.italic ? 'italic' : undefined,

@@ -31,7 +31,8 @@ const FERRAMENTAS: { id: FerramentaVetor; rotulo: string; tecla: string; dica: s
 ]
 const TECLAS: Record<string, FerramentaVetor> = { KeyV: 'mover', KeyQ: 'laco', KeyP: 'caneta', KeyB: 'curvar', KeyX: 'cortar', KeyE: 'apagar' }
 
-const ACENTO = 'rgb(89 101 242)'
+// cor da seleção do canvas (azul sólido, ver COR_SELECAO em GuiasCanvas.tsx)
+const ACENTO = 'rgb(var(--cor-selecao))'
 type Caixa = Pick<Camada, 'id' | 'x' | 'y' | 'width' | 'height' | 'rotation' | 'flipX' | 'flipY'>
 
 type Acerto =
@@ -553,7 +554,7 @@ export function EditorVetor({ editor, camadaId, vp, ferramentaInicial = 'mover',
       <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" aria-hidden>
         {camada && v && (
           <>
-            {regiaoPintar && <path d={regiaoPintar} fill="rgb(89 101 242 / .18)" fillRule="nonzero" stroke="none" />}
+            {regiaoPintar && <path d={regiaoPintar} fill="rgb(var(--cor-selecao) / .18)" fillRule="nonzero" stroke="none" />}
             <path d={caminhoTela(v, camada)} fill="none" stroke={ACENTO} strokeWidth={1.5} data-testid="contorno-vetor" />
             {hoverSeg && ferramenta !== 'pintar' && (
               <path d={`M${hoverSeg.p0.x} ${hoverSeg.p0.y} C${hoverSeg.p1.x} ${hoverSeg.p1.y} ${hoverSeg.p2.x} ${hoverSeg.p2.y} ${hoverSeg.p3.x} ${hoverSeg.p3.y}`} fill="none" stroke={ferramenta === 'apagar' ? 'rgb(var(--cor-guia))' : ACENTO} strokeWidth={3.5} strokeLinecap="round" strokeDasharray={ferramenta === 'cortar' ? '4 3' : undefined} />
@@ -581,8 +582,8 @@ export function EditorVetor({ editor, camadaId, vp, ferramentaInicial = 'mover',
           </>
         )}
         {pontaCaneta && cursor && <line x1={pontaCaneta.x} y1={pontaCaneta.y} x2={cursor.x} y2={cursor.y} stroke={ACENTO} strokeWidth={1} strokeDasharray="4 3" />}
-        {g?.tipo === 'area' && g.moveu && <rect x={Math.min(g.inicio.x, g.atual.x)} y={Math.min(g.inicio.y, g.atual.y)} width={Math.abs(g.atual.x - g.inicio.x)} height={Math.abs(g.atual.y - g.inicio.y)} fill="rgb(89 101 242 / .08)" stroke={ACENTO} strokeWidth={1} />}
-        {g?.tipo === 'laco' && g.pontos.length > 1 && <polygon points={g.pontos.map((p) => `${p.x},${p.y}`).join(' ')} fill="rgb(89 101 242 / .08)" stroke={ACENTO} strokeWidth={1} strokeDasharray="4 3" />}
+        {g?.tipo === 'area' && g.moveu && <rect x={Math.min(g.inicio.x, g.atual.x)} y={Math.min(g.inicio.y, g.atual.y)} width={Math.abs(g.atual.x - g.inicio.x)} height={Math.abs(g.atual.y - g.inicio.y)} fill="rgb(var(--cor-selecao) / .08)" stroke={ACENTO} strokeWidth={1} />}
+        {g?.tipo === 'laco' && g.pontos.length > 1 && <polygon points={g.pontos.map((p) => `${p.x},${p.y}`).join(' ')} fill="rgb(var(--cor-selecao) / .08)" stroke={ACENTO} strokeWidth={1} strokeDasharray="4 3" />}
       </svg>
       <GuiasCanvas s={{ guias, espacos: [], medidas: [] }} paraTela={paraTela} />
 

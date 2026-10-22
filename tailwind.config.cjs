@@ -17,6 +17,7 @@ module.exports = {
         acentoSuave: 'rgb(var(--cor-acento-suave) / <alpha-value>)',
         aviso: 'rgb(var(--cor-aviso) / <alpha-value>)',
         guia: 'rgb(var(--cor-guia) / <alpha-value>)',
+        selecao: 'rgb(var(--cor-selecao) / <alpha-value>)',
         canvas: 'rgb(var(--cor-canvas) / <alpha-value>)',
         // paleta da marca (pares fundo + tinta)
         argila: '#EEE7DB', carvao: '#2B1D16', terracota: '#B4532A', mare: '#1F3B4D', coral: '#E4572E',

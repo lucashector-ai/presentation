@@ -55,9 +55,9 @@ describe('parâmetros: ajustes', () => {
     expect(cssDaAnimacao(anim({ type: 'unfold' }), false).vars).toMatchObject({ '--anim-sx': 1, '--anim-sy': 0, '--anim-oy': '-50%' })
   })
   it('cortina: o lado para onde ela anda vai de 100% a 0 (saída: o lado de trás de 0 a 100%)', () => {
-    expect(cssDaAnimacao(anim({ type: 'reveal' }), false).vars).toMatchObject({ '--clip-de': 'inset(-50% 100% -50% -50%)', '--clip-ate': 'inset(-50% 0% -50% -50%)' })
+    expect(cssDaAnimacao(anim({ type: 'reveal' }), false).vars).toMatchObject({ '--clip-de': 'inset(-50% 100% -50% -50%)', '--clip-ate': 'inset(-50% calc(0% - var(--clip-folga, 0px)) -50% -50%)' })
     expect(cssDaAnimacao(anim({ type: 'reveal', direction: 'up' }), false).vars['--clip-de']).toBe('inset(100% -50% -50% -50%)')
-    expect(cssDaAnimacao(anim({ type: 'wipeOut' }), false).vars).toMatchObject({ '--clip-de': 'inset(-50% -50% -50% 0%)', '--clip-ate': 'inset(-50% -50% -50% 100%)' })
+    expect(cssDaAnimacao(anim({ type: 'wipeOut' }), false).vars).toMatchObject({ '--clip-de': 'inset(-50% -50% -50% calc(0% - var(--clip-folga, 0px)))', '--clip-ate': 'inset(-50% -50% -50% 100%)' })
   })
   it('máscara: conteúdo começa uma altura inteira abaixo', () => {
     expect(cssDaAnimacao(anim({ type: 'mask' }), false).vars).toMatchObject({ '--mask-x': '0%', '--mask-y': '100%' })

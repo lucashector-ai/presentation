@@ -57,9 +57,14 @@ describe('decoração, caixa e caixa do texto', () => {
     expect(estiloCaixaTexto(texto({ leadingTrim: 'cap' })).overflow).toBe('visible')
     expect(estiloCaixaTexto(texto({ leadingTrim: 'cap', truncate: true, maxLines: 1 })).overflow).toBe('hidden')
   })
+  it('a caixa nunca corta as letras (acentos e descendentes passam dela, como no Figma); só truncar corta', () => {
+    expect(estiloCaixaTexto(texto({ lineHeight: 1 })).overflow).toBe('visible')
+    expect(estiloCaixaTexto(texto({ sizingH: 'fixed', height: 40 })).overflow).toBe('visible')
+    expect(estiloCaixaTexto(texto({ truncate: true, maxLines: 2 })).overflow).toBe('hidden')
+  })
   it('documento antigo: mesmo estilo de antes (sem recursos novos)', () => {
     const c = texto({ underline: true, transform: 'uppercase' })
-    expect(estiloCaixaTexto(c)).toMatchObject({ textDecorationLine: 'underline', textTransform: 'uppercase', overflow: 'hidden', whiteSpace: 'pre-wrap' })
+    expect(estiloCaixaTexto(c)).toMatchObject({ textDecorationLine: 'underline', textTransform: 'uppercase', overflow: 'visible', whiteSpace: 'pre-wrap' })
     const corpo = corpoTexto(c)
     expect(corpo.estilo).toEqual({})
     expect(corpo.classe).toBeUndefined()
