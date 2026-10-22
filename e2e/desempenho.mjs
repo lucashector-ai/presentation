@@ -113,6 +113,17 @@ function montarDocumentos({ texto, forma, svg }) {
         id: `p-ef-${nome}`, title: nome, size: tam, background: '#171717', transition: { type: 'fade', duration: 300, easing: 'easeInOut' },
         layers: [T({ id: `ef-${nome}`, text: tipo === 'counter' ? 'R$ 2,4 mi' : nome === 'letters-curto' ? 'Forma que nasce do fogo e do tempo.' : `${lorem} ${lorem2}`, x: 100, y: 100, width: 1700, height: 880, fontSize: tipo === 'counter' ? 200 : 44, fontWeight: 400, lineHeight: 1.3, color: '#E7E5E1', enterAnimation: a(tipo, tipo === 'typewriter' ? 2400 : 1400, 0, nome === 'words-semblur' ? { blur: 0 } : {}) })],
       })),
+      // efeitos interativos: parallax (mouse e transição "empurrar"), tilt 3D, luz e lanterna, contador com círculo
+      {
+        id: 'p-interativo', title: 'Interativo', size: tam, background: '#10131F', transition: { type: 'push', duration: 700, easing: 'easeInOut' },
+        layers: [
+          F({ id: 'pi-fundo', x: -40, y: -40, width: 2000, height: 1160, fill: '#1B2140', radius: 0, interactiveEffects: { parallax: { depth: -40 } } }),
+          F({ id: 'pi-orbe', shape: 'ellipse', x: 1420, y: 90, width: 380, height: 380, fill: '#5965F2', radius: 0, interactiveEffects: { parallax: { depth: 80 } } }),
+          T({ id: 'pi-t', name: 'Título interativo', text: 'Profundidade', x: 120, y: 110, width: 1150, height: 170, fontSize: 150, color: '#F4F1EC', interactiveEffects: { parallax: { depth: 45 } }, enterAnimation: a('words', 900) }),
+          T({ id: 'pi-n', name: 'Contador com círculo', text: '72%', x: 1440, y: 110, width: 340, height: 340, fontSize: 96, align: 'center', valign: 'middle', color: '#F4F1EC', interactiveEffects: { parallax: { depth: 60 } }, enterAnimation: a('counter', 1400, 200, { progress: 'circle' }) }),
+          ...[0, 1, 2].map((i) => F({ id: `pi-c${i}`, x: 120 + i * 580, y: 500, width: 520, height: 440, fill: cores[i], interactiveEffects: { tilt: { angle: 10 }, spotlight: { mode: i === 1 ? 'dark' : 'light' }, parallax: { depth: 15 } }, enterAnimation: a('slideUp', 700, 200 + i * 90) })),
+        ],
+      },
     ],
   }
   const secao = (id, fundo, camadas) => ({ id, title: id, size: vert, background: fundo, layers: camadas })
@@ -122,20 +133,21 @@ function montarDocumentos({ texto, forma, svg }) {
       secao('s-1', '#1F3B4D', [
         T({ id: 's1-t', text: 'Maré', x: 80, y: 1200, width: 920, height: 300, fontSize: 280, letterSpacing: -14, color: '#F2E9D8', enterAnimation: a('lines', 900) }),
         T({ id: 's1-p', text: lorem, x: 80, y: 1540, width: 920, height: 260, fontSize: 44, fontWeight: 400, lineHeight: 1.3, color: '#F2E9D8', enterAnimation: a('words', 1200, 200) }),
-        F({ id: 's1-f', shape: 'ellipse', x: 560, y: 260, width: 400, height: 400, fill: '#E4572E', enterAnimation: a('scaleIn', 900, 0, { easing: 'spring' }), loopAnimation: loop('float', 3000) }),
+        F({ id: 's1-f', shape: 'ellipse', x: 560, y: 260, width: 400, height: 400, fill: '#E4572E', enterAnimation: a('scaleIn', 900, 0, { easing: 'spring' }), loopAnimation: loop('float', 3000), interactiveEffects: { parallax: { depth: 70 } } }),
       ]),
       secao('s-2', '#F2E9D8', [
         T({ id: 's2-t', text: 'Três estampas, uma estação.', x: 100, y: 200, width: 880, height: 220, fontSize: 84, color: '#1F3B4D', enterAnimation: a('letters', 1200) }),
-        ...[0, 1, 2].map((i) => F({ id: `s2-c${i}`, x: 100 + i * 300, y: 600, width: 260, height: 700, fill: cores[i], enterAnimation: a(['reveal', 'mask', 'zoomIn'][i], 900, 150 + i * 120), exitAnimation: a('fadeOut', 400, 0, { easing: 'easeIn' }) })),
+        // entradas que acompanham a rolagem (scroll-driven) e profundidades diferentes
+        ...[0, 1, 2].map((i) => F({ id: `s2-c${i}`, x: 100 + i * 300, y: 600, width: 260, height: 700, fill: cores[i], enterAnimation: a(['reveal', 'mask', 'zoomIn'][i], 900, 150 + i * 120, { trigger: 'scroll' }), exitAnimation: a('fadeOut', 400, 0, { easing: 'easeIn' }), interactiveEffects: { parallax: { depth: [-30, 20, 60][i] } } })),
         T({ id: 's2-p', text: lorem2, x: 100, y: 1400, width: 880, height: 400, fontSize: 44, fontWeight: 400, lineHeight: 1.3, color: '#1F3B4D', enterAnimation: a('words', 1200, 300) }),
       ]),
       secao('s-3', '#E4572E', [
-        T({ id: 's3-n', text: '+38%', x: 100, y: 600, width: 880, height: 300, fontSize: 260, color: '#FFF4EC', enterAnimation: a('counter', 1400) }),
-        T({ id: 's3-t', text: 'Lançamento 21.12', x: 100, y: 1000, width: 880, height: 140, fontSize: 96, color: '#FFF4EC', enterAnimation: a('cascade', 1200, 200) }),
+        T({ id: 's3-n', text: '+38%', x: 100, y: 600, width: 880, height: 300, fontSize: 260, color: '#FFF4EC', enterAnimation: a('counter', 1400, 0, { progress: 'bar' }) }),
+        T({ id: 's3-t', text: 'Lançamento 21.12', x: 100, y: 1000, width: 880, height: 140, fontSize: 96, color: '#FFF4EC', enterAnimation: a('cascade', 1200, 200), interactiveEffects: { parallax: { depth: 35 } } }),
         T({ id: 's3-p', text: lorem, x: 100, y: 1250, width: 880, height: 300, fontSize: 44, fontWeight: 400, lineHeight: 1.3, color: '#FFF4EC', enterAnimation: a('blurIn', 900, 300) }),
       ]),
       secao('s-4', '#171717', [
-        T({ id: 's4-t', text: 'Obrigado.', x: 100, y: 800, width: 880, height: 200, fontSize: 160, color: '#FAFAF9', enterAnimation: a('slideUp', 800) }),
+        T({ id: 's4-t', text: 'Obrigado.', x: 100, y: 800, width: 880, height: 200, fontSize: 160, color: '#FAFAF9', enterAnimation: a('slideUp', 800), loopAnimation: { ...loop('float', 3000), until: 'offscreen' } }),
         T({ id: 's4-p', text: lorem2, x: 100, y: 1100, width: 880, height: 400, fontSize: 40, fontWeight: 400, lineHeight: 1.3, color: '#A3A3A3', enterAnimation: a('letters', 1400, 200) }),
       ]),
     ],
@@ -144,7 +156,7 @@ function montarDocumentos({ texto, forma, svg }) {
     schemaVersion: 2, mode: 'explorar',
     scenes: [
       { id: 'x-1', title: 'Linha 4', size: tam, background: '#E9E9EB', map: { x: 0, y: 0 }, layers: [T({ id: 'x1-t', text: 'Linha 4', x: 120, y: 360, width: 1600, height: 300, fontSize: 260, color: '#171717', enterAnimation: a('slideUp', 800) }), F({ id: 'x1-f', shape: 'ellipse', x: 1400, y: 160, width: 400, height: 400, fill: '#5965F2', loopAnimation: loop('pulse', 2400) })] },
-      { id: 'x-2', title: 'História', size: tam, background: '#171717', map: { x: 2400, y: -600 }, layers: [T({ id: 'x2-t', text: 'História', x: 100, y: 300, width: 1500, height: 260, fontSize: 220, color: '#FAFAF9', enterAnimation: a('blurIn', 900) }), T({ id: 'x2-p', text: lorem2, x: 100, y: 620, width: 1500, height: 300, fontSize: 48, fontWeight: 400, lineHeight: 1.3, color: '#A3A3A3', enterAnimation: a('words', 1200, 200) })], exitAnimationDummy: undefined },
+      { id: 'x-2', title: 'História', size: tam, background: '#171717', map: { x: 2400, y: -600 }, layers: [T({ id: 'x2-t', text: 'História', x: 100, y: 300, width: 1500, height: 260, fontSize: 220, color: '#FAFAF9', enterAnimation: a('blurIn', 900), interactiveEffects: { parallax: { depth: 60 } } }), T({ id: 'x2-p', text: lorem2, x: 100, y: 620, width: 1500, height: 300, fontSize: 48, fontWeight: 400, lineHeight: 1.3, color: '#A3A3A3', enterAnimation: a('words', 1200, 200), interactiveEffects: { parallax: { depth: 20 } } })], exitAnimationDummy: undefined },
       { id: 'x-3', title: 'Números', size: tam, background: '#5965F2', map: { x: 2400, y: 900 }, layers: [T({ id: 'x3-t', text: '+38% passageiros', x: 100, y: 400, width: 1700, height: 260, fontSize: 200, color: '#FFFFFF', enterAnimation: a('letters', 1200) })] },
       { id: 'x-4', title: 'Mapa', size: tam, background: '#F4F1EC', map: { x: 0, y: 1500 }, layers: [T({ id: 'x4-t', text: 'Mapa da rede', x: 100, y: 400, width: 1700, height: 260, fontSize: 200, color: '#171717', enterAnimation: a('lines', 1000) })] },
     ],
@@ -364,6 +376,19 @@ const viewerPronto = async (page) => {
 /** Abre o /apresentar (na tela `inicio`) e, se começar no meio, espera as entradas dela terminarem. */
 const abrirApresentar = async (page, projeto, inicio = 0) => { await page.goto(`${BASE}/app/projects/${projeto}/apresentar${inicio ? `?inicio=${inicio}` : ''}`); await viewerPronto(page); if (inicio) await page.waitForTimeout(2600) }
 const avancar = (page, n = 1) => async () => { for (let i = 0; i < n; i++) await page.keyboard.press('ArrowRight') }
+/** Passa o mouse pelos pontos (px da janela), em `ms` no total, com movimentos contínuos (vários pointermove por trecho). */
+const moverMouse = async (page, pontos, ms) => {
+  const passos = Math.max(1, Math.round(ms / 40 / pontos.length))
+  let [x0, y0] = pontos[0]
+  for (const [x, y] of pontos) {
+    for (let i = 1; i <= passos; i++) {
+      const t0 = Date.now()
+      await page.mouse.move(x0 + ((x - x0) * i) / passos, y0 + ((y - y0) * i) / passos)
+      await page.waitForTimeout(Math.max(0, 40 - (Date.now() - t0)))
+    }
+    ;[x0, y0] = [x, y]
+  }
+}
 
 const CENARIOS = [
   { id: 'entradas', nome: 'Entradas (14 camadas: blur, escala, revelar, 3D, ênfase)', principal: true, ms: 2400,
@@ -380,6 +405,15 @@ const CENARIOS = [
     preparar: async (p) => { await abrirApresentar(p, 'pr-atlas', 4) }, acao: (p) => avancar(p) },
   ...EFEITOS_TEXTO.map((tipo, i) => ({ id: `efeito-${tipo}`, nome: `Texto: só ${tipo} (parágrafo longo)`, principal: false, ms: tipo === 'typewriter' ? 2800 : 1800,
     preparar: async (p) => { await abrirApresentar(p, 'pr-atlas', 6 + i) }, acao: (p) => avancar(p) })),
+  { id: 'parallax', nome: 'Parallax: transição "empurrar" + mouse (profundidades, tilt e luz)', principal: true, ms: 0,
+    preparar: async (p) => { await abrirApresentar(p, 'pr-atlas', 16); await p.mouse.move(720, 450) },
+    acao: (p) => async () => { await p.keyboard.press('ArrowRight'); await p.waitForTimeout(400); await moverMouse(p, [[200, 200], [1240, 260], [1240, 700], [200, 700], [720, 450]], 2600) } },
+  { id: 'tilt', nome: 'Tilt 3D + luz + lanterna (mouse passando pelos cartões)', principal: true, ms: 0,
+    preparar: async (p) => { await abrirApresentar(p, 'pr-atlas', 17); await p.mouse.move(60, 60) },
+    acao: (p) => async () => { await moverMouse(p, [[150, 640], [420, 760], [540, 640], [720, 760], [900, 640], [1100, 760], [1300, 640], [60, 60]], 3000) } },
+  { id: 'rolagem', nome: 'Story: parallax e entradas que acompanham a rolagem (vai e volta)', principal: true, ms: 0,
+    preparar: async (p) => { await abrirApresentar(p, 'pr-mare'); await p.mouse.move(700, 450); for (let i = 0; i < 10; i++) { await p.mouse.wheel(0, 110); await p.waitForTimeout(40) } await p.waitForTimeout(1500) },
+    acao: (p) => async () => { for (const d of [70, 70, 70, 70, 70, 70, 70, 70, 70, 70, 70, 70, 70, 70, 70, 70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, 70, 70, 70, 70, 70, 70, 70, 70]) { await p.mouse.wheel(0, d); await p.waitForTimeout(50) } await p.waitForTimeout(600) } },
   { id: 'story', nome: 'Story: rolagem com entradas por seção', principal: true, ms: 0,
     preparar: async (p) => { await abrirApresentar(p, 'pr-mare') },
     acao: (p) => async () => { await p.mouse.move(700, 450); for (let i = 0; i < 48; i++) { await p.mouse.wheel(0, 110); await p.waitForTimeout(60) } await p.waitForTimeout(1200) } },
