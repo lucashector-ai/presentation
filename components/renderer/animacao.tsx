@@ -10,12 +10,11 @@
  * Prévia no editor: o inspetor chama `pedirPrevia(...)`; cada SceneRenderer em modo editor escuta o
  * evento e toca as animações pedidas uma vez, sem sair do modo de edição.
  */
-import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import type { Animacao, Cena, Transicao } from '@/lib/scene/schema'
 import { curvaCss, dividirTexto, pontosDaCurva, tempoSegmentos } from '@/lib/scene/animacoes'
 import { divisao, keyframeDaParte, parametros, quadrosDasPartes, quadrosNoCiclo } from '@/lib/scene/parametros'
-import { agruparLetras, agruparLinhas, analisarNumero, curvaBezier, formatarNumero, keyframesCursor, ordemDasPartes, passosDaOrdem } from '@/lib/scene/texto-animado'
-import { keyframesSeparados } from './plano'
+import { agruparLetras, agruparLinhas, analisarNumero, curvaBezier, formatarNumero, ordemDasPartes, quadrosCursor, passosDaOrdem } from '@/lib/scene/texto-animado'
 
 export { keyframesSeparados, planoAnimacao, varsAnimacao, type PlanoAnimacao } from './plano'
 
@@ -372,7 +371,6 @@ function TextoDividido({ texto, animacao, gradiente, cor }: { texto: string; ani
 
   // máquina de escrever: UM cursor que salta de letra em letra. Mede o canto de cada letra antes de pintar (e de
   // novo se a caixa mudar de largura ou a fonte chegar) e gera os keyframes dele.
-  const idCursor = `cursor-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
   const [cantos, setCantos] = useState<{ x: number; y: number; h: number }[] | null>(null)
   useEfeitoLayout(() => {
     const el = ref.current
@@ -390,8 +388,31 @@ function TextoDividido({ texto, animacao, gradiente, cor }: { texto: string; ani
     return () => ro?.disconnect()
   }, [maquina, palavras])
   // o cursor existe desde o 1º render (com a posição medida logo depois, antes de pintar): quem congela as
-  // animações na montagem (miniaturas da galeria) congela o cursor junto com as letras
-  const cursor = maquina && posicoes.length ? keyframesCursor(idCursor, cantos ?? posicoes.map(() => ({ x: 0, y: 0 })), posicoes.map((p) => p * passo), passo) : null
+  // animações na montagem (miniaturas da galeria) congela o cursor junto com as letras. Anima pela Web Animations
+  // API, no relógio das letras (mesmo início); um <style> com @keyframes invalidava o estilo da página inteira.
+  const cursor = useMemo(() => (maquina && posicoes.length ? quadrosCursor(cantos ?? posicoes.map(() => ({ x: 0, y: 0 })), posicoes.map((p) => p * passo), passo) : null), [maquina, posicoes, cantos, passo])
+  const refCursor = useRef<HTMLSpanElement>(null)
+  const inicioCursor = useRef<number | null>(null)
+  useEfeitoLayout(() => {
+    const c = refCursor.current
+    if (!c || !cursor || movimentoReduzido() || typeof c.animate !== 'function') return
+    const a = c.animate(cursor.quadros, { duration: cursor.duracao, delay: animacao.delay, fill: 'both' })
+    let vivo = true
+    // termina invisível: sai da página (display: none), sem animação presa
+    a.finished.then(() => { if (vivo) c.setAttribute('data-fim', '') }, () => undefined)
+    const fim = () => { vivo = false; a.cancel() }
+    if (c.closest('[data-congelada]')) return fim
+    if (inicioCursor.current !== null) {
+      a.startTime = inicioCursor.current
+      return fim
+    }
+    a.pause()
+    const parar = quandoLiberar(c, () => {
+      inicioCursor.current = Number(document.timeline.currentTime ?? performance.now())
+      a.startTime = inicioCursor.current
+    })
+    return () => { parar(); fim() }
+  }, [cursor, animacao.delay])
 
   useGradienteContinuo(ref, gradiente, [palavras, kerns, linhas])
 
@@ -451,12 +472,7 @@ function TextoDividido({ texto, animacao, gradiente, cor }: { texto: string; ani
       <span className="texto-acessivel" data-texto={texto} />
       <span ref={ref} aria-hidden onAnimationEnd={soltarParte} style={espera}>
         {conteudo}
-        {cursor && (
-          <>
-            <style>{cursor.css}</style>
-            <span className="seg-cursor" style={{ height: cantos?.[0]?.h ?? 0, ['--cursor-cor' as string]: cor, animationName: idCursor, animationDuration: `${cursor.duracao}ms`, animationDelay: `${animacao.delay}ms` }} />
-          </>
-        )}
+        {cursor && <span ref={refCursor} className="seg-cursor" style={{ height: cantos?.[0]?.h ?? 0, ['--cursor-cor' as string]: cor }} />}
       </span>
     </>
   )

@@ -56,15 +56,28 @@ export const PISCADAS_CURSOR = 4
  * aparece (ms desde o início da animação); `passo`: tempo entre letras (o cursor fica nesse tempo na letra).
  */
 export function keyframesCursor(nome: string, pontos: { x: number; y: number }[], inicios: number[], passo: number): { css: string; duracao: number } {
+  const { quadros, duracao } = quadrosCursor(pontos, inicios, passo)
+  const css = quadros.map((q) => `${Math.round(q.offset * 1e6) / 1e4}% { transform: ${q.transform}; visibility: ${q.visibility}; animation-timing-function: step-end }`).join(' ')
+  return { css: `@keyframes ${nome} { ${css} }`, duracao }
+}
+
+/**
+ * Os mesmos quadros do cursor (ver keyframesCursor) para a Web Animations API: o renderizador anima o cursor com
+ * `element.animate` — trocar um `<style>` com @keyframes na montagem invalidava o estilo da página inteira.
+ */
+export function quadrosCursor(pontos: { x: number; y: number }[], inicios: number[], passo: number): { quadros: { offset: number; transform: string; visibility: 'visible' | 'hidden'; easing: 'step-end' }[]; duracao: number } {
   const n = Math.min(pontos.length, inicios.length)
   const naLetra = Math.max(16, passo)
   const ordem = Array.from({ length: n }, (_, i) => i).sort((a, b) => inicios[a]! - inicios[b]! || a - b)
   const ultimo = n ? inicios[ordem[n - 1]!]! : 0
   const fimDigitacao = ultimo + naLetra
   const duracao = Math.max(1, Math.round(fimDigitacao + PISCADAS_CURSOR * 1000))
-  const pct = (t: number) => `${Math.round((Math.min(duracao, Math.max(0, t)) / duracao) * 1e6) / 1e4}%`
-  const quadros = new Map<string, string>()
-  const quadro = (t: number, x: number, y: number, visivel: number) => quadros.set(pct(t), `transform: translate(${Math.round(x * 100) / 100}px, ${Math.round(y * 100) / 100}px); visibility: ${visivel ? 'visible' : 'hidden'}; animation-timing-function: step-end`)
+  const fracao = (t: number) => Math.round((Math.min(duracao, Math.max(0, t)) / duracao) * 1e6) / 1e6
+  const quadros = new Map<number, { offset: number; transform: string; visibility: 'visible' | 'hidden'; easing: 'step-end' }>()
+  const quadro = (t: number, x: number, y: number, visivel: number) => {
+    const offset = fracao(t)
+    quadros.set(offset, { offset, transform: `translate(${Math.round(x * 100) / 100}px, ${Math.round(y * 100) / 100}px)`, visibility: visivel ? 'visible' : 'hidden', easing: 'step-end' })
+  }
   const p0 = n ? pontos[ordem[0]!]! : { x: 0, y: 0 }
   quadro(0, p0.x, p0.y, n && inicios[ordem[0]!]! <= 0 ? 1 : 0)
   for (const i of ordem) quadro(inicios[i]!, pontos[i]!.x, pontos[i]!.y, 1)
@@ -74,7 +87,7 @@ export function keyframesCursor(nome: string, pontos: { x: number; y: number }[]
     if (k < PISCADAS_CURSOR - 1) quadro(fimDigitacao + (k + 1) * 1000, pf.x, pf.y, 1)
   }
   quadro(duracao, pf.x, pf.y, 0)
-  return { css: `@keyframes ${nome} { ${[...quadros.entries()].map(([p, d]) => `${p} { ${d} }`).join(' ')} }`, duracao }
+  return { quadros: [...quadros.values()].sort((a, b) => a.offset - b.offset), duracao }
 }
 
 // ---------- letra por letra leve ----------
