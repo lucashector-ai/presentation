@@ -15,6 +15,7 @@ import {
   camposDaCurva,
   curvaDe,
   duracaoPorVelocidade,
+  duracaoTotal,
   ehAnimacaoDeTexto,
   escalonar,
   nomeAnimacao,
@@ -31,8 +32,10 @@ import { CampoNum, Deslizante, Interruptor, SeletorLista } from '@/components/ed
 import { CurvaEasing } from '@/components/editor/inspetor/CurvaEasing'
 import { AbasInternas, BotaoPrevia, CartaoPreset, Chips, GradeCartoesPreset, MiniPrevia, Rotulo, areaAnimacao, useAnimacaoCopiada } from './ui'
 import { Galeria, PainelAjustes, sugestoesPara } from './Ajustes'
+import { AbaInterativa } from './Interativos'
+import { temInterativo } from '@/lib/scene/reativos'
 
-type Aba = 'entrada' | 'enfase' | 'saida'
+type Aba = 'entrada' | 'enfase' | 'saida' | 'interativo'
 const INTERVALOS = [60, 100, 150, 250] as const
 const INTENSIDADES = [
   { id: 'sutil', rotulo: 'Fraca', v: 0.5 },
@@ -48,7 +51,9 @@ const AMPLITUDE: Partial<Record<TipoLoop, { base: number; unidade: string; rotul
   shake: { base: 4, unidade: 'px', rotulo: 'Amplitude' },
   glow: { base: 14, unidade: 'px', rotulo: 'Raio do brilho' },
 }
-const REPETICOES = [{ id: 'inf', rotulo: 'Sempre' }, { id: '1', rotulo: '1×' }, { id: '2', rotulo: '2×' }, { id: '3', rotulo: '3×' }, { id: '5', rotulo: '5×' }]
+const REPETICOES = [{ id: 'inf', rotulo: 'Sempre' }, { id: '1', rotulo: '1×' }, { id: '2', rotulo: '2×' }, { id: '3', rotulo: '3×' }, { id: 'fora', rotulo: 'Até sair', titulo: 'Repete até a camada sair da tela (no Story, ao rolar para longe)' }]
+/** Repetir a entrada (máquina de escrever e decodificar tocam uma vez: o cursor e o sorteio não repetem). */
+const REPETICOES_ENTRADA = [{ id: '1', rotulo: '1×' }, { id: '2', rotulo: '2×' }, { id: '3', rotulo: '3×' }, { id: '5', rotulo: '5×' }]
 
 /** Aplica um ajuste e remove campos (voltar ao padrão). */
 function comAjuste(a: Animacao, patch: Partial<Animacao>, remover: (keyof Animacao)[] = []): Animacao {
@@ -116,7 +121,7 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
       let dur = 0
       for (const c of atual) {
         const e = opts.saida ? c.exitAnimation : c.enterAnimation
-        const base = e ? (sequencia || opts.saida ? e.delay : 0) + e.duration : 0
+        const base = e ? (sequencia || opts.saida ? e.delay : 0) + duracaoTotal(e) : 0
         dur = Math.max(dur, base + (opts.loop && c.loopAnimation ? Math.min(c.loopAnimation.duration * 2, 5000) : 0))
       }
       if (dur > 0) pedirPrevia({ ids, semAtraso: !sequencia && !opts.saida, saida: opts.saida, duracao: dur + 150 })
@@ -171,6 +176,7 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
             { id: 'entrada', rotulo: 'Entrada', ativo: a.type !== 'none' },
             { id: 'enfase', rotulo: 'Ênfase', ativo: !!loop },
             { id: 'saida', rotulo: 'Saída', ativo: !!saida },
+            { id: 'interativo', rotulo: 'Interativo', ativo: temInterativo(l) },
           ]}
         />
 
@@ -193,6 +199,12 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
               <div className="space-y-2 pt-1">
                 <Rotulo>Velocidade</Rotulo>
                 <Chips rotulo="Velocidade" cheio valor={velocidadeDe(a.type, a.duration)} opcoes={VELOCIDADES.map((v) => ({ ...v, titulo: `${duracaoPorVelocidade(a.type, v.id)} ms` }))} aoMudar={(v) => patchEntrada({ duration: duracaoPorVelocidade(a.type, v) })} />
+                {a.type !== 'typewriter' && a.type !== 'scramble' && a.trigger !== 'scroll' && (
+                  <>
+                    <Rotulo>Repetir</Rotulo>
+                    <Chips rotulo="Repetições da entrada" cheio valor={REPETICOES_ENTRADA.some((r) => r.id === String(a.repeat ?? 1)) ? String(a.repeat ?? 1) : null} opcoes={REPETICOES_ENTRADA} aoMudar={(id) => { const n = Number(id); acoes.atualizarCamadas(ids, (c) => (c.enterAnimation ? ({ ...c, enterAnimation: comAjuste(c.enterAnimation, n > 1 ? { repeat: n } : {}, n > 1 ? [] : ['repeat']) } as Camada) : c)); tocar() }} />
+                  </>
+                )}
                 <PainelAjustes
                   key={chaveSel}
                   anim={a}
@@ -248,7 +260,7 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
                 </CartaoPreset>
               ))}
             </GradeCartoesPreset>
-            <p className="text-[12px] leading-snug text-texto3">Começa quando a entrada termina e repete enquanto a tela estiver aberta.</p>
+            <p className="text-[12px] leading-snug text-texto3">Começa quando a entrada termina e repete enquanto a tela estiver aberta (ou o número de vezes escolhido).</p>
             {loop && (
               <>
                 {AMPLITUDE[loop.type] ? (
@@ -259,7 +271,7 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
                   </>
                 ) : null}
                 <Rotulo>Repetir</Rotulo>
-                <Chips rotulo="Repetições do loop" cheio valor={loop.repeat ? (REPETICOES.some((r) => r.id === String(loop.repeat)) ? String(loop.repeat) : null) : 'inf'} opcoes={REPETICOES} aoMudar={(id) => { const { repeat: _r, ...sem } = loop; setLoop(id === 'inf' ? sem : { ...sem, repeat: Number(id) }) }} />
+                <Chips rotulo="Repetições do loop" cheio valor={loop.until === 'offscreen' ? 'fora' : loop.repeat ? (REPETICOES.some((r) => r.id === String(loop.repeat)) ? String(loop.repeat) : null) : 'inf'} opcoes={REPETICOES} aoMudar={(id) => { const { repeat: _r, until: _u, ...sem } = loop; setLoop(id === 'inf' ? sem : id === 'fora' ? { ...sem, until: 'offscreen' } : { ...sem, repeat: Number(id) }) }} />
                 <Rotulo>Ritmo</Rotulo>
                 <Chips
                   rotulo="Ritmo do loop"
@@ -306,6 +318,7 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
             )}
           </div>
         )}
+        {aba === 'interativo' && <AbaInterativa editor={editor} sel={sel} />}
       </section>
 
       {multi && (

@@ -1,7 +1,7 @@
 'use client'
 /** Aba Animação sem seleção: transição da tela, "Animar tela inteira", linha do tempo e avanço automático. */
 import { useState } from 'react'
-import { Sparkles, Timer, Trash2 } from 'lucide-react'
+import { Layers3, Sparkles, Timer, Trash2 } from 'lucide-react'
 import type { Cena, Transicao } from '@/lib/scene/schema'
 import type { Editor } from '@/lib/editor/useEditor'
 import { ESTILOS_TELA, ORDENS_TELA, animarTelaInteira, duracaoPrevia, removerAnimacoes, type EstiloTela, type OrdemTela } from '@/lib/scene/animacoes'
@@ -9,6 +9,8 @@ import { pararPrevia, pedirPrevia, usePreviaAnimacao } from '@/components/render
 import { CampoNum, Deslizante, Interruptor, Secao, SeletorLista } from '@/components/editor/inspetor/controles'
 import { BotaoPrevia, CartaoPreset, Chips, GradeCartoesPreset, MiniTransicao, Rotulo } from './ui'
 import { LinhaDoTempo } from './LinhaDoTempo'
+import { profundidadeAutomatica, semProfundidade } from '@/lib/scene/reativos'
+import { DURACAO_SIMULACAO_MS } from '@/components/renderer/reativos'
 
 const TRANSICOES: { id: Transicao['type']; rotulo: string }[] = [
   { id: 'none', rotulo: 'Nenhuma' },
@@ -16,6 +18,7 @@ const TRANSICOES: { id: Transicao['type']; rotulo: string }[] = [
   { id: 'slide', rotulo: 'Deslizar' },
   { id: 'scale', rotulo: 'Zoom' },
   { id: 'morph', rotulo: 'Morph' },
+  { id: 'push', rotulo: 'Empurrar' },
 ]
 const DURACOES_TRANSICAO = [
   { id: 'rapida', rotulo: 'Rápida', ms: 300 },
@@ -54,6 +57,13 @@ export function AnimacaoTela({ editor }: { editor: Editor }) {
   const tocarTela = (camadas = cena.layers) => {
     const t = tr.type !== 'none' && (tr.type !== 'morph' || anterior) ? tr : undefined
     pedirPrevia({ transicao: t, morphDe: anterior, duracao: Math.max(duracaoPrevia(camadas), t?.duration ?? 0) + 200 })
+  }
+  const comProfundidade = cena.layers.filter((l) => l.interactiveEffects?.parallax?.depth).length
+  const tocarProfundidade = (layers = cena.layers) => pedirPrevia({ ids: layers.filter((l) => l.interactiveEffects?.parallax?.depth).map((l) => l.id), interativo: true, duracao: DURACAO_SIMULACAO_MS + 150 })
+  const darProfundidade = () => {
+    const layers = profundidadeAutomatica(cena)
+    acoes.atualizarCena({ layers })
+    setTimeout(() => tocarProfundidade(layers), 40)
   }
   const animarTudo = () => {
     const layers = animarTelaInteira(cena, estilo, ordem)
@@ -104,6 +114,18 @@ export function AnimacaoTela({ editor }: { editor: Editor }) {
         <button type="button" onClick={animarTudo} disabled={!cena.layers.length} className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-acento text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40">
           <Sparkles className="h-3.5 w-3.5" /> Animar tela inteira
         </button>
+      </Secao>
+
+      <Secao titulo="Profundidade (parallax)" acao={comProfundidade ? <BotaoPrevia aoClicar={() => tocarProfundidade()} /> : undefined}>
+        <p className="text-[12px] leading-snug text-texto2">Um clique: fundo mais longe, imagens no meio, títulos à frente. Mexe com o mouse, com a rolagem do Story e na transição entre telas.</p>
+        <button type="button" onClick={darProfundidade} disabled={!cena.layers.length} className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-borda text-[13px] font-medium text-texto transition-colors hover:border-bordaForte disabled:opacity-40">
+          <Layers3 className="h-3.5 w-3.5" /> Dar profundidade à tela
+        </button>
+        {comProfundidade > 0 && (
+          <button type="button" onClick={() => acoes.atualizarCena({ layers: semProfundidade(cena.layers) })} className="mt-1 flex items-center gap-1.5 text-[12px] text-texto2 hover:text-perigo">
+            <Trash2 className="h-3 w-3" /> Tirar a profundidade ({comProfundidade} {comProfundidade === 1 ? 'camada' : 'camadas'})
+          </button>
+        )}
       </Secao>
 
       <Secao titulo="Linha do tempo" acao={<BotaoPrevia aoClicar={() => tocarTela()} tocando={!!previa && !previa.semAtraso} aoParar={pararPrevia} />}>

@@ -10,6 +10,7 @@ import { ArrowDown, ArrowDownLeft, ArrowDownRight, ArrowLeft, ArrowRight, ArrowU
 import type { Animacao, Camada } from '@/lib/scene/schema'
 import { aplicarIntensidade, definicao, intensidadeDe, parametros, temIntensidade, CATEGORIAS, INTENSIDADES, type Categoria, type Direcao, type Origem, type Parametro } from '@/lib/scene/parametros'
 import { categoriaDoPreset, chavePreset, ehNumeroDestaque, nomeCamada, presetSelecionado, type PresetEntrada } from '@/lib/scene/animacoes'
+import { TRECHO_ROLAGEM_PADRAO } from '@/components/renderer/plano'
 import { CampoNum, Deslizante, SeletorLista } from '@/components/editor/inspetor/controles'
 import { cx } from '@/components/ui'
 import { CartaoPreset, Chips, GradeCartoesPreset, MiniPrevia, Rotulo } from './ui'
@@ -130,6 +131,13 @@ const ORIGENS_GRADE: { id: Origem; rotulo: string }[] = [
   { id: 'bottom-left', rotulo: 'Canto inferior esquerdo' }, { id: 'bottom', rotulo: 'Base' }, { id: 'bottom-right', rotulo: 'Canto inferior direito' },
 ]
 const DISTANCIAS = [{ id: '20', rotulo: 'Sutil' }, { id: '80', rotulo: 'Evidente' }, { id: '200', rotulo: 'Dramático' }]
+/** Entrada "ao rolar": em que ponto da passagem pela janela o efeito termina (% da passagem inteira). */
+const TRECHOS: { id: string; rotulo: string; titulo: string; v: [number, number] }[] = [
+  { id: 'cedo', rotulo: 'Cedo', titulo: 'Termina logo que a camada aparece', v: [0, 25] },
+  { id: 'meio', rotulo: 'No meio', titulo: 'Termina antes do meio da tela', v: [0, 40] },
+  { id: 'tarde', rotulo: 'Tarde', titulo: 'Acompanha quase toda a passagem', v: [5, 65] },
+]
+const INDICADORES = [{ id: 'none', rotulo: 'Nenhum' }, { id: 'circle', rotulo: 'Círculo' }, { id: 'bar', rotulo: 'Barra' }] as const
 
 /** Grade 3×3 (direção ou origem). */
 function Grade3({ rotulo, itens, valor, aoMudar }: { rotulo: string; itens: { id: string; rotulo: string; icone?: ReactNode; desativado?: boolean }[]; valor: string; aoMudar: (id: string) => void }) {
@@ -197,15 +205,17 @@ export function PainelAjustes({ anim, camada, camadasDaTela, saida, aoMudar, aoP
             rotulo="Quando a animação toca"
             valor={quando}
             aoMudar={(v) => {
-              if (v === 'enter') return mudar({}, ['trigger', 'after', 'on'])
-              if (v === 'after') return mudar({ trigger: 'after', after: anim.after ?? outras.find((o) => o.enterAnimation)?.id ?? outras[0]?.id }, ['on'])
-              mudar({ trigger: v as 'click' | 'hover' }, ['after'])
+              if (v === 'enter') return mudar({}, ['trigger', 'after', 'on', 'scrollRange'])
+              if (v === 'after') return mudar({ trigger: 'after', after: anim.after ?? outras.find((o) => o.enterAnimation)?.id ?? outras[0]?.id }, ['on', 'scrollRange'])
+              if (v === 'scroll') return mudar({ trigger: 'scroll' }, ['after', 'on', 'repeat'])
+              mudar({ trigger: v as 'click' | 'hover' }, ['after', 'scrollRange'])
             }}
             opcoes={[
               { id: 'enter', rotulo: 'Ao entrar na tela' },
               { id: 'after', rotulo: 'Depois de outra camada' },
               { id: 'click', rotulo: 'Ao clicar' },
               { id: 'hover', rotulo: 'Ao passar o mouse' },
+              { id: 'scroll', rotulo: 'Acompanhando a rolagem' },
             ]}
           />
           {quando === 'after' && (
@@ -214,10 +224,17 @@ export function PainelAjustes({ anim, camada, camadasDaTela, saida, aoMudar, aoP
           {(quando === 'click' || quando === 'hover') && (
             <SeletorLista rotulo={quando === 'click' ? 'Clique em' : 'Mouse sobre'} valor={anim.on ?? camada.id} aoMudar={(v) => (v === camada.id ? mudar({}, ['on']) : mudar({ on: v }))} opcoes={[{ id: camada.id, rotulo: 'Nesta camada' }, ...outras.map((o) => ({ id: o.id, rotulo: nomeCamada(o) }))]} />
           )}
+          {quando === 'scroll' && (
+            <>
+              <Rotulo>Termina</Rotulo>
+              <Chips rotulo="Trecho da rolagem" cheio valor={TRECHOS.find((t) => t.v[0] === (anim.scrollRange ?? TRECHO_ROLAGEM_PADRAO)[0] && t.v[1] === (anim.scrollRange ?? TRECHO_ROLAGEM_PADRAO)[1])?.id ?? null} opcoes={TRECHOS.map((t) => ({ id: t.id, rotulo: t.rotulo, titulo: t.titulo }))} aoMudar={(id) => { const t = TRECHOS.find((x) => x.id === id)!; return t.id === 'meio' ? mudar({}, ['scrollRange']) : mudar({ scrollRange: t.v }) }} />
+            </>
+          )}
           {quando !== 'enter' && (
             <p className="text-[11px] leading-snug text-texto3">
               {quando === 'after' && 'Começa quando a entrada da outra camada termina (mais o atraso).'}
               {(quando === 'click' || quando === 'hover') && 'A camada espera escondida até o público agir. Na prévia do editor ela toca direto.'}
+              {quando === 'scroll' && 'No Story, o efeito avança e volta junto com a rolagem. Nos slides e no Explorar, toca ao entrar na tela.'}
             </p>
           )}
         </>
@@ -254,6 +271,31 @@ export function PainelAjustes({ anim, camada, camadasDaTela, saida, aoMudar, aoP
         <>
           <Rotulo>Ordem</Rotulo>
           <Chips rotulo="Ordem das partes" valor={p.order} opcoes={[{ id: 'start', rotulo: 'Início' }, { id: 'end', rotulo: 'Fim' }, { id: 'center', rotulo: 'Do centro' }, { id: 'edges', rotulo: 'Das bordas' }, { id: 'random', rotulo: 'Aleatória' }]} aoMudar={(v) => mudar({ order: v })} />
+        </>
+      )}
+      {anim.type === 'counter' && !saida && (
+        <>
+          <Rotulo>Indicador</Rotulo>
+          <Chips rotulo="Indicador de progresso do contador" cheio valor={anim.progress ?? 'none'} opcoes={[...INDICADORES]} aoMudar={(v) => (v === 'none' ? mudar({}, ['progress', 'progressColor', 'progressMax', 'progressWidth']) : mudar({ progress: v }))} />
+          {anim.progress && (
+            <>
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[12px] text-texto2">Cor do indicador</span>
+                <input type="color" aria-label="Cor do indicador" value={(anim.progressColor ?? (camada.type === 'text' ? camada.color : '#5965F2')).slice(0, 7)} onChange={(e) => mudar({ progressColor: e.target.value })} className="h-7 w-10 cursor-pointer rounded border border-borda bg-transparent" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Rotulo>Cheio em</Rotulo>
+                  <CampoNum rotulo="Valor que enche o indicador" valor={anim.progressMax ?? null} vazio="Auto" min={0.01} passo={1} casas={2} aoMudar={(v) => (v > 0 ? mudar({ progressMax: v }) : mudar({}, ['progressMax']))} aoLimpar={() => mudar({}, ['progressMax'])} />
+                </div>
+                <div className="space-y-1">
+                  <Rotulo>Espessura</Rotulo>
+                  <CampoNum rotulo="Espessura do indicador em px" valor={anim.progressWidth ?? null} vazio="Auto" min={1} max={80} passo={1} sufixo="px" aoMudar={(v) => mudar({ progressWidth: v })} aoLimpar={() => mudar({}, ['progressWidth'])} />
+                </div>
+              </div>
+              <p className="text-[11px] leading-snug text-texto3">Enche junto com o número. “Auto”: 100 quando o texto tem %, senão o próprio número.</p>
+            </>
+          )}
         </>
       )}
       {tem('color') && (

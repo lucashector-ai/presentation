@@ -237,7 +237,8 @@ function LayerView({ camada: c, props, origemMorph, heranca, gatilhos, mascara }
   // prévia no editor (inspetor): toca como no visualizador, só nas camadas pedidas
   const previa = props.previa
   const previaAqui = !!previa && !c.hidden && (!previa.ids || previa.ids.includes(c.id))
-  const tocar = (viewer && props.animar !== false) || previaAqui
+  // a prévia dos efeitos interativos (ponteiro simulado) não toca a entrada junto
+  const tocar = (viewer && props.animar !== false) || (previaAqui && !previa?.interativo)
   const saindo = !animRuntime && (props.saida || (previaAqui && !!previa?.saida))
   const entrada = previaAqui && previa?.semAtraso && animEntrada ? { ...animEntrada, delay: 0 } : animEntrada
   const anim = animRuntime ? animRuntime.animacao : tocar ? (saindo ? c.exitAnimation : entrada) : undefined

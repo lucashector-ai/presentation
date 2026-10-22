@@ -111,7 +111,7 @@ export function GradeCartoesPreset({ rotulo, children }: { rotulo: string; child
 }
 
 /** Repete enquanto `ativo` (a cada `periodo` ms), para as prévias em loop dos cartões. */
-function useCiclo(ativo: boolean, periodo: number | null) {
+export function useCiclo(ativo: boolean, periodo: number | null) {
   const [ciclo, setCiclo] = useState(0)
   useEffect(() => {
     if (!ativo) return

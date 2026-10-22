@@ -92,10 +92,12 @@ export interface PropsReativa {
   raio?: CSSProperties['borderRadius']
   /** Prévia no editor: muda a cada pedido e toca o ponteiro simulado. */
   simular?: number
+  /** Editor (cartões da galeria): desenha o efeito parado com o ponteiro neste ponto (0–1). */
+  pose?: [number, number]
   children: ReactNode
 }
 
-export function CamadaReativa({ efeitos, modo, reduzir, semHover, rolagem = false, largura, altura, raio, simular, children }: PropsReativa) {
+export function CamadaReativa({ efeitos, modo, reduzir, semHover, rolagem = false, largura, altura, raio, simular, pose, children }: PropsReativa) {
   const plx = efeitos.parallax?.depth ? efeitos.parallax : undefined
   const tilt = efeitos.tilt
   const luz = efeitos.spotlight ? luzDe(efeitos.spotlight) : undefined
@@ -136,10 +138,14 @@ export function CamadaReativa({ efeitos, modo, reduzir, semHover, rolagem = fals
       return !parado
     }
     if (simular && modo === 'editor') return simularPonteiro((px, py, dt) => escrever((px - 0.5) * 2, (py - 0.5) * 2, dt, 1), () => { el.style.transform = '' })
+    if (pose && modo === 'editor') {
+      escrever((pose[0] - 0.5) * 2, (pose[1] - 0.5) * 2, 16, 1)
+      return () => { el.style.transform = '' }
+    }
     if (!comMouse) return
     return assinarPonteiro((nx, ny, dt) => escrever(nx, ny, dt))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chavePlx, comMouse, reduzir, simular, modo])
+  }, [chavePlx, comMouse, reduzir, simular, modo, pose?.[0], pose?.[1]])
 
   // parallax pela rolagem sem scroll-driven animations: ouvinte passivo + rAF (lê a caixa uma vez por quadro)
   useEffect(() => {
@@ -201,6 +207,12 @@ export function CamadaReativa({ efeitos, modo, reduzir, semHover, rolagem = fals
         return true
       }, () => { capa?.removeAttribute('data-acesa'); alvoTilt.style.transform = ''; if (ponto) ponto.style.transform = '' })
     }
+    if (pose && modo === 'editor') {
+      Object.assign(atual, { x: pose[0], y: pose[1], h: 1 })
+      desenhar()
+      capa?.setAttribute('data-acesa', '')
+      return () => { capa?.removeAttribute('data-acesa'); alvoTilt.style.transform = ''; if (ponto) ponto.style.transform = '' }
+    }
     if (!comMouse) return
     const mover = (e: PointerEvent) => {
       if (e.pointerType === 'touch') return
@@ -236,7 +248,7 @@ export function CamadaReativa({ efeitos, modo, reduzir, semHover, rolagem = fals
       cancelAnimationFrame(raf)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chaveTilt, comMouse, reduzir, simular, modo, diametro])
+  }, [chaveTilt, comMouse, reduzir, simular, modo, diametro, pose?.[0], pose?.[1]])
 
   let conteudo: ReactNode = children
   if (tilt || luz) {
