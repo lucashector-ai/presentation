@@ -240,10 +240,57 @@ export const TIPOS: Record<TipoApresentacao, DefinicaoTipo> = {
   },
 }
 
-/** Reconhece o tipo num pedido livre (o primeiro que casar, na ordem de especificidade). */
+/**
+ * Sinais de cada tipo num pedido livre, com peso: palavras que dizem do que a apresentação trata. Pesos maiores
+ * para o que define o assunto ("resultados do trimestre", "receita", "meta" → relatório) e menores para palavras
+ * que aparecem de passagem em qualquer pedido ("cliente", "marca", "logo").
+ */
+const SINAIS: Partial<Record<TipoApresentacao, [RegExp, number][]>> = {
+  relatorio: [
+    [/relat[oó]rio/gi, 3], [/resultados?\b/gi, 2], [/trimestr\w*|\bq[1-4]\b|\bt[1-4]\b|semestr\w*/gi, 2], [/\bvendas?\b|comercial|faturamento/gi, 1.5],
+    [/receita|lucro|ebitda|margem/gi, 1.5], [/\bmetas?\b|atingimento|realizado/gi, 1.5], [/kpis?\b|indicadores?|m[eé]tricas|desempenho|performance/gi, 1.5],
+    [/balan[cç]o|anual|mensal|crescimento|funil|ranking|convers[aã]o|ticket m[eé]dio|pipeline/gi, 1],
+  ],
+  identidade: [
+    [/proposta de identidade|criar (?:a|uma) (?:nova )?identidade|(?:re)?branding|rebrand|manual da marca|brandbook|naming/gi, 4],
+    [/logotipo|s[ií]mbolo da marca|tipografia da marca|paleta da marca|nova marca|marca nova|criar (?:a |uma )?marca/gi, 2], [/identidade visual/gi, 1], [/\blogo\b|\bmarca\b/gi, 0.3],
+  ],
+  proposta: [[/proposta comercial|or[cç]amento|escopo do servi[cç]o|investimento/gi, 3], [/\bproposta\b/gi, 1], [/consultoria|ag[eê]ncia|est[uú]dio/gi, 1], [/\bclientes?\b|servi[cç]os?/gi, 0.3]],
+  pitch: [[/\bpitch\b|investidor|rodada|\bseed\b|s[eé]rie a|capta[cç][aã]o|aceleradora|valuation/gi, 3], [/startup/gi, 1.5]],
+  portfolio: [[/portf[oó]lio|trabalhos selecionados|meus projetos/gi, 3], [/\bcases?\b|freela|diretor[a]? de arte|fot[oó]graf/gi, 1]],
+  case: [[/estudo de caso|case de sucesso|caso de sucesso|como ajudamos/gi, 4]],
+  aula: [[/\baula\b|curso|treinamento|workshop|oficina|alunos|turma/gi, 2.5], [/palestra|ensinar|educa\w*/gi, 1]],
+  lancamento: [[/lan[cç]amento|lan[cç]ar|novo produto|nova vers[aã]o|release/gi, 2.5], [/novidade|apresentamos/gi, 1]],
+  evento: [[/\bevento\b|festival|confer[eê]ncia|congresso|meetup|patroc[ií]nio|patrocinador/gi, 2.5], [/\bfeira\b|\bshow\b|programa[cç][aã]o/gi, 1]],
+  projeto: [[/plano de projeto|kick-?off|escopo|cronograma|implanta[cç][aã]o/gi, 2], [/\bprojeto\b|roadmap|\bplano\b/gi, 0.8]],
+  institucional: [[/institucional|quem somos|nossa empresa|sobre a empresa|apresenta[cç][aã]o da empresa/gi, 3]],
+}
+/** Desempate: na mesma pontuação, o mais específico ganha. */
+const ORDEM_TIPOS: TipoApresentacao[] = ['case', 'pitch', 'portfolio', 'relatorio', 'identidade', 'aula', 'evento', 'lancamento', 'projeto', 'institucional', 'proposta']
+
+/** Pontuação de cada tipo no texto (o título, a primeira linha, vale o triplo). */
+export function pontuarTipos(texto: string): Record<TipoApresentacao, number> {
+  const pontos = Object.fromEntries(TIPOS_APRESENTACAO.map((t) => [t, 0])) as Record<TipoApresentacao, number>
+  const linhas = texto.replace(/\r/g, '').split('\n')
+  const k = linhas.findIndex((l) => l.trim())
+  const titulo = k >= 0 ? linhas[k]! : ''
+  const corpo = k >= 0 ? linhas.slice(k + 1).join('\n') : texto
+  for (const [tipo, sinais] of Object.entries(SINAIS) as [TipoApresentacao, [RegExp, number][]][]) {
+    for (const [re, peso] of sinais) pontos[tipo] += ((titulo.match(re)?.length ?? 0) * 3 + (corpo.match(re)?.length ?? 0)) * peso
+  }
+  return pontos
+}
+
+/**
+ * Reconhece o tipo num pedido livre por pontuação de evidências (não pela primeira palavra que casar): um relatório
+ * de vendas que cita "identidade visual" num item continua relatório. Pouca evidência (< 2 pontos) = geral.
+ */
 export function tipoDoPedido(texto: string): TipoApresentacao {
-  const ordem: TipoApresentacao[] = ['case', 'pitch', 'portfolio', 'identidade', 'relatorio', 'aula', 'evento', 'lancamento', 'projeto', 'institucional', 'proposta']
-  return ordem.find((t) => TIPOS[t].palavras.test(texto)) ?? 'geral'
+  const pontos = pontuarTipos(texto)
+  let melhor: TipoApresentacao = 'geral'
+  let max = 1.99
+  for (const t of ORDEM_TIPOS) if (pontos[t] > max) { melhor = t; max = pontos[t] }
+  return melhor
 }
 
 /** Arco resumido para o prompt do roteiro: "pitch: conceito (O problema) → …". */

@@ -68,7 +68,7 @@ describe('pipeline com o Claude (API simulada)', () => {
   it('roteiro: Sonnet, streaming, system em cache, esforço médio; saída normalizada e custo pelo uso', async () => {
     const { gerarRoteiroClaude } = await import('./claude')
     pedidos.length = 0
-    responder = () => ({ json: { titulo: 'Aurora', tema: 'grafite', telas: roteiro.telas.map((t) => ({ ...t, titulo: `${t.titulo}  ` })) } })
+    responder = () => ({ json: { titulo: 'Aurora', tipo: 'pitch', tema: 'grafite', telas: roteiro.telas.map((t) => ({ ...t, titulo: `${t.titulo}  ` })) } })
     const r = await gerarRoteiroClaude(pedidoRoteiro)
     const p = pedidos[0]!
     expect(p.beta).toBe(true)

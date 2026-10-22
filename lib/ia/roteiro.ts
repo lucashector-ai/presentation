@@ -6,7 +6,7 @@
 import { z } from 'zod'
 import { FORMATOS, SCHEMA_VERSION, type DocumentoProjeto, type ModoProjeto } from '@/lib/scene/schema'
 import { parseDocumento } from '@/lib/scene/migrar'
-import { COMPONENTES, TEMAS, TIPOS_TELA, regrasDe, resolverTema, type Marca, type TemaEscolhido, type TemaId, type TemaVisual, type TipoTela } from './designSystem'
+import { COMPONENTES, TEMAS, TIPOS_DADOS, TIPOS_TELA, regrasDe, resolverTema, type Marca, type TemaEscolhido, type TemaId, type TemaVisual, type TipoTela } from './designSystem'
 import { desenharLocal } from './desenhoLocal'
 import { montarTela, type Estilo, type FotoMontagem, type LogoMontagem, type TelaDesenhada } from './montagem'
 
@@ -20,7 +20,7 @@ export const TelaRoteiroSchema = z.object({
   titulo: z.string().trim().min(1).max(160),
   texto: z.string().trim().max(600).default(''),
   /** Itens no formato do tipo: pontos, "valor|legenda", "Título|descrição", "Nome|#hex"… (ver COMPONENTES). */
-  itens: z.array(z.string().trim().max(160)).max(6).default([]),
+  itens: z.array(z.string().trim().max(160)).max(8).default([]),
   notas: z.string().trim().max(1200).default(''),
 })
 export type TelaRoteiro = z.infer<typeof TelaRoteiroSchema>
@@ -54,6 +54,8 @@ export interface OpcoesDocumento {
   logo?: LogoMontagem | null
   /** Fotos da pessoa: ocupam os espaços de imagem, na ordem das telas. */
   fotos?: FotoMontagem[]
+  /** Direção visual pedida para cada tela (pedido com estrutura explícita): orienta o desenho local. */
+  direcoes?: string[]
 }
 
 const corta = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s)
@@ -68,8 +70,10 @@ function prepararDesenho(d0: TelaDesenhada, imagens: OpcaoImagens, densidade: De
   if (imagens === 'nenhuma' && r.tipo === 'imagem') r = { ...r, tipo: 'conceito', variante: 'conceito.frase' }
   if (imagens === 'nenhuma' && r.tipo === 'galeria') r = { ...r, tipo: 'cartoes', variante: 'cartoes.linhas' }
   if (imagens === 'nenhuma' && r.variante === 'capa.dividida') r = { ...r, imagem: '' }
-  if (densidade === 'minimo' && !['capa', 'citacao', 'encerramento', 'cta'].includes(r.tipo)) r = { ...r, texto: '', itens: r.itens.slice(0, r.tipo === 'comparacao' ? 6 : 3) }
-  if (densidade === 'medio') r = { ...r, texto: corta(r.texto, 240), itens: r.itens.slice(0, r.tipo === 'comparacao' ? 6 : 5) }
+  // dados (tabela, funil, gráfico, painel, roadmap) nunca perdem itens: cortar uma linha mudaria o que os números dizem
+  const dados = TIPOS_DADOS.includes(r.tipo) || r.tipo === 'roadmap'
+  if (densidade === 'minimo' && !['capa', 'citacao', 'encerramento', 'cta'].includes(r.tipo)) r = { ...r, texto: dados ? corta(r.texto, 140) : '', itens: dados ? r.itens : r.itens.slice(0, r.tipo === 'comparacao' ? 6 : 3) }
+  if (densidade === 'medio') r = { ...r, texto: corta(r.texto, 240), itens: dados ? r.itens : r.itens.slice(0, r.tipo === 'comparacao' ? 6 : 5) }
   return r
 }
 
@@ -110,7 +114,7 @@ export function montarDocumento(roteiro: Roteiro, opcoes: OpcoesDocumento): Docu
   const tema = resolverTema(opcoes.tema, opcoes.marca)
   const story = opcoes.modo === 'story'
   const size = story ? FORMATOS.story : FORMATOS.slides169
-  const locais = desenharLocal(roteiro, { story, estilo: opcoes.estilo, tema })
+  const locais = desenharLocal(roteiro, { story, estilo: opcoes.estilo, tema, direcoes: opcoes.direcoes })
   const explorar = opcoes.modo === 'explorar' && roteiro.telas.length > 1
   let secoes = 0
   const colunas = Math.ceil(Math.sqrt(roteiro.telas.length))

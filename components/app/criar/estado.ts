@@ -5,7 +5,7 @@
  */
 import type { MaterialLido } from '@/lib/pdf/material'
 import type { Estilo } from '@/lib/ia/roteiro'
-import type { TemaId } from '@/lib/ia/designSystem'
+import type { PapeisMarca, TemaId } from '@/lib/ia/designSystem'
 import type { Idioma } from '@/lib/ia/pedido'
 import type { TipoPedido, Tom } from '@/lib/ia/tiposApresentacao'
 
@@ -24,6 +24,9 @@ export const INFO_PASSO: Record<Passo, { nome: string; dica: string; opcional?: 
   roteiro: { nome: 'Roteiro', dica: 'edite antes do design' },
   design: { nome: 'Design', dica: 'as telas desenhadas' },
 }
+
+/** Chave da sessão do navegador com um pedido longo colado no painel (vai inteiro para o editor do Criar com IA). */
+export const CHAVE_PEDIDO_COLADO = 'mostra:pedido-colado'
 
 export type Formato = 'slides' | 'story' | 'explorar'
 export type Origem = 'zero' | 'texto' | 'arquivo'
@@ -60,6 +63,8 @@ export interface MarcaEscolhida {
   logoRodape: boolean
   /** Kit de marca salvo de onde veio (para atualizar em vez de criar outro). */
   kitId: string | null
+  /** Papéis de cor citados no pedido (fundo claro, cartão, positivo, negativo), aplicados sem digitar de novo. */
+  papeis?: PapeisMarca | null
 }
 
 export interface MaterialEscolhido {
@@ -80,7 +85,7 @@ export interface EstiloEscolhido {
   energia: Estilo | 'auto'
 }
 
-export const MARCA_VAZIA: MarcaEscolhida = { nome: '', cores: [], aplicarCores: true, fontes: null, logo: null, logoRodape: false, kitId: null }
+export const MARCA_VAZIA: MarcaEscolhida = { nome: '', cores: [], aplicarCores: true, fontes: null, logo: null, logoRodape: false, kitId: null, papeis: null }
 export const MATERIAL_VAZIO: MaterialEscolhido = { origem: 'zero', conteudo: '', arquivo: null, lido: null, numeros: '', obrigatorio: '', evitar: '', fotos: [] }
 
 /** Números-chave digitados (um por linha: "38% | mais passageiros") no formato do roteiro ("valor|legenda"). */
