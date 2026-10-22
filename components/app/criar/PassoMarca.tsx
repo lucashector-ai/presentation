@@ -1,13 +1,14 @@
 'use client'
 /**
  * Passo "Marca": logo (paleta extraída no navegador), cores (do logo, do pedido ou paletas prontas), par de fontes
- * da biblioteca e nome. Tudo aplicado na montagem, sem IA. Kits de marca salvos no espaço para reusar.
+ * (da biblioteca ou quaisquer famílias do Google, pelo seletor do catálogo) e nome. Tudo aplicado na montagem, sem IA. Kits de marca salvos no espaço para reusar.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Bookmark, ImagePlus, Plus, Trash2, X } from 'lucide-react'
 import { Alternador, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 import { carregarFontes } from '@/components/renderer/fontes'
+import { SeletorFonte } from '@/components/fontes/SeletorFonte'
 import { dados, mensagemDeErro, type KitMarca } from '@/lib/dados'
 import { sanitizarSvgNavegador } from '@/lib/editor/importar'
 import { PARES_FONTES, RE_HEX } from '@/lib/ia/designSystem'
@@ -37,6 +38,7 @@ export function PassoMarca({ marca, aoMudar, prompt, kits, aoSalvarKit, aoExclui
   const doPedido = useMemo(() => coresDoTexto(prompt), [prompt])
   const sugestoesLogo = useMemo(() => (marca.logo?.cores.length ? paletasDoLogo(ordenarCoresDaMarca(marca.logo.cores)) : []), [marca.logo])
   useEffect(() => { carregarFontes(PARES_FONTES.flatMap((p) => [p.titulo, p.texto])) }, [])
+  useEffect(() => { if (marca.fontes) carregarFontes([marca.fontes.titulo, marca.fontes.texto]) }, [marca.fontes])
   const iguais = (a: string[], b: string[]) => a.length === b.length && a.every((c, i) => c.toUpperCase() === b[i]?.toUpperCase())
 
   const enviarLogo = async (f: File | undefined) => {
@@ -170,7 +172,7 @@ export function PassoMarca({ marca, aoMudar, prompt, kits, aoSalvarKit, aoExclui
             )}
           </Secao>
 
-          <Secao titulo="Fontes" dica="Um par da biblioteca de fontes (títulos + textos). Automático = o par do estilo." selo={<SeloCusto />} id="titulo-fontes">
+          <Secao titulo="Fontes" dica="Um par pronto ou qualquer fonte do Google para títulos e textos. Automático = o par do estilo." selo={<SeloCusto />} id="titulo-fontes">
             <div role="radiogroup" aria-label="Par de fontes" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <button type="button" role="radio" aria-checked={!marca.fontes} onClick={() => aoMudar((m) => ({ ...m, fontes: null }))} className={cx('rounded-[10px] border-[1.5px] px-3 py-2 text-left', !marca.fontes ? 'border-violeta bg-[#F4F5FE]' : 'border-[#E7E5E4] bg-white hover:border-grafite')}>
                 <span className="block text-[18px] leading-tight">Aa</span>
@@ -185,6 +187,22 @@ export function PassoMarca({ marca, aoMudar, prompt, kits, aoSalvarKit, aoExclui
                   </button>
                 )
               })}
+            </div>
+            <div className="flex flex-col gap-2">
+              <div className="rotulo-mono">Ou escolha qualquer fonte do Google</div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="flex min-w-0 flex-col gap-1 text-[12px] text-texto3">
+                  Títulos
+                  <SeletorFonte variante="cartao" rotulo="Fonte dos títulos" valor={marca.fontes?.titulo ?? 'Do estilo'} aoMudar={(f) => aoMudar((m) => ({ ...m, fontes: { titulo: f, texto: m.fontes?.texto ?? f } }))} />
+                </label>
+                <label className="flex min-w-0 flex-col gap-1 text-[12px] text-texto3">
+                  Textos
+                  <SeletorFonte variante="cartao" rotulo="Fonte dos textos" valor={marca.fontes?.texto ?? 'Do estilo'} aoMudar={(f) => aoMudar((m) => ({ ...m, fontes: { titulo: m.fontes?.titulo ?? f, texto: f } }))} />
+                </label>
+              </div>
+              {marca.fontes && !PARES_FONTES.some((p) => p.titulo === marca.fontes!.titulo && p.texto === marca.fontes!.texto) && (
+                <p className="text-[12px] text-texto3">Par próprio: <span style={{ fontFamily: pilhaFonte(marca.fontes.titulo) }}>{marca.fontes.titulo}</span> + <span style={{ fontFamily: pilhaFonte(marca.fontes.texto) }}>{marca.fontes.texto}</span>. A IA e a montagem usam estas fontes.</p>
+              )}
             </div>
           </Secao>
         </div>

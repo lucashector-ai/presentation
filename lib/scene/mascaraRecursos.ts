@@ -2,13 +2,14 @@
  * Recursos embutidos nas máscaras (só no navegador). Uma máscara é uma imagem SVG (data URL) e imagens SVG não
  * carregam nada de fora: as fontes dos textos-máscara e os arquivos das imagens-máscara entram como data URL.
  *
- * - Fontes: as regras @font-face da família (folhas da página — Geist do @fontsource — ou a do Google Fonts),
+ * - Fontes: as regras @font-face da família (folhas da página — Geist do @fontsource — ou a do proxy de fontes),
  *   filtradas pelo estilo, pelo peso e pelos subconjuntos que o texto usa; cada arquivo vira data URL.
  * - Imagens: o arquivo do asset; fotos grandes são reduzidas (lado maior ≤ 1600 px, PNG para manter o alfa).
  *
  * Cache por chave (mesma fonte/imagem em várias máscaras, telas e miniaturas é carregada uma vez).
  */
-import { FONTES_GOOGLE } from '@/lib/design-tokens'
+import { precisaCarregar } from '@/components/renderer/fontes'
+import { urlFolha } from '@/lib/fontes/url'
 import type { Camada } from './schema'
 import { recursosDasMascaras, type PedidoRecurso } from './mascara'
 
@@ -78,7 +79,7 @@ function tocaLatim(faixa?: string): boolean {
   })
 }
 
-async function regrasDaPagina(familia: string): Promise<RegraFonte[]> {
+async function regrasDaPagina(familia: string, peso: number, italico: boolean): Promise<RegraFonte[]> {
   const r: RegraFonte[] = []
   const externas: string[] = []
   for (const folha of Array.from(document.styleSheets)) {
@@ -91,9 +92,9 @@ async function regrasDaPagina(familia: string): Promise<RegraFonte[]> {
   }
   const daFamilia = (l: RegraFonte[]) => l.filter((x) => x.familia === familia)
   if (daFamilia(r).length) return daFamilia(r)
-  // folha do Google Fonts (outra origem, sem acesso às regras): busca o CSS de novo (tem CORS)
-  const google = FONTES_GOOGLE[familia] ? `https://fonts.googleapis.com/css2?family=${FONTES_GOOGLE[familia]}&display=swap` : null
-  for (const url of [...externas.filter((u) => u.includes('fonts.googleapis.com') && u.includes(encodeURIComponent(familia).replace(/%20/g, '+'))), ...(google ? [google] : [])]) {
+  // folha de outra origem (sem acesso às regras) ou família ainda não pedida: busca o CSS pelo proxy de fontes
+  const proxy = precisaCarregar(familia) ? new URL(urlFolha({ familias: [{ familia, variantes: [{ peso, italico }] }] }), location.href).href : null
+  for (const url of [...externas.filter((u) => u.includes('fonts.googleapis.com') && u.includes(encodeURIComponent(familia).replace(/%20/g, '+'))), ...(proxy ? [proxy] : [])]) {
     try {
       const css = await (await fetch(url)).text()
       const l = daFamilia(lerRegras(css, url))
@@ -107,7 +108,7 @@ const paraDataUrl = (b: Blob) => new Promise<string>((ok, falha) => { const f = 
 
 async function cssDaFonte(familia: string, peso: number, italico: boolean, todos: boolean): Promise<string | null> {
   if (typeof document === 'undefined') return null
-  const regras = (await regrasDaPagina(familia)).filter((r) => (todos || tocaLatim(r.faixa)))
+  const regras = (await regrasDaPagina(familia, peso, italico)).filter((r) => (todos || tocaLatim(r.faixa)))
   if (!regras.length) return null
   const estilo = italico ? 'italic' : 'normal'
   const doEstilo = regras.filter((r) => r.estilo === estilo).length ? regras.filter((r) => r.estilo === estilo) : regras

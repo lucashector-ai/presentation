@@ -672,6 +672,8 @@ export function aplicarMarca(base: TemaVisual, marca: Marca | undefined): TemaVi
   }
   const par = marca.fontes ? PARES_FONTES.find((p) => p.titulo === marca.fontes!.titulo && p.texto === marca.fontes!.texto) : undefined
   if (par) t = { ...t, fontes: { ...t.fontes, titulo: par.titulo, texto: par.texto, pesoTitulo: par.pesoTitulo, italicoCitacao: par.italicoCitacao } }
+  // qualquer família do Google escolhida no kit: peso e itálico do estilo (o carregador ajusta ao que a família tem)
+  else if (marca.fontes?.titulo.trim() && marca.fontes.texto.trim()) t = { ...t, fontes: { ...t.fontes, titulo: marca.fontes.titulo.trim(), texto: marca.fontes.texto.trim() } }
   return t
 }
 
