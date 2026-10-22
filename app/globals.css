@@ -134,6 +134,9 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 @keyframes seg-contador { 0% { opacity: 0 } 12%, 100% { opacity: 1 } }
 @keyframes seg-marca { from { background-size: 0% var(--marca-h, .38em) } to { background-size: 100% var(--marca-h, .38em) } }
 .seg-texto { display: inline-block; animation-fill-mode: both; }
+/* parte esperando a sua vez (o renderizador dá a animação a cada parte pouco antes de ela começar): parada no
+   1º quadro do efeito, sem camada própria. Variáveis no bloco do texto (estadoDeEspera em animacao.tsx). */
+[data-seg][data-espera] { opacity: var(--seg-de-op, 1); transform: var(--seg-de-tf, none); visibility: var(--seg-de-vis, inherit); filter: var(--seg-de-filtro, none); }
 .seg-texto-linha { display: inline; animation-fill-mode: both; }
 /* cursor da máquina de escrever: um elemento só, no canto da letra atual (keyframes gerados pelo renderizador
    com a posição de cada letra, ver keyframesCursor). Parado ele fica invisível. */
@@ -209,6 +212,7 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
   .camada-animada { animation-name: anim-fadeIn !important; animation-duration: 150ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; animation-timing-function: linear !important; }
   .camada-animada.camada-saida { animation-name: anim-fadeOut !important; }
   .seg-texto, .seg-texto-linha, .seg-marca, .seg-contador, .seg-cursor, .camada-desenho *, .seg-progresso-anim, .camada-plx { animation: none !important; }
+  [data-seg][data-espera] { opacity: 1; transform: none; visibility: inherit; filter: none; }
 }
 /* ===== MOSTRA · ANIMAÇÕES DE CAMADA — fim ===== */
 

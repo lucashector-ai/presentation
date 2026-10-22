@@ -194,22 +194,8 @@ function resumoPerfil(perfil, n = 12) {
   return [...tempo.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => `${Math.round(v)} ms  ${k}`)
 }
 
-async function medir(page, cdp, acao, ms) {
-  const perfil = !!process.env.DESEMPENHO_PERFIL
-  if (perfil) { await cdp.send('Profiler.enable'); await cdp.send('Profiler.setSamplingInterval', { interval: 200 }); await cdp.send('Profiler.start') }
-  const rastro = !!process.env.DESEMPENHO_RASTRO
-  let eventos = []
-  if (rastro) {
-    cdp.on('Tracing.dataCollected', (e) => { eventos.push(...e.value) })
-    await cdp.send('Tracing.start', { categories: 'blink.animations,devtools.timeline,disabled-by-default-devtools.timeline', transferMode: 'ReportEvents' })
-  }
-  await page.evaluate(iniciarGravacao)
-  const m0 = await metricas(cdp)
-  await acao()
-  await page.waitForTimeout(ms)
-  const m1 = await metricas(cdp)
-  const r = await page.evaluate(pararGravacao)
-  if (process.env.DESEMPENHO_CAMADAS) {
+/** Diagnóstico: camadas compostas agora (cada uma pesa no Layerize/Commit de todo quadro que repinta). */
+async function capturarCamadas(page, cdp) {
     // camadas compostas no fim da medição (cada uma pesa no Layerize/Commit de todo quadro que repinta)
     const camadas = await new Promise((ok) => {
       const h = (e) => { if (e.layers) { cdp.off('LayerTree.layerTreeDidChange', h); ok(e.layers) } }
@@ -232,7 +218,27 @@ async function medir(page, cdp, acao, ms) {
       }
       console.log('      sem nó:', camadas.filter((l) => !l.backendNodeId).length)
     }
+}
+
+async function medir(page, cdp, acao, ms) {
+  const perfil = !!process.env.DESEMPENHO_PERFIL
+  if (perfil) { await cdp.send('Profiler.enable'); await cdp.send('Profiler.setSamplingInterval', { interval: 200 }); await cdp.send('Profiler.start') }
+  const rastro = !!process.env.DESEMPENHO_RASTRO
+  let eventos = []
+  if (rastro) {
+    cdp.on('Tracing.dataCollected', (e) => { eventos.push(...e.value) })
+    await cdp.send('Tracing.start', { categories: 'blink.animations,devtools.timeline,disabled-by-default-devtools.timeline', transferMode: 'ReportEvents' })
   }
+  await page.evaluate(iniciarGravacao)
+  const m0 = await metricas(cdp)
+  await acao()
+  // DESEMPENHO_CAMADAS_EM=ms: fotografa as camadas compostas no meio da animação (perturba a medição)
+  const meio = Number(process.env.DESEMPENHO_CAMADAS_EM || 0)
+  if (meio) { await page.waitForTimeout(meio); await capturarCamadas(page, cdp) }
+  await page.waitForTimeout(Math.max(0, ms - meio))
+  const m1 = await metricas(cdp)
+  const r = await page.evaluate(pararGravacao)
+  if (process.env.DESEMPENHO_CAMADAS && !process.env.DESEMPENHO_CAMADAS_EM) await capturarCamadas(page, cdp)
   if (perfil) { const { profile } = await cdp.send('Profiler.stop'); console.log(resumoPerfil(profile).map((l) => `    ${l}`).join('\n')) }
   if (rastro) {
     const fim = new Promise((r) => cdp.once('Tracing.tracingComplete', r))
@@ -255,6 +261,21 @@ async function medir(page, cdp, acao, ms) {
       const ult = eventos.filter((e) => e.name === 'UpdateLayoutTree' && e.ph === 'X')
       const contagens = ult.map((e) => e.args?.elementCount ?? e.args?.endData?.elementCount ?? '?')
       console.log('    elementos por recálculo:', contagens.slice(0, 120).join(' '))
+    }
+    if (process.env.DESEMPENHO_RASTRO === '5') {
+      // quadros lentos: o que a thread principal fez entre um requestAnimationFrame e o seguinte
+      const tid = eventos.find((e) => e.name === 'FireAnimationFrame')?.tid
+      const raf = eventos.filter((e) => e.name === 'FireAnimationFrame' && e.tid === tid).map((e) => e.ts).sort((a, b) => a - b)
+      const tipos = ['UpdateLayoutTree', 'Layout', 'PrePaint', 'Paint', 'Layerize', 'Commit', 'FunctionCall', 'EventDispatch', 'TimerFire', 'FireAnimationFrame', 'HitTest', 'MinorGC', 'MajorGC', 'RunMicrotasks', 'IntersectionObserverController::computeIntersections', 'UpdateLayer', 'RunTask']
+      const todos = process.env.DESEMPENHO_TODOS
+      const principais = eventos.filter((e) => e.tid === tid && e.ph === 'X' && (todos ? e.name !== 'RunTask' && e.name !== 'ThreadControllerImpl::RunTask' : tipos.includes(e.name)))
+      const lentos = []
+      for (let i = 1; i < raf.length; i++) if (raf[i] - raf[i - 1] > 20000) lentos.push([raf[i - 1], raf[i]])
+      for (const [a, b] of lentos.slice(0, 10)) {
+        const soma = new Map()
+        for (const e of principais) if (e.ts >= a && e.ts < b) soma.set(e.name, (soma.get(e.name) ?? 0) + e.dur / 1000)
+        console.log(`     quadro ${Math.round((b - a) / 1000)} ms:`, [...soma.entries()].sort((x, y) => y[1] - x[1]).slice(0, 9).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(' · '))
+      }
     }
     if (process.env.DESEMPENHO_RASTRO === '4') {
       // o que é pintado (nó de cada evento Paint)
