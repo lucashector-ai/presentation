@@ -13,7 +13,7 @@
 import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import type { Animacao, Cena, Transicao } from '@/lib/scene/schema'
 import { curvaCss, dividirTexto, pontosDaCurva, tempoSegmentos } from '@/lib/scene/animacoes'
-import { divisao, keyframeDaParte, parametros } from '@/lib/scene/parametros'
+import { divisao, keyframeDaParte, parametros, quadrosDasPartes, quadrosNoCiclo } from '@/lib/scene/parametros'
 import { agruparLetras, agruparLinhas, analisarNumero, curvaBezier, formatarNumero, keyframesCursor, ordemDasPartes, passosDaOrdem } from '@/lib/scene/texto-animado'
 import { keyframesSeparados } from './plano'
 
@@ -91,31 +91,34 @@ export function soltarParte(e: React.AnimationEvent) {
   el.setAttribute('data-fim', '')
 }
 
+/** A página pede movimento reduzido (rede de segurança no editor; o visualizador já adapta as animações). */
+export const movimentoReduzido = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+
 /**
- * Texto dividido: as partes são soltas TODAS JUNTAS, quando a última termina. Soltar uma a uma mudava a
- * árvore de camadas a cada quadro do escalonamento (o navegador refazia o Layerize e o Commit de tudo em
- * quadros seguidos); de uma vez, é uma mudança só, no fim.
+ * Espera das animações (tela de carregamento, seção do Story fora da janela, câmera do Explorar voando): a classe
+ * `.animacoes-em-espera` num ancestral pausa as animações CSS no 1º quadro; as da Web Animations API seguem o
+ * mesmo sinal. Chama `aoLiberar` quando o ancestral perde a classe (ou na hora, se não houver espera) e devolve
+ * o cancelamento. Um MutationObserver no ancestral, sem nada por quadro.
  */
-function soltarPartesJuntas(e: React.AnimationEvent) {
-  const el = e.target as HTMLElement
-  if (el.classList.contains('seg-cursor')) return soltarParte(e)
-  if (!el.hasAttribute('data-seg') || el.hasAttribute('data-terminou')) return
-  el.setAttribute('data-terminou', '')
-  const raiz = e.currentTarget as HTMLElement
-  if (raiz.querySelector('[data-seg]:not([data-terminou])')) return
-  raiz.querySelectorAll('[data-seg]').forEach((p) => p.setAttribute('data-fim', ''))
+export function quandoLiberar(el: Element, aoLiberar: () => void): () => void {
+  const espera = el.closest('.animacoes-em-espera')
+  if (!espera) {
+    aoLiberar()
+    return () => {}
+  }
+  const mo = new MutationObserver(() => {
+    if (espera.classList.contains('animacoes-em-espera')) return
+    mo.disconnect()
+    aoLiberar()
+  })
+  mo.observe(espera, { attributes: true, attributeFilter: ['class'] })
+  return () => mo.disconnect()
 }
 
 /** Decodificar: quantas letras trocam de caractere sorteado por quadro, no máximo. */
 const SORTEIOS_POR_QUADRO = 24
-/** Decodificar: duração da animação CSS de cada letra (só marca o início; o sorteio segue o relógio do quadro). */
+/** Decodificar: duração da marca de início de cada letra (a letra aparece; o sorteio segue o relógio do quadro). */
 const MARCA_INICIO_MS = 20
-
-/** animation-* de uma parte com uma ou mais animações (desfoque separado) no mesmo tempo. */
-const tempoDasPartes = (nomes: string[], duracao: string, atraso: string, curva: string): CSSProperties => {
-  const n = (v: string) => nomes.map(() => v).join(', ')
-  return { animationName: nomes.join(', '), animationDuration: n(duracao), animationDelay: n(atraso), animationTimingFunction: n(curva) }
-}
 
 const pinturaDe = (gradiente?: string): CSSProperties | undefined => (gradiente ? { backgroundImage: gradiente, backgroundRepeat: 'no-repeat', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', WebkitTextFillColor: 'transparent' } : undefined)
 
@@ -227,11 +230,48 @@ function TextoDividido({ texto, animacao, gradiente, cor }: { texto: string; ani
     return () => { ativo = false }
   }, [letraALetra, palavras])
 
-  // decodificar: sorteia caracteres enquanto a parte está ativa. Quem diz "ativa" são os eventos da animação CSS
-  // da própria parte (começa depois do atraso e não corre pausada); por quadro só há escritas, nenhuma leitura.
+  // partes animadas pela Web Animations API (keyframes resolvidos, um conjunto para todas): sem eventos de
+  // animação por parte e fora do recálculo das animações CSS. Esperam a liberação da tela (ver quandoLiberar) e
+  // são soltas TODAS JUNTAS quando a última termina — soltar uma a uma mudava a árvore de camadas a cada quadro
+  // do escalonamento. Com "repetir", cada parte anima dentro do ciclo da entrada inteira (a sequência repete).
+  const quadros = useMemo(() => quadrosDasPartes(animacao, n), [animacao, n])
+  const assinatura = JSON.stringify(quadros)
+  const repetir = inline ? 1 : Math.max(1, animacao.repeat ?? 1)
   useEfeitoLayout(() => {
     const el = ref.current
-    if (!embaralhar || !el) return
+    if (!el || (porLinha && linhas === null) || movimentoReduzido() || typeof el.animate !== 'function') return
+    const conjuntos = JSON.parse(assinatura) as Keyframe[][]
+    const anims: Animation[] = []
+    el.querySelectorAll<HTMLElement>('[data-seg]').forEach((p) => {
+      const t = Number(p.dataset.t ?? 0)
+      const d = Math.max(1, Number(p.dataset.d ?? 0))
+      for (const q of conjuntos) {
+        anims.push(
+          repetir > 1
+            ? p.animate(quadrosNoCiclo(q, (t - animacao.delay) / animacao.duration, d / animacao.duration, curva), { duration: animacao.duration, delay: animacao.delay, iterations: repetir, easing: 'linear', fill: 'both' })
+            : p.animate(q, { duration: d, delay: t, easing: curva, fill: 'both' })
+        )
+      }
+    })
+    if (!anims.length) return
+    let vivo = true
+    // pausadas no 1º quadro até a tela liberar (a miniatura congelada da galeria pausa e posiciona depois)
+    anims.forEach((a) => a.pause())
+    const parar = quandoLiberar(el, () => { if (vivo) anims.forEach((a) => a.play()) })
+    Promise.all(anims.map((a) => a.finished)).then(() => { if (vivo) anims.forEach((a) => a.cancel()) }, () => undefined)
+    return () => {
+      vivo = false
+      parar()
+      anims.forEach((a) => a.cancel())
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assinatura, linhas, palavras, porLinha, repetir, curva, animacao.delay, animacao.duration, duracaoParte, passo])
+
+  // decodificar: sorteia caracteres enquanto a parte está ativa. A janela de cada parte vem da agenda dela
+  // (data-t/data-dur) contada a partir da liberação da tela; por quadro só há escritas, nenhuma leitura.
+  useEfeitoLayout(() => {
+    const el = ref.current
+    if (!embaralhar || !el || movimentoReduzido()) return
     const sortear = (s: HTMLElement) => {
       // sorteia entre caracteres de largura parecida (sem m/w/j/q…): o sorteado fica por cima da letra real
       // e não invade as vizinhas
@@ -242,12 +282,25 @@ function TextoDividido({ texto, animacao, gradiente, cor }: { texto: string; ani
       if (!s.hasAttribute('data-g')) s.setAttribute('data-g', '')
     }
     const limpar = (s: HTMLElement) => { s.removeAttribute('data-g'); const g = s.lastElementChild; if (g) g.textContent = '' }
+    // na montagem, as partes já ficam com um caractere sorteado (invisível até a parte aparecer; a miniatura
+    // congelada da galeria mostra o sorteio parado)
+    const partes = [...el.querySelectorAll<HTMLElement>('[data-scr]')]
+    partes.forEach(sortear)
+    if (el.closest('[data-congelada]')) return
+    // agenda: quando cada letra começa a sortear e por quanto tempo (desde a liberação da tela)
+    const janelas = partes.map((p) => ({ p, t: Number(p.dataset.t ?? 0), d: Number(p.dataset.dur ?? 0) })).sort((a, b) => a.t - b.t)
     // letra ativa → quando o sorteio dela termina (relógio do quadro)
     const ativas = new Map<HTMLElement, number>()
     let raf = 0
     let vez = 0
     let quadro = 0
+    let inicio = 0
+    let prox = 0
     const tique = (agora: number) => {
+      while (prox < janelas.length && inicio + janelas[prox]!.t <= agora) {
+        const j = janelas[prox++]!
+        ativas.set(j.p, inicio + j.t + j.d)
+      }
       ativas.forEach((fim, s) => { if (agora >= fim) { ativas.delete(s); limpar(s) } })
       // cada letra troca a cada 3 quadros (~20 por segundo), um terço das letras por quadro (custo igual em todo
       // quadro, sem picos), no máximo SORTEIOS_POR_QUADRO: cada troca refaz o layout da linha, e num parágrafo
@@ -260,32 +313,17 @@ function TextoDividido({ texto, animacao, gradiente, cor }: { texto: string; ani
         for (let i = 0; i < k; i++) sortear(lista[(vez + i) % lista.length]!)
         vez = lista.length ? (vez + k) % lista.length : 0
       }
-      raf = ativas.size ? requestAnimationFrame(tique) : 0
+      raf = ativas.size || prox < janelas.length ? requestAnimationFrame(tique) : 0
     }
-    const tocar = () => { if (!raf && ativas.size) raf = requestAnimationFrame(tique) }
-    // na montagem, as partes que vão animar já ficam com um caractere sorteado (invisível até a parte aparecer; a
-    // miniatura congelada da galeria mostra o sorteio). UMA consulta para o bloco inteiro: getAnimations() por
-    // parte recalculava o estilo da página a cada chamada (as animações recém-criadas sujam o estilo de novo).
-    const comAnimacao = new Set((el.getAnimations?.({ subtree: true }) ?? []).map((a) => (a.effect as KeyframeEffect | null)?.target))
-    el.querySelectorAll<HTMLElement>('[data-scr]').forEach((s) => { if (comAnimacao.has(s) && !s.hasAttribute('data-fim')) sortear(s) })
-    const comecou = (e: AnimationEvent) => {
-      const s = e.target as HTMLElement
-      if (!s.dataset?.scr) return
-      if (!s.hasAttribute('data-g')) sortear(s)
-      // miniatura congelada da galeria (pausada num instante): o sorteio fica parado, como o resto dela
-      if (s.closest('[data-congelada]')) return
-      ativas.set(s, e.timeStamp + Number(s.dataset.dur ?? 0))
-      tocar()
-    }
-    const cancelou = (e: AnimationEvent) => { const s = e.target as HTMLElement; if (!s.dataset?.scr) return; ativas.delete(s); limpar(s) }
-    el.addEventListener('animationstart', comecou)
-    el.addEventListener('animationcancel', cancelou)
+    const parar = quandoLiberar(el, () => {
+      inicio = performance.now()
+      raf = requestAnimationFrame(tique)
+    })
     return () => {
+      parar()
       cancelAnimationFrame(raf)
-      el.removeEventListener('animationstart', comecou)
-      el.removeEventListener('animationcancel', cancelou)
     }
-  }, [embaralhar, palavras])
+  }, [embaralhar, palavras, passo, duracaoParte, animacao.delay])
 
   // máquina de escrever: UM cursor que salta de letra em letra. Mede o canto de cada letra antes de pintar (e de
   // novo se a caixa mudar de largura ou a fonte chegar) e gera os keyframes dele.
@@ -313,18 +351,22 @@ function TextoDividido({ texto, animacao, gradiente, cor }: { texto: string; ani
   useGradienteContinuo(ref, gradiente, [palavras, kerns, linhas])
 
   const pintura = pinturaDe(gradiente)
-  const estiloParte = (indice: number, posicao = posicoes[indice] ?? indice): CSSProperties => {
-    const t = Math.round(animacao.delay + posicao * passo)
+  /**
+   * Agenda da parte no DOM (data-t: início desde o começo da camada, com o atraso; data-d: duração), lida uma vez
+   * pelo efeito que cria as animações. Decodificar: a animação só marca o início (a letra aparece) — com a duração
+   * toda, as letras se sobrepõem quase inteiras e um parágrafo recalculava 300 letras por quadro; o sorteio dura
+   * `data-dur` a partir dele. Máquina de escrever: a letra só aparece (o cursor é um elemento só).
+   */
+  const agenda = (posicao: number) => {
     const dp = Math.round(duracaoParte)
-    // máquina de escrever: a letra só aparece (o cursor é um elemento só, ver keyframesCursor)
-    if (maquina) return { ...pintura, animationName: 'seg-typewriter', animationDuration: `${dp}ms`, animationDelay: `${t}ms`, animationTimingFunction: 'linear', animationFillMode: 'both' }
-    // decodificar: a animação CSS só marca o início (a letra aparece); o sorteio dura `data-dur` a partir dele.
-    // Uma animação ativa recalcula o estilo da letra a cada quadro, e as letras do decodificar se sobrepõem
-    // quase inteiras: com a duração toda, um parágrafo recalculava 300 letras por quadro.
-    return { ...pintura, ...(embaralhar ? { ['--scr-cor' as string]: cor } : {}), marginRight: kerns[indice] ? `${kerns[indice]}em` : undefined, ...tempoDasPartes(keyframesSeparados(keyframe), `${embaralhar ? Math.min(dp, MARCA_INICIO_MS) : dp}ms`, `${t}ms`, curva) }
+    return { 'data-t': Math.round(animacao.delay + posicao * passo), 'data-d': maquina ? dp : embaralhar ? Math.min(dp, MARCA_INICIO_MS) : dp }
+  }
+  const estiloParte = (indice: number): CSSProperties | undefined => {
+    if (maquina) return pintura
+    return { ...pintura, ...(embaralhar ? { ['--scr-cor' as string]: cor } : {}), marginRight: kerns[indice] ? `${kerns[indice]}em` : undefined }
   }
   const parte = (s: { texto: string; indice: number }) => (
-    <span key={s.indice} data-seg="" data-scr={embaralhar ? s.texto : undefined} data-dur={embaralhar ? Math.round(duracaoParte) : undefined} className={inline ? `seg-texto-linha${embaralhar ? ' seg-scramble' : ''}` : 'seg-texto'} style={estiloParte(s.indice)}>
+    <span key={s.indice} data-seg="" {...agenda(posicoes[s.indice] ?? s.indice)} data-scr={embaralhar ? s.texto : undefined} data-dur={embaralhar ? Math.round(duracaoParte) : undefined} className={inline ? `seg-texto-linha${embaralhar ? ' seg-scramble' : ''}` : 'seg-texto'} style={estiloParte(s.indice)}>
       {s.texto}
       {embaralhar && <span className="seg-glifo" />}
     </span>
@@ -336,7 +378,7 @@ function TextoDividido({ texto, animacao, gradiente, cor }: { texto: string; ani
       ? palavras.map((p, i) => <Fragment key={i}>{p.partes.map((s) => <span key={s.indice} data-palavra="">{s.texto}</span>)}{p.separador}</Fragment>)
       : linhas.map((l, i) => (
           <span key={`${i}-${l}`} className={`seg-linha-caixa${mascara ? ' com-mascara' : ''}`}>
-            <span data-seg="" className="seg-texto" style={estiloParte(i)}>{l || ' '}</span>
+            <span data-seg="" {...agenda(posicoes[i] ?? i)} className="seg-texto" style={estiloParte(i)}>{l || ' '}</span>
           </span>
         ))
   } else if (agrupado) {
@@ -344,7 +386,7 @@ function TextoDividido({ texto, animacao, gradiente, cor }: { texto: string; ani
     conteudo = palavras.map((p, i) => (
       <Fragment key={i}>
         {p.partes.length > 0 && (
-          <span data-seg="" className="seg-texto" style={estiloParte(p.partes[0]!.indice, Math.min(...p.partes.map((s) => posicoes[s.indice] ?? s.indice)))}>
+          <span data-seg="" {...agenda(Math.min(...p.partes.map((s) => posicoes[s.indice] ?? s.indice)))} className="seg-texto" style={estiloParte(p.partes[0]!.indice)}>
             {p.partes.map((s) => s.texto).join('')}
           </span>
         )}
@@ -362,7 +404,7 @@ function TextoDividido({ texto, animacao, gradiente, cor }: { texto: string; ani
   return (
     <>
       <span className="texto-acessivel" data-texto={texto} />
-      <span ref={ref} aria-hidden onAnimationEnd={soltarPartesJuntas}>
+      <span ref={ref} aria-hidden onAnimationEnd={soltarParte}>
         {conteudo}
         {cursor && (
           <>

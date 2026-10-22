@@ -248,14 +248,21 @@ async function medir(page, cdp, acao, ms) {
       console.log('    por keyframe:', Object.fromEntries(exemplos))
     }
     const porNome = new Map()
-    for (const e of eventos) if (e.ph === 'X' && e.dur) porNome.set(e.name, (porNome.get(e.name) ?? 0) + e.dur / 1000)
+    const contagem = new Map()
+    for (const e of eventos) if (e.ph === 'X' && e.dur) { porNome.set(e.name, (porNome.get(e.name) ?? 0) + e.dur / 1000); contagem.set(e.name, (contagem.get(e.name) ?? 0) + 1) }
     if (process.env.DESEMPENHO_RASTRO === '3') {
       // recálculos de estilo: quantos elementos por vez (o que recalcula a cada quadro)
       const ult = eventos.filter((e) => e.name === 'UpdateLayoutTree' && e.ph === 'X')
       const contagens = ult.map((e) => e.args?.elementCount ?? e.args?.endData?.elementCount ?? '?')
       console.log('    elementos por recálculo:', contagens.slice(0, 120).join(' '))
     }
-    console.log('    ', [...porNome.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, v]) => `${k} ${Math.round(v)}ms`).join(' · '))
+    if (process.env.DESEMPENHO_RASTRO === '4') {
+      // o que é pintado (nó de cada evento Paint)
+      const pintados = new Map()
+      for (const e of eventos) if (e.name === 'Paint' && e.ph === 'X') { const d = e.args?.data ?? {}; const k = `${d.nodeName ?? '?'}#${d.nodeId ?? '?'} ${JSON.stringify(d.clip ?? []).slice(0, 60)}`; pintados.set(k, (pintados.get(k) ?? 0) + e.dur / 1000) }
+      console.log('    pinturas:', [...pintados.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, v]) => `${k} ${Math.round(v)}ms`).join('\n      '))
+    }
+    console.log('    ', [...porNome.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, v]) => `${k} ${Math.round(v)}ms (${contagem.get(k)}×)`).join(' · '))
     // tarefas longas da thread principal: o que há dentro de cada uma
     const principal = eventos.find((e) => e.name === 'FireAnimationFrame')?.tid
     const longas = eventos.filter((e) => e.name === 'RunTask' && e.tid === principal && e.dur > 50000)

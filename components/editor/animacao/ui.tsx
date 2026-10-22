@@ -174,7 +174,8 @@ export function MiniPrevia({ tipo: tipoProp, preset, loop, saida, texto, tocando
   )
 }
 
-const KEYFRAME_TRANSICAO: Record<Transicao['type'], string> = { none: 'cena-fade', fade: 'cena-fade', slide: 'cena-slide', scale: 'cena-scale', morph: '' }
+const KEYFRAME_TRANSICAO: Record<Transicao['type'], string> = { none: 'cena-fade', fade: 'cena-fade', slide: 'cena-slide', scale: 'cena-scale', morph: '', push: 'cena-push' }
+const CURVA_TRANSICAO: Partial<Record<Transicao['type'], string>> = { scale: 'cubic-bezier(.2,.8,.2,1)', push: 'cubic-bezier(.65,0,.35,1)' }
 
 /** Miniatura de transição de tela: a tela B entra sobre a A com os keyframes reais do visualizador. */
 export function MiniTransicao({ tipo, tocando, duracao }: { tipo: Transicao['type']; tocando: boolean; duracao: number }) {
@@ -188,8 +189,10 @@ export function MiniTransicao({ tipo, tocando, duracao }: { tipo: Transicao['typ
     const r = requestAnimationFrame(() => requestAnimationFrame(() => setMorphFim(true)))
     return () => cancelAnimationFrame(r)
   }, [ciclo, tipo, ativo])
+  // empurrar: a tela A sai junto, com o mesmo tempo e curva (a B a empurra)
+  const saiA = ativo && tipo === 'push' ? { animation: `cena-saida-push ${duracao}ms ${CURVA_TRANSICAO.push} 250ms both` } : undefined
   const telaA = (
-    <span className="absolute inset-0 bg-[#E7E5E1]">
+    <span key={`a-${ciclo}`} className="absolute inset-0 bg-[#E7E5E1]" style={saiA}>
       <span className="absolute left-[10%] top-[22%] h-[14%] w-[44%] rounded-[2px] bg-[#C9C6C0]" />
       <span className="absolute left-[10%] top-[48%] h-[8%] w-[30%] rounded-[2px] bg-[#D6D3CE]" />
     </span>
@@ -210,7 +213,7 @@ export function MiniTransicao({ tipo, tocando, duracao }: { tipo: Transicao['typ
         <span
           key={ciclo}
           className="absolute inset-0 bg-[#EEEFFD]"
-          style={ativo ? { animation: tipo === 'none' ? `cena-fade 1ms step-end ${Math.round(duracao * 0.6)}ms both` : `${KEYFRAME_TRANSICAO[tipo]} ${duracao}ms ${tipo === 'scale' ? 'cubic-bezier(.2,.8,.2,1)' : 'ease-out'} 250ms both` } : tipo === 'none' ? { opacity: 0 } : undefined}
+          style={ativo ? { animation: tipo === 'none' ? `cena-fade 1ms step-end ${Math.round(duracao * 0.6)}ms both` : `${KEYFRAME_TRANSICAO[tipo]} ${duracao}ms ${CURVA_TRANSICAO[tipo] ?? 'ease-out'} 250ms both` } : tipo === 'none' || tipo === 'push' ? { opacity: 0 } : undefined}
         >
           <span className="absolute left-[52%] top-[18%] h-[64%] w-[38%] rounded-[4px] bg-[#5965F2]" />
           <span className="absolute left-[10%] top-[30%] h-[12%] w-[34%] rounded-[2px] bg-[#C9CCF7]" />

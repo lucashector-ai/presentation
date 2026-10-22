@@ -126,8 +126,23 @@ export const AnimacaoSchema = z.object({
   color: CorSchema.optional(),
   /** Destaque/sublinhado: palavras marcadas (índices, inclusive; ausente = todas). */
   range: z.tuple([z.number().int().min(0).max(999), z.number().int().min(0).max(999)]).optional(),
-  /** Quando a entrada toca: ao entrar na tela (padrão), depois de outra camada, ao clicar ou ao passar o mouse. */
-  trigger: z.enum(['enter', 'after', 'click', 'hover']).optional(),
+  /**
+   * Quando a entrada toca: ao entrar na tela (padrão), depois de outra camada, ao clicar, ao passar o mouse ou
+   * acompanhando a rolagem (`scroll`: no Story o progresso segue a rolagem; nos outros modos toca ao entrar).
+   */
+  trigger: z.enum(['enter', 'after', 'click', 'hover', 'scroll']).optional(),
+  /** trigger "scroll": trecho da passagem da camada pela janela (0 = começa a aparecer, 100 = acabou de sair) em que a entrada acontece. */
+  scrollRange: z.tuple([z.number().min(0).max(100), z.number().min(0).max(100)]).optional(),
+  /** Quantas vezes a entrada toca seguida (ausente = 1). */
+  repeat: z.number().int().min(1).max(20).optional(),
+  /** Contador: indicador de progresso junto do número (círculo em volta ou barra embaixo). */
+  progress: z.enum(['circle', 'bar']).optional(),
+  /** Contador: valor que enche o indicador (ausente = 100 com "%", senão o próprio número). */
+  progressMax: z.number().positive().max(1e12).optional(),
+  /** Contador: cor do indicador (ausente = a cor do texto). */
+  progressColor: CorSchema.optional(),
+  /** Contador: espessura do indicador, em px da cena. */
+  progressWidth: z.number().min(1).max(80).optional(),
   /** trigger "after": camada cuja entrada precisa terminar antes (o atraso conta a partir do fim dela). */
   after: IdSchema.optional(),
   /** trigger "click"/"hover": camada que dispara (ausente = a própria camada). */
@@ -145,17 +160,54 @@ export const LoopSchema = z.object({
   intensity: z.number().min(0.25).max(3).default(1),
   /** Quantas vezes repete (ausente = enquanto a tela estiver aberta). */
   repeat: z.number().int().min(1).max(50).optional(),
+  /** `offscreen`: repete até a camada sair da janela (no Story, ao rolar para longe; nos slides, até trocar de tela). */
+  until: z.enum(['offscreen']).optional(),
 })
 export type Loop = z.infer<typeof LoopSchema>
 
 /** Transições entre telas. `morph` anima camadas com o mesmo nome/ID entre a tela de origem e a de destino. */
-export const TIPOS_TRANSICAO = ['none', 'fade', 'slide', 'scale', 'morph'] as const
+/** `push`: a tela nova empurra a anterior para fora (as duas andam juntas). */
+export const TIPOS_TRANSICAO = ['none', 'fade', 'slide', 'scale', 'morph', 'push'] as const
 export const TransicaoSchema = z.object({
   type: z.enum(TIPOS_TRANSICAO).default('fade'),
   duration: z.number().int().min(DURACAO_MIN_MS).max(DURACAO_MAX_MS).default(500),
   easing: z.enum(EASINGS).default('easeInOut'),
 })
 export type Transicao = z.infer<typeof TransicaoSchema>
+
+/**
+ * Efeitos interativos da camada (no visualizador): parallax (profundidade que reage ao mouse, à rolagem do
+ * Story, ao voo do Explorar e à transição entre telas), tilt 3D e luz que seguem o mouse. Tudo opcional;
+ * ausente = camada parada. Parâmetros e padrões: lib/scene/reativos.ts.
+ */
+export const EfeitosInterativosSchema = z.object({
+  parallax: z.object({
+    /** Profundidade: positivo = mais perto (anda mais), negativo = mais longe (anda menos, ao contrário). */
+    depth: z.number().min(-100).max(100),
+    /** Eixos que se movem com o mouse (a rolagem e as transições usam o eixo delas). */
+    axis: z.enum(['both', 'x', 'y']).optional(),
+  }).optional(),
+  tilt: z.object({
+    /** Inclinação máxima, em graus. */
+    angle: z.number().min(1).max(30),
+    /** Escala enquanto o mouse está em cima (1 = não cresce). */
+    scale: z.number().min(1).max(1.2).optional(),
+    /** Perspectiva em px (menor = 3D mais forte). */
+    perspective: z.number().min(300).max(4000).optional(),
+    /** Quanto o movimento atrasa em relação ao mouse (0 = cola no mouse, 1 = bem macio). */
+    smooth: z.number().min(0).max(1).optional(),
+  }).optional(),
+  spotlight: z.object({
+    /** `light`: luz que segue o mouse; `dark`: lanterna (escurece em volta do mouse). */
+    mode: z.enum(['light', 'dark']),
+    /** Raio da luz em % do maior lado da camada. */
+    size: z.number().min(5).max(150).optional(),
+    /** Força (0–1). */
+    intensity: z.number().min(0).max(1).optional(),
+    color: CorSchema.optional(),
+  }).optional(),
+})
+export type EfeitosInterativos = z.infer<typeof EfeitosInterativosSchema>
 
 // ---------- interações: Evento (trigger) + Condições + Ação + Transição ----------
 
@@ -372,6 +424,8 @@ const CamadaBase = z.object({
   loopAnimation: LoopSchema.optional(),
   /** Animação ao SAIR da tela (o visualizador espera ela terminar antes da transição). */
   exitAnimation: AnimacaoSchema.optional(),
+  /** Parallax, tilt 3D e luz que seguem o mouse/rolagem (aditivo; ausente = nenhum). */
+  interactiveEffects: EfeitosInterativosSchema.optional(),
   effects: EfeitosSchema.optional(),
   /** Ajustes simples para celular. */
   mobile: z.object({ fit: z.enum(['contain', 'cover']).optional(), hidden: z.boolean().optional() }).optional(),

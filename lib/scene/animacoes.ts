@@ -144,8 +144,10 @@ export function presetEntrada(tipo: TipoAnimacao): PresetEntrada | undefined {
 /** Animação completa a partir de um preset (mantém o atraso e o "quando" atuais; ajustes do preset ou nenhum). */
 export function animacaoDoPreset(tipo: TipoAnimacao, atual?: Animacao, preset?: PresetEntrada): Animacao {
   const p = preset ?? presetEntrada(tipo)
-  const gatilho = atual?.trigger && atual.trigger !== 'enter' ? { trigger: atual.trigger, ...(atual.after ? { after: atual.after } : {}), ...(atual.on ? { on: atual.on } : {}) } : {}
-  return { type: tipo, duration: p?.duracao ?? 600, delay: atual?.delay ?? 0, easing: p?.easing ?? 'easeOut', ...(p?.bezier ? { bezier: p.bezier } : {}), ...(p?.ajustes ?? {}), ...gatilho }
+  const gatilho = atual?.trigger && atual.trigger !== 'enter' ? { trigger: atual.trigger, ...(atual.after ? { after: atual.after } : {}), ...(atual.on ? { on: atual.on } : {}), ...(atual.scrollRange ? { scrollRange: atual.scrollRange } : {}) } : {}
+  // repetir vale para qualquer efeito: trocar de preset mantém
+  const repetir = atual?.repeat && atual.repeat > 1 ? { repeat: atual.repeat } : {}
+  return { type: tipo, duration: p?.duracao ?? 600, delay: atual?.delay ?? 0, easing: p?.easing ?? 'easeOut', ...(p?.bezier ? { bezier: p.bezier } : {}), ...(p?.ajustes ?? {}), ...gatilho, ...repetir }
 }
 
 /** O preset (ou variação) corresponde à animação atual? Variações exigem os próprios ajustes; o preset base, nenhum ajuste dessas chaves. */
@@ -267,8 +269,19 @@ export function modoDivisao(tipo: TipoAnimacao): 'palavra' | 'letra' | null {
 }
 
 /**
+ * No máximo quantas partes de um texto se movem ao mesmo tempo (intervalo automático). Cada parte em movimento
+ * tem o estilo recalculado pelo navegador a cada quadro; com 60 palavras sobrepostas, um parágrafo recalculava
+ * 120 elementos por quadro. Acima do limite o passo entre partes cresce e cada parte anda um pouco mais rápido —
+ * a duração total (o que o público percebe e a linha do tempo mostra) não muda.
+ */
+export const PARTES_SIMULTANEAS_MAX = 24
+/** Duração mínima de cada parte quando o limite de partes simultâneas encurta o movimento. */
+const PARTE_MIN_MS = 240
+
+/**
  * Tempo de cada parte do texto dividido: a última termina exatamente em `duracao` (n = número de passos).
- * Máquina de escrever: cada letra aparece "seca" (duração mínima). Palavras/letras/linhas: sobreposição suave.
+ * Máquina de escrever: cada letra aparece "seca" (duração mínima). Palavras/letras/linhas: sobreposição suave,
+ * com no máximo PARTES_SIMULTANEAS_MAX partes em movimento ao mesmo tempo.
  * Com `intervalo` (ajuste "Intervalo entre partes"), o passo é fixo e cada parte dura o que sobra (mín. 240 ms).
  */
 export function tempoSegmentos(tipo: TipoAnimacao, n: number, duracao: number, intervalo?: number): { duracaoParte: number; passo: number } {
@@ -282,8 +295,21 @@ export function tempoSegmentos(tipo: TipoAnimacao, n: number, duracao: number, i
     return { duracaoParte, passo: (duracao - duracaoParte) / (n - 1) }
   }
   const alvo = tipo === 'words' || tipo === 'lines' ? 0.55 : tipo === 'scramble' ? 0.5 : 0.4
-  const duracaoParte = Math.max(Math.min(duracao * alvo, 700), Math.min(240, duracao))
-  return { duracaoParte, passo: Math.max(0, (duracao - duracaoParte) / (n - 1)) }
+  let duracaoParte = Math.max(Math.min(duracao * alvo, 700), Math.min(240, duracao))
+  let passo = Math.max(0, (duracao - duracaoParte) / (n - 1))
+  // decodificar: a parte só marca o início (o sorteio corre em JS), não há movimento a limitar
+  if (tipo !== 'scramble' && passo > 0 && duracaoParte / passo > PARTES_SIMULTANEAS_MAX) {
+    // d + (n − 1)·p = duração e d = LIMITE·p → p = duração / (n − 1 + LIMITE); sem descer de PARTE_MIN_MS
+    const p = duracao / (n - 1 + PARTES_SIMULTANEAS_MAX)
+    duracaoParte = Math.min(duracaoParte, Math.max(PARTES_SIMULTANEAS_MAX * p, Math.min(PARTE_MIN_MS, duracao)))
+    passo = Math.max(0, (duracao - duracaoParte) / (n - 1))
+  }
+  return { duracaoParte, passo }
+}
+
+/** Tempo total de uma entrada (com as repetições). */
+export function duracaoTotal(a: Pick<Animacao, 'duration' | 'repeat'>): number {
+  return a.duration * Math.max(1, a.repeat ?? 1)
 }
 
 // ---------- quando (gatilhos) ----------
@@ -303,7 +329,7 @@ export function atrasosEfetivos(camadas: readonly Camada[]): Map<string, number>
     if (a?.trigger === 'after' && a.after && !visitando.has(c.id)) {
       const ant = porId.get(a.after)
       const ea = ant?.enterAnimation
-      if (ant && ea && ea.type !== 'none' && ea.trigger !== 'click' && ea.trigger !== 'hover') v += atraso(ant, new Set([...visitando, c.id])) + ea.duration
+      if (ant && ea && ea.type !== 'none' && ea.trigger !== 'click' && ea.trigger !== 'hover') v += atraso(ant, new Set([...visitando, c.id])) + duracaoTotal(ea)
     }
     v = Math.min(20_000, v)
     memo.set(c.id, v)
@@ -548,13 +574,13 @@ export interface LinhaTempo {
   saida?: TipoAnimacao
   oculta: boolean
   /** Quando a entrada toca, se não for "ao entrar na tela". */
-  gatilho?: 'after' | 'click' | 'hover'
+  gatilho?: 'after' | 'click' | 'hover' | 'scroll'
 }
 
 /** Fim da entrada de uma camada (0 sem animação). */
 export function fimDaEntrada(c: Camada): number {
   const a = c.enterAnimation
-  return a && a.type !== 'none' ? a.delay + a.duration : 0
+  return a && a.type !== 'none' ? a.delay + duracaoTotal(a) : 0
 }
 
 /** Linhas da linha do tempo (camadas animáveis, de cima para baixo no painel) e escala total arredondada. */
@@ -566,30 +592,30 @@ export function linhaDoTempo(cena: Cena): { linhas: LinhaTempo[]; total: number 
     .map((c) => {
       const a = c.enterAnimation && c.enterAnimation.type !== 'none' ? c.enterAnimation : undefined
       const inicio = a ? (efetivos.get(c.id) ?? a.delay) : 0
-      return { id: c.id, nome: nomeCamada(c), tipo: a?.type ?? 'none', inicio, fim: a ? inicio + a.duration : 0, loop: c.loopAnimation?.type, saida: c.exitAnimation?.type, oculta: c.hidden, gatilho: a?.trigger && a.trigger !== 'enter' ? a.trigger : undefined }
+      return { id: c.id, nome: nomeCamada(c), tipo: a?.type ?? 'none', inicio, fim: a ? inicio + duracaoTotal(a) : 0, loop: c.loopAnimation?.type, saida: c.exitAnimation?.type, oculta: c.hidden, gatilho: a?.trigger && a.trigger !== 'enter' ? a.trigger : undefined }
     })
   const maior = Math.max(0, ...linhas.map((l) => l.fim))
   return { linhas, total: Math.max(2000, Math.ceil((maior + 400) / 500) * 500) }
 }
 
-/** Duração para tocar a prévia da tela inteira (entradas + 2 ciclos de loop, no máximo 12 s). */
 /** Quando a última entrada da tela termina (ms; sem loops nem entradas por clique/hover). */
 export function fimDasEntradas(camadas: Camada[]): number {
   const efetivos = atrasosEfetivos(camadas)
   let fim = 0
   for (const c of camadas) {
     const a = c.enterAnimation
-    if (a && a.type !== 'none' && !esperaGatilho(a)) fim = Math.max(fim, (efetivos.get(c.id) ?? a.delay) + a.duration)
+    if (a && a.type !== 'none' && !esperaGatilho(a)) fim = Math.max(fim, (efetivos.get(c.id) ?? a.delay) + duracaoTotal(a))
   }
   return fim
 }
 
+/** Duração para tocar a prévia da tela inteira (entradas + 2 ciclos de loop, no máximo 12 s). */
 export function duracaoPrevia(camadas: Camada[], semAtraso = false): number {
   let fim = 0
   const efetivos = atrasosEfetivos(camadas)
   for (const c of camadas) {
     const a = c.enterAnimation
-    const entrada = a && a.type !== 'none' ? (semAtraso ? 0 : (efetivos.get(c.id) ?? a.delay)) + a.duration : 0
+    const entrada = a && a.type !== 'none' ? (semAtraso ? 0 : (efetivos.get(c.id) ?? a.delay)) + duracaoTotal(a) : 0
     const loop = c.loopAnimation ? Math.min(c.loopAnimation.duration * 2, 6000) : 0
     fim = Math.max(fim, entrada + loop)
   }
