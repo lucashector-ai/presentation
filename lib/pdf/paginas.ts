@@ -28,8 +28,10 @@ export interface PaginaImportada {
   assetId: string
   larguraPt: number
   alturaPt: number
-  /** Blocos de texto da página (vazio = página escaneada ou texto desligado). */
+  /** Blocos de texto da página (vazio = página sem texto ou texto desligado); nas escaneadas, o que o OCR reconheceu. */
   blocos: BlocoPosicionado[]
+  /** Notas do apresentador da tela (o texto reconhecido por OCR, quando a pessoa pede). */
+  notas?: string
 }
 
 const tituloDe = (p: PaginaImportada) => {
@@ -59,6 +61,8 @@ export function cenaDaPagina(p: PaginaImportada, indice: number, modo: ModoProje
         fontFamily: 'Arial',
         fontWeight: 400,
         lineHeight: Math.round(b.entrelinha * 100) / 100,
+        // texto reconhecido (OCR): espaçamento que faz a Arial ocupar a largura da linha na imagem
+        ...(b.espacamento ? { letterSpacing: Math.max(-100, Math.min(100, Math.round(b.espacamento * k * 100) / 100)) } : {}),
         color: COR_TEXTO_INVISIVEL,
         z: i + 1,
       }))
@@ -70,6 +74,7 @@ export function cenaDaPagina(p: PaginaImportada, indice: number, modo: ModoProje
     size,
     background: '#FFFFFF',
     layers: camadas,
+    ...(p.notas?.trim() ? { notes: p.notas.trim().slice(0, 10_000) } : {}),
     ...(modo === 'explorar' ? { map: { x: (indice % 4) * (size.width + 360), y: Math.floor(indice / 4) * (Math.max(size.height, 1080) + 360) } } : {}),
   })
 }

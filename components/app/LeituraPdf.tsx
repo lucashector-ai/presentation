@@ -27,7 +27,8 @@ export interface PdfLido {
 }
 
 const pl = (n: number, um: string, varios: string) => (n === 1 ? um : varios)
-const faseOcr = (p: ProgressoOcr) =>
+/** Texto da etapa do OCR (também na importação do PDF como apresentação). */
+export const faseOcr = (p: ProgressoOcr) =>
   p.etapa === 'preparando'
     ? 'Preparando o leitor de texto (OCR) no navegador…'
     : p.feitas >= p.total
