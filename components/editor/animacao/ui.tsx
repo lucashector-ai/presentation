@@ -123,6 +123,24 @@ export function useCiclo(ativo: boolean, periodo: number | null) {
   return ciclo
 }
 
+/**
+ * Congela as miniaturas paradas num instante, todas juntas e no quadro seguinte (antes da 1ª pintura): a galeria
+ * monta uma dúzia de cartões no mesmo commit e cada `getAnimations()` força um recálculo de estilo — intercalado
+ * com `pause()`/`currentTime` (que sujam o estilo de novo), era um recálculo por cartão ao abrir a aba, mais o do
+ * quadro. No requestAnimationFrame, a primeira leitura faz o recálculo que o quadro faria de qualquer jeito; depois
+ * vêm todas as escritas.
+ */
+let aCongelar: { el: HTMLElement; t: number }[] = []
+function congelar(el: HTMLElement, t: number) {
+  if (!aCongelar.length) requestAnimationFrame(() => {
+    const lote = aCongelar.filter(({ el }) => el.isConnected && el.hasAttribute('data-congelada'))
+    aCongelar = []
+    const anims = lote.map(({ el }) => el.getAnimations({ subtree: true }))
+    lote.forEach(({ t }, i) => { for (const a of anims[i]!) { a.pause(); a.currentTime = t } })
+  })
+  aCongelar.push({ el, t })
+}
+
 const ESCALA = 0.25 // a prévia usa coordenadas de referência (como a cena) e é reduzida: deslocamentos reais de 40 px viram 10 px
 
 /**
@@ -148,10 +166,7 @@ export function MiniPrevia({ tipo: tipoProp, preset, loop, saida, texto, tocando
     if (ativo || !temAnim || !el || typeof el.getAnimations !== 'function') return
     const meio = tipo === 'reveal' || tipo === 'mask' || tipo === 'iris' || tipo === 'draw' || tipo === 'unfold' || tipo === 'expand' || (!!tipo && ehAnimacaoDeTexto(tipo))
     const t = loopDef ? loopDef.duration * (loop === 'pulse' || loop === 'float' || loop === 'glow' ? 0.5 : 0.25) : (anim?.duration ?? 600) * (saida ? 0.55 : tipo === 'bounce' ? 0.62 : meio ? 0.45 : 0.2)
-    for (const a of el.getAnimations({ subtree: true })) {
-      a.pause()
-      a.currentTime = t
-    }
+    congelar(el, t)
   }, [ativo, temAnim, ciclo, anim?.duration, loopDef, loop, saida, tipo])
   const chave = `${ativo ? 'a' : 'p'}-${ciclo}`
   const amostra = tipo === 'counter' ? '38%' : tipo === 'lines' ? 'Olá\nmundo' : 'Olá mundo'

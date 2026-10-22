@@ -217,7 +217,43 @@ function useDensidade(): number {
   return dpr
 }
 
-function LayerView({ camada: c, props, origemMorph, heranca, gatilhos, mascara }: { camada: Camada; props: PropsInternas; origemMorph?: Camada; heranca?: Heranca; gatilhos: { atrasos: Map<string, number>; inter: ReturnType<typeof interacoesDosGatilhos> }; mascara?: CSSProperties }) {
+type PropsCamada = { camada: Camada; props: PropsInternas; origemMorph?: Camada; heranca?: Heranca; gatilhos: { atrasos: Map<string, number>; inter: ReturnType<typeof interacoesDosGatilhos> }; mascara?: CSSProperties }
+
+/**
+ * Props da tela que só a própria tela usa (a camada não lê): mudar a cena não muda a camada que não mudou, e o
+ * zoom do editor (escala) também não.
+ */
+const SO_DA_TELA = new Set<string>(['cena', 'children', 'className', 'style', 'ocultar', 'escala'])
+
+function rasoIgual(a: object | undefined, b: object | undefined, ignorar?: Set<string>): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  const ra = a as Record<string, unknown>
+  const rb = b as Record<string, unknown>
+  for (const k in ra) if (!ignorar?.has(k) && ra[k] !== rb[k]) return false
+  for (const k in rb) if (!ignorar?.has(k) && !(k in ra)) return false
+  return true
+}
+
+/**
+ * Camada memorizada: arrastar, redimensionar ou girar uma camada no editor gera uma cena nova a cada quadro, mas
+ * as outras camadas continuam o mesmo objeto — só a que mudou re-renderiza. Os mapas da tela (atrasos, gatilhos,
+ * herança dos frames, máscaras) são refeitos junto com a cena; compara-se só o que vale para esta camada.
+ */
+function camadaIgual(a: PropsCamada, b: PropsCamada): boolean {
+  const id = a.camada.id
+  if (a.camada !== b.camada || a.origemMorph !== b.origemMorph) return false
+  if (!rasoIgual(a.heranca, b.heranca) || !rasoIgual(a.mascara, b.mascara)) return false
+  if (a.gatilhos !== b.gatilhos) {
+    if (a.gatilhos.atrasos.get(id) !== b.gatilhos.atrasos.get(id)) return false
+    const ia = a.gatilhos.inter.get(id)
+    const ib = b.gatilhos.inter.get(id)
+    if ((ia || ib) && JSON.stringify(ia) !== JSON.stringify(ib)) return false
+  }
+  return rasoIgual(a.props, b.props, SO_DA_TELA)
+}
+
+const LayerView = memo(function LayerView({ camada: c, props, origemMorph, heranca, gatilhos, mascara }: PropsCamada) {
   const { modo, runtime, reduzirMovimento = false, semHover = false, mobile = false, aoInteragir, chaveEntrada, morphDe, morphDuracao = 600, morphEasing = 'ease' } = props
   const viewer = modo === 'viewer'
   const visivel = (runtime ? camadaVisivel(c, runtime) : !c.hidden) && !heranca?.oculta
@@ -324,7 +360,7 @@ function LayerView({ camada: c, props, origemMorph, heranca, gatilhos, mascara }
       )}
     </div>
   )
-}
+}, camadaIgual)
 
 function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, animTexto, rolagemTexto, desenhar }: { camada: Camada; props: SceneRendererProps; origemMorph?: Camada; morphDuracao: number; morphEasing: string; animTexto?: Animacao; rolagemTexto?: string; desenhar?: boolean }) {
   const { assets, modo, mobile = false, registrarVideo, interativoNoEditor } = props
