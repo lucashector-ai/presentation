@@ -27,11 +27,21 @@ async function sessionDataDe(token: string) {
 
 /** Relógio falso só para setTimeout/Date (o crypto.subtle e o setImmediate continuam reais). */
 const relogioFalso = () => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
-async function avancar(ms: number) {
-  for (let t = 0; t < ms; t += 250) {
-    await new Promise((r) => setImmediate(r))
+/**
+ * Avança o relógio falso até `p` terminar. Entre um passo e outro deixa o trabalho real andar (crypto.subtle,
+ * I/O): com a máquina carregada ele demora mais que um setImmediate, e o código pode agendar a próxima espera
+ * depois de o relógio já ter passado. Por isso o limite é de tempo real (o `performance` não é falso), não de
+ * tempo simulado: continuar avançando só antecipa o fim do prazo, que é o que os testes conferem.
+ */
+async function avancarAte<T>(p: Promise<T>): Promise<T> {
+  let pronto = false
+  void p.then(() => { pronto = true }, () => { pronto = true })
+  const limite = performance.now() + 50_000
+  while (!pronto && performance.now() < limite) {
+    for (let k = 0; k < 5 && !pronto; k++) await new Promise((r) => setImmediate(r))
     await vi.advanceTimersByTimeAsync(250)
   }
+  return p
 }
 
 let neonAuth: ReturnType<typeof vi.fn>
@@ -103,21 +113,19 @@ describe('sessaoDaRequisicao', () => {
     relogioFalso()
     neonAuth.mockResolvedValueOnce(new Response('{"message":"Too many requests"}', { status: 429, headers: { 'x-retry-after': '2' } }))
     const p = sessaoDaRequisicao(pedido(`${TOKEN}=${COOKIE_TOKEN}`))
-    await avancar(2100)
-    expect((await p)?.id).toBe('u1')
+    expect((await avancarAte(p))?.id).toBe('u1')
     expect(neonAuth).toHaveBeenCalledTimes(2)
-  }, 20_000)
+  }, 60_000)
 
   it('Neon Auth fora por mais que o prazo: lança AuthIndisponivel (a rota responde 503, não 401)', async () => {
     relogioFalso()
     neonAuth.mockImplementation(async () => new Response('{}', { status: 503 }))
     const p = sessaoDaRequisicao(pedido(`${TOKEN}=${COOKIE_TOKEN}`)).catch((e) => e)
-    await avancar(12_000)
-    expect(await p).toBeInstanceOf(AuthIndisponivel)
+    expect(await avancarAte(p)).toBeInstanceOf(AuthIndisponivel)
     // a falha não fica em cache: o próximo pedido consulta de novo
     neonAuth.mockImplementation(async () => Response.json(sessao('tok123')))
     expect((await sessaoDaRequisicao(pedido(`${TOKEN}=${COOKIE_TOKEN}`)))?.id).toBe('u1')
-  }, 20_000)
+  }, 60_000)
 })
 
 describe('encaminharAuth: get-session respondido no app', () => {
@@ -138,9 +146,8 @@ describe('encaminharAuth: get-session respondido no app', () => {
     relogioFalso()
     neonAuth.mockImplementation(async () => new Response('{}', { status: 429, headers: { 'x-retry-after': '12' } }))
     const p = encaminharAuth(pedido(`${TOKEN}=${COOKIE_TOKEN}`, '/api/auth/get-session'), 'get-session')
-    await avancar(12_000)
-    const r = await p
+    const r = await avancarAte(p)
     expect(r.status).toBe(503)
     expect(r.headers.get('retry-after')).toBe('12')
-  }, 20_000)
+  }, 60_000)
 })

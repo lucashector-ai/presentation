@@ -49,7 +49,7 @@ export const POST = rota(async (req, _ctx, requestId) => {
   try {
     const r = await gerarRoteiroClaude(pedido, req.signal)
     await cobranca?.registrar({ modelo: r.modelo, custoUsd: r.custo.usd, uso: r.custo.uso }).catch((e) => aviso(requestId, `registro de uso: ${e instanceof Error ? e.message : e}`))
-    return responder<RespostaRoteiro>({ roteiro: r.roteiro, gerador: 'claude', modelo: r.modelo, tipo, tema: pedido.tema ?? r.tema, creditos: cobranca ? custo : 0 }, requestId)
+    return responder<RespostaRoteiro>({ roteiro: r.roteiro, gerador: 'claude', modelo: r.modelo, tipo: r.tipo, tema: pedido.tema ?? r.tema, creditos: cobranca ? custo : 0 }, requestId)
   } catch (e) {
     const gasto = custoDoErro(e)
     if (gasto) await cobranca?.registrar({ modelo: gasto.modelo, custoUsd: gasto.usd, uso: gasto.uso }).catch(() => {})

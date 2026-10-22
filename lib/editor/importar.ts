@@ -14,11 +14,23 @@ import { MAX_SVG_INLINE } from '@/lib/scene/schema'
 import { enquadrarNaCena } from '@/lib/scene/transform'
 import { dados, type AssetDemo, type ProgressoUpload } from '@/lib/dados'
 import { colarDoFigma } from './colarFigma'
+import { carregarCatalogo } from '@/lib/fontes/catalogo'
+import { embutirFontesNoSvg } from '@/lib/fontes/svg'
 
 export type Avisar = (texto: string, tipo?: 'info' | 'sucesso' | 'erro') => void
 
 export function sanitizarSvgNavegador(markup: string): string {
   return normalizarSvg(sanitizarSvg(markup, DOMPurify))
+}
+
+/** Textos do SVG com fontes do Google: nomes do catálogo e fontes recortadas embutidas (lib/fontes/svg.ts). */
+async function comFontesEmbutidas(markup: string): Promise<string> {
+  if (!/<text\b/i.test(markup)) return markup
+  try {
+    return await embutirFontesNoSvg(markup, await carregarCatalogo())
+  } catch {
+    return markup
+  }
 }
 
 export interface OpcoesImportacao {
@@ -41,8 +53,8 @@ function retanguloPara(editor: Editor, tam: { width: number; height: number }, p
 }
 
 /** Cria a camada SVG a partir de markup (já validado como SVG). */
-export function inserirSvg(editor: Editor, markupBruto: string, opcoes: OpcoesImportacao, nome = 'vetor') {
-  const markup = sanitizarSvgNavegador(markupBruto)
+export async function inserirSvg(editor: Editor, markupBruto: string, opcoes: OpcoesImportacao, nome = 'vetor') {
+  const markup = await comFontesEmbutidas(sanitizarSvgNavegador(markupBruto))
   if (!/<svg/i.test(markup)) return opcoes.avisar('Este SVG ficou vazio depois da limpeza de segurança.', 'erro')
   const tam = dimensoesSvg(markup)
   const rect = retanguloPara(editor, tam, opcoes.ponto)
@@ -57,8 +69,12 @@ export function inserirSvg(editor: Editor, markupBruto: string, opcoes: OpcoesIm
 export async function importarArquivos(editor: Editor, arquivos: File[], opcoes: OpcoesImportacao): Promise<AssetDemo[]> {
   const prontos: AssetDemo[] = []
   let deslocamento = 0
-  for (const f of arquivos) {
+  for (const arquivo of arquivos) {
     try {
+      // SVG com textos: as fontes do Google vão embutidas no arquivo (o <img> do SVG não carrega fontes de fora)
+      const f = (arquivo.type === 'image/svg+xml' || /\.svg$/i.test(arquivo.name)) && arquivo.size < 2_000_000
+        ? await arquivo.text().then(async (t) => { const m = /<text\b/i.test(t) ? await comFontesEmbutidas(sanitizarSvgNavegador(t)) : t; return m === t ? arquivo : new File([m], arquivo.name, { type: 'image/svg+xml' }) })
+        : arquivo
       const a = await dados.enviarArquivo(f, (p) => opcoes.aoProgredir?.(f.name, p), { sanitizarSvg: sanitizarSvgNavegador, projetoId: editor.projetoId })
       prontos.push(a)
       if (a.erro) opcoes.avisar(a.erro, 'info')
@@ -66,7 +82,7 @@ export async function importarArquivos(editor: Editor, arquivos: File[], opcoes:
       editor.acoes.adicionarAsset(a, ponto)
       deslocamento += 32
     } catch (e) {
-      opcoes.avisar(e instanceof Error ? e.message : `Não foi possível importar ${f.name}.`, 'erro')
+      opcoes.avisar(e instanceof Error ? e.message : `Não foi possível importar ${arquivo.name}.`, 'erro')
     }
   }
   if (prontos.length) {

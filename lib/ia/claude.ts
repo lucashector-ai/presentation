@@ -22,6 +22,8 @@ import type { Roteiro } from './roteiro'
 import { INSTRUCOES_TEXTO, mensagemTexto, normalizarTextos, TextosModeloSchema, type PedidoTexto, type TextoReescrito } from './texto'
 import { INSTRUCOES_TELA, mensagemTela, normalizarTela, TelaModeloSchema, type ConteudoTela, type PedidoTela } from './tela'
 import type { TemaId } from './designSystem'
+import { ajustarRoteiroAoPedido } from './fidelidade'
+import type { TipoApresentacao } from './tiposApresentacao'
 
 /** @deprecated use MODELO_POR_ETAPA (lib/ia/modelos.ts) */
 export const MODELO_ROTEIRO = MODELO_POR_ETAPA.roteiro.id
@@ -42,7 +44,7 @@ export const iaConfigurada = () => !!process.env.ANTHROPIC_API_KEY
 const custoDe = (r: { usage: Parameters<typeof custoDaResposta>[0]; model: string }, m: ModeloIA): CustoIa => ({ ...custoDaResposta(r.usage, m), modelo: r.model })
 
 /** Etapa 1: roteiro (streaming: com 20 telas e material longo a resposta passa de alguns milhares de tokens). */
-export async function gerarRoteiroClaude(p: PedidoRoteiro, sinal?: AbortSignal): Promise<{ roteiro: Roteiro; tema: TemaId; modelo: string; custo: CustoIa }> {
+export async function gerarRoteiroClaude(p: PedidoRoteiro, sinal?: AbortSignal): Promise<{ roteiro: Roteiro; tema: TemaId; tipo: TipoApresentacao; modelo: string; custo: CustoIa }> {
   const m = MODELO_POR_ETAPA.roteiro
   const stream = obterCliente().beta.messages.stream(
     {
@@ -61,7 +63,10 @@ export async function gerarRoteiroClaude(p: PedidoRoteiro, sinal?: AbortSignal):
   const custo = custoDe(resposta, m)
   if (resposta.stop_reason === 'refusal') throw Object.assign(new RecusaModelo('O modelo não aceitou este pedido.'), { custo })
   if (!resposta.parsed_output) throw Object.assign(new Error(`Roteiro sem saída estruturada (stop_reason: ${resposta.stop_reason})`), { custo })
-  return { roteiro: normalizarRoteiro(resposta.parsed_output, p.telas), tema: resposta.parsed_output.tema, modelo: resposta.model, custo }
+  // o tipo escolhido pela pessoa manda; em "auto", o que o modelo confirmou ou corrigiu a partir do pedido inteiro
+  const tipo: TipoApresentacao = p.tipo === 'auto' ? resposta.parsed_output.tipo : p.tipo
+  const roteiro = ajustarRoteiroAoPedido(normalizarRoteiro(resposta.parsed_output, p.telas), p, tipo)
+  return { roteiro, tema: resposta.parsed_output.tema, tipo, modelo: resposta.model, custo }
 }
 
 export interface ResultadoDesenho { indice: number; desenho: TelaDesenhada | null; erro?: unknown }

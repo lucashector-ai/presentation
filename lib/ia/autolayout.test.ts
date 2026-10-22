@@ -26,6 +26,12 @@ const CURTO: Partial<Record<TipoTela, string[]>> = {
   paleta: ['Terracota|#B4532A', 'Argila|#EEE7DB'],
   cta: ['Agendar conversa', 'E-mail|ana@aurora.com'],
   encerramento: ['E-mail|ana@aurora.com'],
+  comparativo: ['Meta|R$ 13,5 mi', 'Realizado|R$ 12,4 mi'],
+  funil: ['Leads|5.200', 'Propostas|1.480', 'Contratos|260'],
+  tabela: ['Posição|Nome|Receita', '1|Ana Lima|R$ 1,8 mi', '2|Bruno Costa|R$ 1,5 mi'],
+  kpis: ['R$ 47.692|Ticket médio', '17,6%|Conversão', '11,9 : 1|Oportunidades por contrato|3,8;4,2;4,4'],
+  roadmap: ['Conversão|acompanhamento semanal|Vendas', 'Leads|qualificação|Marketing'],
+  alertas: ['Meta não atingida|91,9% da meta', 'Conversão baixa|17,6% das propostas'],
 }
 
 /** Conteúdo no limite do componente (mais itens e textos mais longos que o roteiro costuma ter). */
@@ -44,6 +50,12 @@ const LONGO: Partial<Record<TipoTela, string[]>> = {
   paleta: ['Terracota|#B4532A', 'Argila|#EEE7DB', 'Grafite|#2B2B2B', 'Musgo|#5E6B3A', 'Areia|#D9C7A7'],
   cta: ['Agendar uma conversa', 'E-mail|ana.lima@aurora-energia.com.br', 'Telefone|+55 11 99999-0000'],
   encerramento: ['E-mail|ana.lima@aurora-energia.com.br', 'Site|aurora-energia.com.br', 'Telefone|+55 11 99999-0000'],
+  comparativo: ['Meta trimestral do time comercial|R$ 13,5 mi', 'Receita realizada no trimestre|R$ 12,4 mi'],
+  funil: ['Leads gerados nas campanhas|5.200', 'Oportunidades qualificadas|3.100', 'Propostas enviadas|1.480', 'Negociações em andamento|620', 'Contratos fechados|260', 'Contratos renovados|190', 'Indicações de clientes|85'],
+  tabela: ['Posição|Vendedor|Receita do trimestre|Novos clientes|Região', '1|Ana Souza Albuquerque|R$ 1,82 mi|28|Sudeste', '2|Carlos Lima|R$ 1,54 mi|24|Sul', '3|Mariana Alves|R$ 1,31 mi|22|Nordeste', '4|Rafael Costa|R$ 1,12 mi|18|Centro-Oeste', '5|Juliana Mendes|R$ 0,98 mi|16|Norte', '6|Pedro Henrique Santos|R$ 0,91 mi|15|Sudeste', '7|Luiza Prado|R$ 0,84 mi|12|Sul'],
+  kpis: ['R$ 47.692|Ticket médio por contrato fechado no trimestre|3,8;4,2;4,4', '17,6%|Taxa de conversão de propostas em contratos|+2,1 p.p. vs. Q2', '11,9 : 1|Relação entre oportunidades e fechamentos|3.100 oportunidades para 260 contratos', 'R$ 15 mi|Receita-alvo do próximo trimestre|de R$ 12,4 mi', '220|Novos clientes|de 185', 'Aumentar|Previsibilidade do pipeline com rotina semanal|meta qualitativa'],
+  roadmap: ['Aumentar a conversão de propostas|por meio de acompanhamento comercial estruturado|Gerência comercial|Out 2026', 'Melhorar a qualificação dos leads|com critérios de pontuação compartilhados|Marketing|Nov 2026', 'Desenvolver estratégias específicas|para Enterprise e Mid Market|Gerência de contas|Nov 2026', 'Implantar uma rotina semanal|de análise de pipeline e previsão de receita|Operações de receita|Dez 2026', 'Revisar a política de descontos|com aprovação por faixa de valor|Diretoria comercial|Dez 2026'],
+  alertas: ['Meta trimestral não atingida|R$ 12,4 mi de R$ 13,5 mi: 91,9% da meta', 'Queda entre propostas e contratos|1.480 propostas para 260 contratos (17,6%)', 'Conversão abaixo do esperado|Taxa de conversão de propostas: 17,6%', 'Segmentos com menor participação|SMB: R$ 2,1 mi · Governo: R$ 0,9 mi', 'Ciclo de venda mais longo no Enterprise|média de 94 dias entre proposta e assinatura'],
 }
 
 const corte = (s: string, n: number) => (n > 0 && s.length > n ? s.slice(0, n).replace(/\s+\S*$/, '') : s)
@@ -131,6 +143,7 @@ describe('auto layout das telas geradas (sem caixas sobrepostas)', () => {
             })
           }
         }
+        if (process.env.LISTAR_PROBLEMAS) console.log(erros.join('\n'))
         expect(erros.slice(0, 40), `${erros.length} problemas`).toEqual([])
       }, 60_000) // percorre todos os estilos × componentes × variantes: pesado sob carga
     }

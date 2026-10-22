@@ -1,8 +1,9 @@
 'use client'
-import { useRef, useState, type JSX } from 'react'
+import { useMemo, useRef, useState, type JSX } from 'react'
 import { createPortal } from 'react-dom'
 import { Box, ChevronDown, ChevronRight, Code2, Copy, Crosshair, Eye, EyeOff, Film, GalleryHorizontal, Image as ImageIcon, Lock, LockOpen, MousePointerClick, PenTool, Quote, Sparkles, Square, Tag, Trash2, Type, Upload, Video, ArrowRight } from 'lucide-react'
 import { IconeAutoLayout, IconeMascara } from './inspetor/icones'
+import { NOMES_TIPO_MASCARA, ehMascara, tipoMascara } from '@/lib/scene/mascara'
 import type { Camada } from '@/lib/scene/schema'
 import { mapaDe, paiDe } from '@/lib/scene/arvore'
 import type { Editor, AbaEsquerda } from '@/lib/editor/useEditor'
@@ -41,7 +42,8 @@ function Telas({ editor, assets }: { editor: Editor; assets: AssetDemo[] }) {
   const { estado, acoes } = editor
   const [arrastando, setArrastando] = useState<number | null>(null)
   const [sobre, setSobre] = useState<number | null>(null)
-  const mapa = Object.fromEntries(assets.map((a) => [a.id, a]))
+  // mapa estável: as miniaturas (memo) só re-renderizam quando a própria tela muda
+  const mapa = useMemo(() => Object.fromEntries(assets.map((a) => [a.id, a])), [assets])
   const cenas = estado.documento.scenes
   return (
     <div className="p-3">
@@ -128,6 +130,11 @@ function Camadas({ editor }: { editor: Editor }) {
     const ehFrame = l.type === 'frame'
     const aberto = ehFrame && !fechados.has(l.id)
     const alvo = destino?.id === l.id && arrastando && arrastando !== l.id ? destino.onde : null
+    // máscara (como no Figma): ícone de máscara; as camadas recortadas ficam recuadas, com uma seta para ela
+    const mascara = ehMascara(l)
+    const recortadaPor = l.maskId ? mapa.get(l.maskId) : undefined
+    const recortada = ehMascara(recortadaPor)
+    const recuo = 8 + nivel * 14 + (recortada ? 12 : 0)
     return (
       <li key={l.id} role="treeitem" aria-label={nomeCamada(l)} aria-selected={sel} aria-level={nivel + 1} aria-expanded={ehFrame ? aberto : undefined}>
         <div
@@ -151,27 +158,31 @@ function Camadas({ editor }: { editor: Editor }) {
           onDragEnd={() => { setArrastando(null); setDestino(null) }}
           onClick={(e) => (e.shiftKey ? acoes.selecionarExato(sel ? estado.selecao.filter((x) => x !== l.id) : [...estado.selecao, l.id]) : acoes.selecionarExato([l.id]))}
           onDoubleClick={() => setRenomeando(l.id)}
-          style={{ paddingLeft: 8 + nivel * 14 }}
+          style={{ paddingLeft: recuo }}
           className={cx(
             'group relative flex h-8 cursor-default items-center gap-1.5 rounded-md pr-2 text-[13px]',
             sel ? 'bg-acentoSuave text-texto' : 'hover:bg-hover',
             l.hidden && 'opacity-50',
-            l.groupId && !ehFrame && 'pl-5',
             alvo === 'dentro' && 'ring-[1.5px] ring-inset ring-acento',
             arrastando === l.id && 'opacity-40'
           )}
         >
-          {alvo === 'acima' && <span className="pointer-events-none absolute -top-px right-1 h-0.5 rounded bg-acento" style={{ left: 8 + nivel * 14 }} />}
-          {alvo === 'abaixo' && <span className="pointer-events-none absolute -bottom-px right-1 h-0.5 rounded bg-acento" style={{ left: 8 + nivel * 14 }} />}
+          {alvo === 'acima' && <span className="pointer-events-none absolute -top-px right-1 h-0.5 rounded bg-acento" style={{ left: recuo }} />}
+          {alvo === 'abaixo' && <span className="pointer-events-none absolute -bottom-px right-1 h-0.5 rounded bg-acento" style={{ left: recuo }} />}
           {ehFrame ? (
             <button type="button" aria-label={aberto ? 'Recolher frame' : 'Expandir frame'} onClick={(e) => { e.stopPropagation(); alternar(l.id) }} className="-ml-1 flex h-4 w-4 shrink-0 items-center justify-center text-texto3 hover:text-texto">
               <ChevronRight className={cx('h-3 w-3 transition-transform', aberto && 'rotate-90')} />
             </button>
           ) : nivel > 0 ? <span className="w-3 shrink-0" /> : null}
+          {recortada && (
+            <span title={`Recortada pela máscara${recortadaPor.hidden ? ' (desligada)' : ''}`} data-recortada="" className={cx('-ml-3 flex w-3 shrink-0 justify-center text-texto3', recortadaPor.hidden && 'opacity-40')}>
+              <svg viewBox="0 0 8 12" className="h-3 w-2" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden><path d="M1.5 1v6.5a2 2 0 0 0 2 2H7M5 7.5l2 2-2 2" /></svg>
+            </span>
+          )}
           {ehFrame && l.layout ? (
             <span title={`Auto layout ${l.layout.direction === 'vertical' ? 'vertical' : l.layout.direction === 'wrap' ? 'com quebra' : 'horizontal'}`} className={cx('flex shrink-0', sel ? 'text-acento' : 'text-texto3')}><IconeAutoLayout direcao={l.layout.direction} /></span>
-          ) : l.type === 'shape' && l.isMask ? (
-            <span title="Máscara" className={cx('flex shrink-0', sel ? 'text-acento' : 'text-texto3')}><IconeMascara /></span>
+          ) : mascara ? (
+            <span title={`Máscara · ${NOMES_TIPO_MASCARA[tipoMascara(l)]}${l.hidden ? ' (desligada)' : ''}`} data-mascara="" className={cx('flex shrink-0', sel ? 'text-acento' : 'text-texto3')}><IconeMascara /></span>
           ) : (
             <Icone className={cx('h-3.5 w-3.5 shrink-0', sel ? 'text-acento' : 'text-texto3')} strokeWidth={1.75} />
           )}
@@ -182,7 +193,7 @@ function Camadas({ editor }: { editor: Editor }) {
           )}
           {l.interactions.length > 0 && <MousePointerClick className="h-3 w-3 shrink-0 text-acento" aria-label="Tem interação" />}
           <button type="button" aria-label={l.locked ? 'Destravar' : 'Travar'} onClick={(e) => { e.stopPropagation(); acoes.atualizarCamadas([l.id], { locked: !l.locked }) }} className={cx('shrink-0 text-texto3 hover:text-texto', !l.locked && 'opacity-0 group-hover:opacity-100')}>{l.locked ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}</button>
-          <button type="button" aria-label={l.hidden ? 'Mostrar' : 'Ocultar'} onClick={(e) => { e.stopPropagation(); acoes.atualizarCamadas([l.id], { hidden: !l.hidden }) }} className={cx('shrink-0 text-texto3 hover:text-texto', !l.hidden && 'opacity-0 group-hover:opacity-100')}>{l.hidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}</button>
+          <button type="button" aria-label={mascara ? (l.hidden ? 'Ligar máscara' : 'Desligar máscara') : l.hidden ? 'Mostrar' : 'Ocultar'} onClick={(e) => { e.stopPropagation(); acoes.atualizarCamadas([l.id], { hidden: !l.hidden }) }} className={cx('shrink-0 text-texto3 hover:text-texto', !l.hidden && 'opacity-0 group-hover:opacity-100')}>{l.hidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}</button>
         </div>
         {aberto && sub.length > 0 && <ul role="group">{sub.map((f) => linha(f, nivel + 1, vistos))}</ul>}
       </li>

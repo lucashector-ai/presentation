@@ -9,7 +9,8 @@
  */
 import { calcularLayout } from '@/lib/editor/autolayout'
 import type { Camada as CamadaCena } from '@/lib/scene/schema'
-import { COMPONENTES, alfa, contraste, legivel, luminanciaRelativa, misturar, regrasDe, superficie, type Alinhamento, type Decoracao, type Fundo, type Superficie, type TemaVisual, type TipoTela } from './designSystem'
+import { COMPONENTES, alfa, contraste, coresIndicador, legivel, luminanciaRelativa, misturar, regrasDe, superficie, type Alinhamento, type Decoracao, type Fundo, type Superficie, type TemaVisual, type TipoTela } from './designSystem'
+import { formatarComo, formatarPct, valorDe } from './numeros'
 
 export type Estilo = 'editorial' | 'ousado' | 'minimal'
 
@@ -124,7 +125,8 @@ export function contarLinhas(texto: string, fonte: string, tamanho: number, larg
 
 /** Maior tamanho da lista em que o texto cabe em `maxLinhas` (ou o menor). */
 export function caber(texto: string, fonte: string, largura: number, tamanhos: number[], maxLinhas: number, opcoes: { maiusculas?: boolean; tracking?: number; peso?: number; alturaMax?: number; lh?: number } = {}): { tamanho: number; linhas: number } {
-  const medir = (t: number) => contarLinhas(texto, fonte, t, largura, { maiusculas: opcoes.maiusculas, espacamento: -(opcoes.tracking ?? 0) * t, peso: opcoes.peso })
+  // mede com o espaçamento arredondado como ele é gravado na camada (o limiar de uma linha a mais não muda)
+  const medir = (t: number) => contarLinhas(texto, fonte, t, largura, { maiusculas: opcoes.maiusculas, espacamento: Math.round(-(opcoes.tracking ?? 0) * t * 10) / 10, peso: opcoes.peso })
   for (const t of tamanhos) {
     const linhas = medir(t)
     if (linhas <= maxLinhas && (!opcoes.alturaMax || t * (opcoes.lh ?? 1.04) * linhas <= opcoes.alturaMax)) return { tamanho: t, linhas }
@@ -159,6 +161,7 @@ export function numeroDe(s: string): number | null {
 }
 
 const partes = (item: string) => item.split('|').map((p) => p.trim())
+const semAcentoT = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 const iniciais = (nome: string) => nome.split(/[\s,]+/).filter((p) => /^\p{L}/u.test(p)).slice(0, 2).map((p) => p[0]!.toUpperCase()).join('') || '•'
 
 // ---------------------------------------------------------------- montagem
@@ -210,6 +213,8 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Inter
   const centro = d.alinhamento === 'centro'
   const forte = s.destaque
   const sobreDestaque = legivel(forte, [s.fundo, s.tinta, '#FFFFFF', '#141414'], 4.5)
+  /** Verde e vermelho de indicador (do tema ou da marca), legíveis sobre este fundo. */
+  const { positivo, negativo } = coresIndicador(t, s.fundo)
 
   // ---------- animações (o ritmo do estilo alonga ou encurta as entradas) ----------
   const ritmo = R.ritmo === 'calmo' ? 1.35 : R.ritmo === 'energico' ? 0.8 : 1
@@ -363,6 +368,8 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Inter
   /** Posiciona um frame na área de conteúdo: um pouco acima do centro, como na grade de um editorial. */
   const assentar = (f: Camada, y0: number, fim = fimConteudo, k = 0.42) => { const h = altura(f); colocar(f, f.x, y0 + Math.max(0, (fim - y0 - h) * k)); return h }
 
+  /** Tamanhos da lista cuja linha (com a folga da caixa) cabe em `alt` px; nenhum = o menor. */
+  const ateAltura = (lista: number[], alt: number, lh = 1.42) => { const ok = lista.filter((t) => Math.ceil(t * lh + t * 0.12) <= alt); return ok.length ? ok : [Math.max(12, Math.floor(alt / (lh + 0.12)))] }
   const rotuloCor = s.tipo === 'acento' ? s.tinta : contraste(forte, s.fundo) >= 3 ? forte : s.suave
   /** Rótulo acima do título, no jeito do estilo: mono, pílula de cor, fio + mono ou itálico na fonte do título. */
   const kicker = (txt0: string, x: number, y: number, w: number, align: 'left' | 'center' | 'right' = 'left', pai?: string) => {
@@ -1034,8 +1041,11 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Inter
       const cols = st ? 1 : Math.max(1, Math.min(4, n <= 4 ? n : Math.ceil(n / 2)))
       const gapN = st ? 24 : cartoes ? GUT : 64
       const { g, cw } = gradeAL('grade', M, y0, W - M * 2, cols, gapN, st ? 24 : cartoes ? GUT : 48)
-      const pad = cartoes ? 44 : 0
+      const pad = cartoes ? (n >= 4 && !st ? 36 : 44) : 0
       const celulas: Camada[] = []
+      // todos os números no mesmo corpo (o maior em que o mais largo cabe numa linha)
+      const listaTam = st ? [200, 170, 140, 120, 100, 84] : n <= 2 ? [220, 190, 160, 136, 116, 96] : n === 3 ? [176, 152, 132, 112, 96, 84, 72] : [136, 116, 100, 86, 74, 64, 56, 50, 44]
+      const tamNumeros = Math.min(...lista.map((it) => caberTitulo(partes(it)[0] ?? '', cw - pad * 2, listaTam, 1).tamanho))
       lista.forEach((it, k) => {
         const [valor = '', ...resto] = partes(it)
         const legenda = resto.join(' ')
@@ -1043,7 +1053,7 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Inter
         const cel = frame(cartoes ? 'cartao' : 'celula', 0, 0, cw, 1, { gap: st ? 18 : 24, pad, pai: g.id, extra: cartoes ? { ...cartao(dest), radius: raioCartao, enterAnimation: animItem(k) } : {} })
         celulas.push(cel)
         const corV = cartoes ? (dest ? sobreDestaque : s.tinta) : dest ? forte : s.tinta
-        texto('valor', valor, { x: 0, y: 0, w: cw - pad * 2, fonte: 'titulo', tamanhos: st ? [200, 170, 140, 120] : n <= 2 ? [220, 190, 160, 136, 116] : n === 3 ? [176, 152, 132, 112, 96, 84] : [136, 116, 100, 86, 74], max: 1, cor: corV, lh: 1, anim: { type: 'slideUp', duration: 700, delay: 150 + k * 140, easing: 'spring' }, pai: cel.id, fill: true })
+        texto('valor', valor, { x: 0, y: 0, w: cw - pad * 2, fonte: 'titulo', tamanhos: [tamNumeros], escalado: true, max: 1, cor: corV, lh: 1, anim: { type: 'slideUp', duration: 700, delay: 150 + k * 140, easing: 'spring' }, pai: cel.id, fill: true })
         texto('texto', legenda, { x: 0, y: 0, w: cw - pad * 2, tamanhos: st ? [38, 34] : [33, 30, 27], max: 3, cor: cartoes && dest ? alfa(sobreDestaque, 0.85) : s.suave, anim: animItem(k), pai: cel.id, fill: true })
       })
       if (cartoes) igualar(celulas, 0)
@@ -1061,7 +1071,7 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Inter
     // ================================================================ gráfico
     case 'grafico.barras':
     case 'grafico.colunas': {
-      const dados = itens.map((it) => { const [v = '', ...r] = partes(it); return { valor: v, rotulo: r.join(' '), n: numeroDe(v) } })
+      const dados = itens.map((it) => { const [v = '', ...r] = partes(it); return { valor: v, rotulo: r.join(' '), n: valorDe(v) } })
       if (dados.filter((x) => x.n !== null).length < 2) return montarTela({ ...d, tipo: 'numeros', variante: 'numeros.grandes', itens: itens.slice(0, 4) }, c, interno)
       const max = Math.max(...dados.map((x) => Math.abs(x.n ?? 0)), 1)
       const destaque = d.destaque >= 0 && d.destaque < dados.length ? d.destaque : dados.reduce((m, x, k) => ((x.n ?? 0) > (dados[m]!.n ?? 0) ? k : m), 0)
@@ -1099,6 +1109,437 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Inter
           texto('texto', x.valor, { x: xb + wb + 20, y: yb + (hb - 40) / 2, w: 160, fonte: 'titulo', tamanhos: [34, 30, 26], max: 1, cor: k === destaque ? forte : s.tinta, anim: animItem(k) })
         })
       }
+      break
+    }
+
+    // ================================================================ gráfico de linha (evolução no tempo)
+    case 'grafico.linha': {
+      const dados = itens.map((it) => { const [v = '', ...r] = partes(it); return { valor: v, rotulo: r.join(' '), n: valorDe(v) } }).filter((x): x is { valor: string; rotulo: string; n: number } => x.n !== null)
+      if (dados.length < 2) return montarTela({ ...d, variante: 'grafico.barras' }, c, interno)
+      const y0 = cabecalho()
+      const ns = dados.map((x) => x.n)
+      const max = Math.max(...ns)
+      const min = Math.min(...ns)
+      // linha: a base pode não ser zero (a variação é o que importa); a escala fica abaixo do menor valor
+      const piso = min >= 0 ? Math.max(0, min - (max - min || Math.abs(max) || 1) * 0.9) : min - (max - min) * 0.2
+      const x0 = M
+      const x1 = W - M
+      const n = dados.length
+      const passo = (x1 - x0) / n
+      const yTopo = y0 + (st ? 90 : 84)
+      // embaixo do eixo: rótulos (até 2 linhas) e, numa faixa própria, a variação entre períodos
+      const yBase = fimConteudo - (st ? 170 : 140)
+      const px = (k: number) => x0 + passo * (k + 0.5)
+      const py = (v: number) => yBase - ((v - piso) / Math.max(1e-9, max - piso)) * (yBase - yTopo)
+      for (let g = 0; g <= 2; g++) linha(x0, yTopo + ((yBase - yTopo) * g) / 2, x1 - x0, 1.5, alfa(s.linha, 0.9))
+      linha(x0, yBase, x1 - x0, 2.5, s.linha)
+      const larg = x1 - x0
+      const alt = yBase - yTopo
+      const nos = dados.map((x, k) => ({ x: px(k) - x0, y: py(x.n) - yTopo, tipo: 'canto' as const }))
+      // área sob a linha (fechada até a base) e a linha (aberta), como caminhos vetoriais editáveis
+      forma('area', 'path', x0, yTopo, larg, alt, { fill: alfa(forte, s.tipo === 'escuro' ? 0.18 : 0.1), vetor: { w: larg, h: alt, fillRule: 'nonzero', caminhos: [{ nos: [...nos, { x: nos[nos.length - 1]!.x, y: alt, tipo: 'canto' }, { x: nos[0]!.x, y: alt, tipo: 'canto' }], fechado: true }] }, enterAnimation: { type: 'fadeIn', duration: dur(900), delay: 300, easing: 'easeOut' } })
+      forma('linha', 'path', x0, yTopo, larg, alt, { fill: alfa(forte, 0), stroke: forte, strokeWidth: st ? 7 : 6, vetor: { w: larg, h: alt, fillRule: 'nonzero', caminhos: [{ nos, fechado: false, semPreenchimento: true }] }, enterAnimation: { type: 'reveal', duration: dur(1100), delay: 200, easing: 'easeOut' } })
+      const destaque = d.destaque >= 0 && d.destaque < n ? d.destaque : n - 1
+      let fimRotulos = yBase + 22
+      dados.forEach((x, k) => {
+        const dot = k === destaque ? 34 : 24
+        forma('marcador', 'ellipse', px(k) - dot / 2, py(x.n) - dot / 2, dot, dot, { fill: forte, stroke: s.fundo, strokeWidth: 5, enterAnimation: animItem(k) })
+        const wv = Math.min(passo - 12, st ? 300 : 320)
+        texto('texto', x.valor, { x: px(k) - wv / 2, y: py(x.n) - (st ? 78 : 70), w: wv, fonte: 'titulo', tamanhos: st ? [44, 38, 32] : n > 5 ? [32, 28, 24] : [44, 38, 32], max: 1, align: 'center', cor: k === destaque ? forte : s.tinta, anim: animItem(k) })
+        fimRotulos = Math.max(fimRotulos, texto('item', x.rotulo, { x: px(k) - (passo - 12) / 2, y: yBase + 22, w: passo - 12, tamanhos: st ? [30, 26, 22] : [26, 24, 22], max: 2, align: 'center', cor: s.suave, anim: animItem(k) }).fim)
+      })
+      dados.forEach((x, k) => {
+        if (k > 0 && dados[k - 1]!.n !== 0) {
+          // variação entre períodos (calculada aqui, igual aos números da tela)
+          const v = (x.n / dados[k - 1]!.n - 1) * 100
+          const cor = v >= 0 ? positivo : negativo
+          const wd = Math.min(st ? 150 : 130, passo - 8)
+          texto('dado', formatarPct(v, true), { x: px(k) - passo / 2 - wd / 2, y: fimRotulos + 10, w: wd, fonte: 'mono', tamanhos: [st ? 22 : 18], max: 1, align: 'center', cor, anim: animTexto(500 + k * 120), hMin: Math.round((st ? 22 : 18) * 1.3 + 14), extra: { background: alfa(cor, 0.12), padding: 6, radius: 999 } })
+        }
+      })
+      break
+    }
+
+    // ================================================================ participação no total (barras proporcionais + %)
+    case 'grafico.participacao': {
+      const dados = itens.map((it) => { const [v = '', ...r] = partes(it); return { valor: v, rotulo: r.join(' '), n: valorDe(v) } }).filter((x): x is { valor: string; rotulo: string; n: number } => x.n !== null && x.n >= 0)
+      if (dados.length < 2) return montarTela({ ...d, variante: 'grafico.barras' }, c, interno)
+      const y0 = cabecalho()
+      const soma = dados.reduce((a, x) => a + x.n, 0) || 1
+      const max = Math.max(...dados.map((x) => x.n), 1)
+      const destaque = d.destaque >= 0 && d.destaque < dados.length ? d.destaque : dados.reduce((m, x, k) => (x.n > dados[m]!.n ? k : m), 0)
+      const corBarra = misturar(s.fundo, s.tinta, s.tipo === 'escuro' ? 0.28 : 0.18)
+      const n = dados.length
+      const rotW = st ? W - M * 2 : wc(3)
+      const xb = st ? M : xc(3)
+      const colValor = st ? 0 : 340
+      const larguraMax = (st ? W - M * 2 - 220 : W - M - xb - colValor - 24)
+      const passo = Math.min(st ? 190 : 118, (fimConteudo - y0 - 70) / n)
+      const hb = Math.min(st ? 48 : 44, passo * 0.48)
+      const yB = y0 + Math.max(0, (fimConteudo - y0 - 70 - n * passo) * 0.35)
+      dados.forEach((x, k) => {
+        const yk = yB + k * passo
+        const dest = k === destaque
+        texto('item', x.rotulo, { x: M, y: st ? yk : yk + (hb - 34) / 2, w: rotW - 24, tamanhos: st ? [32, 28] : [30, 27, 24], max: st ? 1 : 2, peso: dest ? 600 : 400, cor: s.tinta, anim: animItem(k) })
+        const yb = st ? yk + 50 : yk
+        const wb = Math.max(10, (x.n / max) * larguraMax)
+        forma('barra', 'rect', xb, yb, wb, hb, { fill: dest ? forte : corBarra, radius: Math.min(raioCartao, hb / 2), enterAnimation: { type: 'reveal', duration: dur(800), delay: 200 + k * 110, easing: 'easeOut' } })
+        const xv = st ? xb + wb + 16 : xb + wb + 24
+        texto('texto', x.valor, { x: xv, y: yb + (hb - 40) / 2, w: st ? 200 : 190, fonte: 'titulo', tamanhos: [34, 30, 26], max: 1, cor: dest ? forte : s.tinta, anim: animItem(k) })
+        texto('dado', formatarPct((x.n / soma) * 100), { x: xv + (st ? 0 : 190), y: st ? yb + hb + 6 : yb + (hb - 30) / 2, w: 130, fonte: 'mono', tamanhos: [st ? 24 : 22], max: 1, cor: s.suave, anim: animItem(k) })
+      })
+      // total conferido: a soma das partes, no mesmo formato dos valores
+      const yT = yB + n * passo + 8
+      linha(M, yT, W - M * 2, 2, s.linha)
+      texto('dado', `Total ${formatarComo(soma, dados[destaque]!.valor)} · 100%`, { x: M, y: yT + 18, w: W - M * 2, fonte: 'mono', tamanhos: [st ? 24 : 20], max: 1, cor: s.suave, align: st ? 'left' : 'right', anim: animTexto(600) })
+      break
+    }
+
+    // ================================================================ comparativo: meta × realizado
+    case 'comparativo.meta':
+    case 'comparativo.crescimento': {
+      const pares = itens.map((it) => { const [r = '', ...v] = partes(it); const valor = v.join(' '); return { rotulo: r, valor, n: valorDe(valor) } }).filter((x): x is { rotulo: string; valor: string; n: number } => x.n !== null)
+      if (pares.length < 2) return montarTela({ ...d, tipo: 'numeros', variante: 'numeros.grandes', itens: itens.map((it) => partes(it).reverse().join('|')) }, c, interno)
+      const [ref, atual] = [pares[0]!, pares[1]!]
+      const meta = d.variante === 'comparativo.meta'
+      const y0 = cabecalho({ semTexto: true })
+      const maxV = Math.max(Math.abs(ref.n), Math.abs(atual.n), 1)
+      const painelX = st ? M : xc(8)
+      const painelW = st ? W - M * 2 : wc(4)
+      const graficoW = st ? W - M * 2 : wc(7)
+      const graficoH = st ? 620 : fimConteudo - y0 - 40
+      // painel à direita: o número que resume (calculado) e a leitura
+      const painel = frame('painel', painelX, y0, painelW, 1, { gap: st ? 20 : 18 })
+      const diff = atual.n - ref.n
+      if (meta) {
+        const ating = (atual.n / ref.n) * 100
+        texto('dado', formatarPct(ating), { x: 0, y: 0, w: painelW, fonte: 'titulo', tamanhos: st ? [190, 160, 140] : [170, 150, 130, 110], max: 1, lh: 1, cor: forte, anim: { type: 'slideUp', duration: dur(700), delay: 200, easing: 'spring' }, pai: painel.id, fill: true })
+        texto('dado', 'da meta atingida', { x: 0, y: 0, w: painelW, tamanhos: st ? [36] : [32, 28], max: 2, cor: s.suave, pai: painel.id, fill: true })
+        linha(0, 0, painelW, 2, s.linha, { parentId: painel.id, sizingW: 'fill' })
+        texto('dado', diff < 0 ? `Gap de ${formatarComo(-diff, ref.valor)}` : `${formatarComo(diff, ref.valor)} acima da meta`, { x: 0, y: 0, w: painelW, fonte: 'titulo', tamanhos: st ? [48, 42] : [44, 40, 36], max: 2, cor: diff < 0 ? negativo : positivo, pai: painel.id, fill: true })
+      } else {
+        const varPct = ref.n !== 0 ? (atual.n / Math.abs(ref.n) - (ref.n < 0 ? -1 : 1)) * 100 : 0
+        const cor = varPct >= 0 ? positivo : negativo
+        const linhaV = frame('grupo', 0, 0, painelW, 1, { dir: 'horizontal', gap: 18, alY: 'center', pai: painel.id, w: 'fill' })
+        forma('seta', 'arrow', 0, 0, st ? 80 : 72, st ? 80 : 72, { fill: cor, rotation: varPct >= 0 ? -45 : 45, parentId: linhaV.id, enterAnimation: animForma(300) })
+        texto('dado', formatarPct(varPct, true), { x: 0, y: 0, w: painelW - 100, fonte: 'titulo', tamanhos: st ? [170, 150, 130] : [150, 130, 112, 96], max: 1, lh: 1, cor, anim: { type: 'slideUp', duration: dur(700), delay: 200, easing: 'spring' }, pai: linhaV.id, fill: true })
+        const semQualificador = (r: string) => r.replace(/\s*[·(–—-]\s*(estimad|calculad|projet)\w*\)?\s*$/i, '')
+        texto('dado', `de ${semQualificador(ref.rotulo)} para ${semQualificador(atual.rotulo)}`, { x: 0, y: 0, w: painelW, tamanhos: st ? [34] : [30, 27], max: 2, cor: s.suave, pai: painel.id, fill: true })
+        linha(0, 0, painelW, 2, s.linha, { parentId: painel.id, sizingW: 'fill' })
+        texto('dado', `${diff >= 0 ? '+' : '−'}${formatarComo(Math.abs(diff), atual.valor)} no período`, { x: 0, y: 0, w: painelW, fonte: 'titulo', tamanhos: st ? [44, 40] : [40, 36, 32], max: 2, cor: s.tinta, pai: painel.id, fill: true })
+      }
+      if (d.texto) texto('texto', d.texto, { x: 0, y: 0, w: painelW, tamanhos: st ? [32, 30, 28] : [28, 26, 24], max: 6, cor: s.suave, pai: painel.id, fill: true })
+      if (meta) {
+        // colunas com base zero: meta (contorno) e realizado (cheio); o gap fica marcado entre o topo do realizado e a meta
+        const colW = st ? 240 : 230
+        const gap = st ? 120 : 150
+        const xA = M + (st ? 60 : 40)
+        const base = y0 + graficoH - 64
+        const topo = y0 + 80
+        const h = (v: number) => Math.max(8, (Math.abs(v) / maxV) * (base - topo))
+        linha(M, base, graficoW, 2.5, s.linha)
+        ;[ref, atual].forEach((x, k) => {
+          const xk = xA + k * (colW + gap)
+          const hk = h(x.n)
+          forma('barra', 'rect', xk, base - hk, colW, hk, k === 0 ? { fill: alfa(forte, s.tipo === 'escuro' ? 0.16 : 0.1), stroke: forte, strokeWidth: 3, dash: 10, radius: Math.min(raioCartao, 14), enterAnimation: { type: 'slideUp', duration: dur(700), delay: 200, easing: 'easeOut' } } : { fill: forte, radius: Math.min(raioCartao, 14), enterAnimation: { type: 'slideUp', duration: dur(700), delay: 350, easing: 'easeOut' } })
+          texto('texto', x.valor, { x: xk - 8, y: base - h(Math.max(ref.n, atual.n)) - 64, w: colW + 16, fonte: 'titulo', tamanhos: [48, 42, 36, 32], max: 1, align: 'center', cor: k === 0 ? s.tinta : forte, anim: animItem(k) })
+          texto('item', x.rotulo, { x: xk - gap / 2 + 8, y: base + 18, w: colW + gap - 16, tamanhos: st ? [30, 26] : [28, 25], max: 2, align: 'center', cor: s.suave, anim: animItem(k) })
+        })
+        if (atual.n < ref.n) {
+          const xk = xA + colW + gap
+          const yMeta = base - h(ref.n)
+          const yReal = base - h(atual.n)
+          // linha da meta atravessando as duas colunas e o trecho que falta no realizado
+          linha(xA - 20, yMeta, colW * 2 + gap + 40, 2, alfa(forte, 0.6), { dash: 8 })
+          forma('gap', 'rect', xk, yMeta, colW, Math.max(4, yReal - yMeta), { fill: alfa(negativo, 0.14), stroke: negativo, strokeWidth: 2, dash: 6, radius: 6, enterAnimation: animForma(600) })
+          texto('dado', `gap ${formatarComo(ref.n - atual.n, ref.valor)}`, { x: xk + colW + 20, y: yMeta + (yReal - yMeta) / 2 - 18, w: st ? W - M - (xk + colW + 20) : 240, fonte: 'mono', tamanhos: [st ? 24 : 22], max: 2, cor: negativo, anim: animTexto(700) })
+        }
+      } else {
+        // barras horizontais grandes, base zero: anterior (apagada) e atual (cheia)
+        const wValor = st ? 260 : 220
+        const larguraMax = graficoW - wValor - 24 - 8
+        const hb = st ? 110 : 120
+        const lista = frame('barras', M, y0, graficoW, 1, { gap: st ? 44 : 52 })
+        ;[ref, atual].forEach((x, k) => {
+          const grupo = frame('grupo', 0, 0, graficoW, 1, { gap: 14, pai: lista.id, w: 'fill' })
+          texto('item', x.rotulo, { x: 0, y: 0, w: graficoW, fonte: 'mono', tamanhos: [st ? 26 : 22], max: 1, upper: true, cor: s.suave, anim: animItem(k), pai: grupo.id, fill: true })
+          const fila = frame('grupo', 0, 0, graficoW, hb, { dir: 'horizontal', gap: 24, alY: 'center', h: 'fixed', pai: grupo.id, w: 'fill' })
+          forma('barra', 'rect', 0, 0, Math.max(12, (Math.abs(x.n) / maxV) * larguraMax), hb, { fill: k === 1 ? forte : misturar(s.fundo, s.tinta, s.tipo === 'escuro' ? 0.3 : 0.16), radius: Math.min(raioCartao, 16), parentId: fila.id, enterAnimation: { type: 'reveal', duration: dur(900), delay: 200 + k * 200, easing: 'easeOut' } })
+          texto('texto', x.valor, { x: 0, y: 0, w: wValor, fonte: 'titulo', tamanhos: [52, 46, 40, 34], max: 1, cor: k === 1 ? forte : s.tinta, anim: animItem(k), pai: fila.id })
+        })
+        assentar(lista, y0, y0 + graficoH, 0.4)
+      }
+      if (!st) colocar(painel, painelX, Math.max(y0, y0 + (graficoH - altura(painel)) * 0.4))
+      else colocar(painel, M, y0 + graficoH + 90)
+      break
+    }
+
+    // ================================================================ funil
+    case 'funil.barras':
+    case 'funil.degraus': {
+      const etapas = itens.map((it) => { const [r = '', ...v] = partes(it); const valor = v.join(' '); return { rotulo: r, valor, n: valorDe(valor) } }).filter((x): x is { rotulo: string; valor: string; n: number } => x.n !== null && x.n >= 0)
+      if (etapas.length < 2) return montarTela({ ...d, tipo: 'lista', variante: 'lista.numerada' }, c, interno)
+      const centrado = d.variante === 'funil.barras'
+      const y0 = cabecalho()
+      const n = etapas.length
+      const topoN = Math.max(1, etapas[0]!.n)
+      // taxa de passagem de cada etapa (da anterior para ela) e a maior perda
+      const taxas = etapas.map((x, k) => (k === 0 || etapas[k - 1]!.n === 0 ? null : (x.n / etapas[k - 1]!.n) * 100))
+      const perda = taxas.reduce<number>((m, tx, k) => (tx !== null && (m < 0 || tx < taxas[m]!) ? k : m), -1)
+      const rotW = st ? 0 : wc(3)
+      const areaX = st ? M : xc(3)
+      const areaW = st ? W - M * 2 - 230 : wc(6)
+      const taxaX = st ? W - M - 210 : xc(9)
+      const taxaW = st ? 210 : wc(3)
+      const disp = fimConteudo - y0 - (st ? 40 : 60)
+      const passo = Math.min(st ? 170 : 104, disp / n)
+      const hb = Math.round(Math.min(st ? 84 : 76, passo * 0.74))
+      const yB = y0 + Math.max(0, (disp - n * passo) * 0.3)
+      etapas.forEach((x, k) => {
+        const yk = yB + k * passo
+        // largura exatamente proporcional ao volume (só um mínimo visível); o número sai da barra quando não cabe nela
+        const wb = Math.max(8, (x.n / topoN) * areaW)
+        const xb = centrado ? areaX + (areaW - wb) / 2 : areaX
+        const fill = forte
+        forma('barra', 'rect', xb, yk, wb, hb, { fill, radius: Math.min(raioCartao, 12, hb / 2, wb / 2), enterAnimation: { type: 'reveal', duration: dur(700), delay: 150 + k * 120, easing: 'easeOut' } })
+        const tamV = ateAltura(st ? [40, 34, 30, 26] : [36, 32, 28, 24, 20], hb, 1.1)
+        const cabeNaBarra = wb >= x.valor.length * tamV[0]! * 0.62 + 28
+        const wFora = Math.min(220, (centrado ? (areaW - wb) / 2 : areaW - wb) - 14)
+        texto('texto', x.valor, { x: cabeNaBarra ? xb : xb + wb + 14, y: yk + (hb - Math.ceil(tamV[0]! * 1.22)) / 2, w: cabeNaBarra ? wb : Math.max(60, wFora), fonte: 'titulo', tamanhos: tamV, max: 1, lh: 1.1, align: cabeNaBarra ? 'center' : 'left', cor: cabeNaBarra ? legivel(fill, [sobreDestaque, '#FFFFFF', '#141414'], 4.5) : s.tinta, anim: animItem(k) })
+        if (st) texto('item', x.rotulo, { x: M, y: yk + hb + 6, w: areaW, tamanhos: [26, 24], max: 1, cor: s.tinta, anim: animItem(k) })
+        else {
+          // rótulo numa linha quando o passo é curto, com o corpo que cabe no passo
+          const umaLinha = passo < 92
+          const tamR = ateAltura([30, 27, 24, 22, 20, 18, 16], umaLinha ? passo - 2 : (passo - 2) / 2)
+          texto('item', x.rotulo, { x: M, y: yk + hb / 2 - Math.ceil(tamR[0]! * 1.54) / 2, w: rotW - 28, tamanhos: tamR, max: umaLinha ? 1 : 2, align: centrado ? 'right' : 'left', cor: s.tinta, anim: animItem(k) })
+        }
+        const tx = taxas[k] ?? null
+        if (tx !== null) {
+          const ehPerda = k === perda
+          // selo da maior perda: o corpo e o respiro cabem no passo entre as etapas (não encosta na taxa seguinte)
+          const padSelo = passo < 64 ? 3 : 8
+          const tamTaxa = ateAltura([st ? 24 : 22, 20, 18, 16, 14], passo - 4 - (ehPerda ? padSelo * 2 : 0), 1.3)
+          const hSelo = Math.min(passo - 4, Math.round(tamTaxa[0]! * 1.3 + padSelo * 2 + 2))
+          texto('dado', `↓ ${formatarPct(tx)}${ehPerda ? '  maior perda' : ''}`, { x: taxaX, y: yk - passo / 2 + hb / 2 - hSelo / 2, w: taxaW, fonte: 'mono', tamanhos: tamTaxa, max: 1, lh: 1.3, cor: ehPerda ? negativo : s.suave, anim: animTexto(400 + k * 120), ...(ehPerda ? { hMin: hSelo, extra: { background: alfa(negativo, 0.12), padding: padSelo, radius: 999 } } : {}) })
+        }
+      })
+      texto('dado', 'Passagem entre etapas', { x: taxaX, y: yB - (st ? 40 : 34), w: taxaW, fonte: 'mono', tamanhos: [st ? 20 : 17], max: 1, upper: true, cor: s.suave, anim: animTexto(300) })
+      const ult = etapas[n - 1]!
+      texto('dado', `Conversão total ${formatarPct((ult.n / topoN) * 100)}`, { x: taxaX, y: yB + (n - 1) * passo + hb + (st ? 50 : 22), w: taxaW, fonte: 'mono', tamanhos: [st ? 24 : 22], max: 2, cor: forte, peso: 600, anim: animTexto(900) })
+      break
+    }
+
+    // ================================================================ tabela e ranking
+    case 'tabela.ranking':
+    case 'tabela.simples': {
+      const linhasT = itens.map((it) => partes(it))
+      if (linhasT.length < 2) return montarTela({ ...d, tipo: 'lista', variante: 'lista.numerada' }, c, interno)
+      const ranking = d.variante === 'tabela.ranking'
+      const [cab0, ...corpo0] = linhasT
+      const nCols = Math.max(cab0!.length, ...corpo0.map((l) => l.length))
+      const cab = Array.from({ length: nCols }, (_, k) => cab0![k] ?? '')
+      const corpo = corpo0.map((l) => Array.from({ length: nCols }, (_, k) => l[k] ?? ''))
+      const numerica = cab.map((_, k) => corpo.every((l) => !l[k] || valorDe(l[k]!) !== null) && corpo.some((l) => l[k]))
+      const colPos = ranking && /^(pos|#|rank|n[ºo°]|lugar|coloca)/i.test(semAcentoT(cab[0]!)) ? 0 : -1
+      // coluna de valor com barra proporcional: a primeira numérica com moeda (ou a de maiores números)
+      const candidatas = cab.map((_, k) => k).filter((k) => numerica[k] && k !== colPos)
+      const colValor = ranking ? (candidatas.find((k) => corpo.some((l) => /R\$|US\$|€/.test(l[k]!))) ?? candidatas[0] ?? -1) : -1
+      const maxValor = colValor >= 0 ? Math.max(1, ...corpo.map((l) => Math.abs(valorDe(l[colValor]!) ?? 0))) : 1
+      const y0 = cabecalho()
+      const largT = W - M * 2
+      const padX = st ? 20 : 28
+      const disp = fimConteudo - y0
+      const hLinha = Math.round(Math.max(st ? 70 : 58, Math.min(st ? 110 : 92, disp / (corpo.length + 1.1))))
+      // a posição tem largura fixa (o marcador); as outras colunas dividem o resto pelo tamanho do conteúdo
+      const wPos = colPos >= 0 ? Math.max(st ? 100 : 120, Math.round(hLinha * 0.56) + 24) : 0
+      const pesos = cab.map((h, k) => (k === colPos ? 0 : Math.max(4, h.length * 0.8, ...corpo.map((l) => l[k]!.length)) * (numerica[k] ? 1 : 1.25)))
+      const somaP = pesos.reduce((a, b) => a + b, 0) || 1
+      const gapCel = st ? 16 : 24
+      const larguras = pesos.map((p, k) => (k === colPos ? wPos : Math.floor(((largT - padX * 2 - wPos - gapCel * (nCols - 1)) * p) / somaP)))
+      const tamCel = hLinha >= 84 ? [32, 29, 26] : [28, 26, 24, 22]
+      const tabela = frame('tabela', M, y0, largT, 1, { gap: 0 })
+      const celula = (lin: string[], k: number, cabecalhoT: boolean, iLin: number, pai: string) => {
+        const w = larguras[k]!
+        const v = lin[k] ?? ''
+        const alinhar = numerica[k] ? 'right' : 'left'
+        if (cabecalhoT) return texto('dado', v, { x: 0, y: 0, w, fonte: 'mono', tamanhos: [st ? 20 : 18], max: 1, upper: true, cor: s.suave, align: k === colPos ? 'center' : alinhar, anim: animTexto(150), pai })
+        if (k === colPos) {
+          const top = iLin < 3
+          const caixa = frame('grupo', 0, 0, w, 1, { alX: 'center', pai })
+          const dia = Math.round(hLinha * 0.56)
+          const m0 = frame('marcador', 0, 0, dia, dia, { h: 'fixed', alX: 'center', alY: 'center', pai: caixa.id, extra: { fill: top ? (iLin === 0 ? forte : alfa(forte, iLin === 1 ? 0.75 : 0.55)) : alfa(s.fundo, 0), ...(top ? {} : { stroke: s.linha, strokeWidth: 2 }), radius: Math.round(dia / 2), enterAnimation: animItem(iLin) } })
+          texto('dado', v, { x: 0, y: 0, w: dia, fonte: 'mono', tamanhos: [Math.max(16, Math.round(dia * 0.42))], max: 1, align: 'center', cor: top ? legivel(iLin === 0 ? forte : misturar(s.fundo, forte, iLin === 1 ? 0.75 : 0.55), ['#FFFFFF', '#141414', s.fundo], 4.5) : s.suave, peso: 600, anim: null, pai: m0.id, lh: 1.1 })
+          return
+        }
+        if (k === colValor) {
+          const col = frame('grupo', 0, 0, w, 1, { gap: 8, alX: 'end', pai })
+          texto('dado', v, { x: 0, y: 0, w, tamanhos: tamCel, max: 1, align: 'right', cor: s.tinta, peso: ranking && iLin < 3 ? 600 : 400, anim: animItem(iLin), pai: col.id, extra: { tabularNums: true } })
+          forma('barra', 'rect', 0, 0, Math.max(6, ((Math.abs(valorDe(v) ?? 0)) / maxValor) * w * 0.9), 6, { fill: iLin === 0 ? forte : alfa(forte, 0.45), radius: 3, parentId: col.id, enterAnimation: { type: 'reveal', duration: dur(700), delay: 300 + iLin * 90, easing: 'easeOut' } })
+          return
+        }
+        texto('dado', v, { x: 0, y: 0, w, tamanhos: tamCel, max: 2, align: alinhar, cor: k === 0 || (k === 1 && colPos === 0) ? s.tinta : s.suave, peso: ranking && iLin < 3 && !numerica[k] ? 600 : 400, anim: animItem(iLin), pai, extra: numerica[k] ? { tabularNums: true } : {} })
+      }
+      const linhaTabela = (lin: string[], iLin: number, cabecalhoT: boolean) => {
+        const zebra = !ranking && !cabecalhoT && iLin % 2 === 1
+        const f = frame(cabecalhoT ? 'cabecalho' : 'linha', 0, 0, largT, cabecalhoT ? Math.round(hLinha * 0.7) : hLinha, { dir: 'horizontal', gap: gapCel, h: 'fixed', alY: 'center', pad: { top: 0, right: padX, bottom: 0, left: padX }, pai: tabela.id, w: 'fill', extra: zebra ? { fill: s.cartao, radius: Math.min(raioCartao, 10) } : {} })
+        lin.forEach((_, k) => celula(lin, k, cabecalhoT, iLin, f.id))
+        return f
+      }
+      linhaTabela(cab, -1, true)
+      linha(0, 0, largT, 2, s.tinta, { parentId: tabela.id, sizingW: 'fill', opacity: 0.5 })
+      corpo.forEach((lin, i) => {
+        linhaTabela(lin, i, false)
+        if (ranking && i < corpo.length - 1) linha(0, 0, largT, 1.5, s.linha, { parentId: tabela.id, sizingW: 'fill' })
+      })
+      assentar(tabela, y0, fimConteudo, 0.3)
+      break
+    }
+
+    // ================================================================ painel de indicadores (KPIs) e metas
+    case 'kpis.painel':
+    case 'kpis.metas': {
+      const metas = d.variante === 'kpis.metas'
+      const y0 = cabecalho()
+      const lista = itens.length ? itens : ['—|sem dados']
+      const n = lista.length
+      const cols = st ? (n >= 4 ? 2 : 1) : n <= 4 ? n : 3
+      const gapK = st ? 24 : GUT
+      const { g, cw } = gradeAL('grade', M, y0, W - M * 2, cols, gapK, gapK)
+      const pad = st ? 36 : n >= 4 ? 34 : 42
+      const iw = cw - pad * 2
+      const cartoesK: Camada[] = []
+      const tamValor = st ? (cols === 2 ? [96, 84, 72, 60, 48, 40] : [140, 120, 100, 84, 72]) : n <= 2 ? [150, 130, 110, 96, 80] : n === 3 ? [120, 104, 92, 80, 68] : [96, 84, 72, 62, 52, 44]
+      // todos os valores do painel no mesmo corpo (o maior em que o mais largo cabe numa linha)
+      const tamComum = Math.min(...lista.map((it) => caberTitulo(partes(it)[0] ?? '', iw, tamValor, 1).tamanho))
+      lista.forEach((it, k) => {
+        const [valor = '', indicador = '', ...resto] = partes(it)
+        const apoio = resto.join(' ').trim()
+        const dest = ehDestaque(k)
+        const card = frame('cartao', 0, 0, cw, 1, { gap: st ? 16 : 18, pad, pai: g.id, extra: { ...cartao(dest), radius: raioCartao, enterAnimation: animItem(k) } })
+        cartoesK.push(card)
+        const corT = dest ? sobreDestaque : s.tinta
+        const corS = dest ? alfa(sobreDestaque, 0.82) : s.suave
+        const fundoCard = dest ? forte : R.cartao === 'contorno' ? s.fundo : s.cartao
+        const ind = coresIndicador(t, fundoCard)
+        if (metas) texto('dado', 'Meta', { x: 0, y: 0, w: 120, fonte: 'mono', tamanhos: [st ? 20 : 17], max: 1, upper: true, align: 'center', cor: dest ? fundoCard : sobreDestaque, anim: animTexto(0), pai: card.id, hMin: st ? 40 : 34, extra: { background: dest ? sobreDestaque : forte, padding: 6, radius: 999 } })
+        texto('valor', valor, { x: 0, y: 0, w: iw, fonte: 'titulo', tamanhos: [tamComum], escalado: true, max: 1, lh: 1, cor: dest ? corT : metas ? forte : s.tinta, anim: { type: 'slideUp', duration: dur(700), delay: 150 + k * 120, easing: 'spring' }, pai: card.id, fill: true })
+        texto('texto', indicador, { x: 0, y: 0, w: iw, tamanhos: st ? [32, 28] : n >= 4 ? [26, 24, 22] : [30, 27, 24], max: 3, cor: corS, anim: animItem(k), pai: card.id, fill: true })
+        // apoio: série (mini-gráfico), variação (selo), ponto de partida de uma meta (barra de progresso) ou frase curta
+        const serie = apoio.split(/\s*;\s*/).map((x) => valorDe(x)).filter((x): x is number => x !== null)
+        const vValor = valorDe(valor)
+        const deX = /^(?:de|atual|hoje|partida)\s*:?\s*(.+)$/i.exec(apoio)
+        const variacao = /^([+\-−]\s*\d[\d.,]*\s*(?:%|p\.?p\.?))(.*)$/i.exec(apoio)
+        const hMini = st ? 60 : 52
+        if (serie.length >= 2 && apoio.includes(';')) {
+          const mn = Math.min(...serie)
+          const mx = Math.max(...serie)
+          const nos = serie.map((v, j) => ({ x: (j / (serie.length - 1)) * iw, y: hMini - 4 - ((v - mn) / Math.max(1e-9, mx - mn)) * (hMini - 8), tipo: 'canto' as const }))
+          forma('mini', 'path', 0, 0, iw, hMini, { fill: alfa(forte, 0), stroke: dest ? sobreDestaque : forte, strokeWidth: 4, parentId: card.id, vetor: { w: iw, h: hMini, fillRule: 'nonzero', caminhos: [{ nos, fechado: false, semPreenchimento: true }] }, enterAnimation: { type: 'reveal', duration: dur(900), delay: 400 + k * 120, easing: 'easeOut' } })
+        } else if (variacao) {
+          const num = valorDe(variacao[1]!) ?? 0
+          const cor = dest ? sobreDestaque : num >= 0 ? ind.positivo : ind.negativo
+          texto('dado', `${num >= 0 ? '▲' : '▼'} ${variacao[1]!.replace(/\s+/g, '')}${variacao[2]!.trimEnd()}`, { x: 0, y: 0, w: iw, fonte: 'mono', tamanhos: [st ? 22 : 19], max: 2, cor, anim: animTexto(400), pai: card.id, fill: true })
+        } else if (deX && vValor !== null && valorDe(deX[1]!) !== null && vValor !== 0) {
+          // progresso do ponto de partida até a meta (projeção: a meta ainda não foi alcançada)
+          const atualV = valorDe(deX[1]!)!
+          const frac = Math.max(0, Math.min(1, atualV / vValor))
+          const trilho = frame('trilho', 0, 0, iw, 10, { h: 'fixed', pai: card.id, w: 'fill', extra: { fill: dest ? alfa(sobreDestaque, 0.25) : alfa(s.tinta, 0.1), radius: 5 } })
+          forma('barra', 'rect', 0, 0, Math.max(6, frac * iw), 10, { fill: dest ? sobreDestaque : forte, radius: 5, parentId: trilho.id, enterAnimation: { type: 'reveal', duration: dur(900), delay: 400 + k * 120, easing: 'easeOut' } })
+          texto('dado', `Hoje ${deX[1]!.trim()} · ${formatarPct(frac * 100)} da meta`, { x: 0, y: 0, w: iw, fonte: 'mono', tamanhos: [st ? 20 : 18, 16], max: 2, cor: corS, anim: animTexto(500), pai: card.id, fill: true })
+        } else if (!apoio && /%\s*$/.test(valor) && vValor !== null && vValor >= 0 && vValor <= 100) {
+          // percentual sem apoio: mini-barra da fração
+          const trilho = frame('trilho', 0, 0, iw, 10, { h: 'fixed', pai: card.id, w: 'fill', extra: { fill: dest ? alfa(sobreDestaque, 0.25) : alfa(s.tinta, 0.1), radius: 5 } })
+          forma('barra', 'rect', 0, 0, Math.max(6, (vValor / 100) * iw), 10, { fill: dest ? sobreDestaque : forte, radius: 5, parentId: trilho.id, enterAnimation: { type: 'reveal', duration: dur(900), delay: 400 + k * 120, easing: 'easeOut' } })
+        } else if (apoio) {
+          texto('dado', apoio, { x: 0, y: 0, w: iw, fonte: 'mono', tamanhos: [st ? 20 : 18, 16], max: 3, cor: corS, anim: animTexto(500), pai: card.id, fill: true })
+        }
+      })
+      const linhasK = Math.ceil(n / Math.max(1, cols))
+      igualar(cartoesK, Math.min(esc(st ? 260 : 300), (fimConteudo - y0 - (linhasK - 1) * gapK) / Math.max(1, linhasK)))
+      if (st) espalhar(g, fimConteudo - y0, 60)
+      assentar(g, y0, fimConteudo, 0.35)
+      break
+    }
+
+    // ================================================================ roadmap (plano de ação)
+    case 'roadmap.colunas':
+    case 'roadmap.linhas': {
+      const passos = itens.map((it) => { const [titulo = '', desc = '', resp = '', prazo = ''] = partes(it); return { titulo, desc, resp, prazo } })
+      const y0 = cabecalho()
+      const n = Math.max(1, passos.length)
+      if (d.variante === 'roadmap.colunas' && !st) {
+        const gapR = GUT
+        const colW = Math.floor((W - M * 2 - (n - 1) * gapR) / n)
+        const dia = 64
+        const fio = linha(M + dia / 2, y0, W - M * 2 - dia, 3, s.linha, { enterAnimation: { type: 'reveal', duration: dur(1000), delay: 100, easing: 'easeOut' } })
+        const fila = frame('etapas', M, y0, W - M * 2, 1, { dir: 'horizontal', gap: gapR })
+        const raias: Camada[] = []
+        const marcas: Camada[] = []
+        passos.forEach((p, k) => {
+          const col = frame('etapa', 0, 0, colW, 1, { gap: 22, pai: fila.id })
+          const m0 = frame('marcador', 0, 0, dia, dia, { h: 'fixed', alX: 'center', alY: 'center', pai: col.id, extra: { fill: k === 0 || ehDestaque(k) ? forte : s.fundo, stroke: forte, strokeWidth: 3, radius: dia / 2, enterAnimation: animItem(k) } })
+          marcas.push(m0)
+          texto('indice', String(k + 1).padStart(2, '0'), { x: 0, y: 0, w: dia, fonte: 'mono', tamanhos: [24], max: 1, align: 'center', cor: k === 0 || ehDestaque(k) ? sobreDestaque : forte, peso: 600, anim: null, pai: m0.id, lh: 1.1 })
+          const raia = frame('cartao', 0, 0, colW, 1, { gap: 16, pad: 32, pai: col.id, w: 'fill', extra: { ...cartao(false), radius: raioCartao, enterAnimation: animItem(k) } })
+          raias.push(raia)
+          texto('item', p.titulo, { x: 0, y: 0, w: colW - 64, fonte: 'titulo', tamanhos: n > 4 ? [32, 28, 26] : [36, 32, 28], max: 4, anim: animItem(k), pai: raia.id, fill: true })
+          if (p.desc) texto('texto', p.desc, { x: 0, y: 0, w: colW - 64, tamanhos: n > 4 ? [22, 20] : [25, 23, 21], max: 4, cor: s.suave, anim: animItem(k), pai: raia.id, fill: true })
+          if (p.resp || p.prazo) {
+            const pe = frame('grupo', 0, 0, colW - 64, 1, { gap: 8, pai: raia.id, w: 'fill' })
+            linha(0, 0, colW - 64, 1.5, s.linha, { parentId: pe.id, sizingW: 'fill' })
+            if (p.resp) {
+              texto('dado', 'Responsável', { x: 0, y: 0, w: colW - 64, fonte: 'mono', tamanhos: [16], max: 1, upper: true, cor: s.suave, anim: null, pai: pe.id, fill: true })
+              texto('dado', p.resp, { x: 0, y: 0, w: colW - 64, tamanhos: [26, 24, 22], max: 2, peso: 600, cor: s.tinta, anim: animItem(k), pai: pe.id, fill: true })
+            }
+            if (p.prazo) texto('dado', p.prazo, { x: 0, y: 0, w: colW - 64, fonte: 'mono', tamanhos: [20, 18], max: 1, cor: forte, anim: animItem(k), pai: pe.id, fill: true })
+          }
+        })
+        for (const r0 of raias) layoutDe(r0).gapAuto = true
+        igualar(raias, 0)
+        assentar(fila, y0, fimConteudo, 0.3)
+        const r = resolver()
+        const m0 = r.find((l) => l.id === marcas[0]?.id)
+        if (m0) fio.y = Math.round(m0.y + dia / 2 - 1.5)
+      } else {
+        const lista = frame('lista', M, y0, W - M * 2, 1, { gap: st ? 26 : 20 })
+        const wResp = st ? 0 : 380
+        passos.forEach((p, k) => {
+          const lin = frame('linha', 0, 0, W - M * 2, 1, { dir: st ? 'vertical' : 'horizontal', gap: st ? 10 : 32, alY: 'center', pai: lista.id, w: 'fill' })
+          texto('indice', String(k + 1).padStart(2, '0'), { x: 0, y: 0, w: st ? 120 : 110, fonte: 'titulo', tamanhos: [st ? 56 : 60], max: 1, lh: 1, cor: forte, anim: animItem(k), pai: lin.id })
+          const col = frame('grupo', 0, 0, W - M * 2 - 110 - wResp - 64, 1, { gap: 6, pai: lin.id, w: 'fill' })
+          texto('item', p.titulo, { x: 0, y: 0, w: W - M * 2 - 110 - wResp - 64, fonte: 'titulo', tamanhos: st ? [42, 38, 34] : [38, 34, 30], max: 2, anim: animItem(k), pai: col.id, fill: true })
+          if (p.desc) texto('texto', p.desc, { x: 0, y: 0, w: W - M * 2 - 110 - wResp - 64, tamanhos: st ? [28, 26] : [24, 22], max: 2, cor: s.suave, anim: animItem(k), pai: col.id, fill: true })
+          if (p.resp || p.prazo) texto('dado', [p.resp, p.prazo].filter(Boolean).join(' · '), { x: 0, y: 0, w: st ? W - M * 2 : wResp, fonte: 'mono', tamanhos: [st ? 22 : 20, 18], max: 2, upper: true, align: st ? 'left' : 'right', cor: s.suave, anim: animItem(k), pai: lin.id, hMin: Math.round((st ? 22 : 20) * 1.3 + 22), extra: { background: alfa(forte, 0.08), padding: 10, radius: 999 } })
+          if (k < passos.length - 1) linha(0, 0, W - M * 2, 1.5, s.linha, { parentId: lista.id, sizingW: 'fill' })
+        })
+        espalhar(lista, fimConteudo - y0, st ? 60 : 44)
+      }
+      break
+    }
+
+    // ================================================================ pontos de atenção (alertas discretos)
+    case 'alertas.cartoes': {
+      const y0 = cabecalho()
+      const n = Math.max(1, itens.length)
+      const cols = st ? 1 : n === 4 ? 2 : Math.min(3, n)
+      const gapA = st ? 22 : GUT
+      const { g, cw } = gradeAL('grade', M, y0, W - M * 2, cols, gapA, gapA)
+      const pad = st ? 32 : 34
+      const icone = st ? 48 : 44
+      const cartoesA: Camada[] = []
+      itens.forEach((it, k) => {
+        const [tit = '', desc = ''] = partes(it)
+        const card = frame('cartao', 0, 0, cw, 1, { dir: 'horizontal', gap: 24, pad, pai: g.id, extra: { fill: s.tipo === 'escuro' ? alfa(s.tinta, 0.05) : alfa(s.fundo, 0), stroke: s.tipo === 'escuro' ? alfa(s.tinta, 0.2) : misturar(s.linha, s.tinta, 0.2), strokeWidth: 1.5, radius: raioCartao, enterAnimation: animItem(k) } })
+        cartoesA.push(card)
+        const sinal = frame('marcador', 0, 0, icone, icone, { h: 'fixed', alX: 'center', alY: 'center', pai: card.id, extra: { fill: alfa(negativo, 0.12), radius: icone / 2, enterAnimation: animItem(k) } })
+        texto('indice', '!', { x: 0, y: 0, w: icone, fonte: 'titulo', tamanhos: [Math.round(icone * 0.55)], max: 1, align: 'center', cor: negativo, peso: 700, anim: null, pai: sinal.id, lh: 1.05 })
+        const col = frame('grupo', 0, 0, cw - pad * 2 - icone - 24, 1, { gap: 10, pai: card.id, w: 'fill' })
+        texto('item', tit, { x: 0, y: 0, w: cw - pad * 2 - icone - 24, fonte: 'titulo', tamanhos: st ? [38, 34, 30] : cols >= 3 ? [32, 29, 26] : [36, 32, 28], max: 3, anim: animItem(k), pai: col.id, fill: true })
+        if (desc) texto('texto', desc, { x: 0, y: 0, w: cw - pad * 2 - icone - 24, tamanhos: st ? [28, 26] : [25, 23, 21], max: 3, cor: s.suave, anim: animItem(k), pai: col.id, fill: true })
+      })
+      igualar(cartoesA, 0)
+      if (st) espalhar(g, fimConteudo - y0, 60)
+      assentar(g, y0, fimConteudo, 0.35)
       break
     }
 

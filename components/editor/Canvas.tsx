@@ -16,7 +16,7 @@
  * - Frações da tela (1/2, 1/3, 2/3, 1/4, 3/4) e grade de layout de 12 colunas como alvos de encaixe (com rótulo)
  * - Editar vetor: duplo clique (ou Enter) numa forma/SVG selecionada, ou caneta (P) — ver vetor/EditorVetor.tsx
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Camada, CamadaFrame, CamadaTexto, DocumentoProjeto } from '@/lib/scene/schema'
 import type { Editor } from '@/lib/editor/useEditor'
 import { encaixar, guiasDaCaixa, intersecta, anguloRotacao, limiarEmCena, medirDistancias, redimensionarComEncaixe, LIMIAR_TELA } from '@/lib/editor/guias'
@@ -45,6 +45,9 @@ import type { AssetDemo } from '@/lib/demo/tipos'
 const SVG_DUPLICAR = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M3 2v15l4-3.5 2.6 5.8 2.4-1-2.5-5.7h5Z" fill="#171717" stroke="#fff" stroke-width="1.3" stroke-linejoin="round"/><path d="M14.5 12.5v8l2.2-1.9 1.4 3.1 1.3-.55-1.35-3.1h2.75Z" fill="#171717" stroke="#fff" stroke-width="1.1" stroke-linejoin="round"/></svg>'
 const CURSOR_DUPLICAR = `url("data:image/svg+xml,${encodeURIComponent(SVG_DUPLICAR)}") 3 2, copy`
 
+/** Cena do canvas (memo): pan, hover e guias não re-renderizam as camadas. */
+const CenaCanvas = memo(SceneRenderer)
+
 const ALCAS: Alca[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
 const BORDAS: Alca[] = ['n', 'e', 's', 'w']
 const CURSORES: Record<Alca, string> = { n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize', ne: 'nesw-resize', sw: 'nesw-resize', nw: 'nwse-resize', se: 'nwse-resize' }
@@ -70,7 +73,11 @@ interface EdicaoTexto {
 
 type EstiloTexto = Partial<Pick<CamadaTexto, 'fontFamily' | 'fontSize' | 'fontWeight' | 'color' | 'lineHeight' | 'letterSpacing' | 'italic' | 'transform'>>
 
-export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }: { editor: Editor; assets: Record<string, AssetDemo>; avisar: Avisar; interagir3d?: boolean; aoEscala?: (s: number) => void }) {
+/**
+ * `aoGesto(true)` no começo de um gesto contínuo (mover, redimensionar, girar, área, desenhar, pan, editar texto) e
+ * `aoGesto(false)` no fim: o EditorShell adia os painéis enquanto isso (só o canvas precisa de cada quadro).
+ */
+export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, aoGesto }: { editor: Editor; assets: Record<string, AssetDemo>; avisar: Avisar; interagir3d?: boolean; aoEscala?: (s: number) => void; aoGesto?: (ativo: boolean) => void }) {
   const { estado, cena, acoes, indiceCena } = editor
   const { ref, tamanho } = useTamanho<HTMLDivElement>()
   const gesto = useRef<Gesto | null>(null)
@@ -95,6 +102,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
     return () => window.removeEventListener('mostra:destacar-espaco', f)
   }, [])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const gestoAvisado = useRef(false)
   const estiloTexto = useRef<EstiloTexto>({})
   /** Modo "Editar vetor": camada em edição (null = caneta antes do primeiro clique). */
   const [modoVetor, setModoVetor] = useState<{ id: string | null; ferramenta: FerramentaVetor } | null>(null)
@@ -125,10 +133,17 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
     return { s, ox, oy, ajuste }
   }, [cena, tamanho, estado.zoom, estado.pan])
 
-  useEffect(() => { if (vp) aoEscala?.(vp.s) }, [vp, aoEscala])
+  const escalaVp = vp?.s
+  // zoom contínuo (roda, pinça): as camadas re-renderizam na escala nova quando sobra tempo; até lá a cena
+  // desenhada na escala anterior acompanha por transform (o quadro sai na hora, sem re-renderizar tudo)
+  const escalaCena = useDeferredValue(escalaVp ?? 0)
+  const ocultarTexto = useMemo(() => (editandoTexto ? new Set([editandoTexto]) : undefined), [editandoTexto])
+  useEffect(() => { if (escalaVp) aoEscala?.(escalaVp) }, [escalaVp, aoEscala])
 
+  /** Retângulo da área durante um gesto (lido no pointerdown): mover o ponteiro não força layout a cada evento. */
+  const retGesto = useRef<DOMRect | null>(null)
   const local = useCallback((ev: { clientX: number; clientY: number }) => {
-    const r = ref.current!.getBoundingClientRect()
+    const r = retGesto.current ?? ref.current!.getBoundingClientRect()
     return { x: ev.clientX - r.left, y: ev.clientY - r.top }
   }, [ref])
   const paraCena = useCallback((p: { x: number; y: number }) => (vp ? { x: (p.x - vp.ox) / vp.s, y: (p.y - vp.oy) / vp.s } : p), [vp])
@@ -231,14 +246,20 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
     return () => document.fonts.removeEventListener('loadingdone', f)
   }, [])
 
-  // textos com largura/altura automática: mede no DOM e grava no documento (sem passo de desfazer)
+  // textos com largura/altura automática: mede no DOM e grava no documento (sem passo de desfazer).
+  // A medida só depende do texto e do estilo: mover/girar a camada (ou outra camada) não mede de novo.
+  const medidas = useRef(new Map<string, { chave: string; m: { width: number; height: number } }>())
   useLayoutEffect(() => {
     if (!cena) return
     const mudancas = new Map<string, { width: number; height: number; x: number }>()
     const mapa = mapaDe(cena.layers)
     for (const l of cena.layers) {
       if (!textoAutomatico(l)) continue
-      const m = medirTexto(l)
+      const { x: _x, y: _y, z: _z, rotation: _r, opacity: _o, interactions: _i, enterAnimation: _e, exitAnimation: _s, loopAnimation: _l, ...estilo } = l
+      const chave = `${fontesProntas}|${JSON.stringify(estilo)}`
+      const guardada = medidas.current.get(l.id)
+      const m = guardada?.chave === chave ? guardada.m : medirTexto(l)
+      medidas.current.set(l.id, { chave, m })
       if (Math.abs(m.width - l.width) < 0.5 && Math.abs(m.height - l.height) < 0.5) continue
       // largura automática cresce conforme o alinhamento (centro: para os dois lados; direita: para a esquerda)
       const dw = m.width - l.width
@@ -256,6 +277,13 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
     const t = cena?.layers.find((l) => l.id === unicaId)
     if (t?.type === 'text') estiloTexto.current = { fontFamily: t.fontFamily, fontSize: t.fontSize, fontWeight: t.fontWeight, color: t.color, lineHeight: t.lineHeight, letterSpacing: t.letterSpacing, italic: t.italic, transform: t.transform }
   }, [unicaId, cena])
+
+  // digitar no canvas também é um gesto contínuo (painéis adiados até sair da edição)
+  useEffect(() => {
+    if (!editandoTexto) return
+    aoGesto?.(true)
+    return () => aoGesto?.(false)
+  }, [editandoTexto, aoGesto])
 
   // foco do editor de texto sem rolar a área (antes o autoFocus "pulava" a tela para o topo)
   useLayoutEffect(() => {
@@ -458,9 +486,10 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
 
   const onPointerMove = (ev: React.PointerEvent) => {
     if (!vp) return
+    const g = gesto.current
+    if (g && !retGesto.current) retGesto.current = ref.current!.getBoundingClientRect()
     const p = local(ev)
     const pc = paraCena(p)
-    const g = gesto.current
     if (!g) {
       const h = !ehDesenho && !modoMao ? camadaNoPonto(cena, pc, { ignorarTravadas: true }) : undefined
       // com Alt, mede até a camada sob o cursor; sem Alt, destaca o que o clique selecionaria
@@ -469,6 +498,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
       return
     }
     const semEncaixe = !estado.snap || ev.metaKey || ev.ctrlKey
+    if (!gestoAvisado.current) { gestoAvisado.current = true; aoGesto?.(true) }
     switch (g.tipo) {
       case 'pan':
         acoes.ui({ pan: { x: g.panInicial.x + (p.x - g.inicio.x), y: g.panInicial.y + (p.y - g.inicio.y) } })
@@ -561,6 +591,8 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
   const onPointerUp = (ev: React.PointerEvent) => {
     const g = gesto.current
     gesto.current = null
+    retGesto.current = null
+    if (gestoAvisado.current) { gestoAvisado.current = false; aoGesto?.(false) }
     setSobre(SEM_SOBREPOSICAO)
     const ins = insercao
     setInsercao(null)
@@ -738,7 +770,9 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala }
       </div>
 
       <div data-testid="canvas" className="absolute shadow-[0_1px_3px_rgba(0,0,0,.06),0_20px_50px_-30px_rgba(0,0,0,.35)]" style={{ left: telaCena.x, top: telaCena.y, width: telaCena.width, height: telaCena.height }}>
-        <SceneRenderer key={`${cena.id}-${previaAtiva ? estado.previa : 0}`} cena={cena} assets={assets} escala={vp.s} modo={previaAtiva ? 'viewer' : 'editor'} interativoNoEditor={interagir3d} chaveEntrada={`${estado.previa}`} ocultar={editandoTexto ? new Set([editandoTexto]) : undefined} />
+        <div style={escalaCena && escalaCena !== vp.s ? { transform: `scale(${vp.s / escalaCena})`, transformOrigin: '0 0' } : undefined}>
+          <CenaCanvas key={`${cena.id}-${previaAtiva ? estado.previa : 0}`} cena={cena} assets={assets} escala={escalaCena || vp.s} modo={previaAtiva ? 'viewer' : 'editor'} interativoNoEditor={interagir3d} chaveEntrada={`${estado.previa}`} ocultar={ocultarTexto} />
+        </div>
         {estado.grade && <div aria-hidden data-testid="grade" className="grade-editor pointer-events-none absolute inset-0 z-[1]" style={{ backgroundSize: `${passoTela}px ${passoTela}px` }} />}
         {estado.documento.mode === 'story' && <div aria-hidden className="pointer-events-none absolute border border-dashed border-texto3/60" style={{ left: '6%', right: '6%', top: '8%', bottom: '10%' }} />}
       </div>

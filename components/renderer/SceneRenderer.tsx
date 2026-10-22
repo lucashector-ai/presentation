@@ -19,7 +19,8 @@ import { recolorirSvg, svgParaDataUrl } from '@/lib/importar/svg'
 import { MASCARAS, filtroCss, gradienteCss, raioCss, sombraCss, transformCss } from './estilos'
 import { boxShadowCss, desfoqueDe, internas, projetadas, textShadowCss, vidroDe } from '@/lib/scene/efeitos'
 import { caminhoCantos, raiosDaCamada, temSuavizacao } from '@/lib/scene/cantos'
-import { estiloMascara } from '@/lib/scene/mascara'
+import { estiloMascara, herdarAnimacoesDaMascara } from '@/lib/scene/mascara'
+import { useRecursosMascara } from './useRecursosMascara'
 import { Tracos, estiloTracoTexto } from './camadas/Tracos'
 import { Desenho, TextoSegmentado, planoAnimacao, usePreviaAnimacao, varsAnimacao, type PedidoPrevia } from './animacao'
 import { atrasosEfetivos, esperaGatilho, interacoesDosGatilhos } from '@/lib/scene/animacoes'
@@ -30,6 +31,7 @@ import { Modelo3d } from './camadas/Modelo3d'
 import { Lottie } from './camadas/Lottie'
 import { CorpoTexto, CorteTexto } from './camadas/CorpoTexto'
 import { estiloCaixaTexto } from '@/lib/scene/tipografia'
+import { useFontesDaCena } from './fontes'
 
 export interface AssetResolvido {
   url: string
@@ -90,6 +92,8 @@ export function chaveMorph(c: Camada): string {
  * texto dividido isso eram centenas de partes no meio da animação.
  */
 export const SceneRenderer = memo(function SceneRenderer(props: SceneRendererProps) {
+  // fontes do Google usadas pelos textos desta tela (editor, visualizador, miniaturas, exportação…)
+  useFontesDaCena(props.cena)
   // prévia do inspetor: no editor, toca entradas/saídas/transição sem sair do modo de edição
   const previa = usePreviaAnimacao(props.modo === 'editor')
   const tr = previa?.transicao
@@ -106,16 +110,19 @@ function CenaRender(props: PropsInternas) {
   // auto layout resolvido também aqui: visualizador e miniaturas mostram o mesmo que o editor
   const dpr = useDensidade()
   const passo = escala > 0 ? 1 / (escala * dpr) : undefined
-  const camadas = useMemo(() => costurar(ordenarParaRender(sangrar(calcularLayout(cena.layers), cena.size, sangria)), passo), [cena.layers, cena.size, sangria, passo])
+  // (a camada recortada sem animação própria anima com a sua máscara)
+  const camadas = useMemo(() => herdarAnimacoesDaMascara(costurar(ordenarParaRender(sangrar(calcularLayout(cena.layers), cena.size, sangria)), passo)), [cena.layers, cena.size, sangria, passo])
   const herdado = useMemo(() => herancaDeFrames(camadas), [camadas])
   // "quando" das entradas: atrasos em cadeia (depois de outra camada) e cliques/hovers que tocam animações
   const gatilhos = useMemo(() => ({ atrasos: atrasosEfetivos(camadas), inter: interacoesDosGatilhos(camadas) }), [camadas])
-  // máscaras de forma: cada camada recortada recebe a mask-image da sua forma-máscara
+  // máscaras: cada camada recortada recebe a mask-image da sua máscara (forma, texto, imagem ou SVG; fontes e
+  // imagens embutidas carregadas sob demanda)
+  const recursosMascara = useRecursosMascara(camadas, assets)
   const mascaras = useMemo(() => {
     if (!camadas.some((c) => c.maskId)) return null
     const m = mapaDe(camadas)
-    return new Map(camadas.filter((c) => c.maskId).map((c) => [c.id, estiloMascara(c, m)]))
-  }, [camadas])
+    return new Map(camadas.filter((c) => c.maskId).map((c) => [c.id, estiloMascara(c, m, recursosMascara, assets)]))
+  }, [camadas, recursosMascara, assets])
   const mapaMorph = useMemo(() => (morphDe ? new Map(morphDe.layers.map((l) => [chaveMorph(l), l])) : null), [morphDe])
   const fundoCss = cena.backgroundGradient ? gradienteCss(cena.backgroundGradient) : cena.background
   const [fundoAtual, setFundoAtual] = useState(morphDe ? (morphDe.backgroundGradient ? gradienteCss(morphDe.backgroundGradient) : morphDe.background) : fundoCss)
@@ -300,16 +307,19 @@ function LayerView({ camada: c, props, origemMorph, heranca, gatilhos, mascara }
 
   return (
     <div key={chaveAnim} ref={refLoop} data-layer-id={c.id} className={classes || undefined} style={base} onAnimationEnd={plano.soltavel ? (ev) => { if (ev.target === ev.currentTarget && !ev.animationName.startsWith('loop-')) setConcluida(chaveAnim) } : undefined} {...eventos}>
-      {temInterativo(c) && c.interactiveEffects ? (
+      {c.isMask ? (
+        // máscara não é desenhada; o texto-máscara fica invisível no lugar (o clique duplo põe o cursor onde clicou)
+        c.type === 'text' ? <div style={{ visibility: 'hidden', width: '100%', height: '100%' }}><Conteudo camada={c} props={props} morphDuracao={morphDuracao} morphEasing={morphEasing} /></div> : null
+      ) : temInterativo(c) && c.interactiveEffects ? (
         // parallax, tilt e luz: invólucros próprios dentro da camada (ver components/renderer/reativos.tsx)
         <CamadaReativa efeitos={c.interactiveEffects} modo={props.animar === false ? 'miniatura' : modo} reduzir={reduzirMovimento} semHover={semHover} rolagem={!!props.rolagem} largura={c.width} altura={c.height} raio={'radius' in c ? raioCss(c) : undefined} simular={previaAqui && previa?.interativo ? previa.nonce : undefined}>
           <Conteudo camada={c} props={props} origemMorph={morphFim ? undefined : origemMorph} morphDuracao={morphDuracao} morphEasing={morphEasing} animTexto={plano.texto} rolagemTexto={plano.rolagem} desenhar={plano.desenho} />
-          {c.strokes && !(c.type === 'shape' && c.isMask) && <Tracos camada={c} />}
+          {c.strokes && <Tracos camada={c} />}
         </CamadaReativa>
       ) : (
         <>
           <Conteudo camada={c} props={props} origemMorph={morphFim ? undefined : origemMorph} morphDuracao={morphDuracao} morphEasing={morphEasing} animTexto={plano.texto} rolagemTexto={plano.rolagem} desenhar={plano.desenho} />
-          {c.strokes && !(c.type === 'shape' && c.isMask) && <Tracos camada={c} />}
+          {c.strokes && <Tracos camada={c} />}
         </>
       )}
     </div>

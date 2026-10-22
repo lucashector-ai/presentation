@@ -318,6 +318,38 @@ describe('mapeamento de propriedades', () => {
     expect(grupo!.markup).toContain('mask-type:alpha')
   })
 
+  it('máscara de texto, alfa e luminância em frame com texto/imagem viram isMask + maskType + maskId', () => {
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0])
+    const foto = (guid: number, pos: string, x: number) => ({ guid: G(guid), ...filho(G(10), pos), type: 'RECTANGLE', name: `foto${guid}`, size: { x: 200, y: 100 }, transform: T(x, 0), fillPaints: [{ type: 'IMAGE', visible: true, opacity: 1, imageScaleMode: 'FILL', image: { hash: new Uint8Array(20), dataBlob: 0 } }] })
+    const r = converterMensagem(
+      msg(
+        [
+          { guid: G(10), ...filho(PAGINA, '!'), type: 'FRAME', name: 'f', size: { x: 900, y: 300 }, transform: T(0, 0), fillPaints: [] },
+          // texto-máscara (de baixo) recorta a foto acima dele
+          { guid: G(11), ...filho(G(10), '!'), type: 'TEXT', mask: true, name: 'FOTO', size: { x: 200, y: 100 }, transform: T(0, 0), fontSize: 80, fontName: { family: 'Inter', style: 'Black' }, fillPaints: [solido(0, 0, 0)], textData: { characters: 'FOTO' } },
+          foto(12, '"', 0),
+          // imagem como máscara de luminância recorta o retângulo acima
+          { ...foto(13, '#', 300), mask: true, maskType: 'LUMINANCE' },
+          { guid: G(14), ...filho(G(10), '$'), type: 'RECTANGLE', name: 'cor', size: { x: 200, y: 100 }, transform: T(300, 0), fillPaints: [solido(1, 0, 0)] },
+        ],
+        [png]
+      ),
+      { cena: CENA }
+    )
+    const cs = r.camadas.map((c) => c.camada)
+    const texto = cs.find((c) => c.type === 'text')!
+    const foto12 = cs.find((c) => c.name === 'foto12')!
+    const foto13 = cs.find((c) => c.name === 'foto13')!
+    const cor = cs.find((c) => c.name === 'cor')!
+    expect(texto).toMatchObject({ isMask: true, maskType: 'alpha', text: 'FOTO' })
+    expect(foto12.maskId).toBe(texto.id)
+    expect(foto13).toMatchObject({ type: 'image', isMask: true, maskType: 'luminance' })
+    expect(foto13.maskId).toBeUndefined()
+    expect(cor.maskId).toBe(foto13.id)
+    // passa no schema
+    for (const c of cs) expect(() => parseCamada({ ...c, assetId: c.type === 'image' ? 'a' : undefined })).not.toThrow()
+  })
+
   it('vetor só com vector network vira caminho; geometria assada tem prioridade', () => {
     // rede: 3 vértices, 3 segmentos retos, 1 região
     const u32 = (n: number) => [n & 255, (n >> 8) & 255, (n >> 16) & 255, (n >> 24) & 255]

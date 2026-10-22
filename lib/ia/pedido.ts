@@ -6,7 +6,8 @@ import { z } from 'zod'
 import { MarcaSchema } from './design'
 import { TEMA_IDS, type TemaId } from './designSystem'
 import { ESTILOS, RoteiroSchema, TIPOS_TELA, type Roteiro } from './roteiro'
-import { TIPOS, TIPOS_PEDIDO, TONS, tipoDoPedido, type TipoApresentacao, type Tom } from './tiposApresentacao'
+import { COMPONENTES } from './designSystem'
+import { TIPOS, TIPOS_APRESENTACAO, TIPOS_PEDIDO, TONS, tipoDoPedido, type TipoApresentacao, type Tom } from './tiposApresentacao'
 import { ATALHOS_TELAS, MAX_TELAS_IA } from '@/lib/telasIa'
 
 export const ORIGENS = ['zero', 'texto', 'arquivo'] as const
@@ -31,10 +32,16 @@ export const MaterialSchema = z.object({
 export type MaterialPedido = z.infer<typeof MaterialSchema>
 const MATERIAL_VAZIO: MaterialPedido = { numeros: [], obrigatorio: '', evitar: '', fotos: [] }
 
+/**
+ * Tamanho máximo do pedido escrito (≈ 9 mil tokens): um briefing completo com estrutura de 30 telas, dados e regras
+ * cabe inteiro. O que passar disso vai para o material (texto colado), sem cortar nada.
+ */
+export const MAX_PROMPT = 30_000
+
 export const PedidoRoteiroSchema = z.object({
   origem: z.enum(ORIGENS).default('zero'),
-  /** O que o usuário quer apresentar. */
-  prompt: z.string().trim().max(4000).default(''),
+  /** O que o usuário quer apresentar (inteiro: nada é cortado antes de chegar à IA). */
+  prompt: z.string().trim().max(MAX_PROMPT, `O pedido passa de ${MAX_PROMPT.toLocaleString('pt-BR')} caracteres: mova o excedente para o material.`).default(''),
   /** Texto colado ou extraído de arquivo (roteiro, briefing, artigo). */
   conteudo: z.string().trim().max(60000).default(''),
   formato: z.enum(FORMATOS_IA).default('slides'),
@@ -57,13 +64,15 @@ export type PedidoRoteiro = z.infer<typeof PedidoRoteiroSchema>
  * Caracteres de material que entram no preço do roteiro (texto colado/importado + números, o que não pode faltar
  * e o que evitar). Mesma conta no navegador e na rota: o custo mostrado antes é o cobrado.
  */
-export function caracteresMaterial(p: { conteudo?: string; material?: Partial<MaterialPedido> }): number {
+export function caracteresMaterial(p: { conteudo?: string; prompt?: string; material?: Partial<MaterialPedido> }): number {
   const m = p.material ?? {}
-  return (p.conteudo?.trim().length ?? 0) + (m.numeros ?? []).join('\n').length + (m.obrigatorio?.trim().length ?? 0) + (m.evitar?.trim().length ?? 0)
+  // o pedido escrito também vai inteiro ao modelo: o que passar de um briefing comum (4 mil) entra na conta
+  const excedentePedido = Math.max(0, (p.prompt?.trim().length ?? 0) - 4000)
+  return excedentePedido + (p.conteudo?.trim().length ?? 0) + (m.numeros ?? []).join('\n').length + (m.obrigatorio?.trim().length ?? 0) + (m.evitar?.trim().length ?? 0)
 }
 
-/** Tipo efetivo do pedido ("auto" → reconhecido pelo texto). */
-export const tipoEfetivo = (p: Pick<PedidoRoteiro, 'tipo' | 'prompt' | 'conteudo'>): TipoApresentacao => (p.tipo === 'auto' ? tipoDoPedido(`${p.prompt} ${p.conteudo.slice(0, 2000)}`) : p.tipo)
+/** Tipo efetivo do pedido ("auto" → reconhecido pelo texto inteiro, por pontuação de evidências). */
+export const tipoEfetivo = (p: Pick<PedidoRoteiro, 'tipo' | 'prompt' | 'conteudo'>): TipoApresentacao => (p.tipo === 'auto' ? tipoDoPedido(`${p.prompt}\n${p.conteudo.slice(0, 20000)}`) : p.tipo)
 export const tomEfetivo = (p: Pick<PedidoRoteiro, 'tipo' | 'prompt' | 'conteudo' | 'tom'>): Tom => p.tom ?? TIPOS[tipoEfetivo(p)].tom
 
 export interface RespostaRoteiro {
@@ -85,6 +94,8 @@ export interface RespostaRoteiro {
  */
 export const RoteiroModeloSchema = z.object({
   titulo: z.string(),
+  /** Tipo de apresentação que o roteiro seguiu (o modelo confirma ou corrige o tipo reconhecido pelo texto). */
+  tipo: z.enum(TIPOS_APRESENTACAO),
   tema: z.enum(TEMA_IDS),
   telas: z.array(
     z.object({
@@ -111,7 +122,7 @@ export function normalizarRoteiro(bruto: RoteiroBruto, maxTelas = 100): Roteiro 
     rotulo: corta((t.rotulo ?? '').replace(/\s+/g, ' ').trim(), 40),
     titulo: corta(t.titulo.replace(/\s+/g, ' ').trim() || 'Sem título', t.tipo === 'citacao' ? 160 : 120),
     texto: corta(t.texto.trim(), 600),
-    itens: t.itens.map((i) => corta(i.replace(/\s*\n\s*/g, ' ').trim(), 160)).filter(Boolean).slice(0, 6),
+    itens: t.itens.map((i) => corta(i.replace(/\s*\n\s*/g, ' ').trim(), 160)).filter(Boolean).slice(0, Math.max(6, COMPONENTES[t.tipo]?.maxItens ?? 6)),
     notas: corta(t.notas.trim(), 1200),
   }))
   return RoteiroSchema.parse({

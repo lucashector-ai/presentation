@@ -6,13 +6,15 @@
  * Puro: sem rede, sem DOM. Compartilhado entre servidor e cliente.
  */
 import { z } from 'zod'
-import { ALINHAMENTOS, COMPONENTES, DECORACOES, FUNDOS, RE_HEX, TEMAS_ESCOLHA, TIPOS_TELA, VARIANTES_IDS, compativeis, regrasDe, resolverTema, tipoDaVariante, type TipoTela } from './designSystem'
+import { ALINHAMENTOS, COMPONENTES, DECORACOES, FUNDOS, RE_HEX, TEMAS_ESCOLHA, TIPOS_DADOS, TIPOS_TELA, VARIANTES_IDS, compativeis, regrasDe, resolverTema, tipoDaVariante, type TipoTela } from './designSystem'
 import { desenharTelaLocal } from './desenhoLocal'
 import { dividirEnfase, numeroDe, type Estilo, type TelaDesenhada } from './montagem'
 import { RoteiroSchema, ESTILOS, type Roteiro, type TelaRoteiro } from './roteiro'
 import { DESCRICAO_TOM, TIPOS, TIPOS_PEDIDO, TONS } from './tiposApresentacao'
 
 export const MAX_TELAS_POR_PEDIDO_DESIGN = 6
+
+const CorHex = z.string().trim().regex(RE_HEX, 'Cor deve ser #RRGGBB')
 
 export const MarcaSchema = z.object({
   nome: z.string().trim().max(60).default(''),
@@ -21,6 +23,8 @@ export const MarcaSchema = z.object({
   aplicarCores: z.boolean().default(true),
   /** Par de fontes fixado pela marca. */
   fontes: z.object({ titulo: z.string().trim().max(80), texto: z.string().trim().max(80) }).nullable().optional(),
+  /** Papéis de cor (fundo claro, cartão, positivo, negativo), por exemplo os hex citados no pedido. */
+  papeis: z.object({ claro: CorHex.optional(), cartao: CorHex.optional(), positivo: CorHex.optional(), negativo: CorHex.optional() }).nullable().optional(),
 })
 
 export const PedidoDesignSchema = z.object({
@@ -36,6 +40,8 @@ export const PedidoDesignSchema = z.object({
   marca: MarcaSchema.default({ nome: '', cores: [], aplicarCores: true }),
   /** Modelo do desenho: padrao = Sonnet (padrão); premium = Opus. */
   qualidade: z.enum(['padrao', 'premium']).default('padrao'),
+  /** Direção visual que o pedido dá para cada tela, na ordem do roteiro ("gráfico de linhas", "cards grandes"). */
+  direcoes: z.array(z.string().trim().max(400)).max(100).default([]),
 }).refine((p) => p.indices.every((i) => i < p.roteiro.telas.length), { message: 'Tela fora do roteiro.', path: ['indices'] })
 export type PedidoDesign = z.infer<typeof PedidoDesignSchema>
 
@@ -74,6 +80,9 @@ function itemValido(tipo: TipoTela, item: string): boolean {
   if (tipo === 'numeros') return !!b && /\d/.test(a)
   if (tipo === 'grafico') return !!b && numeroDe(a) !== null
   if (tipo === 'paleta') return RE_HEX.test(b)
+  if (tipo === 'kpis') return !!b
+  if (tipo === 'funil' || tipo === 'comparativo') return numeroDe(b) !== null
+  if (tipo === 'tabela') return item.split('|').length >= 2
   return true
 }
 
@@ -96,11 +105,18 @@ export function normalizarDesenho(bruto: DesenhoModelo, tela: TelaRoteiro, story
   // o modelo pode reescrever os itens; se trocar de tipo, precisa trazer itens no formato novo
   const candidatos = novos.length ? novos : tipo === tela.tipo ? doRoteiro : []
   let itens = comp.maxItens ? candidatos.filter((i) => itemValido(tipo, i)).slice(0, comp.maxItens).map((i) => corta(i, Math.max(lim.item, 160))) : []
-  // valores e cores nunca mudam: números, gráfico e paleta mantêm o que veio do roteiro quando a quantidade bate
-  if ((tipo === 'numeros' || tipo === 'grafico' || tipo === 'paleta') && tipo === tela.tipo && doRoteiro.length === itens.length) {
+  // componentes de dados (tabela, funil, comparativo, painel): os itens do roteiro ficam exatamente como estão
+  if (tipo === tela.tipo && TIPOS_DADOS.includes(tipo) && !['numeros', 'grafico', 'kpis'].includes(tipo) && doRoteiro.length) itens = doRoteiro.filter((i) => itemValido(tipo, i)).slice(0, comp.maxItens)
+  // valores e cores nunca mudam: números, gráfico, painel e paleta mantêm o que veio do roteiro quando a quantidade bate
+  if ((tipo === 'numeros' || tipo === 'grafico' || tipo === 'kpis' || tipo === 'paleta') && tipo === tela.tipo && doRoteiro.length === itens.length) {
     itens = itens.map((it, k) => {
       const [vo = '', ...ro] = doRoteiro[k]!.split('|')
       const [vn = '', ...rn] = it.split('|')
+      if (tipo === 'kpis') {
+        // painel: valor e apoio (série, variação, ponto de partida) do roteiro; só o nome do indicador pode mudar
+        const [indicadorO = '', ...apoioO] = ro
+        return [vo.trim(), (rn[0] ?? '').trim() || indicadorO.trim(), apoioO.join('|').trim()].filter((x, k) => k < 2 || x).join('|')
+      }
       return tipo === 'paleta' ? `${vn.trim() || vo.trim()}|${ro.join('|').trim()}` : `${vo.trim()}|${(rn.join('|') || ro.join('|')).trim()}`
     })
   }
@@ -170,6 +186,9 @@ Você pode trocar o tipo da tela só dentro destas famílias, quando o conteúdo
 - "decoracao": "nenhuma" (conteúdo denso ou tom sóbrio), "sutil" (padrão) ou "marcante" (capas e telas de impacto com tom ousado).
 - "alinhamento": "centro" só em telas de uma ideia (capa centrada, frase, chamada, encerramento); o resto, "esquerda".
 
+## Dados
+Nos componentes de dados (gráfico, métricas, comparativo, funil, tabela, painel de indicadores) a montagem desenha as barras, linhas e taxas a partir dos itens: devolva "itens" vazios para manter os números do roteiro. Quando o briefing traz a direção visual da tela ("gráfico de linhas", "barras horizontais", "cards grandes"), escolha a variante que a cumpre. Nunca use espaço de imagem, colchetes ou textos de preenchimento ("[data]", "[Nome]", "arraste sua imagem") se a tela não tem imagem da pessoa.
+
 ## Economia
 Para manter o texto do roteiro, devolva "titulo", "texto" ou "itens" vazios: o roteiro já está bom na maioria das telas. Reescreva só o que precisar caber no componente, ganhar força ou mudar de formato. Nunca invente fatos, números, nomes, preços, datas ou clientes; números, preços, datas e cores do roteiro ficam exatamente iguais.
 
@@ -184,7 +203,7 @@ export function mensagemDeck(p: PedidoDesign): string {
   const tipo = p.tipo === 'auto' ? null : TIPOS[p.tipo]
   const plano = p.roteiro.telas.map((t, i, arr) => {
     const contagem = arr.slice(0, i).filter((x) => x.tipo === t.tipo).length
-    return desenharTelaLocal(t, { story, estilo: p.estilo, tema, ocorrencia: contagem, indice: i, total: arr.length })
+    return desenharTelaLocal(t, { story, estilo: p.estilo, tema, ocorrencia: contagem, indice: i, total: arr.length, direcao: p.direcoes[i] })
   })
   const briefing = [
     tipo ? `Tipo: ${tipo.nome} (${tipo.descricao}).` : null,
@@ -197,7 +216,8 @@ export function mensagemDeck(p: PedidoDesign): string {
   ].filter(Boolean).join('\n')
   const roteiro = p.roteiro.telas.map((t, i) => {
     const itens = t.itens.length ? `\n   itens: ${t.itens.map((x) => seguro(x)).join(' ¦ ')}` : ''
-    return `${i + 1}. [${t.tipo}] ${t.rotulo ? `(${seguro(t.rotulo)}) ` : ''}${seguro(t.titulo)}${t.texto ? `\n   texto: ${seguro(t.texto)}` : ''}${itens}`
+    const direcao = p.direcoes[i]?.trim() ? `\n   direção pedida: ${seguro(p.direcoes[i]!.trim())}` : ''
+    return `${i + 1}. [${t.tipo}] ${t.rotulo ? `(${seguro(t.rotulo)}) ` : ''}${seguro(t.titulo)}${t.texto ? `\n   texto: ${seguro(t.texto)}` : ''}${itens}${direcao}`
   }).join('\n')
   const ritmo = plano.map((d, i) => `${i + 1}. ${d.variante} · fundo ${d.fundo}`).join('\n')
   return `<briefing>\n${briefing}\n</briefing>\n\n<roteiro titulo="${seguro(p.roteiro.titulo).replace(/"/g, "'")}">\n${roteiro}\n</roteiro>\n\n<plano>\nPlano de ritmo sugerido (variante e fundo por tela):\n${ritmo}\n</plano>`

@@ -28,7 +28,7 @@ export const POST = rota(async (req, _ctx, requestId) => {
   const pedido = await lerJson(req, PedidoDesignSchema)
   const n = pedido.indices.length
   const custo = custoDesenho(n)
-  const locais = () => desenharLocal(pedido.roteiro, { story: pedido.formato === 'story', estilo: pedido.estilo, tema: resolverTema(pedido.tema, pedido.marca) })
+  const locais = () => desenharLocal(pedido.roteiro, { story: pedido.formato === 'story', estilo: pedido.estilo, tema: resolverTema(pedido.tema, pedido.marca), direcoes: pedido.direcoes })
   const local = () => {
     const d = locais()
     return responder<RespostaDesign>({ telas: pedido.indices.map((i) => ({ indice: i, desenho: d[i]!, gerador: 'local' })), gerador: 'local', modelo: null, creditos: 0 }, requestId)

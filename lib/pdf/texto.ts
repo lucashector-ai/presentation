@@ -267,7 +267,17 @@ export function estruturarPdf(paginas: PaginaPdf[]): ResultadoTexto {
 }
 
 /** Bloco de texto posicionado (parágrafo, título, item), para virar camada de texto selecionável sobre a página. */
-export interface BlocoPosicionado { texto: string; x: number; y: number; largura: number; altura: number; tamanho: number; entrelinha: number }
+export interface BlocoPosicionado {
+  texto: string
+  x: number
+  y: number
+  largura: number
+  altura: number
+  tamanho: number
+  entrelinha: number
+  /** Espaçamento entre letras (pontos): no texto reconhecido por OCR, faz a Arial ocupar a largura da linha na imagem. */
+  espacamento?: number
+}
 
 /**
  * Agrupa as linhas da página em blocos posicionados (linhas próximas, mesmo tamanho e mesma margem esquerda),
@@ -291,10 +301,13 @@ export function blocosPosicionados(itens: ItemPdf[], max = 200): BlocoPosicionad
       blocos.push({ texto: l.texto, x: l.x, y: l.y - 0.85 * l.tamanho, largura: Math.max(1, l.xFim - l.x), altura: 1.15 * l.tamanho, tamanho: l.tamanho, entrelinha: 1.2, ultimaY: l.y, n: 1 })
     }
   }
-  const saida = blocos.map(({ ultimaY: _u, n: _n, ...b }) => ({ ...b, entrelinha: Math.min(3, Math.max(0.6, b.entrelinha)) }))
-  if (saida.length <= max) return saida
-  // muitas caixas (páginas muito densas): junta as excedentes numa só, para não passar do limite de camadas
-  const [dentro, fora] = [saida.slice(0, max - 1), saida.slice(max - 1)]
+  return limitarBlocos(blocos.map(({ ultimaY: _u, n: _n, ...b }) => ({ ...b, entrelinha: Math.min(3, Math.max(0.6, b.entrelinha)) })), max)
+}
+
+/** Muitas caixas (páginas muito densas): junta as excedentes numa só, para não passar do limite de camadas. */
+export function limitarBlocos(blocos: BlocoPosicionado[], max: number): BlocoPosicionado[] {
+  if (blocos.length <= max) return blocos
+  const [dentro, fora] = [blocos.slice(0, max - 1), blocos.slice(max - 1)]
   const x = Math.min(...fora.map((b) => b.x))
   const y = Math.min(...fora.map((b) => b.y))
   return [...dentro, { texto: fora.map((b) => b.texto).join('\n'), x, y, largura: Math.max(...fora.map((b) => b.x + b.largura)) - x, altura: Math.max(...fora.map((b) => b.y + b.altura)) - y, tamanho: fora[0]!.tamanho, entrelinha: 1.2 }]

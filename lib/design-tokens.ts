@@ -50,7 +50,10 @@ export const T = {
   z: { canvas: 0, selecao: 10, painel: 20, barra: 30, modal: 50, toast: 60 },
 } as const
 
-/** Fontes oferecidas para o conteúdo das apresentações (o design usa Geist na interface). */
+/**
+ * Biblioteca curada de fontes (estilos do Criar com IA, métricas em lib/scene/tipografia.ts). O seletor de fonte
+ * oferece o catálogo completo do Google Fonts (lib/fontes/catalogo.ts); estas continuam sendo as sugeridas.
+ */
 export const FONTES_APRESENTACAO = [
   'Geist',
   'Geist Mono',
@@ -72,25 +75,6 @@ export const FONTES_APRESENTACAO = [
   'Georgia',
   'system-ui',
 ] as const
-
-/** Fontes que precisam ser carregadas do Google Fonts no editor/visualizador. */
-export const FONTES_GOOGLE: Record<string, string> = {
-  Inter: 'Inter:wght@300..800',
-  Fraunces: 'Fraunces:opsz,wght@9..144,300..800',
-  'Instrument Serif': 'Instrument+Serif',
-  'Space Grotesk': 'Space+Grotesk:wght@300..700',
-  'DM Serif Display': 'DM+Serif+Display',
-  'Playfair Display': 'Playfair+Display:wght@400..800',
-  'IBM Plex Sans': 'IBM+Plex+Sans:wght@300;400;500;600;700',
-  'Archivo Black': 'Archivo+Black',
-  'Cormorant Garamond': 'Cormorant+Garamond:ital,wght@0,400..700;1,400..700',
-  Syne: 'Syne:wght@400..800',
-  Fredoka: 'Fredoka:wght@300..700',
-  'Source Serif 4': 'Source+Serif+4:ital,opsz,wght@0,8..60,300..800;1,8..60,300..800',
-  Unbounded: 'Unbounded:wght@300..800',
-  'Bebas Neue': 'Bebas+Neue',
-  Manrope: 'Manrope:wght@300..800',
-}
 
 /** Resolve o nome de fonte do conteúdo para a pilha CSS (Geist vem das variáveis do next/font). */
 export function pilhaFonte(nome: string): string {

@@ -1,5 +1,6 @@
 import { chromium } from 'playwright'
 import fs from 'node:fs'
+import { createCanvas } from '@napi-rs/canvas'
 
 /**
  * Fluxo ponta a ponta (seção 17.2): conta → projeto → upload → editor → preview → publicar → link → convidado → revogar.
@@ -451,14 +452,245 @@ await passo('Texto: corte vertical (opções de texto) deixa a caixa justa nas m
   await painel.waitFor({ state: 'detached' })
 })
 
+/** Máscaras: estilo calculado de uma camada no canvas e geometria pelo inspetor. */
+const mascaraDe = (id) => page.getByTestId('canvas').locator(`[data-layer-id="${id}"]`).evaluate((e) => ({ img: decodeURIComponent(getComputedStyle(e).maskImage), modo: getComputedStyle(e).maskMode }))
+async function geometria(pares) {
+  for (const [r, v] of pares) { const f = page.getByLabel(r, { exact: true }); await f.fill(String(v)); await f.press('Enter') }
+  await page.evaluate(() => document.activeElement?.blur())
+}
+async function esperarMascara(id, teste, ms = 6000) {
+  let m = await mascaraDe(id)
+  for (let t = 0; t < ms && !teste(m); t += 150) { await page.waitForTimeout(150); m = await mascaraDe(id) }
+  if (!teste(m)) throw new Error(`máscara inesperada em ${id}: ${m.modo} ${m.img.slice(0, 160)}`)
+  return m
+}
+const arvoreCamadas = () => page.getByRole('tree', { name: 'Camadas da tela' })
+
+await passo('Máscara: texto como máscara de imagem (foto dentro do título, ⌃⌥M), editável, remover e desfazer', async () => {
+  await page.getByRole('tab', { name: 'Telas' }).click()
+  await page.getByRole('button', { name: '+ Nova tela' }).click()
+  await page.getByRole('tab', { name: 'Blocos' }).click()
+  await page.getByRole('button', { name: 'Título', exact: true }).click()
+  await page.getByLabel('Conteúdo do texto').fill('FOTO')
+  const tam = page.getByLabel('Tamanho da fonte')
+  await tam.fill('480')
+  await tam.press('Enter')
+  await page.getByRole('radiogroup', { name: 'Redimensionar texto' }).getByRole('radio', { name: /^Auto horizontal/ }).click()
+  await page.evaluate(() => document.activeElement?.blur())
+  await page.getByRole('button', { name: 'Centralizar na horizontal' }).click()
+  // a foto entra por cima do título
+  await page.getByRole('tab', { name: 'Arquivos' }).click()
+  await page.getByTitle(/Adicionar upload-1/).first().click()
+  await page.getByRole('tab', { name: 'Camadas' }).click()
+  await arvoreCamadas().getByRole('treeitem', { name: 'upload-1', exact: true }).waitFor()
+  await geometria([['Largura', 1920], ['Altura', 1080], ['Posição X', 0], ['Posição Y', 0]])
+  await page.keyboard.press('Control+a')
+  await page.keyboard.press('Control+Alt+KeyM')
+  await page.getByText('Máscara criada: a camada de baixo recorta as outras.').waitFor()
+  // painel de camadas: ícone de máscara no título; a foto recuada, com a seta para a máscara
+  const linhaTexto = arvoreCamadas().getByRole('treeitem', { name: 'FOTO', exact: true })
+  const linhaFoto = arvoreCamadas().getByRole('treeitem', { name: 'upload-1', exact: true })
+  await linhaTexto.locator('[data-mascara]').waitFor()
+  await linhaFoto.locator('[data-recortada]').waitFor()
+  const idFoto = await page.getByTestId('canvas').locator('[data-layer-id^="image-"]').first().getAttribute('data-layer-id')
+  await esperarMascara(idFoto, (m) => m.img.includes('<foreignObject') && m.img.includes('>FOTO<'))
+  // fonte da biblioteca embutida na máscara (a imagem SVG não enxerga as fontes da página)
+  await esperarMascara(idFoto, (m) => m.img.includes('@font-face'))
+  await linhaTexto.locator('div').first().click()
+  const tipo = page.getByRole('radiogroup', { name: 'Tipo de máscara' })
+  if ((await tipo.getByRole('radio', { name: 'Alfa' }).getAttribute('aria-checked')) !== 'true') throw new Error('máscara nova não é de alfa')
+  await page.screenshot({ path: `${SHOTS}/16-mascara-texto.png` })
+  // continua editável: mudar o texto atualiza o recorte
+  await page.getByLabel('Conteúdo do texto').fill('MOSTRA')
+  await page.evaluate(() => document.activeElement?.blur())
+  await esperarMascara(idFoto, (m) => m.img.includes('>MOSTRA<'))
+  // desligar (olho) mostra a foto inteira; ligar volta
+  await page.getByRole('button', { name: 'Desligar máscara' }).first().click()
+  await esperarMascara(idFoto, (m) => m.img === 'none')
+  await page.getByRole('button', { name: 'Ligar máscara' }).first().click()
+  await esperarMascara(idFoto, (m) => m.img.includes('>MOSTRA<'))
+  // remover máscara desfaz; desfazer traz de volta
+  await page.getByRole('button', { name: 'Remover máscara' }).click()
+  await esperarMascara(idFoto, (m) => m.img === 'none')
+  if (await linhaTexto.locator('[data-mascara]').count()) throw new Error('o título continuou como máscara')
+  await page.getByRole('button', { name: /^Desfazer/ }).first().click()
+  await esperarMascara(idFoto, (m) => m.img.includes('>MOSTRA<'))
+})
+
+const PNG_ALFA = `${SHOTS}/alfa-e2e.png`
+{
+  const c = createCanvas(400, 400)
+  const g = c.getContext('2d')
+  const rg = g.createRadialGradient(200, 200, 30, 200, 200, 195)
+  rg.addColorStop(0, 'rgba(255,255,255,1)')
+  rg.addColorStop(0.6, 'rgba(110,110,110,1)')
+  rg.addColorStop(1, 'rgba(0,0,0,0)')
+  g.fillStyle = rg
+  g.beginPath(); g.arc(200, 200, 195, 0, Math.PI * 2); g.fill()
+  fs.writeFileSync(PNG_ALFA, c.toBuffer('image/png'))
+}
+
+await passo('Máscara: PNG com transparência como máscara de alfa, luminância e contorno', async () => {
+  await page.getByRole('tab', { name: 'Telas' }).click()
+  await page.getByRole('button', { name: '+ Nova tela' }).click()
+  await page.getByRole('tab', { name: 'Arquivos' }).click()
+  await page.getByRole('complementary', { name: 'Painel esquerdo' }).locator('input[type=file]').setInputFiles([PNG_ALFA])
+  await page.getByRole('tab', { name: 'Camadas' }).click()
+  await arvoreCamadas().getByRole('treeitem', { name: 'alfa-e2e', exact: true }).waitFor({ timeout: 15000 })
+  await geometria([['Largura', 800], ['Altura', 800], ['Posição X', 560], ['Posição Y', 140]])
+  await page.getByRole('tab', { name: 'Arquivos' }).click()
+  await page.getByTitle(/Adicionar upload-2/).first().click()
+  await page.getByRole('tab', { name: 'Camadas' }).click()
+  await arvoreCamadas().getByRole('treeitem', { name: 'upload-2', exact: true }).waitFor()
+  await geometria([['Largura', 1920], ['Altura', 1080], ['Posição X', 0], ['Posição Y', 0]])
+  await page.keyboard.press('Control+a')
+  await page.keyboard.press('Control+Alt+KeyM')
+  await page.getByText('Máscara criada: a camada de baixo recorta as outras.').first().waitFor()
+  const linhaAlfa = arvoreCamadas().getByRole('treeitem', { name: 'alfa-e2e', exact: true })
+  await linhaAlfa.locator('[data-mascara]').waitFor()
+  // a foto recortada é a camada do canvas com mask-image (espera o PNG embutido carregar)
+  const comMascara = () => page.getByTestId('canvas').locator('[data-layer-id]').evaluateAll((els) => els.filter((e) => getComputedStyle(e).maskImage !== 'none').map((e) => e.getAttribute('data-layer-id')))
+  let ids = await comMascara()
+  for (let t = 0; t < 6000 && ids.length !== 1; t += 150) { await page.waitForTimeout(150); ids = await comMascara() }
+  if (ids.length !== 1) throw new Error(`esperava 1 camada recortada, há ${ids.length}`)
+  const idFoto = ids[0]
+  // alfa: o PNG embutido na máscara (a transparência dele recorta a foto)
+  await esperarMascara(idFoto, (m) => m.img.includes('<img src="data:image/') && m.modo !== 'luminance')
+  await linhaAlfa.locator('div').first().click()
+  const tipo = page.getByRole('radiogroup', { name: 'Tipo de máscara' })
+  await page.screenshot({ path: `${SHOTS}/17-mascara-alfa.png` })
+  await tipo.getByRole('radio', { name: 'Luminância' }).click()
+  await esperarMascara(idFoto, (m) => m.modo === 'luminance')
+  await page.screenshot({ path: `${SHOTS}/18-mascara-luminancia.png` })
+  await tipo.getByRole('radio', { name: 'Contorno' }).click()
+  await esperarMascara(idFoto, (m) => m.modo !== 'luminance' && !m.img.includes('<img'))
+  await tipo.getByRole('radio', { name: 'Alfa' }).click()
+  await esperarMascara(idFoto, (m) => m.img.includes('<img src="data:image/'))
+  // a miniatura da tela usa o mesmo renderizador
+  await page.getByRole('tab', { name: 'Telas' }).click()
+  const mini = page.getByRole('listbox', { name: 'Telas' }).getByRole('option', { selected: true }).locator(`[data-layer-id="${idFoto}"]`)
+  const mm = await mini.evaluate((e) => getComputedStyle(e).maskImage)
+  if (!mm.includes('data:image/svg+xml')) throw new Error('miniatura sem a máscara')
+})
+
+// ---------- fontes do Google (catálogo, carregamento pela mesma origem, apresentação e exportação)
+const pedidosFontes = []
+page.on('request', (r) => { if (/fonts\.(googleapis|gstatic)\.com|\/fontes\//.test(r.url())) pedidosFontes.push(r.url()) })
+/** Largura da "tinta" de um texto numa fonte (canvas 2D), para comparar com a fonte de reserva. */
+/** Carrega (se preciso) e confirma que todas as faces da fonte estão prontas. */
+const fonteCarregada = (p, fonte) => p.waitForFunction((f) => document.fonts.load(f).then((fs) => fs.length > 0 && fs.every((x) => x.status === 'loaded')), fonte, { timeout: 15000 })
+const larguraTexto = (p, texto, fonte) => p.evaluate(([t, f]) => { const c = document.createElement('canvas').getContext('2d'); c.font = f; const m = c.measureText(t); return m.actualBoundingBoxLeft + m.actualBoundingBoxRight }, [texto, fonte])
+
+await passo('Fonte do Google: catálogo completo no seletor (busca, categoria, prévias leves) → Playfair Display no canvas', async () => {
+  await page.getByRole('tab', { name: 'Telas' }).click()
+  await telas().nth(0).click()
+  await page.getByRole('tab', { name: 'Blocos' }).click()
+  await page.getByRole('button', { name: 'Texto', exact: true }).click()
+  await page.getByLabel('Conteúdo do texto').fill('Google 2026')
+  await page.evaluate(() => document.activeElement?.blur())
+  await page.getByRole('radiogroup', { name: 'Redimensionar texto' }).getByRole('radio', { name: /^Auto horizontal/ }).click()
+  const gatilho = page.getByRole('button', { name: /^Fonte: / })
+  await gatilho.click()
+  const dlg = page.getByRole('dialog', { name: 'Escolher fonte' })
+  const busca = dlg.getByLabel('Buscar fonte')
+  await page.waitForFunction(() => /^Buscar entre [\d.]+ fontes$/.test(document.querySelector('[aria-label="Buscar fonte"]')?.getAttribute('placeholder') ?? ''))
+  const total = Number((await busca.getAttribute('placeholder')).replace(/\D/g, ''))
+  if (total < 1800) throw new Error(`catálogo com ${total} fontes`)
+  // lista virtualizada: só as linhas visíveis existem
+  const noDom = await dlg.getByRole('option').count()
+  if (noDom > 60) throw new Error(`lista não virtualizada: ${noDom} opções no DOM`)
+  // cada nome escrito na própria fonte, só com os glifos do nome (text=), pela mesma origem
+  await page.waitForFunction(() => [...document.fonts].some((f) => f.family.replace(/["']/g, '').startsWith('mp-') && f.status === 'loaded'), null, { timeout: 15000 })
+  if (!pedidosFontes.some((u) => u.includes('/fontes/css?') && u.includes('&t='))) throw new Error('prévias sem text= (carregariam a fonte inteira)')
+  await dlg.getByRole('button', { name: 'Manuscrita' }).click()
+  await dlg.getByText(/^Manuscrita · \d+$/).waitFor()
+  await dlg.getByRole('button', { name: 'Todas', exact: true }).click()
+  await busca.fill('playfair disp')
+  await dlg.getByRole('option').first().filter({ hasText: 'Playfair Display' }).waitFor()
+  await page.screenshot({ path: `${SHOTS}/16-fontes-busca.png` })
+  await page.keyboard.press('Enter')
+  await dlg.waitFor({ state: 'detached' })
+  if ((await gatilho.getAttribute('aria-label')) !== 'Fonte: Playfair Display') throw new Error(`fonte escolhida: ${await gatilho.getAttribute('aria-label')}`)
+  // aplicada no canvas e carregada (só a variante usada)
+  await fonteCarregada(page, '500 48px "Playfair Display"')
+  const ff = await page.getByTestId('canvas').getByText('Google 2026').evaluate((el) => getComputedStyle(el).fontFamily)
+  if (!ff.includes('Playfair Display')) throw new Error(`canvas com ${ff}`)
+  const folha = pedidosFontes.find((u) => /\/fontes\/css\?f=Playfair\+Display%3A500$/.test(u))
+  if (!folha) throw new Error(`folha da Playfair não pedida só com o peso usado: ${pedidosFontes.filter((u) => u.includes('Playfair')).join(' ')}`)
+  if (pedidosFontes.some((u) => /fonts\.(googleapis|gstatic)\.com/.test(u))) throw new Error('o navegador falou direto com o Google (deveria ser pela mesma origem)')
+  // pesos que a família tem (400–900)
+  const pesos = await page.getByLabel('Peso').locator('option').allTextContents()
+  if (pesos.includes('Light') || !pesos.includes('Black')) throw new Error(`pesos oferecidos: ${pesos.join(', ')}`)
+  // "Fontes do documento" no topo do seletor
+  await gatilho.click()
+  await dlg.getByText('Fontes do documento').waitFor()
+  await dlg.getByRole('option', { name: /Playfair Display/ }).first().waitFor()
+  await page.keyboard.press('Escape')
+  await dlg.waitFor({ state: 'detached' })
+  await esperarSalvo()
+})
+
+await passo('Fonte do Google na apresentação (página nova, carregada do zero)', async () => {
+  const p2 = await ctx.newPage()
+  await p2.goto(page.url().replace(/\/edit.*$/, '/apresentar'))
+  await p2.locator('.viewer-controles').getByText(/^01 \/ \d+$/).waitFor()
+  const t = p2.getByText('Google 2026', { exact: true })
+  await t.waitFor()
+  await fonteCarregada(p2, '500 48px "Playfair Display"')
+  const ff = await t.evaluate((el) => getComputedStyle(el).fontFamily)
+  if (!ff.includes('Playfair Display')) throw new Error(`apresentação com ${ff}`)
+  // a largura desenhada é a da Playfair (não a da reserva)
+  const tam = await t.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
+  const desenhada = await t.evaluate((el) => { const r = document.createRange(); r.selectNodeContents(el); return r.getBoundingClientRect().width })
+  const escala = await t.evaluate((el) => el.getBoundingClientRect().width / el.offsetWidth || 1)
+  const pf = await larguraTexto(p2, 'Google 2026', `500 ${tam}px "Playfair Display"`) * escala
+  if (Math.abs(desenhada - pf) / pf > 0.1) throw new Error(`largura na apresentação ${desenhada.toFixed(1)} ≠ Playfair ${pf.toFixed(1)}`)
+  await p2.screenshot({ path: `${SHOTS}/17-fontes-apresentacao.png` })
+  await p2.close()
+})
+
+await passo('Exportar PNG com a fonte do Google embutida (largura do texto ≠ fonte de reserva)', async () => {
+  await page.getByTestId('canvas').getByText('Google 2026').click()
+  await page.getByRole('button', { name: 'Adicionar exportação' }).click()
+  await page.getByLabel('Escala da exportação').selectOption('1')
+  const tam = Number(await page.getByLabel('Tamanho da fonte').inputValue())
+  const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 30000 }), page.getByRole('button', { name: /^Exportar / }).click()])
+  const png = fs.readFileSync(await dl.path())
+  // largura da tinta no PNG (pixels opacos) × a mesma medida na Playfair e na fonte de reserva (Geist)
+  const tinta = await page.evaluate(async (b64) => {
+    const img = new Image()
+    img.src = `data:image/png;base64,${b64}`
+    await img.decode()
+    const c = document.createElement('canvas')
+    c.width = img.naturalWidth
+    c.height = img.naturalHeight
+    const g = c.getContext('2d')
+    g.drawImage(img, 0, 0)
+    const d = g.getImageData(0, 0, c.width, c.height).data
+    let min = c.width, max = -1
+    for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) if (d[(y * c.width + x) * 4 + 3] > 96) { if (x < min) min = x; if (x > max) max = x }
+    return max - min + 1
+  }, png.toString('base64'))
+  const reserva = await page.evaluate(() => getComputedStyle(document.body).getPropertyValue('--font-geist-sans').trim() || 'sans-serif')
+  const pf = await larguraTexto(page, 'Google 2026', `500 ${tam}px "Playfair Display"`)
+  const fb = await larguraTexto(page, 'Google 2026', `500 ${tam}px ${reserva}`)
+  // "Google 2026": ~11% mais estreito na Playfair do que na Geist (algarismos e o G bem diferentes)
+  if (Math.abs(pf - fb) / pf < 0.06) throw new Error(`Playfair (${pf.toFixed(1)}) e reserva (${fb.toFixed(1)}) parecidas demais para comparar`)
+  if (Math.abs(tinta - pf) / pf > 0.03 || Math.abs(tinta - fb) < Math.abs(tinta - pf)) throw new Error(`PNG com ${tinta}px de texto; Playfair ${pf.toFixed(1)}, reserva ${fb.toFixed(1)}`)
+  console.log(`   PNG: texto com ${tinta}px · Playfair ${pf.toFixed(1)}px · reserva (Geist) ${fb.toFixed(1)}px`)
+  await page.getByRole('button', { name: 'Fechar exportação' }).click()
+})
+
 const LOGO = `${SHOTS}/logo-aurora.svg`
 fs.writeFileSync(LOGO, '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120" width="400" height="120"><circle cx="60" cy="60" r="44" fill="#E4572E"/><rect x="38" y="38" width="44" height="44" rx="6" fill="#1F3B4D"/><rect x="130" y="34" width="250" height="22" rx="11" fill="#1F3B4D"/><rect x="130" y="66" width="160" height="22" rx="11" fill="#F2C14E"/></svg>')
 
-await passo('Criar com IA: atalho do painel (20 telas) → marca com logo, paleta do logo e kit salvo', async () => {
+/** Cartão "Criar com IA" do painel (uma linha opcional de ideia + botão). */
+const cartaoIa = () => page.locator('form', { has: page.locator('#painel-ideia') })
+
+await passo('Criar com IA: atalho do painel (ideia em uma linha) → marca com logo, paleta do logo e kit salvo', async () => {
   await page.goto(`${BASE}/app`, { waitUntil: 'networkidle' })
-  await page.locator('#painel-prompt').fill('Pitch da Aurora, startup de energia solar por assinatura para pequenos comércios')
-  await page.getByRole('radiogroup', { name: 'Telas' }).getByRole('radio', { name: '20', exact: true }).click()
-  await page.getByRole('button', { name: 'Continuar', exact: true }).click()
+  await page.locator('#painel-ideia').fill('Pitch da Aurora, startup de energia solar por assinatura para pequenos comércios')
+  await cartaoIa().getByRole('button', { name: 'Criar com IA' }).click()
   await page.waitForURL(/\/app\/criar\?/)
   await page.getByRole('heading', { name: 'A sua marca, antes de gerar' }).waitFor()
   await page.getByLabel('Arquivo do logo').setInputFiles(LOGO)
@@ -473,6 +705,26 @@ await passo('Criar com IA: atalho do painel (20 telas) → marca com logo, palet
   const logoNaPrevia = await page.locator('[data-layer-id^="logo-"] img').count()
   if (!logoNaPrevia) throw new Error('logo não aparece na prévia da capa')
   await page.screenshot({ path: `${SHOTS}/13-criar-marca.png` })
+})
+
+await passo('Criar com IA: qualquer fonte do Google no kit de marca (títulos e textos)', async () => {
+  await page.getByRole('button', { name: /^Fonte dos títulos: / }).click()
+  const dlg = page.getByRole('dialog', { name: 'Escolher fonte dos títulos' })
+  await dlg.getByLabel('Buscar fonte').fill('abril fatface')
+  await dlg.getByRole('option').first().filter({ hasText: 'Abril Fatface' }).waitFor()
+  await page.keyboard.press('Enter')
+  await page.getByRole('button', { name: /^Fonte dos textos: / }).click()
+  const dlg2 = page.getByRole('dialog', { name: 'Escolher fonte dos textos' })
+  await dlg2.getByLabel('Buscar fonte').fill('Lora')
+  await dlg2.getByRole('option').first().filter({ hasText: 'Lora' }).waitFor()
+  await page.keyboard.press('Enter')
+  await page.getByText('Par próprio:').waitFor()
+  // a prévia da capa já usa a fonte dos títulos, carregada
+  await page.locator('[style*="Abril Fatface"]').first().waitFor()
+  await fonteCarregada(page, '16px "Abril Fatface"')
+  await page.getByRole('button', { name: /^Atualizar o kit/ }).click()
+  await page.waitForTimeout(500)
+  await page.screenshot({ path: `${SHOTS}/13b-criar-marca-fontes.png` })
 })
 
 await passo('Criar com IA: material (números), galeria de estilos com filtro e busca, tamanho e revisão com custo', async () => {
@@ -491,8 +743,11 @@ await passo('Criar com IA: material (números), galeria de estilos com filtro e 
   await galeria.getByRole('radio', { name: 'Luxo', exact: true }).click()
   await page.getByLabel('Prévia do estilo escolhido').waitFor()
   await page.getByRole('button', { name: 'Continuar →' }).click()
-  if ((await page.getByRole('radio', { name: '20 telas', exact: true }).getAttribute('aria-checked')) !== 'true') throw new Error('20 telas do atalho do painel não vieram')
+  await page.getByRole('radio', { name: '20 telas', exact: true }).click()
+  if ((await page.getByRole('radio', { name: '20 telas', exact: true }).getAttribute('aria-checked')) !== 'true') throw new Error('20 telas não selecionado')
   await page.getByRole('button', { name: 'Continuar →' }).click()
+  // a ideia escrita no cartão do painel chegou ao briefing
+  if (!/Pitch da Aurora/.test(await page.getByRole('button', { name: 'Editar briefing' }).locator('..').innerText())) throw new Error('a ideia do cartão do painel não chegou ao briefing')
   await page.getByRole('heading', { name: 'Revisar e gerar' }).waitFor()
   const resumo = await page.locator('aside').filter({ hasText: 'Total' }).innerText()
   if (!/Design de 20 telas/.test(resumo) || !/grátis/.test(resumo)) throw new Error(`resumo de custo: ${resumo}`)
@@ -523,12 +778,83 @@ await passo('Criar com IA: 20 telas com o logo; trocar o estilo depois é gráti
   await page.getByTestId('canvas').locator('img').first().waitFor({ timeout: 10000 })
 })
 
+await passo('Criar com IA: as fontes do kit (Abril Fatface + Lora) estão nas telas geradas', async () => {
+  const familias = await page.getByTestId('canvas').locator('[data-layer-id] *').evaluateAll((els) => [...new Set(els.map((e) => getComputedStyle(e).fontFamily))])
+  if (!familias.some((f) => f.includes('Abril Fatface'))) throw new Error(`títulos sem a fonte do kit: ${familias.join(' | ')}`)
+  if (!familias.some((f) => f.includes('Lora'))) throw new Error(`textos sem a fonte do kit: ${familias.join(' | ')}`)
+  await fonteCarregada(page, '16px "Abril Fatface"')
+})
+
 await passo('Criar com IA: o kit de marca fica salvo no espaço para a próxima apresentação', async () => {
   await page.goto(`${BASE}/app/criar?prompt=Outra%20apresenta%C3%A7%C3%A3o`, { waitUntil: 'networkidle' })
   await page.getByRole('button', { name: 'Usar o kit Aurora' }).click()
   if ((await page.getByLabel('Nome da marca').inputValue()) !== 'Aurora') throw new Error('kit não aplicou o nome')
   if ((await page.getByLabel('Código da cor 1').inputValue()).toUpperCase() !== '#E4572E') throw new Error('kit não aplicou as cores')
   await page.getByAltText(/^Logo/).first().waitFor()
+})
+
+await passo('Criar com IA: o kit traz de volta as fontes do Google escolhidas', async () => {
+  if ((await page.getByRole('button', { name: /^Fonte dos títulos: / }).getAttribute('aria-label')) !== 'Fonte dos títulos: Abril Fatface') throw new Error('kit não trouxe a fonte dos títulos')
+  if ((await page.getByRole('button', { name: /^Fonte dos textos: / }).getAttribute('aria-label')) !== 'Fonte dos textos: Lora') throw new Error('kit não trouxe a fonte dos textos')
+})
+
+const BRIEFING = fs.readFileSync(new URL('../lib/ia/fixtures/prompt-nexora-resultados.md', import.meta.url), 'utf8')
+
+await passo('Painel: cartão "Criar com IA" sem nada sobreposto em 390, 768, 1024 e 1440 px', async () => {
+  await page.goto(`${BASE}/app`, { waitUntil: 'networkidle' })
+  for (const w of [390, 768, 1024, 1440]) {
+    await page.setViewportSize({ width: w, height: 900 })
+    await page.waitForTimeout(200)
+    const caixa = await cartaoIa().boundingBox()
+    const filhos = await cartaoIa().evaluate((f) => [...f.querySelectorAll('h2, p, input, button, span.mono')].filter((e) => getComputedStyle(e).display !== 'none').map((e) => { const r = e.getBoundingClientRect(); return { n: e.tagName, x: r.x, y: r.y, w: r.width, h: r.height } }))
+    for (const a of filhos) {
+      if (a.x < caixa.x - 1 || a.x + a.w > caixa.x + caixa.width + 1 || a.y + a.h > caixa.y + caixa.height + 1) throw new Error(`${w}px: ${a.n} sai do cartão`)
+      for (const b of filhos) if (a !== b && Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > 1 && Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) > 1) throw new Error(`${w}px: ${a.n} sobre ${b.n}`)
+    }
+    if (await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) throw new Error(`${w}px: rolagem horizontal`)
+  }
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.screenshot({ path: `${SHOTS}/16-painel-cartao-ia.png` })
+})
+
+await passo('Criar com IA: briefing longo colado no painel vai inteiro; 15 telas, cores e estrutura reconhecidas; dados nas telas', async () => {
+  // colar um briefing longo na linha do cartão leva o texto inteiro para o editor grande (nada é cortado)
+  await page.locator('#painel-ideia').focus()
+  await page.evaluate((t) => {
+    const dt = new DataTransfer()
+    dt.setData('text/plain', t)
+    document.querySelector('#painel-ideia').dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))
+  }, BRIEFING)
+  await page.waitForURL(/\/app\/criar\?colado=1/)
+  const editor = page.locator('#criar-prompt')
+  await page.waitForFunction((n) => document.querySelector('#criar-prompt')?.value.length === n, BRIEFING.trim().length, { timeout: 10000 })
+  if (!(await page.getByText(`${BRIEFING.trim().length.toLocaleString('pt-BR')} / 30.000 caracteres`).count())) throw new Error('contador de caracteres do pedido')
+  // o editor cresce e rola: mais alto que o campo antigo, sem passar do teto
+  const alt = (await editor.boundingBox()).height
+  if (alt < 300 || alt > 660) throw new Error(`altura do editor: ${alt}`)
+  if (!(await editor.evaluate((el) => el.scrollHeight > el.clientHeight))) throw new Error('o editor deveria rolar com o briefing longo')
+  await page.getByText('Estrutura de 15 telas reconhecida no pedido').waitFor()
+  await page.screenshot({ path: `${SHOTS}/17-criar-briefing-longo.png` })
+  await page.getByRole('button', { name: 'Continuar →' }).click()
+  await page.getByRole('heading', { name: 'A sua marca, antes de gerar' }).waitFor()
+  // as cores em hex do texto viram a marca, com papéis, sem digitar de novo
+  if ((await page.getByLabel('Código da cor 1').inputValue()).toUpperCase() !== '#006BFF') throw new Error('cor principal do pedido')
+  if ((await page.getByLabel('Código da cor 2').inputValue()).toUpperCase() !== '#071A3D') throw new Error('fundo escuro do pedido')
+  await page.getByLabel('Papéis de cor do pedido').getByText('#16A765').waitFor()
+  if ((await page.getByLabel('Nome da marca').inputValue()) !== 'Nexora Soluções') throw new Error('nome da marca do pedido')
+  await nav().getByRole('button', { name: /Tamanho/ }).click()
+  if ((await page.getByRole('radio', { name: '15 telas', exact: true }).getAttribute('aria-checked')) !== 'true') throw new Error('15 telas do pedido não pré-selecionadas')
+  await page.getByRole('button', { name: 'Ir para revisar' }).click()
+  await page.getByRole('button', { name: 'Gerar roteiro →' }).click()
+  await page.getByText('Roteiro · 15 telas').waitFor({ timeout: 60000 })
+  if ((await page.getByLabel('Título da tela 15').inputValue()) !== 'O próximo resultado começa agora') throw new Error('título do encerramento pedido')
+  if ((await page.getByLabel('Tipo da tela 8').inputValue()) !== 'funil') throw new Error('a tela 8 deveria ser o funil')
+  await page.getByRole('button', { name: 'Gerar apresentação' }).click()
+  await page.getByText('Pronto · 15 telas').waitFor({ timeout: 90000 })
+  for (const t of ['↓ 41,9%  maior perda', '41,1%', '91,9%', 'Ana Souza']) await page.getByText(t, { exact: true }).first().waitFor({ timeout: 5000 })
+  if (await page.getByText(/arraste sua imagem|\[data\]|\[Nome\]/).count()) throw new Error('placeholder numa tela gerada')
+  await page.screenshot({ path: `${SHOTS}/18-criar-15-telas.png`, fullPage: true })
+  await page.getByText('Salvando o projeto…').waitFor({ state: 'hidden', timeout: 20000 }).catch(() => {})
 })
 
 await passo('AC-14 Reduced motion respeitado (animações encurtadas)', async () => {

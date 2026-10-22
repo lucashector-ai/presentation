@@ -17,19 +17,21 @@ import { useFontesDoDocumento } from '@/components/renderer/fontes'
 import { dados, mensagemDeErro, useCarregar, useDados, type KitMarca } from '@/lib/dados'
 import { desenharTelas } from '@/lib/ia/clienteDesign'
 import { chaveDesenho, MAX_TELAS_POR_PEDIDO_DESIGN } from '@/lib/ia/design'
-import { COMPONENTES, NOMES_CATEGORIA, NOMES_TIPO_TELA, PARES_FONTES, RE_HEX, TEMAS, regrasDe, resolverTema, temaPorId, type Marca, type TemaId, type TemaVisual } from '@/lib/ia/designSystem'
+import { COMPONENTES, NOMES_CATEGORIA, NOMES_TIPO_TELA, RE_HEX, TEMAS, regrasDe, resolverTema, temaPorId, type Marca, type TemaId, type TemaVisual } from '@/lib/ia/designSystem'
 import { desenharLocal } from '@/lib/ia/desenhoLocal'
 import type { FotoMontagem, LogoMontagem, TelaDesenhada } from '@/lib/ia/montagem'
-import { IDIOMAS, NOMES_IDIOMA, caracteresMaterial, tipoEfetivo, type Idioma } from '@/lib/ia/pedido'
+import { IDIOMAS, MAX_PROMPT, NOMES_IDIOMA, caracteresMaterial, tipoEfetivo, type Idioma } from '@/lib/ia/pedido'
+import { analisarPedido, direcoesParaRoteiro } from '@/lib/ia/analisePedido'
+import { EditorPedido, dividirNoLimite } from './criar/EditorPedido'
 import { TIPOS_TELA, montarDocumento, type Densidade, type Estilo, type OpcaoImagens, type Roteiro, type TelaRoteiro, type TipoTela } from '@/lib/ia/roteiro'
-import { NOMES_TOM, TIPOS, TIPOS_APRESENTACAO, TONS, type TipoPedido, type Tom } from '@/lib/ia/tiposApresentacao'
+import { NOMES_TOM, TIPOS, TIPOS_APRESENTACAO, TONS, type TipoApresentacao, type TipoPedido, type Tom } from '@/lib/ia/tiposApresentacao'
 import { PLANOS, custoApresentacao, custoDesenho, custoRoteiro, podeGastarCreditos, podeGerarTelas, proximoPlano, textoApresentacoes, type PlanoId } from '@/lib/planos'
 import { ATALHOS_TELAS, MIN_TELAS_IA, exemploApresentacoes, limitarTelas, textoCreditos, textoTelas } from '@/lib/telasIa'
 import { useCreditos } from './Creditos'
 import { GaleriaEstilos } from './criar/GaleriaEstilos'
 import { PassoMarca } from './criar/PassoMarca'
 import { PassoMaterial } from './criar/PassoMaterial'
-import { INFO_PASSO, MARCA_VAZIA, MATERIAL_VAZIO, PASSOS, PASSOS_PEDIDO, linhasDeNumeros, type Briefing, type Formato, type MarcaEscolhida, type MaterialEscolhido, type Passo } from './criar/estado'
+import { CHAVE_PEDIDO_COLADO, INFO_PASSO, MARCA_VAZIA, MATERIAL_VAZIO, PASSOS, PASSOS_PEDIDO, linhasDeNumeros, type Briefing, type Formato, type MarcaEscolhida, type MaterialEscolhido, type Passo } from './criar/estado'
 import { Amostras, MiniaturaFluida, Secao, Segmento, SeloCusto } from './criar/ui'
 import type { DocumentoProjeto } from '@/lib/scene/schema'
 
@@ -71,7 +73,7 @@ export function CriarComIA() {
   const limite = PLANOS[planoId].limites.telasPorPrompt
 
   // ---------- o pedido (passos 1 a 6) ----------
-  const promptInicial = params.get('prompt')?.slice(0, 4000) ?? ''
+  const promptInicial = params.get('prompt')?.slice(0, MAX_PROMPT) ?? ''
   const [passo, setPasso] = useState<Passo>(promptInicial ? 'marca' : 'briefing')
   const [visitados, setVisitados] = useState<Set<Passo>>(() => new Set(promptInicial ? ['briefing', 'marca'] : ['briefing']))
   const [briefing, setBriefing] = useState<Briefing>(() => ({
@@ -83,16 +85,50 @@ export function CriarComIA() {
   }))
   const [formato, setFormato] = useState<Formato>(() => ((FORMATOS as readonly string[]).includes(params.get('formato') ?? '') ? (params.get('formato') as Formato) : 'slides'))
   const [telas, setTelasBruto] = useState<number>(() => Number(params.get('telas')) || 10)
+  /** A pessoa escolheu o número de telas (no tamanho ou pelo atalho): o número citado no pedido não muda mais o valor. */
+  const telasEscolhidas = useRef(!!Number(params.get('telas')))
   const [marca, setMarca] = useState<MarcaEscolhida>(MARCA_VAZIA)
   const [material, setMaterial] = useState<MaterialEscolhido>(MATERIAL_VAZIO)
   const [lendoMaterial, setLendoMaterial] = useState(false)
   const [tema, setTema] = useState<TemaId | 'auto'>('auto')
   const [energia, setEnergia] = useState<Estilo | 'auto'>('auto')
   const [kits, setKits] = useState<KitMarca[]>([])
+  // pedido longo colado no cartão do painel: chega pela sessão do navegador, inteiro
+  useEffect(() => {
+    if (!params.get('colado')) return
+    let colado = ''
+    try { colado = sessionStorage.getItem(CHAVE_PEDIDO_COLADO) ?? ''; sessionStorage.removeItem(CHAVE_PEDIDO_COLADO) } catch { /* sem armazenamento */ }
+    if (!colado) return
+    const [cabe, resto] = dividirNoLimite(colado)
+    setBriefing((b) => ({ ...b, prompt: cabe }))
+    if (resto) setMaterial((m) => ({ ...m, origem: 'texto', conteudo: resto }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const telasOk = limitarTelas(telas, limite)
   useEffect(() => { if (telas !== telasOk && podeGerarTelas(planoId, telasOk).ok) setTelasBruto(telasOk) }, [telas, telasOk, planoId])
-  const setTelas = (n: number) => setTelasBruto(n)
+  const setTelas = (n: number) => { telasEscolhidas.current = true; setTelasBruto(n) }
+  // o que o pedido já diz (número de telas, estrutura, cores com papéis, marca), lido sem IA
+  const analise = useMemo(() => analisarPedido(briefing.prompt), [briefing.prompt])
+  const telasPedidas = analise.telas
+  // número de telas citado no pedido ("Crie 15 slides") pré-seleciona o tamanho, dentro do limite do plano
+  useEffect(() => {
+    if (telasEscolhidas.current || !telasPedidas) return
+    setTelasBruto(limitarTelas(telasPedidas, limite))
+  }, [telasPedidas, limite])
+  const acimaDoLimite = !!telasPedidas && telasPedidas > limite
+  const planoParaPedido = telasPedidas ? (['plus', 'pro', 'studio'] as PlanoId[]).find((p) => PLANOS[p].limites.telasPorPrompt >= telasPedidas) : undefined
   useEffect(() => { void dados.marcas.listar().then(setKits, () => setKits([])) }, [])
+
+  const avisoTelas = telasPedidas ? (
+    acimaDoLimite ? (
+      <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[12px] border-[1.5px] border-[#F2C14E] bg-[#FFF8E6] px-4 py-3 text-[13px] text-[#5A4500]">
+        <span className="min-w-0 flex-1"><strong className="font-semibold">Seu pedido tem {telasPedidas} telas.</strong> O plano {PLANOS[planoId].nome} gera até {limite} por apresentação: com {limite}, a IA mantém a ordem e junta as telas de assunto mais próximo (nada é cortado em silêncio).</span>
+        {planoParaPedido && <button type="button" onClick={() => abrirPlano(planoParaPedido)} className="h-8 shrink-0 rounded-full border-[1.5px] border-grafite bg-grafite px-3 text-[12px] font-semibold text-fundo">Fazer upgrade para o {PLANOS[planoParaPedido].nome} · {telasPedidas} telas</button>}
+      </div>
+    ) : (
+      <div className="flex items-center gap-2 text-[13px] text-texto3"><Check className="h-3.5 w-3.5 text-[#2F6B45]" />{analise.estrutura.length >= 3 ? `Estrutura de ${telasPedidas} telas reconhecida no pedido: a IA segue tela a tela.` : `${telasPedidas} telas pedidas no texto.`}{telasOk === telasPedidas ? ' Já selecionado no tamanho.' : ` Selecionado: ${telasOk}.`}</div>
+    )
+  ) : null
 
   const ir = (p: Passo) => {
     setPasso(p)
@@ -100,9 +136,30 @@ export function CriarComIA() {
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  // cores em hex do pedido viram a marca (com papéis) sem digitar de novo; o nome da empresa também. Uma vez por pedido
+  // e só se a pessoa ainda não definiu cores (um kit ou a escolha dela mandam).
+  const marcaAplicadaPara = useRef('')
+  useEffect(() => {
+    if (passo === 'briefing' || !briefing.prompt.trim() || marcaAplicadaPara.current === briefing.prompt) return
+    marcaAplicadaPara.current = briefing.prompt
+    const pal = analise.paleta
+    const nome = analise.marca
+    if (!pal && !nome) return
+    let aplicou = false
+    setMarca((m) => {
+      if (m.kitId || m.cores.length) return nome && !m.nome ? { ...m, nome } : m
+      aplicou = !!pal
+      const { claro, cartao, positivo, negativo } = pal?.papeis ?? {}
+      const papeis = { ...(claro ? { claro } : {}), ...(cartao ? { cartao } : {}), ...(positivo ? { positivo } : {}), ...(negativo ? { negativo } : {}) }
+      return { ...m, nome: m.nome || nome, ...(pal ? { cores: pal.cores, aplicarCores: true, papeis: Object.keys(papeis).length ? papeis : null } : {}) }
+    })
+    if (pal) queueMicrotask(() => { if (aplicou) mostrar(`Cores do pedido aplicadas à marca (${pal.cores.join(', ')}${Object.keys(pal.papeis).length > 2 ? ', fundo, cartões e indicadores' : ''}) · grátis.`, 'sucesso') })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [passo, briefing.prompt])
+
   // ---------- o que vai para a IA e para a montagem ----------
   const tipoDetectado = tipoEfetivo({ tipo: briefing.tipo, prompt: briefing.prompt, conteudo: material.origem === 'zero' ? '' : material.conteudo })
-  const marcaMont = useMemo<Marca & { aplicarCores: boolean }>(() => ({ nome: marca.nome.trim().slice(0, 60), cores: marca.cores.filter((c) => RE_HEX.test(c)).slice(0, 4), aplicarCores: marca.aplicarCores, fontes: marca.fontes }), [marca.nome, marca.cores, marca.aplicarCores, marca.fontes])
+  const marcaMont = useMemo<Marca & { aplicarCores: boolean }>(() => ({ nome: marca.nome.trim().slice(0, 60), cores: marca.cores.filter((c) => RE_HEX.test(c)).slice(0, 4), aplicarCores: marca.aplicarCores, fontes: marca.fontes, ...(marca.papeis ? { papeis: marca.papeis } : {}) }), [marca.nome, marca.cores, marca.aplicarCores, marca.fontes, marca.papeis])
   const logoMont = useMemo<LogoMontagem | null>(() => (marca.logo ? { assetId: marca.logo.assetId, largura: marca.logo.largura, altura: marca.logo.altura, cor: marca.logo.cor, rodape: marca.logoRodape } : null), [marca.logo, marca.logoRodape])
   const fotosMont = useMemo<FotoMontagem[]>(() => material.fotos.map((f) => ({ assetId: f.assetId, legenda: f.legenda })), [material.fotos])
   const assets = useMemo<AssetsResolvidos>(() => {
@@ -112,12 +169,14 @@ export function CriarComIA() {
     return m
   }, [assetsDoEspaco, marca.logo, material.fotos])
   const [temaIa, setTemaIa] = useState<TemaId | null>(null)
+  /** Tipo que o roteiro seguiu (em "auto", o que a IA confirmou a partir do pedido inteiro). */
+  const [tipoIa, setTipoIa] = useState<TipoApresentacao | null>(null)
   const temaEfetivo: TemaId = tema !== 'auto' ? tema : (temaIa ?? TIPOS[tipoDetectado].temas[0]!)
   const temaVisual: TemaVisual = useMemo(() => resolverTema(temaEfetivo, marcaMont), [temaEfetivo, marcaMont])
   const estiloEf: Estilo = energia !== 'auto' ? energia : tema === 'auto' && !temaIa ? TIPOS[tipoDetectado].estilo : regrasDe(temaPorId(temaEfetivo)).energia
   const conteudoEf = material.origem === 'zero' ? '' : material.conteudo.trim()
   const numeros = linhasDeNumeros(material.numeros)
-  const chars = caracteresMaterial({ conteudo: conteudoEf, material: { numeros, obrigatorio: material.obrigatorio, evitar: material.evitar } })
+  const chars = caracteresMaterial({ prompt: briefing.prompt, conteudo: conteudoEf, material: { numeros, obrigatorio: material.obrigatorio, evitar: material.evitar } })
   const custoDoRoteiro = custoRoteiro(telasOk, chars)
   const custoTotal = custoApresentacao(telasOk, chars)
   const semSaldo = !podeGastarCreditos(saldo, custoTotal).ok
@@ -183,6 +242,7 @@ export function CriarComIA() {
           : 'Roteiro-guia gerado localmente (a IA não está conectada neste ambiente). Nenhum crédito foi cobrado.')
       setRoteiro(r.roteiro)
       setTemaIa(r.tema)
+      setTipoIa(r.tipo)
       if (tema === 'auto') setTema(r.tema)
       ir('roteiro')
     } catch (e) {
@@ -211,14 +271,16 @@ export function CriarComIA() {
   const modo = formato
   const limpo = useMemo<Roteiro | null>(() => (roteiro ? { titulo: roteiro.titulo.trim() || 'Nova apresentação', telas: roteiro.telas.map((t) => ({ ...t, titulo: t.titulo.trim() || 'Sem título' })) } : null), [roteiro])
   const chaves = useMemo(() => (limpo ? limpo.telas.map((t) => chaveDesenho(t, modo)) : []), [limpo, modo])
+  /** Direção visual que o pedido dá para cada tela do roteiro (gráfico de linhas, cards grandes, fundo azul…). */
+  const direcoes = useMemo(() => (limpo ? direcoesParaRoteiro(briefing.prompt, limpo.telas) : []), [limpo, briefing.prompt])
   const pendentes = chaves.map((k, i) => (desenhos[k] ? -1 : i)).filter((i) => i >= 0)
   const custoDoDesenho = custoDesenho(pendentes.length)
   const prontas = chaves.filter((k) => desenhos[k]).length
 
   const documento = useMemo(() => {
     if (!limpo || passo !== 'design') return null
-    return montarDocumento(limpo, { modo, tema: temaEfetivo, estilo: estiloEf, imagens: imagensEf, densidade, marca: marcaMont, logo: logoMont, fotos: fotosMont, desenho: chaves.map((k) => desenhos[k]) })
-  }, [limpo, passo, modo, temaEfetivo, estiloEf, imagensEf, densidade, marcaMont, logoMont, fotosMont, chaves, desenhos])
+    return montarDocumento(limpo, { modo, tema: temaEfetivo, estilo: estiloEf, imagens: imagensEf, densidade, marca: marcaMont, logo: logoMont, fotos: fotosMont, desenho: chaves.map((k) => desenhos[k]), direcoes })
+  }, [limpo, passo, modo, temaEfetivo, estiloEf, imagensEf, densidade, marcaMont, logoMont, fotosMont, chaves, desenhos, direcoes])
   useFontesDoDocumento(documento ?? { scenes: [] })
 
   /** Desenha as telas que ainda não têm desenho: a primeira sozinha (escreve o cache do roteiro), depois em lotes paralelos. */
@@ -228,7 +290,7 @@ export function CriarComIA() {
     abortar.current?.abort()
     abortar.current = ctrl
     setDesenhando(true)
-    const base = { roteiro: limpo, formato: modo, estilo: estiloEf, tema: temaEfetivo, tipo: briefing.tipo === 'auto' ? tipoDetectado : briefing.tipo, publico: briefing.publico.trim().slice(0, 200), ...(briefing.tom ? { tom: briefing.tom } : {}), marca: marcaMont }
+    const base = { roteiro: limpo, formato: modo, estilo: estiloEf, tema: temaEfetivo, tipo: briefing.tipo === 'auto' ? tipoIa ?? tipoDetectado : briefing.tipo, publico: briefing.publico.trim().slice(0, 200), ...(briefing.tom ? { tom: briefing.tom } : {}), marca: marcaMont, direcoes }
     // guarda a base do estilo em que a tela foi desenhada: trocar para um estilo de base oposta inverte claro e escuro
     const base0 = temaVisual.base
     const estilo0 = estiloEf
@@ -242,7 +304,7 @@ export function CriarComIA() {
       } catch (e) {
         if (ctrl.signal.aborted) return
         // sem a rota (ou sem saldo no servidor), a tela não fica em branco: entra o desenho local
-        const locais = desenharLocal(limpo, { story: modo === 'story', estilo: estiloEf, tema: temaVisual })
+        const locais = desenharLocal(limpo, { story: modo === 'story', estilo: estiloEf, tema: temaVisual, direcoes })
         guardar(ids.map((i) => ({ indice: i, desenho: locais[i]! })))
         mostrar(mensagemDeErro(e, 'Algumas telas foram desenhadas localmente.'), 'erro')
       }
@@ -315,7 +377,8 @@ export function CriarComIA() {
       nome: k.nome,
       cores: k.cores,
       aplicarCores: true,
-      fontes: k.fontes && PARES_FONTES.some((p) => p.titulo === k.fontes!.titulo && p.texto === k.fontes!.texto) ? k.fontes : null,
+      // par da biblioteca ou quaisquer famílias do Google escolhidas no kit
+      fontes: k.fontes?.titulo && k.fontes.texto ? k.fontes : null,
       logo: k.logo && urlLogo ? { assetId: k.logo.assetId, url: urlLogo, nome: 'Logo do kit', largura: k.logo.largura, altura: k.logo.altura, cor: k.logo.cor, cores: k.cores } : null,
       logoRodape: k.logoRodape,
       kitId: k.id,
@@ -352,10 +415,11 @@ export function CriarComIA() {
 
   // prévia da capa com a marca e o estilo atuais (marca, revisar)
   const previaCapa = useMemo(() => {
-    const t = briefing.prompt.trim() ? briefing.prompt.split(/[.,\n]/)[0]!.slice(0, 60) : 'Sua apresentação'
+    // o título da capa pedido na estrutura ("Título: …"), senão a primeira frase do pedido (sem o "| Marca")
+    const t = analise.estrutura[0]?.titulo || (briefing.prompt.trim() ? briefing.prompt.split(/[.,\n]|\s[|·—–]\s/)[0]!.slice(0, 60) : 'Sua apresentação')
     const doc = montarDocumento({ titulo: t, telas: [{ tipo: 'capa', rotulo: marcaMont.nome.slice(0, 30), titulo: t, texto: 'Proposta · 2026', itens: [], notas: '' }] }, { modo: 'slides', tema: temaEfetivo, estilo: estiloEf, marca: marcaMont, logo: logoMont })
     return doc.scenes[0]!
-  }, [briefing.prompt, temaEfetivo, estiloEf, marcaMont, logoMont])
+  }, [briefing.prompt, analise, temaEfetivo, estiloEf, marcaMont, logoMont])
   useFontesDoDocumento({ scenes: [previaCapa] })
 
   const temRoteiro = !!roteiro
@@ -427,9 +491,18 @@ export function CriarComIA() {
                   </button>
                 ))}
               </div>
-              <div className="overflow-hidden rounded-[18px] border-2 border-grafite bg-white shadow-[8px_8px_0_#171717]">
-                <label htmlFor="criar-prompt" className="sr-only">Descreva a apresentação</label>
-                <textarea id="criar-prompt" value={briefing.prompt} onChange={(e) => setBriefing((b) => ({ ...b, prompt: e.target.value.slice(0, 4000) }))} onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && briefingOk) ir('marca') }} rows={4} placeholder="Ex.: Proposta de identidade visual para uma marca de cerâmica artesanal, com conceito, paleta, tipografia e aplicações…" className="w-full resize-none bg-transparent px-6 pb-3 pt-6 text-[19px] leading-normal outline-none placeholder:text-[#A3A3A3]" />
+              <div className="overflow-hidden rounded-[18px] border-2 border-grafite bg-white shadow-[6px_6px_0_#171717] sm:shadow-[8px_8px_0_#171717]">
+                <EditorPedido
+                  valor={briefing.prompt}
+                  aoMudar={(v) => setBriefing((b) => ({ ...b, prompt: v }))}
+                  aoExcedente={(resto) => {
+                    // nada se perde: o que passou do limite do pedido vai para o material (texto colado)
+                    setMaterial((m) => ({ ...m, origem: m.origem === 'zero' ? 'texto' : m.origem, conteudo: [m.conteudo.trim(), resto].filter(Boolean).join('\n\n') }))
+                    mostrar(`O pedido passou de ${MAX_PROMPT.toLocaleString('pt-BR')} caracteres: o restante (${resto.length.toLocaleString('pt-BR')}) foi para o material e também vai para a IA.`, 'sucesso')
+                  }}
+                  aoEnviar={() => { if (briefingOk) ir('marca') }}
+                  placeholder="Ex.: Proposta de identidade visual para uma marca de cerâmica artesanal, com conceito, paleta, tipografia e aplicações… Pode colar um briefing completo, com a estrutura de cada tela, dados e regras."
+                />
                 <div className="flex flex-wrap items-center gap-2 border-t border-[#F0EFED] px-5 py-3 text-[13px]">
                   <label className="flex min-w-[220px] flex-1 items-center gap-2 text-texto3">
                     <span className="shrink-0">Para quem</span>
@@ -450,6 +523,7 @@ export function CriarComIA() {
                   </label>
                 </div>
               </div>
+              {avisoTelas}
               <div className="flex flex-col gap-3">
                 <div className="rotulo-mono">Ou comece por um exemplo</div>
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-3">
@@ -483,6 +557,7 @@ export function CriarComIA() {
             </div>
           )}
 
+          {(passo === 'tamanho' || passo === 'revisar') && acimaDoLimite && avisoTelas}
           {passo === 'tamanho' && <PassoTamanho formato={formato} aoFormato={setFormato} telas={telasOk} aoTelas={setTelas} planoId={planoId} limite={limite} aoUpgrade={(p) => abrirPlano(p)} chars={chars} />}
 
           {passo === 'revisar' && (
@@ -578,7 +653,7 @@ export function CriarComIA() {
                       <input aria-label={`Título da tela ${i + 1}`} value={t.titulo} maxLength={160} onChange={(e) => atualizarTela(i, { titulo: e.target.value })} className="min-w-0 bg-transparent p-0 text-[17px] font-semibold tracking-[-0.02em] outline-none" />
                       {comp.limites.texto > 0 && <textarea aria-label={`Texto da tela ${i + 1}`} value={t.texto} maxLength={600} rows={2} placeholder="Texto de apoio (opcional)" onChange={(e) => atualizarTela(i, { texto: e.target.value })} className="w-full resize-none bg-transparent p-0 text-[14px] leading-normal text-[#525252] outline-none placeholder:text-[#B5B5B5]" />}
                       {comp.maxItens > 0 && (
-                        <textarea aria-label={`Itens da tela ${i + 1}`} value={t.itens.join('\n')} rows={Math.max(2, Math.min(6, t.itens.length))} placeholder={`Um por linha: ${comp.itens}`} onChange={(e) => atualizarTela(i, { itens: e.target.value.split('\n').slice(0, 6).map((l) => l.slice(0, 160)) })} className="mono w-full resize-none rounded-md bg-[#FAFAF9] px-2 py-1.5 text-[13px] leading-relaxed text-[#3F3F3F] outline-none placeholder:text-[#B5B5B5]" />
+                        <textarea aria-label={`Itens da tela ${i + 1}`} value={t.itens.join('\n')} rows={Math.max(2, Math.min(6, t.itens.length))} placeholder={`Um por linha: ${comp.itens}`} onChange={(e) => atualizarTela(i, { itens: e.target.value.split('\n').slice(0, Math.max(6, comp.maxItens)).map((l) => l.slice(0, 160)) })} className="mono w-full resize-none rounded-md bg-[#FAFAF9] px-2 py-1.5 text-[13px] leading-relaxed text-[#3F3F3F] outline-none placeholder:text-[#B5B5B5]" />
                       )}
                       {t.notas && <details className="text-[13px] text-texto3"><summary className="cursor-pointer select-none">Notas do apresentador</summary><textarea aria-label={`Notas da tela ${i + 1}`} value={t.notas} maxLength={1200} rows={3} onChange={(e) => atualizarTela(i, { notas: e.target.value })} className="mt-1 w-full resize-none rounded-md bg-[#FAFAF9] px-2 py-1.5 outline-none" /></details>}
                     </div>

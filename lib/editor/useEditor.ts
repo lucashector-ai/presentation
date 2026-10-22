@@ -90,11 +90,13 @@ const LIMITE_HISTORICO = 150
 
 function comDocumento(e: EstadoEditor, novo: DocumentoProjeto, limparSelecao: boolean): EstadoEditor {
   const cenaExiste = novo.scenes.some((s) => s.id === e.cenaId)
+  const filtrada = limparSelecao ? [] : e.selecao.filter((id) => novo.scenes.some((s) => s.layers.some((l) => l.id === id)))
   return {
     ...e,
     documento: novo,
     cenaId: cenaExiste ? e.cenaId : (novo.scenes[0]?.id ?? e.cenaId),
-    selecao: limparSelecao ? [] : e.selecao.filter((id) => novo.scenes.some((s) => s.layers.some((l) => l.id === id))),
+    // mesma seleção = mesmo array: editar o documento não conta como "a seleção mudou" (presença, painéis)
+    selecao: filtrada.length === e.selecao.length && !(limparSelecao && e.selecao.length) ? e.selecao : filtrada,
   }
 }
 
@@ -113,7 +115,8 @@ function reducer(e: EstadoEditor, a: Acao): EstadoEditor {
     case 'sala':
       return { ...e, ...a.patch }
     case 'selecionar':
-      return { ...e, selecao: a.ids }
+      // clicar de novo no que já está selecionado (começo de um arraste) não re-renderiza o editor
+      return a.ids.length === e.selecao.length && a.ids.every((id, i) => id === e.selecao[i]) ? e : { ...e, selecao: a.ids }
     case 'cena':
       return { ...e, cenaId: a.id, selecao: [] }
     case 'salvamento':
@@ -141,7 +144,9 @@ export function clonarCamadas(camadas: Camada[], existentes: { id: string }[], d
     const groupId = c.groupId ? (grupos.get(c.groupId) ?? (grupos.set(c.groupId, novoId('grupo', usados)), grupos.get(c.groupId))) : undefined
     const interactions = c.interactions.map((it) => (it.do.action === 'toggleLayer' || it.do.action === 'animate' || it.do.action === 'toggleVideo') && mapa.has(it.do.targetLayerId) ? ({ ...it, do: { ...it.do, targetLayerId: mapa.get(it.do.targetLayerId)! } } as Interacao) : it)
     const parentId = c.parentId ? (mapa.get(c.parentId) ?? c.parentId) : undefined
-    return { ...structuredClone(c), id: mapa.get(c.id)!, groupId, parentId, interactions, x: c.x + deslocamento, y: c.y + deslocamento, z: 100_000 + i }
+    // máscara copiada junto: as cópias recortadas apontam para a cópia da máscara
+    const maskId = c.maskId ? (mapa.get(c.maskId) ?? c.maskId) : undefined
+    return { ...structuredClone(c), id: mapa.get(c.id)!, groupId, parentId, maskId, interactions, x: c.x + deslocamento, y: c.y + deslocamento, z: 100_000 + i }
   })
 }
 
@@ -366,7 +371,7 @@ export function useEditor(projetoId: string, abertura: AberturaEditor | null) {
   }, [motor, publicarHistorico])
   const cena = e.documento.scenes.find((s) => s.id === e.cenaId) ?? e.documento.scenes[0]
   const indiceCena = cena ? e.documento.scenes.indexOf(cena) : -1
-  const camadasSelecionadas = cena ? cena.layers.filter((l) => e.selecao.includes(l.id)) : []
+  const camadasSelecionadas = useMemo(() => (cena ? cena.layers.filter((l) => e.selecao.includes(l.id)) : []), [cena, e.selecao])
   const cenaAtualRef = useCallback(() => motor.local.scenes.find((s) => s.id === estadoRef.current.cenaId), [motor])
 
   /** Toda edição da tela passa pelo resolvedor de frames/auto layout (lib/editor/autolayout.ts). */
@@ -752,9 +757,29 @@ export function useEditor(projetoId: string, abertura: AberturaEditor | null) {
   // mídias do workspace (no modo real chegam do servidor; antes disso não acusa mídia "inexistente")
   const assetsLista = useDados((s) => s.assets)
   const assetsProntos = useDados((s) => s.situacao.assets.estado === 'pronto')
-  const validacao: ResultadoValidacao = useMemo(() => validarDocumento(e.documento, assetsProntos ? { assetsExistentes: new Set(assetsLista.map((a) => a.id)) } : {}), [e.documento, assetsLista, assetsProntos])
+  /** Validação completa (schema + referências) do documento atual, na hora (ex.: antes de publicar). */
+  const validarAgora = useCallback((): ResultadoValidacao => validarDocumento(motor.local, assetsProntos ? { assetsExistentes: new Set(assetsLista.map((a) => a.id)) } : {}), [motor, assetsLista, assetsProntos])
+  // a validação percorre o documento inteiro (schema): roda quando a edição para, não a cada quadro de um arraste
+  const [validacao, setValidacao] = useState<ResultadoValidacao>(() => validarAgora())
+  useEffect(() => {
+    const t = window.setTimeout(() => setValidacao(validarAgora()), 250)
+    return () => window.clearTimeout(t)
+  }, [e.documento, validarAgora])
 
-  return { estado: e, cena, indiceCena, camadasSelecionadas, acoes, validacao, existe: !!inicial, projetoId, sala }
+  // objeto estável entre renders sem mudança (menus, modais e o zoom do rodapé não re-renderizam os painéis)
+  const existe = !!inicial
+  return useMemo(() => ({ estado: e, cena, indiceCena, camadasSelecionadas, acoes, validacao, validarAgora, existe, projetoId, sala }), [e, cena, indiceCena, camadasSelecionadas, acoes, validacao, validarAgora, existe, projetoId, sala])
+}
+
+/**
+ * Para `memo` dos painéis: o editor mudou em algo além do enquadramento do canvas (zoom e pan, que só o canvas
+ * usa)? Assim rolar e dar zoom não re-renderiza telas, camadas e inspetor.
+ */
+export function mesmoEditorForaDoCanvas(a: Editor, b: Editor): boolean {
+  if (a === b) return true
+  if (a.cena !== b.cena || a.indiceCena !== b.indiceCena || a.camadasSelecionadas !== b.camadasSelecionadas || a.acoes !== b.acoes || a.validacao !== b.validacao || a.sala !== b.sala || a.existe !== b.existe || a.projetoId !== b.projetoId || a.validarAgora !== b.validarAgora) return false
+  for (const k of Object.keys(a.estado) as (keyof EstadoEditor)[]) if (k !== 'zoom' && k !== 'pan' && a.estado[k] !== b.estado[k]) return false
+  return true
 }
 
 export type Editor = ReturnType<typeof useEditor>

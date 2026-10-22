@@ -9,7 +9,8 @@ import fs from 'node:fs'
  * sem texto com o custo da leitura opcional pela IA), gera o roteiro e a apresentação; um PDF escaneado (só
  * imagem) é lido por OCR no navegador (tesseract.js), sem créditos e sem chamar a IA, e o OCR pode ser cancelado;
  * "Novo projeto" importa um PDF de 3 páginas como apresentação (uma tela por página, texto selecionável) e abre
- * no editor e na apresentação.
+ * no editor e na apresentação; um PDF escaneado de 2 páginas importado como apresentação ganha o texto reconhecido
+ * por OCR como camada selecionável sobre as palavras da imagem (e nas notas, se pedido), sem créditos e sem a IA.
  * Rodar com o app no ar: E2E_BASE_URL=http://localhost:8787 node e2e/pdf.mjs  (capturas em E2E_SHOTS ou e2e/capturas/)
  */
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:3000'
@@ -259,6 +260,79 @@ await passo('Apresentar: página do PDF com texto selecionável', async () => {
   if (!sel?.includes('Proposta Atlas')) throw new Error(`seleção: ${sel}`)
   await page.waitForTimeout(900)
   await page.screenshot({ path: `${SHOTS}/pdf-8-apresentar.png` })
+})
+
+let projetoEscaneado = ''
+let saldoAntesEscaneado = 0
+let pedidosAntesEscaneado = 0
+await passo('Novo projeto: PDF escaneado de 2 páginas vira apresentação com o texto reconhecido por OCR', async () => {
+  await page.goto(`${BASE}/app`, { waitUntil: 'networkidle' })
+  saldoAntesEscaneado = await saldo()
+  pedidosAntesEscaneado = pedidos.length
+  await page.goto(`${BASE}/app/novo?passo=arquivos`, { waitUntil: 'networkidle' })
+  await page.getByLabel('Arquivos do projeto').setInputFiles(pdfEscaneado)
+  // opcional, desligado por padrão: o texto reconhecido também nas notas do apresentador
+  const notas = page.getByRole('checkbox', { name: /Texto reconhecido nas notas do apresentador/ })
+  if (await notas.isChecked()) throw new Error('as notas deviam vir desligadas')
+  await notas.check()
+  await page.getByRole('button', { name: 'Criar projeto' }).click()
+  // o aviso final aparece antes de abrir o editor: espera em paralelo
+  const aviso = page.getByText('teste-escaneado.pdf: texto reconhecido em 2 de 2 páginas escaneadas, no seu navegador e sem gastar créditos.').waitFor({ timeout: 120000 })
+  // progresso por página, com a opção de parar a leitura
+  await page.getByText(/Importando teste-escaneado\.pdf: (preparando o leitor de texto|reconhecendo o texto da página \d \(\d de 2\))/).first().waitFor({ timeout: 20000 })
+  await page.getByRole('button', { name: 'Parar leitura' }).waitFor({ timeout: 20000 })
+  await page.getByText(/reconhecendo o texto da página \d \(\d de 2\)/).first().waitFor({ timeout: 60000 })
+  await page.screenshot({ path: `${SHOTS}/pdf-9-importar-escaneado-ocr.png` })
+  await page.waitForURL(/\/app\/projects\/.+\/edit/, { timeout: 120000 })
+  await aviso
+  projetoEscaneado = /projects\/([^/]+)\/edit/.exec(page.url())[1]
+  await esperarTelas(2)
+  const nomes = await page.getByRole('listbox', { name: 'Telas' }).getByRole('option').allInnerTexts()
+  if (!/Plano de expans.o 2026/.test(nomes[0] ?? '') || !/Cronograma/.test(nomes[1] ?? '')) throw new Error(`títulos das telas: ${nomes.join(' | ')}`)
+  if (!nomes.every((n) => /\bnotas\b/i.test(n))) throw new Error(`as telas deviam ter notas: ${nomes.join(' | ')}`)
+  await page.screenshot({ path: `${SHOTS}/pdf-10-editor-escaneado.png` })
+})
+
+await passo('Apresentar: texto reconhecido do PDF escaneado é selecionável sobre as palavras, e o saldo não mudou', async () => {
+  await page.goto(`${BASE}/app/projects/${projetoEscaneado}/apresentar`, { waitUntil: 'networkidle' })
+  const camada = page.getByText(/^Plano de expans.o 2026$/).first()
+  await camada.waitFor({ timeout: 15000 })
+  // busca (Ctrl+F) e leitor de tela acham o texto do resto da página
+  for (const t of [/Cooperativa Serra Verde/, /Certifica..o org.nica/]) if (!(await page.getByText(t).count())) throw new Error(`texto reconhecido ausente: ${t}`)
+  const estilo = await camada.evaluate((el) => { const d = el.closest('div'); const s = getComputedStyle(d); return { sel: s.userSelect, cor: s.color } })
+  if (estilo.sel !== 'text' || !/rgba\(0, 0, 0, 0\)/.test(estilo.cor)) throw new Error(`texto reconhecido: ${JSON.stringify(estilo)}`)
+  await camada.selectText()
+  // onde a seleção cai, em pontos da página (a imagem da página cobre a tela inteira)
+  const r = await page.evaluate(() => {
+    const s = window.getSelection()
+    const q = s.getRangeAt(0).getBoundingClientRect()
+    const cx = q.x + q.width / 2
+    const cy = q.y + q.height / 2
+    const img = [...document.querySelectorAll('img')].map((i) => i.getBoundingClientRect()).find((b) => b.width > 300 && cx >= b.left && cx <= b.right && cy >= b.top && cy <= b.bottom)
+    return { texto: s.toString(), sel: { x: q.x, y: q.y, w: q.width, h: q.height }, img: img && { x: img.x, y: img.y, w: img.width, h: img.height } }
+  })
+  if (!/Plano de expans.o 2026/.test(r.texto)) throw new Error(`seleção: ${r.texto}`)
+  if (!r.img) throw new Error('imagem da página não encontrada sob a seleção')
+  const k = r.img.w / 595.28
+  const sel = { x: (r.sel.x - r.img.x) / k, topo: (r.sel.y - r.img.y) / k, base: (r.sel.y + r.sel.h - r.img.y) / k, largura: r.sel.w / k }
+  // a linha foi desenhada em x = 60 pt, linha de base em 100 pt, negrito de 24 pt (largura medida no mesmo canvas)
+  const g = createCanvas(10, 10).getContext('2d')
+  g.font = 'bold 24px sans-serif'
+  const largura = g.measureText('Plano de expansão 2026').width
+  const ok = Math.abs(sel.x - 60) < 3 && sel.topo < 100 - 0.6 * 24 && sel.topo > 100 - 1.3 * 24 && sel.base > 100 && sel.base < 100 + 0.5 * 24 && Math.abs(sel.largura - largura) / largura < 0.06
+  console.log(`  seleção sobre a página (pt): x ${sel.x.toFixed(1)} · topo ${sel.topo.toFixed(1)} · base ${sel.base.toFixed(1)} · largura ${sel.largura.toFixed(1)} (desenhado: x 60 · linha de base 100 · largura ${largura.toFixed(1)})`)
+  if (!ok) throw new Error(`seleção fora das palavras: ${JSON.stringify(sel)}`)
+  await page.waitForTimeout(600)
+  await page.screenshot({ path: `${SHOTS}/pdf-11-apresentar-escaneado.png` })
+  // notas do apresentador com o texto reconhecido
+  await page.goto(`${BASE}/app/projects/${projetoEscaneado}/apresentador`, { waitUntil: 'networkidle' })
+  await page.getByText(/Cooperativa Serra Verde vai abrir duas lojas/).first().waitFor({ timeout: 15000 })
+  // sem créditos e sem a IA
+  const novos = pedidos.slice(pedidosAntesEscaneado)
+  if (novos.some((u) => u.includes('/api/ai/'))) throw new Error(`a IA foi chamada: ${novos.filter((u) => u.includes('/api/ai/')).join(', ')}`)
+  await page.goto(`${BASE}/app`, { waitUntil: 'networkidle' })
+  const depois = await saldo()
+  if (depois !== saldoAntesEscaneado) throw new Error(`o saldo mudou: ${saldoAntesEscaneado} → ${depois}`)
 })
 
 await browser.close()

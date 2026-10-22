@@ -20,7 +20,7 @@ const TOLERANCIA = 1
 
 function esticavel(c: Camada): boolean {
   if (c.parentId || c.hidden || c.maskId || Math.abs(c.rotation % 360) > 0.01) return false
-  if (c.type === 'shape' && c.isMask) return false
+  if (c.isMask) return false
   if (c.flipX || c.flipY) return c.type === 'shape' || c.type === 'frame'
   switch (c.type) {
     case 'shape':

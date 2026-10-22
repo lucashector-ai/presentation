@@ -12,7 +12,11 @@ import { FONTES_APRESENTACAO } from '@/lib/design-tokens'
 export const TIPOS_TELA = [
   'capa', 'agenda', 'secao', 'conceito', 'lista', 'cartoes', 'processo', 'numeros', 'grafico', 'comparacao',
   'linhaTempo', 'citacao', 'imagem', 'galeria', 'equipe', 'precos', 'paleta', 'tipografia', 'cta', 'encerramento',
+  // componentes de dados (relatórios, resultados, planos): números calculados na montagem, sempre iguais aos itens
+  'comparativo', 'funil', 'tabela', 'kpis', 'roadmap', 'alertas',
 ] as const
+/** Componentes de dados: os itens carregam números que a montagem desenha e calcula (nunca reescritos pelo design). */
+export const TIPOS_DADOS: readonly TipoTela[] = ['grafico', 'numeros', 'comparativo', 'funil', 'tabela', 'kpis']
 export type TipoTela = (typeof TIPOS_TELA)[number]
 
 export const FUNDOS = ['claro', 'escuro', 'acento'] as const
@@ -106,11 +110,13 @@ export const COMPONENTES: Record<TipoTela, Componente> = {
     ],
   },
   grafico: {
-    nome: 'Gráfico', uso: 'comparar 3 a 6 valores numéricos da mesma grandeza (barras)', itens: '"valor|rótulo" (ex.: "42%|Região Sul"); valor numérico', minItens: 2, maxItens: 6,
-    limites: { titulo: 60, texto: 160, item: 60 },
+    nome: 'Gráfico', uso: 'comparar 2 a 8 valores numéricos da mesma grandeza: barras, colunas, linha (evolução no tempo) ou participação no total (%)', itens: '"valor|rótulo" (ex.: "R$ 3,8 mi|Jul", "42%|Região Sul"); valor numérico, com a unidade', minItens: 2, maxItens: 8,
+    limites: { titulo: 60, texto: 200, item: 60 },
     variantes: [
-      { id: 'grafico.barras', nome: 'Barras', uso: 'barras horizontais com rótulo e valor' },
-      { id: 'grafico.colunas', nome: 'Colunas', uso: 'colunas verticais; bom para evolução no tempo', soSlides: true },
+      { id: 'grafico.barras', nome: 'Barras', uso: 'barras horizontais proporcionais com rótulo e valor' },
+      { id: 'grafico.colunas', nome: 'Colunas', uso: 'colunas verticais; bom para comparar períodos', soSlides: true },
+      { id: 'grafico.linha', nome: 'Linha', uso: 'linha com pontos, valores e a variação entre períodos; evolução no tempo (meses, trimestres, anos)' },
+      { id: 'grafico.participacao', nome: 'Participação', uso: 'barras horizontais proporcionais com valor e % do total calculada; segmentos, canais, regiões' },
     ],
   },
   comparacao: {
@@ -195,6 +201,51 @@ export const COMPONENTES: Record<TipoTela, Componente> = {
       { id: 'encerramento.contato', nome: 'Contato', uso: 'título à esquerda e contatos à direita', soSlides: true },
     ],
   },
+  comparativo: {
+    nome: 'Comparativo de valores', uso: 'dois valores da mesma grandeza lado a lado: meta × realizado (a tela calcula o gap e o % atingido) ou período anterior × atual (a tela calcula a variação %)', itens: '"rótulo|valor": 1º = referência (meta ou período anterior), 2º = realizado ou atual (ex.: "Meta Q3|R$ 13,5 mi", "Realizado|R$ 12,4 mi")', minItens: 2, maxItens: 2,
+    limites: { titulo: 60, texto: 220, item: 60 },
+    variantes: [
+      { id: 'comparativo.meta', nome: 'Meta × realizado', uso: 'duas colunas (meta e realizado) com o gap marcado e o % da meta atingida em destaque' },
+      { id: 'comparativo.crescimento', nome: 'Antes × depois', uso: 'duas barras horizontais grandes (anterior e atual) e a variação % em destaque' },
+    ],
+  },
+  funil: {
+    nome: 'Funil', uso: 'etapas de um funil com volumes (vendas, conversão, jornada): a tela calcula a taxa de passagem entre etapas, a conversão total e onde está a maior perda', itens: '"Etapa|volume" do topo para o fundo (ex.: "Leads gerados|5.200")', minItens: 3, maxItens: 7,
+    limites: { titulo: 60, texto: 200, item: 60 },
+    variantes: [
+      { id: 'funil.barras', nome: 'Funil', uso: 'barras centradas que afunilam, com a taxa de passagem de cada etapa e a maior perda marcada' },
+      { id: 'funil.degraus', nome: 'Degraus', uso: 'barras alinhadas à esquerda, como degraus, com volume e taxa de passagem ao lado' },
+    ],
+  },
+  tabela: {
+    nome: 'Tabela', uso: 'ranking ou tabela de dados com colunas (vendedores, produtos, regiões): o 1º item é o cabeçalho', itens: 'linhas com as colunas separadas por "|": o 1º item é o cabeçalho (ex.: "Posição|Vendedor|Receita|Novos clientes"), os demais, as linhas (ex.: "1|Ana Souza|R$ 1,82 mi|28")', minItens: 2, maxItens: 8,
+    limites: { titulo: 60, texto: 180, item: 160 },
+    variantes: [
+      { id: 'tabela.ranking', nome: 'Ranking', uso: 'posições com os três primeiros em destaque discreto e barra proporcional na coluna de valor' },
+      { id: 'tabela.simples', nome: 'Simples', uso: 'linhas alternadas, colunas numéricas alinhadas à direita' },
+    ],
+  },
+  kpis: {
+    nome: 'Painel de indicadores', uso: 'dashboard de 2 a 6 indicadores com mini-gráfico, variação ou progresso: produtividade, eficiência, metas futuras', itens: '"valor|indicador|apoio"; apoio opcional: série para o mini-gráfico ("3,8;4,2;4,4"), variação ("+28% vs. Q2"), ponto de partida de uma meta ("de 17,6%") ou uma frase curta', minItens: 2, maxItens: 6,
+    limites: { titulo: 60, texto: 200, item: 120 },
+    variantes: [
+      { id: 'kpis.painel', nome: 'Painel', uso: 'cartões com o número, o nome do indicador e o mini-gráfico ou a variação' },
+      { id: 'kpis.metas', nome: 'Metas', uso: 'metas futuras marcadas como projeção, com barra do ponto de partida até a meta' },
+    ],
+  },
+  roadmap: {
+    nome: 'Roadmap', uso: 'plano de ação: prioridades em ordem, com responsável e prazo', itens: '"Prioridade|descrição|responsável|prazo" (descrição, responsável e prazo opcionais)', minItens: 2, maxItens: 5,
+    limites: { titulo: 60, texto: 180, item: 160 },
+    variantes: [
+      { id: 'roadmap.colunas', nome: 'Raias', uso: 'prioridades lado a lado ligadas por uma linha, com número, responsável e prazo', soSlides: true },
+      { id: 'roadmap.linhas', nome: 'Linhas', uso: 'prioridades empilhadas com número grande e o responsável à direita' },
+    ],
+  },
+  alertas: {
+    nome: 'Pontos de atenção', uso: 'riscos, desafios ou alertas com o dado que os sustenta: cartões discretos com sinal de alerta', itens: '"Alerta|dado ou explicação"', minItens: 2, maxItens: 5,
+    limites: { titulo: 60, texto: 180, item: 140 },
+    variantes: [{ id: 'alertas.cartoes', nome: 'Cartões', uso: 'cartões com contorno fino e um sinal discreto na cor de alerta' }],
+  },
 }
 
 /** Nome de cada tipo de tela, para a interface. */
@@ -210,8 +261,8 @@ export const tipoDaVariante = (v: string): TipoTela | null => {
 /** Tipos que o design pode trocar entre si sem perder conteúdo (mesmo formato de itens ou sem itens). */
 export const FAMILIAS: TipoTela[][] = [
   ['conceito', 'secao'],
-  ['lista', 'cartoes', 'processo', 'agenda'],
-  ['numeros', 'grafico'],
+  ['lista', 'cartoes', 'processo', 'agenda', 'alertas', 'roadmap'],
+  ['numeros', 'grafico', 'kpis'],
   ['imagem', 'galeria'],
   ['cta', 'encerramento'],
 ]
@@ -337,6 +388,9 @@ export interface TemaVisual {
   acento2: string
   /** Texto sobre a cor de acento. */
   sobreAcento: string
+  /** Indicadores positivos e negativos (variação, meta, alertas); ausente = verde e vermelho padrão. */
+  positivo?: string
+  negativo?: string
   fontes: { titulo: string; texto: string; pesoTitulo: number; tracking: number; italicoCitacao: boolean }
   raio: number
   motivo: Motivo
@@ -584,9 +638,14 @@ export const PARES_FONTES: readonly ParFontes[] = [
 ]
 export const parDeFontes = (titulo: string, texto: string): ParFontes | undefined => PARES_FONTES.find((p) => p.titulo === titulo && p.texto === texto)
 
+/** Papéis de cor dados pela pessoa (ex.: hex do pedido com nome): fundo claro, cartão, positivo e negativo. */
+export interface PapeisMarca { claro?: string; cartao?: string; positivo?: string; negativo?: string }
+
 export interface Marca {
   nome: string
   cores: string[]
+  /** Papéis de cor além da principal e do fundo escuro (que são as cores 1 e a escura da lista). */
+  papeis?: PapeisMarca | null
   /** false = usa as cores do estilo mesmo com cores de marca (padrão: aplica as cores da marca sobre o estilo). */
   aplicarCores?: boolean
   /** Par de fontes fixado pela marca (ausente = as fontes do estilo). */
@@ -646,7 +705,9 @@ export function aplicarMarca(base: TemaVisual, marca: Marca | undefined): TemaVi
     const escuraDada = cores.slice(1).find((c) => luminanciaRelativa(c) < 0.06)
     const segunda = cores.slice(1).find((c) => c !== escuraDada)
     const neutro = (hex: string, k: number) => misturar(hex, cinzaDe(hex), k)
-    const claroFundo = misturar(neutro(base.claro.fundo, 0.6), principal, 0.05)
+    const papeis = marca.papeis ?? {}
+    const dado = (c?: string) => (c && RE_HEX.test(c) ? c.toUpperCase() : undefined)
+    const claroFundo = dado(papeis.claro) ?? misturar(neutro(base.claro.fundo, 0.6), principal, 0.05)
     const escuroFundo = escuraDada ?? misturar(neutro(base.escuro.fundo, 0.55), principal, luminanciaRelativa(base.escuro.fundo) < 0.03 ? 0.1 : 0.16)
     const claroTinta = legivel(claroFundo, [base.claro.tinta, misturar(escuroFundo, '#000000', 0.25), '#141414'], 7)
     const escuroTinta = legivel(escuroFundo, [base.escuro.tinta, misturar('#FFFFFF', principal, 0.06), '#FFFFFF'], 7)
@@ -654,7 +715,7 @@ export function aplicarMarca(base: TemaVisual, marca: Marca | undefined): TemaVi
     const acento2 = segunda ?? (base.base === 'escuro' ? misturar(principal, '#FFFFFF', 0.35) : misturar(principal, escuroFundo, 0.45))
     const grad = (g: Superficie['gradiente'], de: string, para: string) => (g ? { angle: g.angle, stops: [{ color: de, pos: 0 }, { color: misturar(de, para, 0.14), pos: 55 }, { color: misturar(de, para, 0.26), pos: 100 }] } : undefined)
     const comCartao = (s: Superficie, fundo: string, tinta: string): Superficie => {
-      const nova = sup(fundo, tinta)
+      const nova = sup(fundo, tinta, s === base.claro && dado(papeis.cartao) ? { cartao: dado(papeis.cartao)! } : {})
       // cartões translúcidos (vidro) continuam translúcidos
       const cartao = s.cartao.length > 7 ? s.cartao : nova.cartao
       const linha = s.linha.length > 7 ? s.linha : nova.linha
@@ -668,10 +729,14 @@ export function aplicarMarca(base: TemaVisual, marca: Marca | undefined): TemaVi
       acento,
       acento2,
       sobreAcento: legivel(acento, ['#FFFFFF', '#141414'], 4.5),
+      ...(dado(papeis.positivo) ? { positivo: dado(papeis.positivo) } : {}),
+      ...(dado(papeis.negativo) ? { negativo: dado(papeis.negativo) } : {}),
     }
   }
   const par = marca.fontes ? PARES_FONTES.find((p) => p.titulo === marca.fontes!.titulo && p.texto === marca.fontes!.texto) : undefined
   if (par) t = { ...t, fontes: { ...t.fontes, titulo: par.titulo, texto: par.texto, pesoTitulo: par.pesoTitulo, italicoCitacao: par.italicoCitacao } }
+  // qualquer família do Google escolhida no kit: peso e itálico do estilo (o carregador ajusta ao que a família tem)
+  else if (marca.fontes?.titulo.trim() && marca.fontes.texto.trim()) t = { ...t, fontes: { ...t.fontes, titulo: marca.fontes.titulo.trim(), texto: marca.fontes.texto.trim() } }
   return t
 }
 
@@ -679,6 +744,14 @@ export function aplicarMarca(base: TemaVisual, marca: Marca | undefined): TemaVi
 export function resolverTema(id: TemaEscolhido | string, marca?: Marca): TemaVisual {
   if (id === 'marca') return marca?.cores.some((c) => RE_HEX.test(c)) ? aplicarMarca(temaDaMarca(marca), { ...marca, cores: [] }) : aplicarMarca(temaPorId(id), marca && { ...marca, cores: [] })
   return aplicarMarca(temaPorId(id), marca)
+}
+
+/** Cores de indicador legíveis sobre um fundo: positivo (verde) e negativo (vermelho), do tema ou da marca. */
+export function coresIndicador(t: TemaVisual, fundo: string): { positivo: string; negativo: string } {
+  const positivo = t.positivo ?? '#16A34A'
+  const negativo = t.negativo ?? '#DC4C4C'
+  const ajustar = (c: string) => (contraste(c, fundo) >= 3 ? c : luminanciaRelativa(fundo) < 0.3 ? misturar(c, '#FFFFFF', 0.35) : misturar(c, '#000000', 0.3))
+  return { positivo: ajustar(positivo), negativo: ajustar(negativo) }
 }
 
 /** Superfície de uma tela conforme o fundo escolhido. No fundo de acento, a tinta é `sobreAcento`. */

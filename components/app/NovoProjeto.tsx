@@ -7,10 +7,11 @@ import { dados, ehErroDados, mensagemDeErro, useDados, type AssetDemo } from '@/
 import { TEMPLATES, montarDocumento } from '@/lib/ia/roteiro'
 import { EXTENSOES_ACEITAS } from '@/lib/importar/arquivos'
 import { sanitizarSvgNavegador } from '@/lib/editor/importar'
+import { OCR } from '@/lib/pdf/ocr'
 import { documentoDePaginas } from '@/lib/pdf/paginas'
 import { PLANOS } from '@/lib/planos'
 import { FORMATOS, novaCena, parseCamada, SCHEMA_VERSION, type Cena, type ModoProjeto } from '@/lib/scene/schema'
-import { importarPaginasPdf } from './importarPdf'
+import { avisoDoOcr, importarPaginasPdf, type ProgressoImportacao } from './importarPdf'
 import { enquadrarNaCena } from '@/lib/scene/transform'
 import { CapaProjeto } from './CapaProjeto'
 import { cx } from '@/components/ui'
@@ -62,7 +63,8 @@ export function NovoProjeto() {
   const [criando, setCriando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [textoSelecionavel, setTextoSelecionavel] = useState(true)
-  const [progresso, setProgresso] = useState<string | null>(null)
+  const [notasOcr, setNotasOcr] = useState(false)
+  const [progresso, setProgresso] = useState<(ProgressoImportacao & { arquivo: string }) | null>(null)
   const planoId = useDados((e) => e.workspace.planoId)
   const entrada = useRef<HTMLInputElement>(null)
   const temPdf = arquivos.some(ehPdf)
@@ -77,12 +79,13 @@ export function NovoProjeto() {
     setErro(null)
     try {
       let documento = comeco === 'template' && tpl ? montarDocumento(tpl.roteiro, { modo, tema: tpl.tema, estilo: tpl.estilo }) : undefined
-      // PDFs: cada página vira uma tela (imagem em alta resolução + texto selecionável opcional)
+      // PDFs: cada página vira uma tela (imagem em alta resolução + texto selecionável opcional; nas escaneadas, por OCR)
       const paginasPdf: Cena[] = []
       for (const f of arquivos.filter(ehPdf)) {
         try {
-          const r = await importarPaginasPdf(f, { planoId, textoSelecionavel, aoProgredir: ({ pagina, total }) => setProgresso(`${f.name}: página ${pagina} de ${total}`) })
+          const r = await importarPaginasPdf(f, { planoId, textoSelecionavel, notasOcr, aoProgredir: (p) => setProgresso({ ...p, arquivo: f.name }) })
           paginasPdf.push(...documentoDePaginas(r.paginas, modo, { textoSelecionavel }).scenes.map((c) => ({ ...c, id: `pdf${paginasPdf.length}-${c.id}`.slice(0, 64) })))
+          if (r.ocr) { const a = avisoDoOcr(f.name, r.ocr); mostrar(a.texto, a.tipo) }
           if (r.deFora > 0) mostrar(`${f.name}: o plano ${PLANOS[planoId].nome} importa até ${PLANOS[planoId].limites.paginasPdfImportar} páginas; ${r.deFora} ficaram de fora.`, 'erro', { rotulo: 'Ver planos', aoClicar: () => router.push('/app/settings#plano') })
         } catch (e) {
           mostrar(e instanceof Error && e.name === 'ErroLeitura' ? `${f.name}: ${e.message}` : mensagemDeErro(e, `Não foi possível importar ${f.name}`), 'erro')
@@ -197,7 +200,16 @@ export function NovoProjeto() {
                   <input type="checkbox" checked={textoSelecionavel} onChange={(e) => setTextoSelecionavel(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#5965F2]" />
                   <span>
                     <span className="block font-medium">Texto selecionável nas páginas do PDF</span>
-                    <span className="mt-0.5 block text-texto3">O texto de cada página fica por cima da imagem, invisível: dá para selecionar, copiar e buscar ao apresentar, e editar no editor. Cada página vira uma tela em alta resolução; até {PLANOS[planoId].limites.paginasPdfImportar} páginas no plano {PLANOS[planoId].nome}.</span>
+                    <span className="mt-0.5 block text-texto3">O texto de cada página fica por cima da imagem, invisível: dá para selecionar, copiar e buscar ao apresentar, e editar no editor. Páginas escaneadas são lidas por reconhecimento de texto (OCR) no seu navegador, sem gastar créditos (até {OCR.maxPaginas} por importação). Cada página vira uma tela em alta resolução; até {PLANOS[planoId].limites.paginasPdfImportar} páginas no plano {PLANOS[planoId].nome}.</span>
+                  </span>
+                </label>
+              )}
+              {temPdf && (
+                <label className="mt-2 flex items-start gap-3 rounded-xl border border-borda bg-superficie px-4 py-3 text-[13px]">
+                  <input type="checkbox" checked={notasOcr} onChange={(e) => setNotasOcr(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#5965F2]" />
+                  <span>
+                    <span className="block font-medium">Texto reconhecido nas notas do apresentador</span>
+                    <span className="mt-0.5 block text-texto3">Nas páginas escaneadas, o texto lido por OCR também vai para as notas de cada tela, que só aparecem na visão do apresentador.</span>
                   </span>
                 </label>
               )}
@@ -217,9 +229,15 @@ export function NovoProjeto() {
       </main>
 
       <footer className="sticky bottom-0 border-t border-borda bg-fundo/95 backdrop-blur">
+        {progresso && <span aria-hidden className="absolute inset-x-0 top-0 h-0.5 bg-[#EDECEA]"><span className="block h-0.5 bg-violeta transition-[width]" style={{ width: `${Math.round(progresso.progresso * 100)}%` }} /></span>}
         <div className="mx-auto flex h-[76px] max-w-[1136px] items-center justify-between gap-4 px-4 sm:px-6">
-          <span className={cx('min-w-0 truncate text-[13px] text-texto2', !erro && !progresso && 'hidden sm:block')} aria-live="polite">{erro ? <span className="text-perigo" role="alert">{erro}</span> : progresso ? `Importando ${progresso}…` : resumo}{arquivos.length && !progresso ? ` · ${arquivos.length} arquivo(s)` : ''}</span>
+          <span className={cx('min-w-0 truncate text-[13px] text-texto2', !erro && !progresso && 'hidden sm:block')} aria-live="polite" data-testid="progresso-importacao">{erro ? <span className="text-perigo" role="alert">{erro}</span> : progresso ? `Importando ${progresso.arquivo}: ${progresso.fase}…` : resumo}{arquivos.length && !progresso ? ` · ${arquivos.length} arquivo(s)` : ''}</span>
           <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+            {progresso?.cancelar && (
+              <button type="button" onClick={progresso.cancelar} title="Para o reconhecimento de texto e fica com as páginas já lidas" className="flex h-9 items-center gap-1 rounded-full border-[1.5px] border-bordaForte px-3 text-[13px] font-medium hover:border-grafite">
+                <X className="h-3.5 w-3.5" />Parar leitura
+              </button>
+            )}
             {passo === 1 ? <Link href="/app" className="hidden px-4 py-2.5 text-[14px] font-medium sm:block">Cancelar</Link> : <button type="button" onClick={() => setPasso(1)} className="px-4 py-2.5 text-[14px] font-medium">Voltar</button>}
             {passo === 1 && <button type="button" onClick={() => setPasso(2)} className="h-11 rounded-[9px] border-[1.5px] border-bordaForte px-3 text-[14px] font-medium hover:border-[#D4D4D4] sm:px-5"><span className="sm:hidden">Arquivos</span><span className="hidden sm:inline">Importar arquivos</span></button>}
             <button type="button" disabled={criando} onClick={criar} className="h-11 rounded-[9px] bg-grafite px-5 text-[14px] font-medium text-fundo hover:bg-[#2a2a2a] disabled:opacity-60">{criando ? 'Criando…' : 'Criar projeto'}</button>

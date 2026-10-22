@@ -7,7 +7,9 @@
 import { useMemo } from 'react'
 import { AlignCenter, AlignJustify, AlignLeft, AlignRight, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, Italic, Link2, Minus, Underline } from 'lucide-react'
 import type { Camada, CamadaImagem, CamadaLottie, CamadaModelo3d, CamadaSvg, CamadaTexto, CamadaVideo } from '@/lib/scene/schema'
-import { FONTES_APRESENTACAO } from '@/lib/design-tokens'
+import { SeletorFonte, useCatalogoFontes } from '@/components/fontes/SeletorFonte'
+import { fontesDoDocumento } from '@/components/renderer/fontes'
+import { pesosDisponiveis, varianteReal } from '@/lib/fontes/catalogo'
 import { coresDoSvg } from '@/lib/importar/svg'
 import type { AssetDemo } from '@/lib/demo/tipos'
 import { BotaoMini, CampoCor, CampoNum, CampoTexto, Deslizante, Interruptor, Linha, Secao, Segmentado, SeletorLista } from './controles'
@@ -21,10 +23,12 @@ type Set = (p: Partial<Camada>) => void
 
 export function SecoesDoTipo({ editor, assets = [] }: PropsSecao) {
   const { sel, set } = useCamadas(editor)
+  const cenas = editor.estado.documento.scenes
+  const doDocumento = useMemo(() => fontesDoDocumento({ scenes: cenas }), [cenas])
   const l = sel[0]
   if (!l || sel.length > 1) return null
   switch (l.type) {
-    case 'text': return <><SecaoTexto c={l} set={set} /><SecaoFundoTexto c={l} set={set} /></>
+    case 'text': return <><SecaoTexto c={l} set={set} doDocumento={doDocumento} /><SecaoFundoTexto c={l} set={set} /></>
     case 'image': return <SecaoImagem c={l} set={set} assets={assets} />
     case 'video': return <SecaoVideo c={l} set={set} assets={assets} />
     case 'svg': return <SecaoSvg c={l} set={set} />
@@ -60,16 +64,22 @@ export function SecoesDoTipo({ editor, assets = [] }: PropsSecao) {
   }
 }
 
-const PESOS: [number, string][] = [[300, 'Light'], [400, 'Regular'], [500, 'Medium'], [600, 'Semibold'], [700, 'Bold'], [800, 'Extra bold']]
+const NOMES_PESO: Record<number, string> = { 100: 'Thin', 200: 'Extra light', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'Semibold', 700: 'Bold', 800: 'Extra bold', 900: 'Black' }
+const PESOS_LIVRES = [300, 400, 500, 600, 700, 800]
 
-function SecaoTexto({ c, set }: { c: CamadaTexto; set: Set }) {
+function SecaoTexto({ c, set, doDocumento }: { c: CamadaTexto; set: Set; doDocumento: string[] }) {
   const s = (p: Partial<CamadaTexto>) => set(p as Partial<Camada>)
+  // pesos e itálico que a família tem de verdade (catálogo do Google; fontes fora dele: a lista livre)
+  const cat = useCatalogoFontes()
+  const fonte = cat?.porNome.get(c.fontFamily)
+  const pesos = fonte ? pesosDisponiveis(c.italic && fonte.italico ? fonte.italico : fonte.pesos) : PESOS_LIVRES
+  const opcoesPeso = [...(pesos.includes(c.fontWeight) ? [] : [c.fontWeight]), ...pesos].map((v) => ({ id: String(v), rotulo: NOMES_PESO[v] ? `${NOMES_PESO[v]}${pesos.includes(v) ? '' : ' (indisponível)'}` : String(v) }))
   return (
     <Secao titulo="Texto">
       <textarea aria-label="Conteúdo do texto" title="Conteúdo (também dá para editar com duplo clique no texto)" rows={1} value={c.text} onChange={(e) => s({ text: e.target.value })} className="block h-7 w-full resize-none overflow-hidden rounded-md bg-superficie2 px-2 py-[5px] text-[12px] leading-snug outline-none ring-inset transition-[height] hover:ring-1 hover:ring-bordaForte focus:h-16 focus:overflow-auto focus:!ring-1 focus:!ring-acento" />
-      <SeletorLista rotulo="Fonte" valor={c.fontFamily} aoMudar={(fontFamily) => s({ fontFamily })} opcoes={[...(FONTES_APRESENTACAO as readonly string[]).includes(c.fontFamily) ? [] : [{ id: c.fontFamily, rotulo: c.fontFamily }], ...FONTES_APRESENTACAO.map((f) => ({ id: f, rotulo: f }))]} />
+      <SeletorFonte rotulo="Fonte" valor={c.fontFamily} doDocumento={doDocumento} aoMudar={(fontFamily, f) => s({ fontFamily, ...(f ? { fontWeight: varianteReal(f, c.fontWeight, c.italic).peso } : {}) })} />
       <div className="grid grid-cols-2 gap-1.5">
-        <SeletorLista rotulo="Peso" valor={String(c.fontWeight)} aoMudar={(v) => s({ fontWeight: Number(v) })} opcoes={[...(PESOS.some(([p]) => p === c.fontWeight) ? [] : [[c.fontWeight, String(c.fontWeight)] as [number, string]]), ...PESOS].map(([v, r]) => ({ id: String(v), rotulo: r }))} />
+        <SeletorLista rotulo="Peso" valor={String(c.fontWeight)} aoMudar={(v) => s({ fontWeight: Number(v) })} opcoes={opcoesPeso} />
         <CampoNum prefixo={<IconeTamanho />} rotulo="Tamanho da fonte" valor={c.fontSize} min={6} max={800} aoMudar={(fontSize) => s({ fontSize })} />
         <CampoNum prefixo={<IconeEntrelinha />} rotulo="Entrelinha" titulo="Entrelinha (× tamanho)" valor={c.lineHeight} min={0.6} max={3} passo={0.05} casas={2} aoMudar={(lineHeight) => s({ lineHeight })} />
         <CampoNum prefixo={<IconeEspacamento />} rotulo="Espaçamento entre letras" valor={c.letterSpacing} min={-100} max={100} passo={0.5} casas={1} aoMudar={(letterSpacing) => s({ letterSpacing })} />
@@ -82,7 +92,7 @@ function SecaoTexto({ c, set }: { c: CamadaTexto; set: Set }) {
       </div>
       <div className="flex gap-2">
         <GrupoBotoes className="!flex-none w-[72px]">
-          <BotaoGrupo rotulo="Itálico" ativo={c.italic} onClick={() => s({ italic: !c.italic })}><Italic className="h-3.5 w-3.5" /></BotaoGrupo>
+          <BotaoGrupo rotulo="Itálico" ativo={c.italic} onClick={() => s({ italic: !c.italic, ...(fonte && !c.italic && fonte.italico ? { fontWeight: varianteReal(fonte, c.fontWeight, true).peso } : {}) })}><Italic className="h-3.5 w-3.5" /></BotaoGrupo>
           <BotaoGrupo rotulo="Sublinhado" ativo={c.underline} onClick={() => s({ underline: !c.underline, ...(!c.underline && c.strikethrough ? { strikethrough: undefined } : {}) })}><Underline className="h-3.5 w-3.5" /></BotaoGrupo>
         </GrupoBotoes>
         <Segmentado rotulo="Caixa" valor={c.transform} aoMudar={(transform) => s({ transform })} opcoes={[{ id: 'none', rotulo: 'Aa' }, { id: 'uppercase', rotulo: 'AA' }, { id: 'lowercase', rotulo: 'aa' }]} />

@@ -13,7 +13,7 @@ const TOL = 0.75
 const corOpaca = (cor: string) => !/^#[0-9a-f]{8}$/i.test(cor) || cor.slice(7).toLowerCase() === 'ff'
 
 function caixaOpaca(c: Camada): boolean {
-  if (c.hidden || c.maskId || (c.type === 'shape' && c.isMask) || (c.opacity ?? 1) < 1 || Math.abs((c.rotation ?? 0) % 360) > 0.01) return false
+  if (c.hidden || c.maskId || c.isMask || (c.opacity ?? 1) < 1 || Math.abs((c.rotation ?? 0) % 360) > 0.01) return false
   if (c.effects && ((c.effects.blur ?? 0) > 0 || (c.effects.blend ?? 'normal') !== 'normal')) return false
   switch (c.type) {
     case 'shape':
