@@ -3,18 +3,19 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState } fro
 import { CheckCircle2, Info, TriangleAlert, X } from 'lucide-react'
 
 type Tipo = 'info' | 'sucesso' | 'erro'
-interface Toast { id: number; tipo: Tipo; texto: string; acao?: { rotulo: string; aoClicar: () => void } }
+interface Toast { id: number; tipo: Tipo; texto: string; acao?: { rotulo: string; aoClicar: () => void }; chave?: string }
 
-const Ctx = createContext<{ mostrar: (texto: string, tipo?: Tipo, acao?: Toast['acao']) => void } | null>(null)
+/** `chave`: um aviso novo com a mesma chave substitui o anterior (ex.: alternar as guias várias vezes). */
+const Ctx = createContext<{ mostrar: (texto: string, tipo?: Tipo, acao?: Toast['acao'], chave?: string) => void } | null>(null)
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [lista, setLista] = useState<Toast[]>([])
   const seq = useRef(0)
   const fechar = useCallback((id: number) => setLista((l) => l.filter((t) => t.id !== id)), [])
   const mostrar = useCallback(
-    (texto: string, tipo: Tipo = 'info', acao?: Toast['acao']) => {
+    (texto: string, tipo: Tipo = 'info', acao?: Toast['acao'], chave?: string) => {
       const id = ++seq.current
-      setLista((l) => [...l.slice(-3), { id, tipo, texto, acao }])
+      setLista((l) => [...l.filter((t) => !chave || t.chave !== chave).slice(-3), { id, tipo, texto, acao, chave }])
       setTimeout(() => fechar(id), tipo === 'erro' || acao ? 8000 : 4000) // com ação, dá tempo de clicar
     },
     [fechar]

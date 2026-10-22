@@ -20,6 +20,7 @@ import { SecaoEfeitos } from './SecaoEfeitos'
 import { SecaoExportar } from './SecaoExportar'
 import { SecaoAcessibilidade, SecaoResponsivo, SecoesPrototipo } from './SecoesMostra'
 import { SecaoIA } from '../ia/SecaoIA'
+import { SecaoGuiasFrame } from '../guias/SecaoGuias'
 
 export { ICONE_TIPO, NOME_TIPO } from './selecao'
 export { resumoInteracoes } from './SecoesMostra'
@@ -41,6 +42,7 @@ export function AbaDesign({ editor, assets }: { editor: Editor; assets: AssetDem
       <SecaoPreenchimento {...p} />
       <SecaoTraco {...p} />
       <SecaoEfeitos {...p} />
+      <SecaoGuiasFrame editor={editor} />
       <SecaoExportar {...p} />
       <SecoesPrototipo {...p} />
       <SecaoResponsivo {...p} />

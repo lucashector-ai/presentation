@@ -10,6 +10,7 @@ import { BotaoMini, CampoNum, Deslizante, Linha, Secao, SeletorLista } from './c
 import { LinhaPintura } from './CampoCor'
 import type { Pintura } from './SeletorCor'
 import { useHistorico } from './contexto'
+import { SecaoGuiasTela } from '../guias/SecaoGuias'
 
 const NOMES_FORMATO: Record<string, string> = { slides169: 'Slides 16:9', slides43: 'Slides 4:3', story: 'Story 9:16', quadrado: 'Quadrado 1:1' }
 
@@ -62,6 +63,8 @@ export function InspetorTela({ editor, assets }: { editor: Editor; assets: Asset
           acoes={cena.backgroundGradient ? <BotaoMini rotulo="Remover gradiente de fundo" onClick={() => set({ backgroundGradient: undefined })}><Minus className="h-3.5 w-3.5" /></BotaoMini> : <span className="w-6" aria-hidden />}
         />
       </Secao>
+
+      <SecaoGuiasTela editor={editor} />
 
       <Secao titulo="Transição de entrada">
         <SeletorLista rotulo="Transição da tela" valor={tr.type} aoMudar={(type) => set({ transition: { ...tr, type: type as Transicao['type'] } })} opcoes={[{ id: 'none', rotulo: 'Instantânea' }, { id: 'fade', rotulo: 'Fade' }, { id: 'slide', rotulo: 'Slide' }, { id: 'scale', rotulo: 'Scale' }, { id: 'morph', rotulo: 'Morph (Magic Move)' }]} />

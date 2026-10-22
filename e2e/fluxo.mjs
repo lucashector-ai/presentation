@@ -101,6 +101,7 @@ await passo('AC-08 Sem sessão, /app redireciona para login', async () => {
   await c2.close()
 })
 
+let urlEditorE2E = ''
 await passo('Novo projeto (2 passos, com arquivos) abre o editor', async () => {
   await page.getByRole('link', { name: 'Novo projeto' }).first().click()
   await page.waitForURL(/\/app\/novo/)
@@ -116,6 +117,7 @@ await passo('Novo projeto (2 passos, com arquivos) abre o editor', async () => {
   await page.waitForURL(/\/app\/projects\/.+\/edit/, { timeout: 20000 })
   await page.getByRole('button', { name: 'Compartilhar' }).waitFor()
   if ((await page.getByLabel('Nome do projeto').inputValue()) !== 'Projeto E2E') throw new Error('nome do projeto não veio para o editor')
+  urlEditorE2E = page.url()
 })
 
 await passo('AC-02/AC-03 Upload em lote cria uma tela por imagem', async () => {
@@ -145,7 +147,7 @@ await passo('AC-02 Formato inválido mostra erro individual', async () => {
   await esperarTelas(3)
 })
 
-await passo('AC-04 Texto e hotspot: adicionar, mover por teclado (Shift+→ = 10 px), alinhar, ordenar', async () => {
+await passo('AC-04 Texto e hotspot: adicionar, mover por teclado (Shift+→ = 8 px), alinhar, ordenar', async () => {
   await page.getByRole('tab', { name: 'Telas' }).click()
   await telas().nth(0).click()
   await page.locator('footer').getByText('01 / 03', { exact: true }).waitFor()
@@ -156,8 +158,9 @@ await passo('AC-04 Texto e hotspot: adicionar, mover por teclado (Shift+→ = 10
   const xAntes = Number(await campoX.inputValue())
   await page.evaluate(() => document.activeElement?.blur())
   await page.keyboard.press('Shift+ArrowRight')
-  const xDepois = await esperarValor(campoX, xAntes + 10)
-  if (xDepois !== xAntes + 10) throw new Error(`nudge falhou ${xAntes} → ${xDepois}`)
+  // regra do 8: Shift + seta anda 8 px
+  const xDepois = await esperarValor(campoX, xAntes + 8)
+  if (xDepois !== xAntes + 8) throw new Error(`nudge falhou ${xAntes} → ${xDepois}`)
   await page.getByRole('button', { name: 'Alinhar à esquerda' }).click()
   const xEsq = await esperarValor(campoX, 0)
   if (xEsq !== 0) throw new Error(`alinhar à esquerda deu x=${xEsq}`)
@@ -973,6 +976,160 @@ await passo('Criar com IA: com o manual, as telas geradas no demo usam as cores 
   await page.getByRole('button', { name: 'Usar o kit Vela Energia' }).click()
   await page.getByTestId('manual-aplicado').waitFor()
   await page.screenshot({ path: `${SHOTS}/19d-criar-kit-com-manual.png` })
+})
+
+/** Cor (RGB) de um ponto da tela do editor (px da cena), lida de uma captura de 1 px. */
+async function corNaTela(cx, cy) {
+  const tela = await page.getByTestId('canvas').boundingBox()
+  const s = tela.width / 1920
+  const img = await loadImage(await page.screenshot({ clip: { x: Math.round(tela.x + cx * s), y: Math.round(tela.y + cy * s), width: 1, height: 1 } }))
+  const cv = createCanvas(1, 1)
+  cv.getContext('2d').drawImage(img, 0, 0)
+  return [...cv.getContext('2d').getImageData(0, 0, 1, 1).data.slice(0, 3)]
+}
+/** Espera o resumo do que o canvas das guias desenha (null = nada desenhado). */
+async function esperarGuias(valor, ms = 3000) {
+  const d = page.getByTestId('guias-layout')
+  const ler = async () => ((await d.count()) ? await d.getAttribute('data-guias') : null)
+  let v = await ler()
+  for (let t = 0; t < ms && v !== valor; t += 100) { await page.waitForTimeout(100); v = await ler() }
+  if (v !== valor) throw new Error(`guias desenhadas: ${v}, esperado ${valor}`)
+}
+
+await passo('Guias de layout: 12 colunas e grade de 8, editar, ⌃⇧4, encaixe na coluna, fora do /p e do PNG, desfazer', async () => {
+  // tela nova e vazia no projeto do começo do fluxo
+  await page.goto(urlEditorE2E)
+  await page.getByRole('tab', { name: 'Telas' }).click()
+  await esperarTelas(3)
+  await telas().nth(2).click() // a tela nova entra depois da atual: fica por último
+  await page.getByRole('button', { name: '+ Nova tela' }).click()
+  await page.locator('footer').getByText('04 / 04', { exact: true }).waitFor()
+  const secao = page.getByRole('region', { name: 'Guias de layout' })
+  await secao.waitFor()
+  await esperarGuias(null)
+  // predefinição: 12 colunas (margem 64 e calha 24 numa tela de 1920)
+  await secao.getByRole('button', { name: 'Guias prontas' }).click()
+  await page.getByRole('menuitem', { name: '12 colunas' }).click()
+  await esperarGuias('12 colunas')
+  await secao.getByRole('button', { name: 'Editar guia: 12 colunas' }).click()
+  const pop = page.getByRole('dialog', { name: 'Guia de layout: Colunas' })
+  await pop.waitFor()
+  if ((await pop.getByLabel('Margem').inputValue()) !== '64' || (await pop.getByLabel('Calha').inputValue()) !== '24') throw new Error('padrão das colunas fora da regra do 8')
+  // o primeiro campo (quantidade) vem focado e selecionado: digitar troca o valor
+  await page.keyboard.type('6')
+  await page.keyboard.press('Enter')
+  for (const [campo, v] of [['Margem', '120'], ['Calha', '48']]) { await pop.getByLabel(campo).fill(v); await pop.getByLabel(campo).press('Enter') }
+  await esperarGuias('6 colunas')
+  await secao.getByRole('button', { name: 'Editar guia: 6 colunas' }).waitFor()
+  // tipo: Esquerda fixa a largura que as colunas tinham (240) e a margem vira deslocamento; Esticar volta ao "Auto"
+  await pop.getByLabel('Tipo das colunas').selectOption('start')
+  if ((await esperarValor(pop.getByLabel('Largura das colunas'), 240)) !== 240) throw new Error('largura fixa ≠ 240 ao sair do esticar')
+  await pop.getByLabel('Deslocamento').waitFor()
+  await pop.getByLabel('Tipo das colunas').selectOption('stretch')
+  if (!(await pop.getByLabel('Largura das colunas').isDisabled())) throw new Error('largura deveria ser Auto ao esticar')
+  // tipo da guia (topo do popover): colunas → linhas → colunas
+  await pop.getByLabel('Tipo da guia').selectOption('rows')
+  await esperarGuias('6 linhas')
+  await page.getByRole('dialog', { name: 'Guia de layout: Linhas' }).getByLabel('Tipo da guia').selectOption('columns')
+  await esperarGuias('6 colunas')
+  await page.getByRole('button', { name: 'Fechar guia' }).click()
+  // "+": grade de 8, já com o popover aberto
+  await secao.getByRole('button', { name: 'Adicionar guia de layout' }).click()
+  const popGrade = page.getByRole('dialog', { name: 'Guia de layout: Grade' })
+  if ((await popGrade.getByLabel('Tamanho da grade').inputValue()) !== '8') throw new Error('grade nova não é de 8')
+  await page.getByRole('button', { name: 'Fechar guia' }).click()
+  await secao.getByRole('button', { name: 'Editar guia: Grade 8px' }).waitFor()
+  // no zoom de ajuste a célula fica com ~3 px: a grade some sozinha; a 100% aparece
+  await esperarGuias('6 colunas')
+  if ((await page.getByTestId('guias-layout').getAttribute('data-grade-miuda')) !== 'true') throw new Error('grade miúda deveria sumir no zoom de ajuste')
+  await page.evaluate(() => document.activeElement?.blur())
+  await page.keyboard.press('Control+0')
+  await esperarGuias('6 colunas|Grade 8px')
+  await page.screenshot({ path: `${SHOTS}/20-guias-zoom-100.png` })
+  await page.locator('footer').getByRole('button', { name: 'Ajustar', exact: true }).click()
+  await esperarGuias('6 colunas')
+  // desfazer e refazer a grade
+  await page.keyboard.press('Control+z')
+  await secao.getByRole('button', { name: 'Editar guia: Grade 8px' }).waitFor({ state: 'detached' })
+  await page.keyboard.press('Control+Shift+z')
+  await secao.getByRole('button', { name: 'Editar guia: Grade 8px' }).waitFor()
+  // desenho: a coluna fica tingida, a calha não
+  const coluna = await corNaTela(240, 300)
+  const calha = await corNaTela(384, 300)
+  if (!(coluna[1] < calha[1] - 8)) throw new Error(`coluna sem cor no editor: coluna ${coluna}, calha ${calha}`)
+  await page.screenshot({ path: `${SHOTS}/21-guias-editor.png` })
+  // ⌃⇧4 esconde e mostra todas, com o aviso
+  await page.keyboard.press('Control+Shift+Digit4')
+  await page.getByText('Guias de layout escondidas').waitFor()
+  await esperarGuias(null)
+  await page.keyboard.press('Control+Shift+Digit4')
+  await page.getByRole('status').filter({ hasText: 'Guias de layout visíveis' }).getByRole('button', { name: 'Esconder' }).waitFor()
+  await esperarGuias('6 colunas')
+  await page.screenshot({ path: `${SHOTS}/22-guias-aviso.png` })
+  // arrastar uma camada: a borda encaixa na coluna (408) com a guia vermelha; com Ctrl, fica livre
+  await page.getByRole('tab', { name: 'Blocos' }).click()
+  await page.getByRole('button', { name: 'Forma', exact: true }).click()
+  for (const [campo, v] of [['Largura', '240'], ['Posição X', '200'], ['Posição Y', '400']]) { await page.getByLabel(campo, { exact: true }).fill(v); await page.getByLabel(campo, { exact: true }).press('Enter') }
+  const campoX = page.getByLabel('Posição X')
+  if ((await esperarValor(campoX, 200)) !== 200) throw new Error('forma não foi para x=200')
+  const tela = await page.getByTestId('canvas').boundingBox()
+  const s = tela.width / 1920
+  // desfazer tira a seleção: cada arraste começa com x = 200
+  const arrastar = async (alvoX, ctrl) => {
+    const x0 = 200
+    const ini = { x: tela.x + (x0 + 120) * s, y: tela.y + 544 * s }
+    await page.mouse.move(ini.x, ini.y)
+    if (ctrl) await page.keyboard.down('Control')
+    await page.mouse.down()
+    for (let k = 1; k <= 8; k++) await page.mouse.move(ini.x + ((alvoX - x0) * s * k) / 8, ini.y)
+    const guias = await page.locator('[data-guia="v"]').count()
+    await page.mouse.up()
+    if (ctrl) await page.keyboard.up('Control')
+    return guias
+  }
+  const guiasNoArraste = await arrastar(413, false)
+  const xEncaixe = await esperarValor(campoX, 408)
+  if (xEncaixe !== 408) throw new Error(`não encaixou na coluna: x=${xEncaixe}`)
+  if (!guiasNoArraste) throw new Error('sem guia vermelha no encaixe da coluna')
+  await page.keyboard.press('Control+z')
+  await page.mouse.click(tela.x + 320 * s, tela.y + 544 * s)
+  if ((await esperarValor(campoX, 200)) !== 200) throw new Error('desfazer não voltou a forma')
+  await arrastar(413, true)
+  await page.waitForTimeout(200)
+  const xLivre = Number(await campoX.inputValue())
+  if (xLivre === 408 || Math.abs(xLivre - 413) > 3) throw new Error(`com Ctrl deveria ficar livre perto de 413: x=${xLivre}`)
+  await page.keyboard.press('Control+z')
+  await page.mouse.click(tela.x + 320 * s, tela.y + 544 * s)
+  if ((await esperarValor(campoX, 200)) !== 200) throw new Error('desfazer não voltou a forma (arraste livre)')
+  // exportação PNG: só a tela, sem guias (a coluna fica com a cor da calha)
+  await page.getByRole('button', { name: 'Mais opções', exact: true }).click()
+  await page.getByRole('radiogroup', { name: 'Escala' }).getByRole('radio', { name: '1×' }).click()
+  const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 30000 }), page.getByRole('menuitem', { name: 'Exportar tela atual' }).click()])
+  const png = await loadImage(fs.readFileSync(await dl.path()))
+  const cv = createCanvas(png.width, png.height)
+  cv.getContext('2d').drawImage(png, 0, 0)
+  const naColuna = [...cv.getContext('2d').getImageData(240, 300, 1, 1).data.slice(0, 3)]
+  const naCalha = [...cv.getContext('2d').getImageData(384, 300, 1, 1).data.slice(0, 3)]
+  if (png.width !== 1920 || naColuna.some((c, i) => Math.abs(c - naCalha[i]) > 2)) throw new Error(`guias no PNG: coluna ${naColuna}, calha ${naCalha} (${png.width}px)`)
+  await esperarSalvo()
+  // visualizador /p: publica, gera um link e vai à tela 04 — nenhuma guia
+  await page.getByRole('button', { name: 'Compartilhar' }).click()
+  const dlg = page.getByRole('dialog', { name: 'Compartilhar' })
+  await dlg.getByRole('button', { name: 'Publicar' }).click()
+  await page.getByText(/Revisão \d+ publicada/).waitFor({ timeout: 10000 })
+  await dlg.getByRole('button', { name: 'Gerar link' }).click()
+  await dlg.getByText('Seu link (exibido uma única vez)').waitFor()
+  const link = (await dlg.locator('code').first().textContent()).trim()
+  await dlg.getByRole('button', { name: 'Fechar', exact: true }).click()
+  const p = await ctx.newPage()
+  await p.goto(link)
+  await contador(p, '01 / 04').waitFor({ timeout: 10000 })
+  await p.keyboard.press('End')
+  await contador(p, '04 / 04').waitFor()
+  await p.waitForTimeout(600)
+  if (await p.locator('[data-testid="guias-layout"]').count()) throw new Error('guias no visualizador')
+  await p.screenshot({ path: `${SHOTS}/23-guias-visualizador.png` })
+  await p.close()
 })
 
 await passo('AC-14 Reduced motion respeitado (animações encurtadas)', async () => {

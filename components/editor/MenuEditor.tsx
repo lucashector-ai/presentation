@@ -1,16 +1,18 @@
 'use client'
 /**
- * Menu "⋯" da barra superior do editor: exportar (PNG/JPG 1×–3× da tela ou da seleção, PDF da apresentação),
+ * Menu "⋯" da barra superior do editor: ver (guias de layout, ⌃⇧4), exportar (PNG/JPG 1×–3× da tela ou da seleção, PDF da apresentação),
  * detalhes do projeto e atalhos. No celular também reúne o que não cabe na barra (desfazer, pré-visualizar,
  * opções de apresentação).
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
-import { Copy, Download, Eye, FileText, Info, Keyboard, Loader2, MonitorPlay, MoreHorizontal, Play, Redo2, Undo2 } from 'lucide-react'
+import { Check, Copy, Download, Eye, FileText, Info, Keyboard, Loader2, MonitorPlay, MoreHorizontal, Play, Redo2, Undo2 } from 'lucide-react'
 import type { Editor } from '@/lib/editor/useEditor'
 import { ESCALAS, type FormatoImagem } from '@/lib/exportar/medidas'
 import { cx } from '@/components/ui'
+import { useToast } from '@/components/ui/toast'
 import { useExportar } from './useExportar'
+import { alternarGuias } from './guias/estado'
 
 export interface PropsMenuEditor {
   editor: Editor
@@ -28,6 +30,7 @@ export function MenuEditor({ editor, projetoId, nomeProjeto, aoPreview, aoAprese
   const ref = useRef<HTMLDivElement>(null)
   const exp = useExportar(editor, nomeProjeto)
   const { estado, acoes } = editor
+  const { mostrar } = useToast()
   useEffect(() => {
     if (!aberto) return
     const fora = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) setAberto(false) }
@@ -63,6 +66,9 @@ export function MenuEditor({ editor, projetoId, nomeProjeto, aoPreview, aoAprese
             <div className="my-1 h-px bg-borda" />
           </div>
 
+          <div className="px-2 pb-0.5 pt-1.5"><div className="rotulo-mono text-[10px] text-texto3">Ver</div></div>
+          <Item role="menuitemcheckbox" aria-checked={estado.guiasLayout} icone={estado.guiasLayout ? <Check className="h-3.5 w-3.5" /> : <span className="w-3.5" />} onClick={fechar(() => alternarGuias(acoes, estado.guiasLayout, mostrar))}>Guias de layout <span className="mono float-right text-[11px] text-texto3">⌃⇧4</span></Item>
+          <div className="my-1 h-px bg-borda" />
           <div className="px-2 pb-1 pt-1.5">
             <div className="rotulo-mono mb-2 text-[10px] text-texto3">Exportar</div>
             <div className="mb-2 flex gap-1.5">
