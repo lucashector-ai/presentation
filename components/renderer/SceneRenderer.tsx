@@ -28,6 +28,7 @@ import { Modelo3d } from './camadas/Modelo3d'
 import { Lottie } from './camadas/Lottie'
 import { CorpoTexto, CorteTexto } from './camadas/CorpoTexto'
 import { estiloCaixaTexto } from '@/lib/scene/tipografia'
+import { useFontesDaCena } from './fontes'
 
 export interface AssetResolvido {
   url: string
@@ -81,6 +82,8 @@ export function chaveMorph(c: Camada): string {
 }
 
 export function SceneRenderer(props: SceneRendererProps) {
+  // fontes do Google usadas pelos textos desta tela (editor, visualizador, miniaturas, exportação…)
+  useFontesDaCena(props.cena)
   // prévia do inspetor: no editor, toca entradas/saídas/transição sem sair do modo de edição
   const previa = usePreviaAnimacao(props.modo === 'editor')
   const tr = previa?.transicao

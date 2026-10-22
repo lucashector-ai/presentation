@@ -41,13 +41,14 @@ export function motivoSvgInseguro(markup: string): string | null {
   // referências e estilos não podem esconder nada atrás de entidades numéricas
   if (/(?:href|style|src)\s*=\s*(["'])[^"']*&#/i.test(markup)) return 'O SVG tem referências codificadas.'
   for (const m of markup.matchAll(/\s(?:[\w-]+:)?(?:href|src)\s*=\s*(["'])(.*?)\1/gi)) if (!HREF_SEGURO.test((m[2] ?? '').trim())) return 'O SVG aponta para arquivos externos.'
-  for (const m of markup.matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/gi)) if (!/^(#|data:image\/(png|jpe?g|gif|webp);base64,)/i.test((m[2] ?? '').trim())) return 'O SVG usa imagens externas no estilo.'
+  // fontes embutidas (lib/fontes/svg.ts) são dados inertes, como as imagens base64
+  for (const m of markup.matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/gi)) if (!/^(#|data:image\/(png|jpe?g|gif|webp);base64,|data:font\/(woff2|woff|ttf|otf);base64,)/i.test((m[2] ?? '').trim())) return 'O SVG usa imagens externas no estilo.'
   return null
 }
 
 /**
  * Remove scripts, handlers on*, foreignObject, <use>/<image> externos, javascript:, @import e url() externos.
- * Mantém <style> (Illustrator usa classes .cls-1) com o CSS filtrado.
+ * Mantém <style> (Illustrator usa classes .cls-1) com o CSS filtrado, inclusive @font-face com a fonte em base64.
  */
 export function sanitizarSvg(markup: string, purify: Purificador): string {
   const limpo = String(
@@ -66,7 +67,7 @@ export function sanitizarSvg(markup: string, purify: Purificador): string {
       .replace(/\s(xlink:href|href)\s*=\s*(["'])(.*?)\2/gi, (_m, attr: string, q: string, v: string) => (HREF_SEGURO.test(v.trim()) ? ` ${attr}=${q}${v}${q}` : ''))
       // CSS: sem @import, sem url() externo, sem expression()
       .replace(/@import[^;]+;?/gi, '')
-      .replace(/url\(\s*(['"]?)(?!#|data:image\/(?:png|jpe?g|gif|webp);base64,)[^)]*\1\s*\)/gi, 'none')
+      .replace(/url\(\s*(['"]?)(?!#|data:image\/(?:png|jpe?g|gif|webp);base64,|data:font\/(?:woff2|woff|ttf|otf);base64,)[^)]*\1\s*\)/gi, 'none')
       .replace(/expression\s*\(/gi, '(')
       .replace(/javascript:/gi, '')
       .trim()

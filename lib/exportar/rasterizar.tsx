@@ -1,7 +1,7 @@
 'use client'
 /**
  * Rasteriza telas pelo MESMO renderizador DOM do editor/visualizador (SceneRenderer em modo "miniatura",
- * mas com as mídias originais): monta a cena fora da tela, espera fontes, imagens e Lottie, e captura com
+ * mas com as mídias originais): carrega as fontes usadas, monta a cena fora da tela, espera fontes, imagens e Lottie, e captura com
  * modern-screenshot (SVG foreignObject → canvas, com fontes e imagens embutidas). 3D e incorporados saem
  * com o pôster/placeholder estático. PDF: uma página por tela com jsPDF (carregado sob demanda).
  */
@@ -9,7 +9,7 @@ import { createRoot } from 'react-dom/client'
 import { flushSync } from 'react-dom'
 import type { Cena, DocumentoProjeto } from '@/lib/scene/schema'
 import { SceneRenderer, type AssetsResolvidos } from '@/components/renderer/SceneRenderer'
-import { carregarFontes, fontesDoDocumento } from '@/components/renderer/fontes'
+import { aguardarFontes, usoDasCenas } from '@/components/renderer/fontes'
 import { escalaSegura, paginaPdf, type FormatoImagem } from './medidas'
 
 export interface OpcoesRaster {
@@ -48,7 +48,10 @@ async function esperarMidias(el: HTMLElement, cena: Cena) {
 /** Renderiza a cena fora da tela e devolve o canvas no tamanho da cena × escala. */
 export async function rasterizarCena(cena: Cena, assets: AssetsResolvidos, { escala, formato }: OpcoesRaster): Promise<HTMLCanvasElement> {
   const { domToCanvas } = await import('modern-screenshot')
-  carregarFontes(fontesDoDocumento({ scenes: [cena] }))
+  // fontes do Google usadas: folha da mesma origem carregada e variantes prontas ANTES da captura (o
+  // modern-screenshot embute as @font-face dessa folha; sem esperar, a imagem sairia com a fonte de reserva)
+  const texto = cena.layers.map((l) => (l.type === 'text' ? l.text : '')).join(' ')
+  await Promise.race([aguardarFontes(usoDasCenas([cena]), texto), esperar(10000)])
   const host = document.createElement('div')
   host.setAttribute('aria-hidden', 'true')
   Object.assign(host.style, { position: 'fixed', left: '-100000px', top: '0', width: `${cena.size.width}px`, height: `${cena.size.height}px`, pointerEvents: 'none', zIndex: '-1' })

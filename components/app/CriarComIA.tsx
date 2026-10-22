@@ -17,7 +17,7 @@ import { useFontesDoDocumento } from '@/components/renderer/fontes'
 import { dados, mensagemDeErro, useCarregar, useDados, type KitMarca } from '@/lib/dados'
 import { desenharTelas } from '@/lib/ia/clienteDesign'
 import { chaveDesenho, MAX_TELAS_POR_PEDIDO_DESIGN } from '@/lib/ia/design'
-import { COMPONENTES, NOMES_CATEGORIA, NOMES_TIPO_TELA, PARES_FONTES, RE_HEX, TEMAS, regrasDe, resolverTema, temaPorId, type Marca, type TemaId, type TemaVisual } from '@/lib/ia/designSystem'
+import { COMPONENTES, NOMES_CATEGORIA, NOMES_TIPO_TELA, RE_HEX, TEMAS, regrasDe, resolverTema, temaPorId, type Marca, type TemaId, type TemaVisual } from '@/lib/ia/designSystem'
 import { desenharLocal } from '@/lib/ia/desenhoLocal'
 import type { FotoMontagem, LogoMontagem, TelaDesenhada } from '@/lib/ia/montagem'
 import { IDIOMAS, NOMES_IDIOMA, caracteresMaterial, tipoEfetivo, type Idioma } from '@/lib/ia/pedido'
@@ -315,7 +315,8 @@ export function CriarComIA() {
       nome: k.nome,
       cores: k.cores,
       aplicarCores: true,
-      fontes: k.fontes && PARES_FONTES.some((p) => p.titulo === k.fontes!.titulo && p.texto === k.fontes!.texto) ? k.fontes : null,
+      // par da biblioteca ou quaisquer famílias do Google escolhidas no kit
+      fontes: k.fontes?.titulo && k.fontes.texto ? k.fontes : null,
       logo: k.logo && urlLogo ? { assetId: k.logo.assetId, url: urlLogo, nome: 'Logo do kit', largura: k.logo.largura, altura: k.logo.altura, cor: k.logo.cor, cores: k.cores } : null,
       logoRodape: k.logoRodape,
       kitId: k.id,

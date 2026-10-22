@@ -11,6 +11,7 @@ import { converterMensagem, type CamadaConvertida } from '@/lib/importar/figma/c
 import type { MensagemFigma } from '@/lib/importar/figma/tipos'
 import { MAX_SVG_INLINE, parseCamada, type Camada } from '@/lib/scene/schema'
 import { dados } from '@/lib/dados'
+import { carregarCatalogo, mapearFonte, type Catalogo } from '@/lib/fontes/catalogo'
 
 const MAX_CAMADAS_CENA = 400
 
@@ -26,8 +27,11 @@ export async function colarDoFigma(editor: Editor, mensagem: MensagemFigma, arqu
   const cena = editor.cena
   if (!cena) return false
   const limite = Math.max(0, MAX_CAMADAS_CENA - cena.layers.length)
+  // fontes do Figma → catálogo do Google Fonts (nome exato, outra caixa ou nome PostScript); sem o catálogo, cola igual
+  const catalogo = await carregarCatalogo().catch(() => null)
   let r = converterMensagem(mensagem, { cena: cena.size, ponto: opcoes.ponto })
   if (r.camadas.length > limite) r = converterMensagem(mensagem, { cena: cena.size, ponto: opcoes.ponto, compacto: true })
+  if (catalogo) r = { ...r, ...mapearFontesFigma(r.camadas, r.fontesAusentes, catalogo) }
   if (!r.camadas.length) {
     opcoes.avisar('A cópia do Figma não tem camadas visíveis para colar.', 'info')
     return false
@@ -82,10 +86,20 @@ export async function colarDoFigma(editor: Editor, mensagem: MensagemFigma, arqu
   opcoes.avisar(prontas.length === 1 ? 'Camada do Figma colada.' : `${prontas.length} camadas do Figma coladas.`, 'sucesso')
   if (faltando) opcoes.avisar(AVISO_IMAGENS_FIGMA, 'info')
   const detalhes = [
-    r.fontesAusentes.length ? `Fonte${r.fontesAusentes.length > 1 ? 's' : ''} ${r.fontesAusentes.slice(0, 3).join(', ')} não ${r.fontesAusentes.length > 1 ? 'estão' : 'está'} na Mostra: aparece se estiver instalada neste computador; senão usa Geist.` : '',
+    r.fontesAusentes.length ? `Fonte${r.fontesAusentes.length > 1 ? 's' : ''} ${r.fontesAusentes.slice(0, 3).join(', ')} não ${r.fontesAusentes.length > 1 ? 'estão' : 'está'} no Google Fonts: aparece se estiver instalada neste computador; senão usa Geist. Troque no seletor de fonte ou envie o arquivo da fonte.` : '',
     ...r.avisos.slice(0, 2),
     falhas ? `${falhas} camada${falhas > 1 ? 's' : ''} não ${falhas > 1 ? 'puderam' : 'pôde'} ser convertida${falhas > 1 ? 's' : ''}.` : '',
   ].filter(Boolean)
   if (detalhes.length) opcoes.avisar(detalhes.join(' '), 'info')
   return true
+}
+
+/** Troca o nome de fonte de cada texto pelo do catálogo; ausentes = só as que não estão nele. */
+export function mapearFontesFigma(camadas: CamadaConvertida[], ausentes: string[], cat: Catalogo): { camadas: CamadaConvertida[]; fontesAusentes: string[] } {
+  const novas = camadas.map((c) => {
+    if (c.camada.type !== 'text' || typeof c.camada.fontFamily !== 'string') return c
+    const m = mapearFonte(cat, c.camada.fontFamily)
+    return m && m.familia !== c.camada.fontFamily ? { ...c, camada: { ...c.camada, fontFamily: m.familia } } : c
+  })
+  return { camadas: novas, fontesAusentes: ausentes.filter((n) => !mapearFonte(cat, n)) }
 }
