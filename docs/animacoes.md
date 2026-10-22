@@ -194,6 +194,9 @@ Regras que o renderizador segue (e o porquê):
   pintadas (`content-visibility`), as sobreposições do canvas somem durante a prévia (marca na área do canvas, não
   no `<html>`: a troca recalcula só os filhos dela) e só o botão Prévia/Parar e o cursor da linha do tempo
   acompanham a prévia (o painel não re-renderiza no começo e no fim dela).
+- **Editor, aba Animação:** o conteúdo da aba vem adiado (o clique pinta só o botão) e as miniaturas paradas da
+  galeria são congeladas todas juntas no quadro seguinte (um `getAnimations()` por cartão forçava um recálculo de
+  estilo cada). No canvas, cada camada é memorizada: arrastar uma camada não re-renderiza as outras.
 - **Pré-carregamento:** 3D (model-viewer/three.js) e Lottie da próxima tela são baixados e avaliados com a página
   ociosa, não no meio da transição.
 - Continuam fora da GPU por natureza (custo por quadro na thread principal): desfoque, recortes (cortina, máscara,
