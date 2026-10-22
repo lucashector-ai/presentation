@@ -1,5 +1,6 @@
 import { chromium } from 'playwright'
 import fs from 'node:fs'
+import { createCanvas } from '@napi-rs/canvas'
 
 /**
  * Fluxo ponta a ponta (seção 17.2): conta → projeto → upload → editor → preview → publicar → link → convidado → revogar.
@@ -449,6 +450,127 @@ await passo('Texto: corte vertical (opções de texto) deixa a caixa justa nas m
   await painel.getByRole('radiogroup', { name: 'Quebra de linha' }).waitFor()
   await painel.getByRole('button', { name: 'Fechar opções de texto' }).click()
   await painel.waitFor({ state: 'detached' })
+})
+
+/** Máscaras: estilo calculado de uma camada no canvas e geometria pelo inspetor. */
+const mascaraDe = (id) => page.getByTestId('canvas').locator(`[data-layer-id="${id}"]`).evaluate((e) => ({ img: decodeURIComponent(getComputedStyle(e).maskImage), modo: getComputedStyle(e).maskMode }))
+async function geometria(pares) {
+  for (const [r, v] of pares) { const f = page.getByLabel(r, { exact: true }); await f.fill(String(v)); await f.press('Enter') }
+  await page.evaluate(() => document.activeElement?.blur())
+}
+async function esperarMascara(id, teste, ms = 6000) {
+  let m = await mascaraDe(id)
+  for (let t = 0; t < ms && !teste(m); t += 150) { await page.waitForTimeout(150); m = await mascaraDe(id) }
+  if (!teste(m)) throw new Error(`máscara inesperada em ${id}: ${m.modo} ${m.img.slice(0, 160)}`)
+  return m
+}
+const arvoreCamadas = () => page.getByRole('tree', { name: 'Camadas da tela' })
+
+await passo('Máscara: texto como máscara de imagem (foto dentro do título, ⌃⌥M), editável, remover e desfazer', async () => {
+  await page.getByRole('tab', { name: 'Telas' }).click()
+  await page.getByRole('button', { name: '+ Nova tela' }).click()
+  await page.getByRole('tab', { name: 'Blocos' }).click()
+  await page.getByRole('button', { name: 'Título', exact: true }).click()
+  await page.getByLabel('Conteúdo do texto').fill('FOTO')
+  const tam = page.getByLabel('Tamanho da fonte')
+  await tam.fill('480')
+  await tam.press('Enter')
+  await page.getByRole('radiogroup', { name: 'Redimensionar texto' }).getByRole('radio', { name: /^Auto horizontal/ }).click()
+  await page.evaluate(() => document.activeElement?.blur())
+  await page.getByRole('button', { name: 'Centralizar na horizontal' }).click()
+  // a foto entra por cima do título
+  await page.getByRole('tab', { name: 'Arquivos' }).click()
+  await page.getByTitle(/Adicionar upload-1/).first().click()
+  await page.getByRole('tab', { name: 'Camadas' }).click()
+  await arvoreCamadas().getByRole('treeitem', { name: 'upload-1', exact: true }).waitFor()
+  await geometria([['Largura', 1920], ['Altura', 1080], ['Posição X', 0], ['Posição Y', 0]])
+  await page.keyboard.press('Control+a')
+  await page.keyboard.press('Control+Alt+KeyM')
+  await page.getByText('Máscara criada: a camada de baixo recorta as outras.').waitFor()
+  // painel de camadas: ícone de máscara no título; a foto recuada, com a seta para a máscara
+  const linhaTexto = arvoreCamadas().getByRole('treeitem', { name: 'FOTO', exact: true })
+  const linhaFoto = arvoreCamadas().getByRole('treeitem', { name: 'upload-1', exact: true })
+  await linhaTexto.locator('[data-mascara]').waitFor()
+  await linhaFoto.locator('[data-recortada]').waitFor()
+  const idFoto = await page.getByTestId('canvas').locator('[data-layer-id^="image-"]').first().getAttribute('data-layer-id')
+  await esperarMascara(idFoto, (m) => m.img.includes('<foreignObject') && m.img.includes('>FOTO<'))
+  // fonte da biblioteca embutida na máscara (a imagem SVG não enxerga as fontes da página)
+  await esperarMascara(idFoto, (m) => m.img.includes('@font-face'))
+  await linhaTexto.locator('div').first().click()
+  const tipo = page.getByRole('radiogroup', { name: 'Tipo de máscara' })
+  if ((await tipo.getByRole('radio', { name: 'Alfa' }).getAttribute('aria-checked')) !== 'true') throw new Error('máscara nova não é de alfa')
+  await page.screenshot({ path: `${SHOTS}/16-mascara-texto.png` })
+  // continua editável: mudar o texto atualiza o recorte
+  await page.getByLabel('Conteúdo do texto').fill('MOSTRA')
+  await page.evaluate(() => document.activeElement?.blur())
+  await esperarMascara(idFoto, (m) => m.img.includes('>MOSTRA<'))
+  // desligar (olho) mostra a foto inteira; ligar volta
+  await page.getByRole('button', { name: 'Desligar máscara' }).first().click()
+  await esperarMascara(idFoto, (m) => m.img === 'none')
+  await page.getByRole('button', { name: 'Ligar máscara' }).first().click()
+  await esperarMascara(idFoto, (m) => m.img.includes('>MOSTRA<'))
+  // remover máscara desfaz; desfazer traz de volta
+  await page.getByRole('button', { name: 'Remover máscara' }).click()
+  await esperarMascara(idFoto, (m) => m.img === 'none')
+  if (await linhaTexto.locator('[data-mascara]').count()) throw new Error('o título continuou como máscara')
+  await page.getByRole('button', { name: /^Desfazer/ }).first().click()
+  await esperarMascara(idFoto, (m) => m.img.includes('>MOSTRA<'))
+})
+
+const PNG_ALFA = `${SHOTS}/alfa-e2e.png`
+{
+  const c = createCanvas(400, 400)
+  const g = c.getContext('2d')
+  const rg = g.createRadialGradient(200, 200, 30, 200, 200, 195)
+  rg.addColorStop(0, 'rgba(255,255,255,1)')
+  rg.addColorStop(0.6, 'rgba(110,110,110,1)')
+  rg.addColorStop(1, 'rgba(0,0,0,0)')
+  g.fillStyle = rg
+  g.beginPath(); g.arc(200, 200, 195, 0, Math.PI * 2); g.fill()
+  fs.writeFileSync(PNG_ALFA, c.toBuffer('image/png'))
+}
+
+await passo('Máscara: PNG com transparência como máscara de alfa, luminância e contorno', async () => {
+  await page.getByRole('tab', { name: 'Telas' }).click()
+  await page.getByRole('button', { name: '+ Nova tela' }).click()
+  await page.getByRole('tab', { name: 'Arquivos' }).click()
+  await page.getByRole('complementary', { name: 'Painel esquerdo' }).locator('input[type=file]').setInputFiles([PNG_ALFA])
+  await page.getByRole('tab', { name: 'Camadas' }).click()
+  await arvoreCamadas().getByRole('treeitem', { name: 'alfa-e2e', exact: true }).waitFor({ timeout: 15000 })
+  await geometria([['Largura', 800], ['Altura', 800], ['Posição X', 560], ['Posição Y', 140]])
+  await page.getByRole('tab', { name: 'Arquivos' }).click()
+  await page.getByTitle(/Adicionar upload-2/).first().click()
+  await page.getByRole('tab', { name: 'Camadas' }).click()
+  await arvoreCamadas().getByRole('treeitem', { name: 'upload-2', exact: true }).waitFor()
+  await geometria([['Largura', 1920], ['Altura', 1080], ['Posição X', 0], ['Posição Y', 0]])
+  await page.keyboard.press('Control+a')
+  await page.keyboard.press('Control+Alt+KeyM')
+  await page.getByText('Máscara criada: a camada de baixo recorta as outras.').first().waitFor()
+  const linhaAlfa = arvoreCamadas().getByRole('treeitem', { name: 'alfa-e2e', exact: true })
+  await linhaAlfa.locator('[data-mascara]').waitFor()
+  // a foto recortada é a camada do canvas com mask-image (espera o PNG embutido carregar)
+  const comMascara = () => page.getByTestId('canvas').locator('[data-layer-id]').evaluateAll((els) => els.filter((e) => getComputedStyle(e).maskImage !== 'none').map((e) => e.getAttribute('data-layer-id')))
+  let ids = await comMascara()
+  for (let t = 0; t < 6000 && ids.length !== 1; t += 150) { await page.waitForTimeout(150); ids = await comMascara() }
+  if (ids.length !== 1) throw new Error(`esperava 1 camada recortada, há ${ids.length}`)
+  const idFoto = ids[0]
+  // alfa: o PNG embutido na máscara (a transparência dele recorta a foto)
+  await esperarMascara(idFoto, (m) => m.img.includes('<img src="data:image/') && m.modo !== 'luminance')
+  await linhaAlfa.locator('div').first().click()
+  const tipo = page.getByRole('radiogroup', { name: 'Tipo de máscara' })
+  await page.screenshot({ path: `${SHOTS}/17-mascara-alfa.png` })
+  await tipo.getByRole('radio', { name: 'Luminância' }).click()
+  await esperarMascara(idFoto, (m) => m.modo === 'luminance')
+  await page.screenshot({ path: `${SHOTS}/18-mascara-luminancia.png` })
+  await tipo.getByRole('radio', { name: 'Contorno' }).click()
+  await esperarMascara(idFoto, (m) => m.modo !== 'luminance' && !m.img.includes('<img'))
+  await tipo.getByRole('radio', { name: 'Alfa' }).click()
+  await esperarMascara(idFoto, (m) => m.img.includes('<img src="data:image/'))
+  // a miniatura da tela usa o mesmo renderizador
+  await page.getByRole('tab', { name: 'Telas' }).click()
+  const mini = page.getByRole('listbox', { name: 'Telas' }).getByRole('option', { selected: true }).locator(`[data-layer-id="${idFoto}"]`)
+  const mm = await mini.evaluate((e) => getComputedStyle(e).maskImage)
+  if (!mm.includes('data:image/svg+xml')) throw new Error('miniatura sem a máscara')
 })
 
 const LOGO = `${SHOTS}/logo-aurora.svg`

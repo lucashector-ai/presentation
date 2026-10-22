@@ -52,6 +52,8 @@ export function cenaDaSelecao(cena: Cena, ids: readonly string[]): Cena | null {
   const camadasRaiz = cena.layers.filter((l) => r.has(l.id) && !l.hidden)
   if (!camadasRaiz.length) return null
   const todos = new Set(comDescendentes(camadasRaiz.map((l) => l.id), cena.layers))
+  // a máscara de uma camada exportada vai junto (não é desenhada, só recorta)
+  for (const l of cena.layers) if (todos.has(l.id) && l.maskId) todos.add(l.maskId)
   // texto com corte vertical: as letras passam da caixa (acentos, descendentes); a exportação inclui a linha inteira
   const caixas = camadasRaiz.map((l) => { if (l.type !== 'text' || l.leadingTrim !== 'cap') return caixaVisivel(l); const k = corteVertical(l); return caixaVisivel({ ...l, y: l.y - k.topo, height: l.height + k.topo + k.base }) })
   const x0 = Math.floor(Math.min(...caixas.map((c) => c.x)))

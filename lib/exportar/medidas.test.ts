@@ -55,6 +55,13 @@ describe('exportar seleção', () => {
     const oculta = { ...cena, layers: cena.layers.map((l) => (l.id === 'o' ? { ...l, hidden: true } : l)) }
     expect(cenaDaSelecao(oculta, ['o'])).toBeNull()
   })
+  it('a máscara da camada exportada vai junto (sem entrar na caixa)', () => {
+    const m = parseCamada({ id: 'm', type: 'text', text: 'FOTO', x: 0, y: 0, width: 2000, height: 50, isMask: true })
+    const foto = parseCamada({ id: 'p', type: 'image', assetId: 'a', x: 100, y: 100, width: 200, height: 100, maskId: 'm' })
+    const sub = cenaDaSelecao(novaCena({ id: 's', size: { width: 1920, height: 1080 }, layers: [m, foto] }), ['p'])!
+    expect(sub.size).toEqual({ width: 200, height: 100 })
+    expect(sub.layers.map((l) => l.id)).toEqual(['m', 'p'])
+  })
   it('rotação aumenta a caixa', () => {
     const r = caixaVisivel({ x: 0, y: 0, width: 100, height: 100, rotation: 45 })
     expect(r.width).toBeCloseTo(141.42, 1)
