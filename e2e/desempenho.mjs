@@ -227,7 +227,7 @@ async function medir(page, cdp, acao, ms) {
   let eventos = []
   if (rastro) {
     cdp.on('Tracing.dataCollected', (e) => { eventos.push(...e.value) })
-    await cdp.send('Tracing.start', { categories: 'blink.animations,devtools.timeline,disabled-by-default-devtools.timeline', transferMode: 'ReportEvents' })
+    await cdp.send('Tracing.start', { categories: `blink.animations,devtools.timeline,disabled-by-default-devtools.timeline${process.env.DESEMPENHO_RASTRO === '6' ? ',toplevel,viz,cc,gpu,__metadata' : ''}`, transferMode: 'ReportEvents' })
   }
   await page.evaluate(iniciarGravacao)
   const m0 = await metricas(cdp)
@@ -261,6 +261,23 @@ async function medir(page, cdp, acao, ms) {
       const ult = eventos.filter((e) => e.name === 'UpdateLayoutTree' && e.ph === 'X')
       const contagens = ult.map((e) => e.args?.elementCount ?? e.args?.endData?.elementCount ?? '?')
       console.log('    elementos por recálculo:', contagens.slice(0, 120).join(' '))
+    }
+    if (process.env.DESEMPENHO_RASTRO === '6') {
+      // quadros lentos: tempo ocupado de cada thread (de todos os processos) no intervalo
+      const nomes = new Map(eventos.filter((e) => e.name === 'thread_name').map((e) => [`${e.pid}:${e.tid}`, e.args?.name]))
+      const tid = eventos.find((e) => e.name === 'FireAnimationFrame')?.tid
+      const raf = eventos.filter((e) => e.name === 'FireAnimationFrame' && e.tid === tid).map((e) => e.ts).sort((a, b) => a - b)
+      // uma tarefa de cada nível só (ThreadControllerImpl::RunTask envolve a RunTask do devtools)
+      const tarefas = eventos.filter((e) => e.ph === 'X' && (e.name === 'ThreadControllerImpl::RunTask' || e.name === 'ThreadPool_RunTask'))
+      const lentos = []
+      for (let i = 1; i < raf.length; i++) if (raf[i] - raf[i - 1] > 20000) lentos.push([raf[i - 1], raf[i]])
+      const ocupado = (a, b) => {
+        const m = new Map()
+        for (const e of tarefas) { const ini = Math.max(a, e.ts); const fim = Math.min(b, e.ts + (e.dur ?? 0)); if (fim > ini) { const k = nomes.get(`${e.pid}:${e.tid}`) ?? `${e.pid}:${e.tid}`; m.set(k, (m.get(k) ?? 0) + (fim - ini) / 1000) } }
+        return [...m.entries()].sort((x, y) => y[1] - x[1]).slice(0, 6).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(' · ')
+      }
+      for (const [a, b] of lentos.slice(0, 8)) console.log(`     quadro ${Math.round((b - a) / 1000)} ms:`, ocupado(a, b))
+      if (raf.length > 2) console.log('     média por quadro:', ocupado(raf[0], raf[raf.length - 1]).replace(/(\d+\.\d)/g, (x) => (Number(x) / (raf.length - 1)).toFixed(2)))
     }
     if (process.env.DESEMPENHO_RASTRO === '5') {
       // quadros lentos: o que a thread principal fez entre um requestAnimationFrame e o seguinte

@@ -270,11 +270,13 @@ export function modoDivisao(tipo: TipoAnimacao): 'palavra' | 'letra' | null {
 
 /**
  * No máximo quantas partes de um texto se movem ao mesmo tempo (intervalo automático). Cada parte em movimento
- * tem o estilo recalculado pelo navegador a cada quadro; com 60 palavras sobrepostas, um parágrafo recalculava
- * 120 elementos por quadro. Acima do limite o passo entre partes cresce e cada parte anda um pouco mais rápido —
- * a duração total (o que o público percebe e a linha do tempo mostra) não muda.
+ * é uma camada composta com o estilo recalculado a cada quadro, e o compositor desenha cada uma: com 60 palavras
+ * sobrepostas, um parágrafo recalculava 120 elementos e compunha 60 camadas por quadro — e numa tela há vários
+ * blocos de texto ao mesmo tempo. Acima do limite o passo entre partes cresce e cada parte anda um pouco mais
+ * rápido (palavras de ~0,5 s a cada 40 ms em vez de 0,77 s a cada 30 ms: a cadência fica mais nítida); a duração
+ * total (o que o público percebe e a linha do tempo mostra) não muda.
  */
-export const PARTES_SIMULTANEAS_MAX = 24
+export const PARTES_SIMULTANEAS_MAX = 12
 /** Duração mínima de cada parte quando o limite de partes simultâneas encurta o movimento. */
 const PARTE_MIN_MS = 240
 

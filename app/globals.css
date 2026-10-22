@@ -192,8 +192,8 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
    ficam para trás; --plx-dir = 1 avançando, −1 voltando */
 @keyframes plx-entra { from { transform: translateX(calc(var(--plx, 0) * var(--plx-dir, 1) * 240px)) } to { transform: translateX(0px) } }
 @keyframes plx-sai { from { transform: translateX(0px) } to { transform: translateX(calc(var(--plx, 0) * var(--plx-dir, 1) * -240px)) } }
-.cena-transicao-slide .camada-plx { animation: plx-entra var(--dur, 500ms) cubic-bezier(.16, 1, .3, 1) both; }
-.cena-transicao-push .camada-plx { animation: plx-entra var(--dur, 500ms) cubic-bezier(.65, 0, .35, 1) both; }
+.cena-transicao-slide .camada-plx { animation: plx-entra var(--dur, 500ms) cubic-bezier(.16, 1, .3, 1) backwards; }
+.cena-transicao-push .camada-plx { animation: plx-entra var(--dur, 500ms) cubic-bezier(.65, 0, .35, 1) backwards; }
 .cena-saindo-push .camada-plx { animation: plx-sai var(--dur, 500ms) cubic-bezier(.65, 0, .35, 1) both; }
 /* ênfase em loop (começa quando a entrada termina) */
 @keyframes loop-float { 0%, 100% { transform: translateY(0) var(--tf, translate(0)) } 50% { transform: translateY(calc(-14px * var(--amp, 1))) var(--tf, translate(0)) } }
@@ -221,18 +221,22 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 @keyframes cena-slide { from { opacity: 0; transform: translateX(calc(var(--dir, 1) * 6%)) } to { opacity: 1; transform: translateX(0) } }
 @keyframes cena-zoom { from { opacity: 0; transform: scale(1.04) } to { opacity: 1; transform: scale(1) } }
 @keyframes cena-scale { from { opacity: 0; transform: scale(.92) } to { opacity: 1; transform: scale(1) } }
-@keyframes cena-saida { from { opacity: 1 } to { opacity: 0 } }
+/* a tela que sai termina escondida (visibility): com opacidade 0 ela continuava sendo composta a cada quadro até sair do DOM */
+@keyframes cena-saida { from { opacity: 1 } 99.9% { opacity: 0; visibility: visible } to { opacity: 0; visibility: hidden } }
 
-.cena-transicao-fade { animation: cena-fade var(--dur, 350ms) ease-out both; }
-.cena-transicao-slide { animation: cena-slide var(--dur, 350ms) ease-out both; }
-.cena-transicao-zoom { animation: cena-zoom var(--dur, 350ms) ease-out both; }
-.cena-transicao-scale { animation: cena-scale var(--dur, 350ms) cubic-bezier(.2,.8,.2,1) both; }
+/* transição de entrada: preenche só para trás (o fim é o estilo parado). Com `both`, a tela inteira seguia como
+   uma superfície de composição com opacidade animada depois do fim — o compositor desenhava a tela duas vezes
+   por quadro (numa textura e dela para a tela) enquanto as entradas tocavam */
+.cena-transicao-fade { animation: cena-fade var(--dur, 350ms) ease-out backwards; }
+.cena-transicao-slide { animation: cena-slide var(--dur, 350ms) ease-out backwards; }
+.cena-transicao-zoom { animation: cena-zoom var(--dur, 350ms) ease-out backwards; }
+.cena-transicao-scale { animation: cena-scale var(--dur, 350ms) cubic-bezier(.2,.8,.2,1) backwards; }
 .cena-saindo { animation: cena-saida var(--dur, 400ms) ease-out both; pointer-events: none; }
 /* empurrar: a tela nova entra pela lateral e empurra a anterior (as duas andam juntas, mesma curva); --dir = 1
    avançando, −1 voltando; --larg = largura da área do visualizador (no editor, a da própria tela) */
 @keyframes cena-push { from { transform: translateX(calc(var(--dir, 1) * var(--larg, 100%))) } to { transform: translateX(0) } }
-@keyframes cena-saida-push { from { transform: translateX(0) } to { transform: translateX(calc(var(--dir, 1) * -1 * var(--larg, 100%))) } }
-.cena-transicao-push { animation: cena-push var(--dur, 500ms) cubic-bezier(.65, 0, .35, 1) both; }
+@keyframes cena-saida-push { from { transform: translateX(0) } 99.9% { transform: translateX(calc(var(--dir, 1) * -1 * var(--larg, 100%))); visibility: visible } to { transform: translateX(calc(var(--dir, 1) * -1 * var(--larg, 100%))); visibility: hidden } }
+.cena-transicao-push { animation: cena-push var(--dur, 500ms) cubic-bezier(.65, 0, .35, 1) backwards; }
 .cena-saindo.cena-saindo-push { animation-name: cena-saida-push; animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
 
 @media (prefers-reduced-motion: reduce) {
