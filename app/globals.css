@@ -253,9 +253,10 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 @media (prefers-reduced-motion: reduce) {
   .cena-transicao-fade, .cena-transicao-slide, .cena-transicao-zoom, .cena-transicao-scale, .cena-transicao-push, .cena-saindo { animation-duration: 1ms !important; animation-delay: 0ms !important; }
 }
-/* editor durante a prévia: os painéis viram camadas próprias (o canvas animando não refaz a composição deles a
-   cada quadro) e as sobreposições do canvas (seleção, alças, guias) somem enquanto toca */
-html[data-previa-tocando] aside { will-change: transform; }
+/* painéis do editor em camadas próprias, sempre (ligar e desligar na prévia custava um recálculo e uma
+   rasterização dos painéis no começo e no fim dela): o canvas animando não refaz a composição deles */
+aside[aria-label="Propriedades"], aside[aria-label="Painel esquerdo"] { will-change: transform; }
+/* editor durante a prévia: as sobreposições do canvas (seleção, alças, guias) somem enquanto toca */
 html[data-previa-tocando] [data-testid="canvas-area"] > :not([data-testid="canvas"]):not([data-rotulo-tela]) { visibility: hidden; }
 
 /* controles do visualizador: somem ao apresentar (continuam no teclado e reaparecem ao passar o mouse) */

@@ -291,9 +291,13 @@ function TextoDividido({ texto, animacao, gradiente, cor }: { texto: string; ani
     let inicio = 0
     let prox = 0
     let raf = 0
+    // máquina de escrever e decodificar: a letra só aparece (sem movimento) — basta tirar a espera no quadro em que
+    // ela começa; nenhuma animação por letra (o cursor, uma animação só, segue o mesmo relógio)
+    const seca = inline
     const tique = () => {
       const agora = Number(document.timeline.currentTime ?? performance.now())
-      while (prox < fila.length && inicio + fila[prox]!.t - ANTECEDENCIA_MS <= agora) vivas.push(...criar(fila[prox++]!.p, inicio))
+      if (seca) while (prox < fila.length && inicio + fila[prox]!.t <= agora) fila[prox++]!.p.removeAttribute('data-espera')
+      else while (prox < fila.length && inicio + fila[prox]!.t - ANTECEDENCIA_MS <= agora) vivas.push(...criar(fila[prox++]!.p, inicio))
       raf = prox < fila.length ? requestAnimationFrame(tique) : 0
     }
     const parar = quandoLiberar(el, () => {

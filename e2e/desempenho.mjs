@@ -230,7 +230,7 @@ async function medir(page, cdp, acao, ms) {
   let eventos = []
   if (rastro) {
     cdp.on('Tracing.dataCollected', (e) => { eventos.push(...e.value) })
-    await cdp.send('Tracing.start', { categories: `blink.animations,devtools.timeline,disabled-by-default-devtools.timeline${process.env.DESEMPENHO_RASTRO === '6' ? ',toplevel,viz,cc,gpu,__metadata' : ''}`, transferMode: 'ReportEvents' })
+    await cdp.send('Tracing.start', { categories: `blink.animations,devtools.timeline,disabled-by-default-devtools.timeline${process.env.DESEMPENHO_RASTRO === '6' ? ',toplevel,viz,cc,gpu,__metadata' : process.env.DESEMPENHO_RASTRO === '7' ? ',blink,cc,disabled-by-default-blink.debug,disabled-by-default-cc.debug' : ''}`, transferMode: 'ReportEvents' })
   }
   await page.evaluate(iniciarGravacao)
   const m0 = await metricas(cdp)
@@ -264,6 +264,12 @@ async function medir(page, cdp, acao, ms) {
       const ult = eventos.filter((e) => e.name === 'UpdateLayoutTree' && e.ph === 'X')
       const contagens = ult.map((e) => e.args?.elementCount ?? e.args?.endData?.elementCount ?? '?')
       console.log('    elementos por recálculo:', contagens.slice(0, 120).join(' '))
+    }
+    if (process.env.DESEMPENHO_RASTRO === '7') {
+      // por que o compositor de pintura refaz a composição (args dos eventos Layerize / PaintArtifactCompositor)
+      const motivos = new Map()
+      for (const e of eventos) if (/Layerize|PaintArtifactCompositor|SetNeedsUpdate/.test(e.name)) { const k = `${e.name} ${JSON.stringify(e.args ?? {}).slice(0, 120)}`; motivos.set(k, (motivos.get(k) ?? 0) + 1) }
+      console.log('    composição:', [...motivos.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15).map(([k, v]) => `${v}× ${k}`).join('\n      '))
     }
     if (process.env.DESEMPENHO_RASTRO === '6') {
       // quadros lentos: tempo ocupado de cada thread (de todos os processos) no intervalo
