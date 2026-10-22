@@ -92,7 +92,7 @@ describe('keyframes de entrada terminam no estilo parado', () => {
     s = s.replace(/(translate[XY]?|rotate[XY]?)\(\s*0(px|%|deg)?\s*(,\s*0(px|%|deg)?\s*)?\)/g, '').replace(/scale\(\s*1\s*(,\s*1\s*)?\)/g, '')
     return s.trim() === ''
   }
-  const ENTRADAS = ['anim-fadeIn', 'anim-mov', 'anim-movBlur', 'anim-desfoque', 'seg-desfoque', 'anim-pop', 'anim-elastic', 'anim-bounce', 'anim-flip', 'anim-reveal', 'anim-mask', 'anim-iris', 'anim-draw', 'seg-mov', 'seg-movBlur', 'seg-linha', 'seg-typewriter', 'seg-scramble', 'seg-contador', 'seg-marca']
+  const ENTRADAS = ['anim-fadeIn', 'anim-mov', 'anim-movBlur', 'anim-desfoque', 'seg-desfoque', 'anim-pop', 'anim-elastic', 'anim-bounce', 'anim-flip', 'anim-reveal', 'anim-mask', 'anim-iris', 'anim-draw', 'seg-mov', 'seg-movBlur', 'seg-linha', 'seg-typewriter', 'seg-scramble', 'seg-aparece', 'seg-marca']
   for (const nome of ENTRADAS) {
     it(nome, () => {
       const d = ultimoQuadro(nome)
