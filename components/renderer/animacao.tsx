@@ -660,15 +660,17 @@ let contador = 0
 
 let fimMarca: number | undefined
 /**
- * Marca a página enquanto uma prévia toca (`html[data-previa-tocando]`): o CSS deixa os painéis do editor em
- * camadas próprias e esconde as sobreposições do canvas. Escrita direta no DOM, sem re-renderizar o editor.
+ * Marca a área do canvas enquanto uma prévia toca (`[data-previa-tocando]`): o CSS esconde as sobreposições
+ * (seleção, alças, guias). Escrita direta no DOM, sem re-renderizar o editor; no elemento da área (e não no
+ * <html>), para a troca recalcular só os filhos dela.
  */
 function marcarPrevia(ms: number) {
-  const html = document.documentElement
+  const area = document.querySelector('[data-testid="canvas-area"]')
   window.clearTimeout(fimMarca)
-  if (!ms) return void html.removeAttribute('data-previa-tocando')
-  html.setAttribute('data-previa-tocando', '')
-  fimMarca = window.setTimeout(() => html.removeAttribute('data-previa-tocando'), ms + 150)
+  if (!area) return
+  if (!ms) return void area.removeAttribute('data-previa-tocando')
+  area.setAttribute('data-previa-tocando', '')
+  fimMarca = window.setTimeout(() => area.removeAttribute('data-previa-tocando'), ms + 150)
 }
 
 export function pedirPrevia(p: Omit<PedidoPrevia, 'nonce' | 'inicio'>) {

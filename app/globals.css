@@ -257,7 +257,7 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
    rasterização dos painéis no começo e no fim dela): o canvas animando não refaz a composição deles */
 aside[aria-label="Propriedades"], aside[aria-label="Painel esquerdo"] { will-change: transform; }
 /* editor durante a prévia: as sobreposições do canvas (seleção, alças, guias) somem enquanto toca */
-html[data-previa-tocando] [data-testid="canvas-area"] > :not([data-testid="canvas"]):not([data-rotulo-tela]) { visibility: hidden; }
+[data-testid="canvas-area"][data-previa-tocando] > :not([data-testid="canvas"]):not([data-rotulo-tela]) { visibility: hidden; }
 
 /* controles do visualizador: somem ao apresentar (continuam no teclado e reaparecem ao passar o mouse) */
 .viewer-controles { transition: opacity 300ms ease, transform 300ms cubic-bezier(.2,.8,.2,1); }

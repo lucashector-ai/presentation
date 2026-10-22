@@ -444,8 +444,9 @@ function Texto({ c, origem, modo, duracao, easing, animTexto, rolagem }: { c: Ca
         filter: desfoqueDe(c.effects) ? `blur(${desfoqueDe(c.effects)}px)` : undefined,
         ...estiloTracoTexto(c),
         // texto animado por partes: o que muda dentro dele (letras aparecendo, sorteio, contador) não refaz o
-        // layout nem o estilo do resto da tela (sem contenção de pintura: as partes sobem de fora da caixa)
-        ...(animTexto ? { contain: 'layout style' } : {}),
+        // layout nem o estilo do resto da tela — a caixa tem o tamanho da camada (definido), então a contenção de
+        // tamanho não muda nada e faz dela um limite de layout. Sem contenção de pintura: as partes sobem de fora.
+        ...(animTexto ? { contain: 'size layout style' } : {}),
       }}
     >
       {animTexto ? (
