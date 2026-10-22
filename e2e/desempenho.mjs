@@ -412,7 +412,8 @@ const CENARIOS = [
     preparar: async (p) => { await abrirApresentar(p, 'pr-atlas', 17); await p.mouse.move(60, 60) },
     acao: (p) => async () => { await moverMouse(p, [[150, 640], [420, 760], [540, 640], [720, 760], [900, 640], [1100, 760], [1300, 640], [60, 60]], 3000) } },
   { id: 'rolagem', nome: 'Story: parallax e entradas que acompanham a rolagem (vai e volta)', principal: true, ms: 0,
-    preparar: async (p) => { await abrirApresentar(p, 'pr-mare'); await p.mouse.move(700, 450); for (let i = 0; i < 10; i++) { await p.mouse.wheel(0, 110); await p.waitForTimeout(40) } await p.waitForTimeout(1500) },
+    // começa um pouco antes da 2ª seção (cartões com entrada "ao rolar" e profundidades diferentes)
+    preparar: async (p) => { await abrirApresentar(p, 'pr-mare'); await p.mouse.move(700, 450); await p.evaluate(() => { const r = document.querySelector('.overflow-y-auto'); if (r) r.scrollTop = 830 }); await p.waitForTimeout(1500) },
     acao: (p) => async () => { for (const d of [70, 70, 70, 70, 70, 70, 70, 70, 70, 70, 70, 70, 70, 70, 70, 70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, 70, 70, 70, 70, 70, 70, 70, 70]) { await p.mouse.wheel(0, d); await p.waitForTimeout(50) } await p.waitForTimeout(600) } },
   { id: 'story', nome: 'Story: rolagem com entradas por seção', principal: true, ms: 0,
     preparar: async (p) => { await abrirApresentar(p, 'pr-mare') },
