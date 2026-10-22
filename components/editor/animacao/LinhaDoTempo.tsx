@@ -12,17 +12,37 @@ import { pedirPrevia, usePreviaAnimacao } from '@/components/renderer/animacao'
 import { cx } from '@/components/ui'
 
 type Modo = 'mover' | 'inicio' | 'fim'
-const GATILHOS = { after: 'depois de outra camada', click: 'toca ao clicar', hover: 'toca ao passar o mouse' } as const
+const GATILHOS = { after: 'depois de outra camada', click: 'toca ao clicar', hover: 'toca ao passar o mouse', scroll: 'acompanha a rolagem' } as const
 const PASSO = 50
 const snap = (v: number) => Math.round(v / PASSO) * PASSO
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v))
+
+/**
+ * Cursor da prévia: uma animação CSS (transform, na GPU) em vez de um estado React por quadro — antes a linha do
+ * tempo inteira re-renderizava e o cursor mudava `left` (layout + pintura) a cada quadro. Componente próprio: só
+ * ele acompanha a prévia (as linhas não re-renderizam no começo e no fim dela).
+ */
+function CursorPrevia({ total }: { total: number }) {
+  const previa = usePreviaAnimacao(true)
+  const tocando = !!previa && !previa.semAtraso && !previa.saida
+  const decorrido = tocando ? Math.max(0, performance.now() - previa.inicio) : 0
+  if (!tocando || decorrido > total) return null
+  return (
+    <div aria-hidden className="pointer-events-none absolute bottom-0 top-0" style={{ left: 76, right: 0, overflow: 'clip', overflowClipMargin: 4 }}>
+      <div key={`${previa.nonce}-${total}`} className="linha-cursor absolute inset-y-0 left-0 w-full" style={{ animationDuration: `${total}ms`, animationDelay: `${-Math.round(decorrido)}ms` }}>
+        <div className="absolute bottom-0 left-0 top-0 w-px bg-guia">
+          <span className="absolute -left-[3px] top-0 h-[7px] w-[7px] rounded-full bg-guia" />
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export function LinhaDoTempo({ editor }: { editor: Editor }) {
   const { cena, acoes } = editor
   const dados = useMemo(() => (cena ? linhaDoTempo(cena) : { linhas: [], total: 2000 }), [cena])
   const [congelado, setCongelado] = useState<{ total: number; ordem: string[] } | null>(null)
   const [arrasto, setArrasto] = useState<{ id: string; delay: number; duration: number } | null>(null)
-  const previa = usePreviaAnimacao(true)
   const trilhas = useRef<HTMLDivElement>(null)
 
   if (!cena) return null
@@ -79,10 +99,6 @@ export function LinhaDoTempo({ editor }: { editor: Editor }) {
 
   const marcas: number[] = []
   for (let t = 0; t <= total; t += 500) marcas.push(t)
-  // cursor da prévia: uma animação CSS (transform, na GPU) em vez de um estado React por quadro — antes a
-  // linha do tempo inteira re-renderizava e o cursor mudava `left` (layout + pintura) a cada quadro
-  const tocando = !!previa && !previa.semAtraso && !previa.saida
-  const decorrido = tocando ? Math.max(0, performance.now() - previa.inicio) : 0
 
   return (
     <div className="select-none" data-testid="linha-do-tempo">
@@ -108,7 +124,7 @@ export function LinhaDoTempo({ editor }: { editor: Editor }) {
             return (
               <div key={l.id} className={cx('group flex h-[22px] items-center', l.oculta && 'opacity-45')}>
                 <button type="button" onClick={() => acoes.selecionar([l.id])} title={`Selecionar “${l.nome}”`} className="w-[76px] shrink-0 truncate pr-2 text-left text-[11px] text-texto2 hover:text-texto">
-                  {l.gatilho === 'after' ? '↳ ' : l.gatilho ? '◎ ' : ''}{l.nome}
+                  {l.gatilho === 'after' ? '↳ ' : l.gatilho === 'scroll' ? '↕ ' : l.gatilho ? '◎ ' : ''}{l.nome}
                 </button>
                 <div
                   ref={l === linhas[0] ? trilhas : undefined}
@@ -149,16 +165,7 @@ export function LinhaDoTempo({ editor }: { editor: Editor }) {
             )
           })}
         </div>
-        {/* cursor da prévia */}
-        {tocando && decorrido <= total && (
-          <div aria-hidden className="pointer-events-none absolute bottom-0 top-0" style={{ left: 76, right: 0, overflow: 'clip', overflowClipMargin: 4 }}>
-            <div key={`${previa.nonce}-${total}`} className="linha-cursor absolute inset-y-0 left-0 w-full" style={{ animationDuration: `${total}ms`, animationDelay: `${-Math.round(decorrido)}ms` }}>
-              <div className="absolute bottom-0 left-0 top-0 w-px bg-guia">
-                <span className="absolute -left-[3px] top-0 h-[7px] w-[7px] rounded-full bg-guia" />
-              </div>
-            </div>
-          </div>
-        )}
+        <CursorPrevia total={total} />
       </div>
       {!linhas.length && <p className="py-2 text-[12px] text-texto3">Nenhuma camada nesta tela.</p>}
     </div>

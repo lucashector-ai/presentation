@@ -8,9 +8,9 @@
  * - a saída toca quando a seção está indo embora (menos de 30% dela à vista), se a tela tiver saídas;
  * - ao voltar para uma seção que saiu, a entrada toca de novo. Sem saídas, a entrada toca uma vez só.
  */
-import { useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { tempoSaida } from '@/lib/scene/animacoes'
-import type { Camada, DocumentoProjeto, Interacao } from '@/lib/scene/schema'
+import type { Camada, Cena, DocumentoProjeto, Interacao } from '@/lib/scene/schema'
 import { aoSairHover, estadoInicialRuntime, executar, type Efeito, type EstadoRuntime } from '@/lib/scene/motor'
 import { SceneRenderer, type SceneRendererProps } from '@/components/renderer/SceneRenderer'
 import { FundoEstendido } from './FundoEstendido'
@@ -92,33 +92,75 @@ export function StoryView({ documento, tamanho, runtime, aplicar, iniciado = tru
     return () => observadores.forEach((o) => o.disconnect())
   }, [documento, larguraEditorial])
 
+  const registrar = useCallback((id: string, el: HTMLDivElement | null) => { if (el) refs.current.set(id, el) }, [])
   if (!tamanho.width) return null
+  const { assets, modo, reduzirMovimento, semHover, mobile, aoInteragir, registrarVideo } = comum
   return (
     <div className="rolagem-fina absolute inset-0 overflow-y-auto overflow-x-hidden" style={{ scrollSnapType: 'y proximity' }}>
       <div className="flex w-full flex-col">
         {documento.scenes.map((cena, indice) => {
-          const escala = larguraEditorial / cena.size.width
-          const rt = runtimes[cena.id] ?? estadoInicialRuntime(indice)
           const sec = secoes[cena.id] ?? { fase: 'esperando', vez: 0 }
-          const interagir = (camada: Camada, inters: Interacao[], origem: 'click' | 'hoverEnter' | 'hoverLeave') => {
-            if (origem === 'hoverLeave') return setRuntimes((rs) => ({ ...rs, [cena.id]: aoSairHover(documento, rs[cena.id] ?? estadoInicialRuntime(indice), camada) }))
-            const navega = inters.find((i) => ['nextScene', 'prevScene', 'goToScene'].includes(i.do.action))
-            if (navega) return comum.aoInteragir?.(camada, [navega], 'click')
-            setRuntimes((rs) => {
-              let estado = rs[cena.id] ?? estadoInicialRuntime(indice)
-              for (const i of inters) estado = executar(documento, estado, camada, i).estado
-              return { ...rs, [cena.id]: { ...estado, indice } }
-            })
-            comum.aoInteragir?.(camada, inters.filter((i) => i.do.action === 'openLink' || i.do.action === 'toggleVideo'), 'click')
-          }
           return (
-            <div key={cena.id} ref={(el) => { if (el) refs.current.set(cena.id, el) }} data-cena={cena.id} className={`relative w-full ${sec.fase === 'esperando' ? 'animacoes-em-espera' : ''}`} style={{ scrollSnapAlign: 'start' }}>
-              {tamanho.width > larguraEditorial && <FundoEstendido cena={cena} assets={comum.assets} escala={escala} x={(tamanho.width - larguraEditorial) / 2} y={0} largura={tamanho.width} altura={cena.size.height * escala} style={{ left: 0, top: 0, width: '100%' }} />}
-              <SceneRenderer cena={cena} escala={escala} runtime={rt} chaveEntrada={`${cena.id}-${sec.vez}`} saida={sec.fase === 'fora'} {...comum} aoInteragir={interagir} style={{ margin: '0 auto' }} />
-            </div>
+            <SecaoStory
+              key={cena.id}
+              documento={documento}
+              cena={cena}
+              indice={indice}
+              larguraTela={tamanho.width}
+              larguraEditorial={larguraEditorial}
+              runtime={runtimes[cena.id]}
+              fase={sec.fase}
+              vez={sec.vez}
+              setRuntimes={setRuntimes}
+              registrar={registrar}
+              comum={{ assets, modo, reduzirMovimento, semHover, mobile, aoInteragir, registrarVideo }}
+            />
           )
         })}
       </div>
     </div>
   )
 }
+
+/** Props estáveis repassadas a todas as seções (vêm do Viewer: mesmas referências entre renders). */
+type ComumSecao = Pick<Comum, 'assets' | 'modo' | 'reduzirMovimento' | 'semHover' | 'mobile' | 'aoInteragir' | 'registrarVideo'>
+
+/**
+ * Uma seção do Story. Memorizada: quando uma seção muda de fase (entra, sai), só ela renderiza de novo — antes a
+ * troca de fase de uma seção re-renderizava todas as telas do Story (com o texto dividido de cada uma) no meio
+ * da rolagem.
+ */
+const SecaoStory = memo(function SecaoStory({ documento, cena, indice, larguraTela, larguraEditorial, runtime, fase, vez, setRuntimes, registrar, comum }: {
+  documento: DocumentoProjeto
+  cena: Cena
+  indice: number
+  larguraTela: number
+  larguraEditorial: number
+  runtime?: EstadoRuntime
+  fase: EstadoSecao['fase']
+  vez: number
+  setRuntimes: Dispatch<SetStateAction<Record<string, EstadoRuntime>>>
+  registrar: (id: string, el: HTMLDivElement | null) => void
+  comum: ComumSecao
+}) {
+  const escala = larguraEditorial / cena.size.width
+  const rt = runtime ?? estadoInicialRuntime(indice)
+  const { aoInteragir } = comum
+  const interagir = useCallback((camada: Camada, inters: Interacao[], origem: 'click' | 'hoverEnter' | 'hoverLeave') => {
+    if (origem === 'hoverLeave') return setRuntimes((rs) => ({ ...rs, [cena.id]: aoSairHover(documento, rs[cena.id] ?? estadoInicialRuntime(indice), camada) }))
+    const navega = inters.find((i) => ['nextScene', 'prevScene', 'goToScene'].includes(i.do.action))
+    if (navega) return aoInteragir?.(camada, [navega], 'click')
+    setRuntimes((rs) => {
+      let estado = rs[cena.id] ?? estadoInicialRuntime(indice)
+      for (const i of inters) estado = executar(documento, estado, camada, i).estado
+      return { ...rs, [cena.id]: { ...estado, indice } }
+    })
+    aoInteragir?.(camada, inters.filter((i) => i.do.action === 'openLink' || i.do.action === 'toggleVideo'), 'click')
+  }, [aoInteragir, cena.id, documento, indice, setRuntimes])
+  return (
+    <div ref={(el) => registrar(cena.id, el)} data-cena={cena.id} className={`relative w-full ${fase === 'esperando' ? 'animacoes-em-espera' : ''}`} style={{ scrollSnapAlign: 'start' }}>
+      {larguraTela > larguraEditorial && <FundoEstendido cena={cena} assets={comum.assets} escala={escala} x={(larguraTela - larguraEditorial) / 2} y={0} largura={larguraTela} altura={cena.size.height * escala} style={{ left: 0, top: 0, width: '100%' }} />}
+      <SceneRenderer cena={cena} escala={escala} runtime={rt} chaveEntrada={`${cena.id}-${vez}`} saida={fase === 'fora'} rolagem {...comum} aoInteragir={interagir} style={{ margin: '0 auto' }} />
+    </div>
+  )
+}, (a, b) => a.cena === b.cena && a.indice === b.indice && a.larguraTela === b.larguraTela && a.larguraEditorial === b.larguraEditorial && a.runtime === b.runtime && a.fase === b.fase && a.vez === b.vez && a.documento === b.documento && Object.keys(a.comum).every((k) => a.comum[k as keyof ComumSecao] === b.comum[k as keyof ComumSecao]))

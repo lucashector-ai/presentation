@@ -41,9 +41,24 @@ export interface PlanoAnimacao {
   desenho?: boolean
   /**
    * A entrada da camada pode ser solta quando termina (ver `concluida`): o último quadro dela é igual ao estilo
-   * parado da camada. Saídas não (terminam escondidas).
+   * parado da camada. Saídas não (terminam escondidas) nem entradas que acompanham a rolagem (voltam ao rolar).
    */
   soltavel?: boolean
+  /** Entrada que acompanha a rolagem (Story): o trecho da passagem pela janela (`animation-range`). */
+  rolagem?: string
+}
+
+/** Trecho padrão da entrada "ao rolar": começa quando a camada aparece embaixo e termina antes do meio da janela. */
+export const TRECHO_ROLAGEM_PADRAO: [number, number] = [0, 40]
+
+/**
+ * Entrada "ao rolar" em efeitos de texto por partes: o bloco inteiro acompanha a rolagem como um fade com
+ * movimento (cada parte numa linha do tempo própria multiplicaria o custo). Destaque e sublinhado seguem a
+ * rolagem com o próprio marcador; o contador conta no tempo, quando aparece.
+ */
+function entradaDeRolagem(a: Animacao): Animacao {
+  if (!ehTextoAnimado(a.type) || a.type === 'highlight' || a.type === 'underline' || a.type === 'counter') return a
+  return { type: 'slideUp', duration: a.duration, delay: 0, easing: a.easing, bezier: a.bezier, distance: 24, trigger: 'scroll', scrollRange: a.scrollRange }
 }
 
 /**
@@ -54,42 +69,56 @@ export interface PlanoAnimacao {
  * terminada com `fill-mode: both` mantém a camada composta na GPU para sempre (uma camada por elemento) e
  * todo quadro que repinta qualquer coisa paga por elas no Layerize/Commit.
  */
-export function planoAnimacao({ entrada, saida, loop, reduzir, ehTexto, desenhavel = false, aguardar = false, concluida = false }: { entrada?: Animacao; saida?: Animacao; loop?: Loop; reduzir: boolean; ehTexto: boolean; desenhavel?: boolean; aguardar?: boolean; concluida?: boolean }): PlanoAnimacao {
+export function planoAnimacao({ entrada, saida, loop, reduzir, ehTexto, desenhavel = false, aguardar = false, concluida = false, rolagem = false }: { entrada?: Animacao; saida?: Animacao; loop?: Loop; reduzir: boolean; ehTexto: boolean; desenhavel?: boolean; aguardar?: boolean; concluida?: boolean; rolagem?: boolean }): PlanoAnimacao {
   const nomes: string[] = []
   const duracoes: string[] = []
   const atrasos: string[] = []
   const curvas: string[] = []
   const repeticoes: string[] = []
   const preenchimentos: string[] = []
+  const linhasDoTempo: string[] = []
+  const trechos: string[] = []
   let vars: Record<string, string | number> = {}
   let texto: Animacao | undefined
   let desenho = false
   let fimEntrada = 0
   let soltavel = false
+  let trecho: string | undefined
   const principal = saida ?? entrada
   if (principal && principal.type !== 'none') {
     let a = adaptarAnimacao(principal, reduzir)
     if (a.type === 'draw' && !desenhavel) a = { ...a, type: 'reveal' }
+    // "ao rolar" só acompanha a rolagem no Story (com suporte a scroll-driven animations); no resto, toca ao entrar
+    const porRolagem = !saida && rolagem && a.trigger === 'scroll'
+    if (porRolagem) {
+      a = entradaDeRolagem(a)
+      const [ini, fim] = a.scrollRange ?? TRECHO_ROLAGEM_PADRAO
+      trecho = `cover ${Math.min(ini, fim)}% cover ${Math.max(ini, fim, Math.min(ini, fim) + 1)}%`
+    }
     if (ehTextoAnimado(a.type) && ehTexto) texto = a
-    soltavel = !saida && !ehSaida(a.type)
+    soltavel = !saida && !ehSaida(a.type) && !porRolagem
     const solta = concluida && soltavel
     const css = solta ? { keyframe: '', vars: {} } : cssDaAnimacao(a, ehTexto)
     vars = css.vars
+    const vezes = Math.max(1, a.repeat ?? 1)
     if (css.keyframe) {
       for (const k of keyframesSeparados(css.keyframe)) {
         nomes.push(k)
-        duracoes.push(`${a.duration}ms`)
-        atrasos.push(`${a.delay}ms`)
+        // na rolagem a duração é o trecho inteiro (auto) e não há atraso nem repetição
+        duracoes.push(porRolagem ? 'auto' : `${a.duration}ms`)
+        atrasos.push(porRolagem ? '0ms' : `${a.delay}ms`)
         curvas.push(curvaCss(a))
-        repeticoes.push('1')
+        repeticoes.push(porRolagem ? '1' : String(vezes))
         preenchimentos.push('both')
+        linhasDoTempo.push(porRolagem ? 'view()' : 'auto')
+        trechos.push(porRolagem && trecho ? trecho : 'normal')
       }
     }
     if (a.type === 'draw' && !solta) {
       desenho = true
-      vars = { ...vars, '--anim-dur': `${a.duration}ms`, '--anim-atraso': `${a.delay}ms`, '--anim-curva': curvaCss(a) }
+      vars = { ...vars, '--anim-dur': `${a.duration}ms`, '--anim-atraso': `${a.delay}ms`, '--anim-curva': curvaCss(a), '--anim-rep': vezes }
     }
-    fimEntrada = a.delay + a.duration
+    fimEntrada = a.delay + a.duration * vezes
   }
   if (loop && !saida && !reduzir) {
     nomes.push(`loop-${loop.type}`)
@@ -98,14 +127,19 @@ export function planoAnimacao({ entrada, saida, loop, reduzir, ehTexto, desenhav
     curvas.push(loop.type === 'spin' ? 'linear' : 'ease-in-out')
     repeticoes.push(loop.repeat ? String(loop.repeat) : 'infinite')
     preenchimentos.push('none')
+    linhasDoTempo.push('auto')
+    trechos.push('normal')
   }
   const estiloVars = vars as CSSProperties
-  if (!nomes.length) return { texto, desenho, soltavel, estilo: Object.keys(vars).length ? estiloVars : undefined }
+  const rolagemTexto = texto && trecho ? trecho : undefined
+  if (!nomes.length) return { texto, desenho, soltavel, rolagem: rolagemTexto, estilo: Object.keys(vars).length ? estiloVars : undefined }
+  const comRolagem = linhasDoTempo.includes('view()')
   return {
     texto,
     desenho,
     soltavel,
-    classe: [saida ? 'camada-animada camada-saida' : 'camada-animada', desenho ? 'camada-desenho' : ''].filter(Boolean).join(' '),
+    rolagem: rolagemTexto,
+    classe: [saida ? 'camada-animada camada-saida' : 'camada-animada', desenho ? 'camada-desenho' : '', comRolagem ? 'anim-rolagem' : ''].filter(Boolean).join(' '),
     estilo: {
       ...estiloVars,
       animationName: nomes.join(', '),
@@ -114,6 +148,7 @@ export function planoAnimacao({ entrada, saida, loop, reduzir, ehTexto, desenhav
       animationTimingFunction: curvas.join(', '),
       animationIterationCount: repeticoes.join(', '),
       animationFillMode: preenchimentos.join(', '),
+      ...(comRolagem ? ({ animationTimeline: linhasDoTempo.join(', '), animationRange: trechos.join(', ') } as CSSProperties) : {}),
       ...(aguardar ? { animationPlayState: 'paused' } : {}),
     },
   }

@@ -1,5 +1,5 @@
 'use client'
-import { Component, type ReactNode } from 'react'
+import { Component, memo, useDeferredValue, useMemo, type ReactNode } from 'react'
 import type { Editor, AbaDireita } from '@/lib/editor/useEditor'
 import type { AssetDemo } from '@/lib/demo/tipos'
 import { cx } from '@/components/ui'
@@ -11,10 +11,11 @@ import { ProvedorInspetor } from './contexto'
 
 export function Inspetor({ editor, assets }: { editor: Editor; assets: AssetDemo[] }) {
   const { estado, acoes, camadasSelecionadas, cena } = editor
-  const mapa = Object.fromEntries(assets.map((a) => [a.id, a]))
+  const mapa = useMemo(() => Object.fromEntries(assets.map((a) => [a.id, a])), [assets])
   const totalInter = cena?.layers.filter((l) => l.interactions.length > 0).length ?? 0
   const abas: { id: AbaDireita; rotulo: string }[] = [{ id: 'design', rotulo: 'Design' }, { id: 'animacao', rotulo: 'Animação' }, { id: 'interacoes', rotulo: 'Interações' }]
-  const nada = camadasSelecionadas.length === 0
+  // trocar de aba: o botão marca na hora e o conteúdo novo vem logo depois (adiado), sem segurar a pintura do clique
+  const aba = useDeferredValue(estado.abaDireita)
   return (
     <ProvedorInspetor editor={editor} assets={assets}>
       <aside aria-label="Propriedades" className="flex h-full flex-col border-l border-borda bg-superficie">
@@ -27,22 +28,29 @@ export function Inspetor({ editor, assets }: { editor: Editor; assets: AssetDemo
           ))}
         </div>
         <div className="rolagem-fina min-h-0 flex-1 overflow-y-auto">
-          {estado.abaDireita === 'interacoes' ? (
-            <AbaInteracoes editor={editor} assets={mapa} />
-          ) : estado.abaDireita === 'animacao' ? (
-            <LimiteErro chave={camadasSelecionadas.map((c) => c.id).join(',')} alternativo={<p className="px-4 py-4 text-[12px] text-texto2">Não foi possível abrir as animações desta seleção. Selecione outro elemento ou recarregue a página.</p>}>
-              <AbaAnimacao editor={editor} />
-            </LimiteErro>
-          ) : nada ? (
-            <InspetorTela editor={editor} assets={assets} />
-          ) : (
-            <AbaDesign editor={editor} assets={assets} />
-          )}
+          <ConteudoAba aba={aba} editor={editor} assets={assets} mapa={mapa} />
         </div>
       </aside>
     </ProvedorInspetor>
   )
 }
+
+/**
+ * Conteúdo da aba. Enquanto a aba adiada não alcança a escolhida (a passada urgente da troca), fica como estava: a
+ * aba antiga não re-renderiza à toa e o clique pinta só a marcação do botão.
+ */
+const ConteudoAba = memo(function ConteudoAba({ aba, editor, assets, mapa }: { aba: AbaDireita; editor: Editor; assets: AssetDemo[]; mapa: Record<string, AssetDemo> }) {
+  const { camadasSelecionadas } = editor
+  if (aba === 'interacoes') return <AbaInteracoes editor={editor} assets={mapa} />
+  if (aba === 'animacao') {
+    return (
+      <LimiteErro chave={camadasSelecionadas.map((c) => c.id).join(',')} alternativo={<p className="px-4 py-4 text-[12px] text-texto2">Não foi possível abrir as animações desta seleção. Selecione outro elemento ou recarregue a página.</p>}>
+        <AbaAnimacao editor={editor} />
+      </LimiteErro>
+    )
+  }
+  return camadasSelecionadas.length === 0 ? <InspetorTela editor={editor} assets={assets} /> : <AbaDesign editor={editor} assets={assets} />
+}, (a, b) => b.aba !== b.editor.estado.abaDireita || (a.aba === b.aba && a.editor === b.editor && a.assets === b.assets && a.mapa === b.mapa))
 
 /** Isola falhas de uma aba (ex.: Animação sem seleção) sem derrubar o editor; reinicia quando a seleção muda. */
 class LimiteErro extends Component<{ chave: string; alternativo: ReactNode; children: ReactNode }, { erro: boolean; chave: string }> {

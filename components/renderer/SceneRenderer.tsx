@@ -7,7 +7,7 @@
  * Morph: quando `morphDe` é passado, camadas com o mesmo nome (ou ID) na tela anterior começam com a
  * geometria/cor antiga e animam até a nova.
  */
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { Animacao, Camada, Cena, Interacao, CamadaTexto } from '@/lib/scene/schema'
 import { EASING_CSS, camadaVisivel, interacoesDe, type EstadoRuntime } from '@/lib/scene/motor'
 import { ordenarParaRender } from '@/lib/scene/order'
@@ -24,6 +24,8 @@ import { useRecursosMascara } from './useRecursosMascara'
 import { Tracos, estiloTracoTexto } from './camadas/Tracos'
 import { Desenho, TextoSegmentado, planoAnimacao, usePreviaAnimacao, varsAnimacao, type PedidoPrevia } from './animacao'
 import { atrasosEfetivos, esperaGatilho, interacoesDosGatilhos } from '@/lib/scene/animacoes'
+import { CamadaReativa, rolagemPorCss } from './reativos'
+import { temInterativo } from '@/lib/scene/reativos'
 import { Forma } from './camadas/Forma'
 import { Modelo3d } from './camadas/Modelo3d'
 import { Lottie } from './camadas/Lottie'
@@ -72,6 +74,8 @@ export interface SceneRendererProps {
   sangria?: Sangria
   /** Visualizador: false = camadas paradas no estado final, sem entradas nem loops (ex.: telas de contexto no Explorar). */
   animar?: boolean
+  /** Story: entradas "ao rolar" e o parallax acompanham a rolagem. */
+  rolagem?: boolean
 }
 
 /** Props internas: prévia de animação pedida pelo inspetor (só no modo editor). */
@@ -82,7 +86,12 @@ export function chaveMorph(c: Camada): string {
   return c.name?.trim() ? `n:${c.name.trim().toLowerCase()}` : `i:${c.id}`
 }
 
-export function SceneRenderer(props: SceneRendererProps) {
+/**
+ * Memorizado: quem o usa re-renderiza por outros motivos (o visualizador ao tirar a tela que saiu do DOM, ao
+ * trocar o estado dos controles) e a tela com as entradas tocando não precisa ser reconciliada de novo — com
+ * texto dividido isso eram centenas de partes no meio da animação.
+ */
+export const SceneRenderer = memo(function SceneRenderer(props: SceneRendererProps) {
   // fontes do Google usadas pelos textos desta tela (editor, visualizador, miniaturas, exportação…)
   useFontesDaCena(props.cena)
   // prévia do inspetor: no editor, toca entradas/saídas/transição sem sair do modo de edição
@@ -93,7 +102,7 @@ export function SceneRenderer(props: SceneRendererProps) {
     return <CenaRender key={`pv-${previa.nonce}`} {...props} previa={previa} morphDe={morph ? previa.morphDe : undefined} morphDuracao={tr.duration} morphEasing={EASING_CSS[tr.easing]} classeTransicao={morph ? undefined : `cena-transicao-${tr.type === 'morph' ? 'fade' : tr.type}`} />
   }
   return <CenaRender {...props} previa={previa} />
-}
+})
 
 function CenaRender(props: PropsInternas) {
   const { cena, assets, escala, modo, children, className, style, morphDe, classeTransicao, sangria } = props
@@ -122,13 +131,18 @@ function CenaRender(props: PropsInternas) {
     return () => cancelAnimationFrame(r)
   }, [fundoCss])
 
+  // prévia de transição no editor (fade/deslizar/zoom): a tela só se move e uma cortina da cor do canvas some por
+  // cima — a mesma mistura de cores; a tela inteira com opacidade animada (e as entradas tocando dentro) pedia uma
+  // superfície de composição a mais e o canvas era desenhado duas vezes por quadro
+  const cortina = !!classeTransicao && /-(fade|slide|scale)$/.test(classeTransicao)
   return (
-    <div className={[className, classeTransicao].filter(Boolean).join(' ') || undefined} style={{ width: cena.size.width * escala, height: cena.size.height * escala, position: 'relative', overflow: sangria ? 'visible' : 'hidden', background: morphDe ? fundoAtual : fundoCss, transition: morphDe ? `background ${props.morphDuracao ?? 600}ms ${props.morphEasing ?? 'ease'}` : undefined, ...(classeTransicao ? { ['--dur' as string]: `${props.morphDuracao ?? 500}ms` } : {}), ...style }}>
+    <div className={[className, classeTransicao, cortina ? 'sob-a-anterior' : ''].filter(Boolean).join(' ') || undefined} style={{ width: cena.size.width * escala, height: cena.size.height * escala, position: 'relative', overflow: sangria ? 'visible' : 'hidden', background: morphDe ? fundoAtual : fundoCss, transition: morphDe ? `background ${props.morphDuracao ?? 600}ms ${props.morphEasing ?? 'ease'}` : undefined, ...(classeTransicao ? { ['--dur' as string]: `${props.morphDuracao ?? 500}ms` } : {}), ...style }}>
       <div style={{ width: cena.size.width, height: cena.size.height, transform: `scale(${escala})`, transformOrigin: '0 0', position: 'absolute', left: 0, top: 0 }}>
         {fundo && <img src={modo === 'miniatura' ? fundo.thumbUrl || fundo.url : fundo.url} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: cena.backgroundFit, pointerEvents: 'none' }} />}
         {camadas.map((c) => (props.ocultar?.has(c.id) ? null : <LayerView key={c.id} camada={c} props={props} origemMorph={mapaMorph?.get(chaveMorph(c))} heranca={herdado.get(c.id)} gatilhos={gatilhos} mascara={mascaras?.get(c.id)} />))}
         {children}
       </div>
+      {cortina && <div aria-hidden className="cena-cortina" />}
     </div>
   )
 }
@@ -167,6 +181,30 @@ function geometria(c: Camada): CSSProperties {
   return { left: c.x, top: c.y, width: c.width, height: c.height, opacity: c.opacity, transform: transformCss(c) }
 }
 
+/**
+ * Loop "até sair da tela": vira true (uma vez) quando a camada, depois de ter aparecido, sai da janela. Um
+ * IntersectionObserver por camada com esse loop; nada por quadro.
+ */
+function useSaiuDaJanela(ativo: boolean): [(el: HTMLDivElement | null) => void, boolean] {
+  const [saiu, setSaiu] = useState(false)
+  const io = useRef<IntersectionObserver | null>(null)
+  const ref = useCallback((el: HTMLDivElement | null) => {
+    io.current?.disconnect()
+    io.current = null
+    if (!el || !ativo || saiu || typeof IntersectionObserver === 'undefined') return
+    let viu = false
+    const obs = new IntersectionObserver(([e]) => {
+      if (!e) return
+      if (e.isIntersecting) viu = true
+      else if (viu) { obs.disconnect(); setSaiu(true) }
+    })
+    obs.observe(el)
+    io.current = obs
+  }, [ativo, saiu])
+  useEffect(() => () => io.current?.disconnect(), [])
+  return [ref, saiu]
+}
+
 /** Densidade de pixels do monitor; 1 no servidor e no primeiro render (evita diferença de hidratação). */
 function useDensidade(): number {
   const [dpr, setDpr] = useState(1)
@@ -179,13 +217,51 @@ function useDensidade(): number {
   return dpr
 }
 
-function LayerView({ camada: c, props, origemMorph, heranca, gatilhos, mascara }: { camada: Camada; props: PropsInternas; origemMorph?: Camada; heranca?: Heranca; gatilhos: { atrasos: Map<string, number>; inter: ReturnType<typeof interacoesDosGatilhos> }; mascara?: CSSProperties }) {
+type PropsCamada = { camada: Camada; props: PropsInternas; origemMorph?: Camada; heranca?: Heranca; gatilhos: { atrasos: Map<string, number>; inter: ReturnType<typeof interacoesDosGatilhos> }; mascara?: CSSProperties }
+
+/**
+ * Props da tela que só a própria tela usa (a camada não lê): mudar a cena não muda a camada que não mudou, e o
+ * zoom do editor (escala) também não.
+ */
+const SO_DA_TELA = new Set<string>(['cena', 'children', 'className', 'style', 'ocultar', 'escala'])
+
+function rasoIgual(a: object | undefined, b: object | undefined, ignorar?: Set<string>): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  const ra = a as Record<string, unknown>
+  const rb = b as Record<string, unknown>
+  for (const k in ra) if (!ignorar?.has(k) && ra[k] !== rb[k]) return false
+  for (const k in rb) if (!ignorar?.has(k) && !(k in ra)) return false
+  return true
+}
+
+/**
+ * Camada memorizada: arrastar, redimensionar ou girar uma camada no editor gera uma cena nova a cada quadro, mas
+ * as outras camadas continuam o mesmo objeto — só a que mudou re-renderiza. Os mapas da tela (atrasos, gatilhos,
+ * herança dos frames, máscaras) são refeitos junto com a cena; compara-se só o que vale para esta camada.
+ */
+function camadaIgual(a: PropsCamada, b: PropsCamada): boolean {
+  const id = a.camada.id
+  if (a.camada !== b.camada || a.origemMorph !== b.origemMorph) return false
+  if (!rasoIgual(a.heranca, b.heranca) || !rasoIgual(a.mascara, b.mascara)) return false
+  if (a.gatilhos !== b.gatilhos) {
+    if (a.gatilhos.atrasos.get(id) !== b.gatilhos.atrasos.get(id)) return false
+    const ia = a.gatilhos.inter.get(id)
+    const ib = b.gatilhos.inter.get(id)
+    if ((ia || ib) && JSON.stringify(ia) !== JSON.stringify(ib)) return false
+  }
+  return rasoIgual(a.props, b.props, SO_DA_TELA)
+}
+
+const LayerView = memo(function LayerView({ camada: c, props, origemMorph, heranca, gatilhos, mascara }: PropsCamada) {
   const { modo, runtime, reduzirMovimento = false, semHover = false, mobile = false, aoInteragir, chaveEntrada, morphDe, morphDuracao = 600, morphEasing = 'ease' } = props
   const viewer = modo === 'viewer'
   const visivel = (runtime ? camadaVisivel(c, runtime) : !c.hidden) && !heranca?.oculta
   const [morphFim, setMorphFim] = useState(!origemMorph)
   // entrada terminada (por chave de animação): sai do estilo para a camada deixar de ser composta
   const [concluida, setConcluida] = useState<string | null>(null)
+  // loop "até sair da tela": para quando a camada sai da janela (no Story, ao rolar para longe)
+  const [refLoop, loopSaiu] = useSaiuDaJanela(viewer && c.loopAnimation?.until === 'offscreen')
   useEffect(() => {
     if (!origemMorph) return
     const r = requestAnimationFrame(() => requestAnimationFrame(() => setMorphFim(true)))
@@ -214,14 +290,15 @@ function LayerView({ camada: c, props, origemMorph, heranca, gatilhos, mascara }
   // prévia no editor (inspetor): toca como no visualizador, só nas camadas pedidas
   const previa = props.previa
   const previaAqui = !!previa && !c.hidden && (!previa.ids || previa.ids.includes(c.id))
-  const tocar = (viewer && props.animar !== false) || previaAqui
+  // a prévia dos efeitos interativos (ponteiro simulado) não toca a entrada junto
+  const tocar = (viewer && props.animar !== false) || (previaAqui && !previa?.interativo)
   const saindo = !animRuntime && (props.saida || (previaAqui && !!previa?.saida))
   const entrada = previaAqui && previa?.semAtraso && animEntrada ? { ...animEntrada, delay: 0 } : animEntrada
   const anim = animRuntime ? animRuntime.animacao : tocar ? (saindo ? c.exitAnimation : entrada) : undefined
   const chaveAnim = animRuntime ? `rt-${animRuntime.nonce}` : previaAqui ? `pv-${previa?.nonce}` : `in-${chaveEntrada ?? ''}`
   // entrada por clique/hover: parada no 1º quadro até o público agir (a prévia do editor toca direto)
   const aguardar = viewer && !animRuntime && !saindo && !previaAqui && esperaGatilho(c.enterAnimation)
-  const plano = planoAnimacao({ entrada: saindo ? undefined : anim, saida: saindo ? anim : undefined, loop: tocar && !animRuntime ? c.loopAnimation : undefined, reduzir: reduzirMovimento, ehTexto: c.type === 'text', desenhavel: c.type === 'shape' && c.shape !== 'rect' && c.shape !== 'ellipse', aguardar, concluida: concluida === chaveAnim })
+  const plano = planoAnimacao({ entrada: saindo ? undefined : anim, saida: saindo ? anim : undefined, loop: tocar && !animRuntime && !loopSaiu ? c.loopAnimation : undefined, reduzir: reduzirMovimento, ehTexto: c.type === 'text', desenhavel: c.type === 'shape' && c.shape !== 'rect' && c.shape !== 'ellipse', aguardar, concluida: concluida === chaveAnim, rolagem: viewer && !!props.rolagem && rolagemPorCss() })
   const geoAtual = origemMorph && !morphFim ? geometria(origemMorph) : geometria(c)
   const e = c.effects
 
@@ -265,21 +342,33 @@ function LayerView({ camada: c, props, origemMorph, heranca, gatilhos, mascara }
         : {}
 
   return (
-    <div key={chaveAnim} data-layer-id={c.id} className={classes || undefined} style={base} onAnimationEnd={plano.soltavel ? (ev) => { if (ev.target === ev.currentTarget && !ev.animationName.startsWith('loop-')) setConcluida(chaveAnim) } : undefined} {...eventos}>
-      {/* máscara não é desenhada; o texto-máscara fica invisível no lugar (o clique duplo põe o cursor onde clicou) */}
-      {c.isMask ? (c.type === 'text' ? <div style={{ visibility: 'hidden', width: '100%', height: '100%' }}><Conteudo camada={c} props={props} morphDuracao={morphDuracao} morphEasing={morphEasing} /></div> : null) : <Conteudo camada={c} props={props} origemMorph={morphFim ? undefined : origemMorph} morphDuracao={morphDuracao} morphEasing={morphEasing} animTexto={plano.texto} desenhar={plano.desenho} />}
-      {c.strokes && !c.isMask && <Tracos camada={c} />}
+    <div key={chaveAnim} ref={refLoop} data-layer-id={c.id} className={classes || undefined} style={base} onAnimationEnd={plano.soltavel ? (ev) => { if (ev.target === ev.currentTarget && !ev.animationName.startsWith('loop-')) setConcluida(chaveAnim) } : undefined} {...eventos}>
+      {c.isMask ? (
+        // máscara não é desenhada; o texto-máscara fica invisível no lugar (o clique duplo põe o cursor onde clicou)
+        c.type === 'text' ? <div style={{ visibility: 'hidden', width: '100%', height: '100%' }}><Conteudo camada={c} props={props} morphDuracao={morphDuracao} morphEasing={morphEasing} /></div> : null
+      ) : temInterativo(c) && c.interactiveEffects ? (
+        // parallax, tilt e luz: invólucros próprios dentro da camada (ver components/renderer/reativos.tsx)
+        <CamadaReativa efeitos={c.interactiveEffects} modo={props.animar === false ? 'miniatura' : modo} reduzir={reduzirMovimento} semHover={semHover} rolagem={!!props.rolagem} largura={c.width} altura={c.height} raio={'radius' in c ? raioCss(c) : undefined} simular={previaAqui && previa?.interativo ? previa.nonce : undefined}>
+          <Conteudo camada={c} props={props} origemMorph={morphFim ? undefined : origemMorph} morphDuracao={morphDuracao} morphEasing={morphEasing} animTexto={plano.texto} rolagemTexto={plano.rolagem} desenhar={plano.desenho} />
+          {c.strokes && <Tracos camada={c} />}
+        </CamadaReativa>
+      ) : (
+        <>
+          <Conteudo camada={c} props={props} origemMorph={morphFim ? undefined : origemMorph} morphDuracao={morphDuracao} morphEasing={morphEasing} animTexto={plano.texto} rolagemTexto={plano.rolagem} desenhar={plano.desenho} />
+          {c.strokes && <Tracos camada={c} />}
+        </>
+      )}
     </div>
   )
-}
+}, camadaIgual)
 
-function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, animTexto, desenhar }: { camada: Camada; props: SceneRendererProps; origemMorph?: Camada; morphDuracao: number; morphEasing: string; animTexto?: Animacao; desenhar?: boolean }) {
+function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, animTexto, rolagemTexto, desenhar }: { camada: Camada; props: SceneRendererProps; origemMorph?: Camada; morphDuracao: number; morphEasing: string; animTexto?: Animacao; rolagemTexto?: string; desenhar?: boolean }) {
   const { assets, modo, mobile = false, registrarVideo, interativoNoEditor } = props
   const e = c.effects
   const interativo = modo === 'viewer' || !!interativoNoEditor
   switch (c.type) {
     case 'text':
-      return <Texto c={c} origem={origemMorph?.type === 'text' ? origemMorph : undefined} modo={modo} duracao={morphDuracao} easing={morphEasing} animTexto={animTexto} />
+      return <Texto c={c} origem={origemMorph?.type === 'text' ? origemMorph : undefined} modo={modo} duracao={morphDuracao} easing={morphEasing} animTexto={animTexto} rolagem={rolagemTexto} />
     case 'shape':
       return (
         <Desenho ativo={!!desenhar} style={{ width: '100%', height: '100%', filter: filtroCss(e, (c.shape !== 'rect' && c.shape !== 'ellipse') || (c.shape === 'rect' && temSuavizacao(c))) }}>
@@ -384,7 +473,7 @@ function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, an
   }
 }
 
-function Texto({ c, origem, modo, duracao, easing, animTexto }: { c: CamadaTexto; origem?: CamadaTexto; modo: ModoRender; duracao: number; easing: string; animTexto?: Animacao }) {
+function Texto({ c, origem, modo, duracao, easing, animTexto, rolagem }: { c: CamadaTexto; origem?: CamadaTexto; modo: ModoRender; duracao: number; easing: string; animTexto?: Animacao; rolagem?: string }) {
   const fonte = origem ?? c
   const gradiente = c.gradient ? gradienteCss(c.gradient) : undefined
   return (
@@ -405,10 +494,14 @@ function Texto({ c, origem, modo, duracao, easing, animTexto }: { c: CamadaTexto
         textShadow: textShadowCss(projetadas(c.effects)),
         filter: desfoqueDe(c.effects) ? `blur(${desfoqueDe(c.effects)}px)` : undefined,
         ...estiloTracoTexto(c),
+        // texto animado por partes: o que muda dentro dele (letras aparecendo, sorteio, contador) não refaz o
+        // layout nem o estilo do resto da tela — a caixa tem o tamanho da camada (definido), então a contenção de
+        // tamanho não muda nada e faz dela um limite de layout. Sem contenção de pintura: as partes sobem de fora.
+        ...(animTexto ? { contain: 'size layout style' } : {}),
       }}
     >
       {animTexto ? (
-        <CorteTexto c={c}><TextoSegmentado texto={c.text} animacao={animTexto} gradiente={gradiente} cor={c.gradient?.stops[0]?.color ?? c.color} /></CorteTexto>
+        <CorteTexto c={c}><TextoSegmentado texto={c.text} animacao={animTexto} gradiente={gradiente} cor={c.gradient?.stops[0]?.color ?? c.color} caixa={c} rolagem={rolagem} /></CorteTexto>
       ) : (
         <CorpoTexto c={c} gradiente={gradiente} />
       )}

@@ -7,12 +7,13 @@
  * (3) a entrada da tela nova começa quando a câmera está chegando. As outras telas do mapa ficam paradas
  * no estado final (sem animar), como contexto.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { tempoSaida } from '@/lib/scene/animacoes'
 import type { Cena, DocumentoProjeto } from '@/lib/scene/schema'
 import type { EstadoRuntime } from '@/lib/scene/motor'
 import { SceneRenderer, type SceneRendererProps } from '@/components/renderer/SceneRenderer'
 import { envolvente } from '@/lib/scene/transform'
+import { parallaxDoVoo } from '@/components/renderer/reativos'
 
 type Comum = Omit<SceneRendererProps, 'cena' | 'escala' | 'runtime' | 'chaveEntrada'>
 
@@ -20,6 +21,7 @@ const ESPACO = 360
 /** Voo da câmera e momento (no voo) em que a entrada da tela nova começa. */
 const VOO_MS = 900
 const CHEGANDO_MS = 520
+const CURVA_VOO = 'cubic-bezier(.65,0,.25,1)'
 
 /** Posição no mapa: a salva na tela ou uma grade automática. */
 export function posicoesNoMapa(cenas: Cena[]): { x: number; y: number }[] {
@@ -42,6 +44,16 @@ export function ExplorarView({ documento, tamanho, runtime, visaoGeral, preenche
     return () => { window.clearTimeout(t1); window.clearTimeout(t2) }
   }, [nav.vez, saidaMs, reduzir])
   const atraso = nav.de !== null && !reduzir ? saidaMs : 0
+  // parallax no voo: as camadas com profundidade da tela que chega entram deslocadas no sentido do voo
+  const telas = useRef(new Map<number, HTMLDivElement>())
+  useEffect(() => {
+    if (!nav.vez || nav.de === null || reduzir || visaoGeral) return
+    const de = pos[nav.de]
+    const para = pos[nav.indice]
+    const el = telas.current.get(nav.indice)
+    if (de && para && el) parallaxDoVoo(el, para.x - de.x, para.y - de.y, VOO_MS, saidaMs, CURVA_VOO)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nav.vez])
   const retangulos = documento.scenes.map((c, i) => ({ x: pos[i]!.x, y: pos[i]!.y, width: c.size.width, height: c.size.height }))
   const atual = retangulos[runtime.indice] ?? retangulos[0]!
   const alvo = visaoGeral ? envolvente(retangulos) : atual
@@ -54,7 +66,7 @@ export function ExplorarView({ documento, tamanho, runtime, visaoGeral, preenche
   if (!tamanho.width) return null
   return (
     <div className="absolute inset-0 overflow-hidden" style={{ background: visaoGeral ? '#171717' : undefined }}>
-      <div style={{ position: 'absolute', left: 0, top: 0, transformOrigin: '0 0', transform: `translate(${tx}px, ${ty}px) scale(${escala})`, transition: reduzir ? 'none' : `transform ${VOO_MS}ms cubic-bezier(.65,0,.25,1) ${atraso}ms` }}>
+      <div style={{ position: 'absolute', left: 0, top: 0, transformOrigin: '0 0', transform: `translate(${tx}px, ${ty}px) scale(${escala})`, transition: reduzir ? 'none' : `transform ${VOO_MS}ms ${CURVA_VOO} ${atraso}ms` }}>
         {/* linhas de conexão (hotspots que levam a outras telas) */}
         <svg style={{ position: 'absolute', overflow: 'visible', left: 0, top: 0, pointerEvents: 'none', opacity: visaoGeral ? 1 : 0, transition: 'opacity 400ms' }} aria-hidden>
           {documento.scenes.flatMap((c, i) =>
@@ -78,6 +90,7 @@ export function ExplorarView({ documento, tamanho, runtime, visaoGeral, preenche
           return (
             <div
               key={c.id}
+              ref={(el) => { if (el) telas.current.set(i, el); else telas.current.delete(i) }}
               className={atual && (nav.esperando || !iniciado) ? 'animacoes-em-espera' : undefined}
               style={{ position: 'absolute', left: pos[i]!.x, top: pos[i]!.y, opacity: visaoGeral || ativa ? 1 : 0.35, transition: `opacity 500ms ease ${atraso}ms`, cursor: ativa ? undefined : 'pointer', borderRadius: 12, boxShadow: visaoGeral ? '0 40px 120px -40px rgba(0,0,0,.6)' : undefined }}
               onClick={ativa ? undefined : (e) => { e.stopPropagation(); aoEscolher(i) }}

@@ -1,5 +1,6 @@
 'use client'
 import { useMemo, useRef, useState, type JSX } from 'react'
+import { createPortal } from 'react-dom'
 import { Box, ChevronDown, ChevronRight, Code2, Copy, Crosshair, Eye, EyeOff, Film, GalleryHorizontal, Image as ImageIcon, Lock, LockOpen, MousePointerClick, PenTool, Quote, Sparkles, Square, Tag, Trash2, Type, Upload, Video, ArrowRight } from 'lucide-react'
 import { IconeAutoLayout, IconeMascara } from './inspetor/icones'
 import { NOMES_TIPO_MASCARA, ehMascara, tipoMascara } from '@/lib/scene/mascara'
@@ -72,7 +73,9 @@ function Telas({ editor, assets }: { editor: Editor; assets: AssetDemo[] }) {
               <span className="mono w-4 pt-1 text-[10px] text-texto3">{String(i + 1).padStart(2, '0')}</span>
               <div className="min-w-0 flex-1">
                 <div className={cx('relative overflow-hidden rounded-[7px] outline outline-[1.5px] outline-offset-2', ativa ? 'outline-acento' : 'outline-transparent group-hover:outline-borda')}>
-                  <MiniaturaCena cena={c} assets={mapa} largura={186} className="rounded-[6px] border-0" />
+                  {/* fora da área visível do painel, a miniatura não é pintada nem composta (content-visibility): numa
+                      apresentação longa elas eram metade dos elementos da página, refeitos a cada quadro de animação */}
+                  <MiniaturaCena cena={c} assets={mapa} largura={186} className="rounded-[6px] border-0 [content-visibility:auto]" />
                   <QuemEstaNaTela sala={editor.sala} cenaId={c.id} />
                 </div>
                 <div className="mt-1.5 flex items-center justify-between">
@@ -272,10 +275,12 @@ function Arquivos({ editor, assets, avisar }: { editor: Editor; assets: AssetDem
       {assets.length > 1 && filtro !== 'model3d' && filtro !== 'lottie' && (
         <button type="button" onClick={() => editor.acoes.cenasDeAssets(lista.filter((a) => a.tipo === 'image' || a.tipo === 'svg').slice(0, 30))} className="mt-4 h-8 w-full rounded-md border border-borda text-[12px] hover:border-[#D4D4D4]">Uma tela por imagem ({lista.filter((a) => a.tipo === 'image' || a.tipo === 'svg').length})</button>
       )}
-      {excluindo && (
+      {/* no <body>: o painel é uma camada própria (will-change), que prenderia o diálogo fixo dentro dele */}
+      {excluindo && createPortal(
         <Modal aberto aoFechar={() => setExcluindo(null)} titulo="Excluir arquivo?" largura="sm" descricao={excluindo.asset.nome} rodape={<><Botao variante="secundario" onClick={() => setExcluindo(null)}>Cancelar</Botao><Botao variante="perigo" carregando={apagando} onClick={() => void apagar()}>{excluindo.usos == null || excluindo.usos.length ? 'Excluir mesmo assim' : 'Excluir'}</Botao></>}>
           {excluindo.usos == null ? <p className="text-sm text-texto2">Se algum projeto usar este arquivo, avisamos antes de excluir.</p> : excluindo.usos.length ? <p className="text-sm text-perigo">Usado em: {excluindo.usos.join(', ')}. As telas mostrarão “mídia indisponível”.</p> : <p className="text-sm text-texto2">Nenhum projeto usa este arquivo.</p>}
-        </Modal>
+        </Modal>,
+        document.body
       )}
     </div>
   )

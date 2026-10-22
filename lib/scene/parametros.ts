@@ -327,3 +327,41 @@ export function divisao(a: Pick<Animacao, 'type'> & Partial<Animacao>): 'line' |
   if (a.type === 'words' || a.type === 'letters' || a.type === 'cascade') return parametros(a).split
   return null
 }
+
+// ---------- texto dividido: keyframes das partes (Web Animations API) ----------
+
+/** Um conjunto de keyframes de uma parte (o desfoque, quando há, vem num conjunto separado do movimento). */
+export type QuadrosParte = Keyframe[]
+
+/**
+ * Keyframes das partes de um texto dividido, com os valores já resolvidos (os mesmos de `--seg-*`). As partes
+ * animam pela Web Animations API, não por `animation-*` no estilo: animação CSS dispara `animationstart` e
+ * `animationend` por parte (o React trata cada um na raiz da página) e entra no recálculo das animações CSS a
+ * cada quadro. O desfoque é um conjunto à parte (filtro não roda na GPU e levaria o movimento junto).
+ */
+export function quadrosDasPartes(a: Pick<Animacao, 'type'> & Partial<Animacao>, partes = 0): QuadrosParte[] {
+  if (a.type === 'typewriter') return [[{ visibility: 'hidden' }, { visibility: 'visible', offset: 0.001 }, { visibility: 'visible' }]]
+  if (a.type === 'scramble') return [[{ visibility: 'hidden' }, { visibility: 'visible', offset: 0.01 }, { visibility: 'visible' }]]
+  const p = parametros(a)
+  const v = varsDeTexto(a, p)
+  if (a.type === 'lines') return [[{ opacity: p.opacity, transform: 'translateY(110%)' }, { opacity: 1, transform: 'translateY(0%)' }]]
+  const mov: QuadrosParte = [
+    { opacity: p.opacity, transform: `translate(0px, ${v['--seg-dy']}) rotate(${v['--seg-rot']}) scale(${v['--seg-escala']})` },
+    { opacity: 1, transform: 'translate(0px, 0px) rotate(0deg) scale(1)' },
+  ]
+  if (keyframeDaParte(a, partes) !== 'seg-movBlur') return [mov]
+  return [mov, [{ filter: `blur(${v['--seg-blur']})` }, { filter: 'blur(0px)' }]]
+}
+
+/**
+ * Keyframes de uma parte dentro de um ciclo da entrada inteira (para repetir N vezes): a parte espera até
+ * `inicio`, anima até `inicio + duracao` com a curva da camada e fica parada até o fim do ciclo. Assim a
+ * sequência toda repete, e não cada parte no seu próprio ritmo. Tempos em fração do ciclo (0–1).
+ */
+export function quadrosNoCiclo(quadros: QuadrosParte, inicio: number, duracao: number, curva: string): QuadrosParte {
+  const { offset: _o1, ...de } = quadros[0] ?? {}
+  const { offset: _o2, ...ate } = quadros[quadros.length - 1] ?? {}
+  const a = Math.max(0, Math.min(1, inicio))
+  const b = Math.max(a, Math.min(1, inicio + duracao))
+  return [{ ...de, offset: 0 }, { ...de, offset: a, easing: curva }, { ...ate, offset: b }, { ...ate, offset: 1 }]
+}
