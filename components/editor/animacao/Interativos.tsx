@@ -5,7 +5,7 @@
  * Prévia: os cartões tocam o efeito real (o mesmo invólucro do visualizador) com um ponteiro simulado; o botão
  * Prévia faz o mesmo no canvas.
  */
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronRight } from 'lucide-react'
 import type { Camada, EfeitosInterativos } from '@/lib/scene/schema'
 import type { Editor } from '@/lib/editor/useEditor'
@@ -111,9 +111,11 @@ function Finos({ children, resumo, aoPadrao }: { children: ReactNode; resumo?: s
   )
 }
 
+/** Prévia 300 ms depois do último ajuste (arrastar o deslizador não toca a cada passo). */
 function useDepois(aoPrevia: () => void) {
-  const [t, setT] = useState<number | undefined>()
-  return () => { window.clearTimeout(t); setT(window.setTimeout(aoPrevia, 300)) }
+  const t = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(t.current), [])
+  return () => { window.clearTimeout(t.current); t.current = window.setTimeout(aoPrevia, 300) }
 }
 
 function Titulo({ children }: { children: ReactNode }) {

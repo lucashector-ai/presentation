@@ -7,7 +7,7 @@
  * Morph: quando `morphDe` é passado, camadas com o mesmo nome (ou ID) na tela anterior começam com a
  * geometria/cor antiga e animam até a nova.
  */
-import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { Animacao, Camada, Cena, Interacao, CamadaTexto } from '@/lib/scene/schema'
 import { EASING_CSS, camadaVisivel, interacoesDe, type EstadoRuntime } from '@/lib/scene/motor'
 import { ordenarParaRender } from '@/lib/scene/order'
@@ -181,7 +181,7 @@ function geometria(c: Camada): CSSProperties {
 function useSaiuDaJanela(ativo: boolean): [(el: HTMLDivElement | null) => void, boolean] {
   const [saiu, setSaiu] = useState(false)
   const io = useRef<IntersectionObserver | null>(null)
-  const ref = (el: HTMLDivElement | null) => {
+  const ref = useCallback((el: HTMLDivElement | null) => {
     io.current?.disconnect()
     io.current = null
     if (!el || !ativo || saiu || typeof IntersectionObserver === 'undefined') return
@@ -193,7 +193,7 @@ function useSaiuDaJanela(ativo: boolean): [(el: HTMLDivElement | null) => void, 
     })
     obs.observe(el)
     io.current = obs
-  }
+  }, [ativo, saiu])
   useEffect(() => () => io.current?.disconnect(), [])
   return [ref, saiu]
 }

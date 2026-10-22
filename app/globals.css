@@ -160,7 +160,7 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
    nada (contain: layout size; tamanho vem da letra). Com ::after { content: attr(...) }, cada troca refazia o
    layout do parágrafo inteiro. Escondido com visibility (também sai do texto copiado). */
 .seg-glifo { position: absolute; left: 0; right: 0; top: 0; bottom: 0; text-align: center; contain: layout size style; visibility: hidden; pointer-events: none; user-select: none; color: var(--scr-cor, currentColor); -webkit-text-fill-color: var(--scr-cor, currentColor); }
-.seg-scramble[data-g] > .seg-glifo { visibility: visible; }
+.seg-scramble[data-g]:not([data-espera]) > .seg-glifo { visibility: visible; }
 /* destaque / sublinhado desenhado: o marcador corre por trás das palavras (atravessa as linhas em sequência) */
 .seg-marca { background-image: linear-gradient(var(--marca-cor, currentColor), var(--marca-cor, currentColor)); background-repeat: no-repeat; background-position: 0 var(--marca-y, 88%); background-size: 100% var(--marca-h, .38em); animation-fill-mode: both; }
 .seg-contador { font-variant-numeric: tabular-nums; animation-fill-mode: both; }
