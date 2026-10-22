@@ -132,9 +132,9 @@ export function FormAuth({ modo }: { modo: 'login' | 'signup' }) {
 
       <form onSubmit={enviar} className="flex flex-col gap-3.5" noValidate>
         {modo === 'signup' && !recuperar && (
-          <Campo rotulo="Nome"><Entrada autoComplete="name" placeholder="Marina Duarte" value={nome} onChange={(e) => setNome(e.target.value)} /></Campo>
+          <Campo rotulo="Nome"><Entrada className="h-12" autoComplete="name" placeholder="Marina Duarte" value={nome} onChange={(e) => setNome(e.target.value)} /></Campo>
         )}
-        <Campo rotulo="E-mail"><Entrada type="email" autoComplete="email" placeholder="voce@estudio.com" value={email} onChange={(e) => setEmail(e.target.value)} required /></Campo>
+        <Campo rotulo="E-mail"><Entrada className="h-12" type="email" autoComplete="email" placeholder="voce@estudio.com" value={email} onChange={(e) => setEmail(e.target.value)} required /></Campo>
         {!recuperar && (
           <div>
             <div className="mb-2 flex items-baseline justify-between gap-3">
@@ -142,6 +142,7 @@ export function FormAuth({ modo }: { modo: 'login' | 'signup' }) {
               {modo === 'login' && <Link href="/login?recuperar=1" className="text-[13px] text-texto2 transition-colors hover:text-acento">Esqueceu a senha?</Link>}
             </div>
             <Entrada
+              className="h-12"
               id={idSenha}
               type="password"
               autoComplete={modo === 'login' ? 'current-password' : 'new-password'}
@@ -206,7 +207,7 @@ function ConfirmarEmail({ email, senha, destino }: { email: string; senha: strin
   return (
     <form onSubmit={confirmar} className="flex flex-col gap-7" noValidate>
       <Titulo titulo="Verifique seu e-mail" subtitulo={<>Enviamos um código de confirmação para <strong className="font-medium text-texto">{email}</strong>.</>} />
-      <Campo rotulo="Código"><Entrada inputMode="numeric" autoComplete="one-time-code" placeholder="000000" value={codigo} onChange={(e) => setCodigo(e.target.value)} /></Campo>
+      <Campo rotulo="Código"><Entrada className="h-12" inputMode="numeric" autoComplete="one-time-code" placeholder="000000" value={codigo} onChange={(e) => setCodigo(e.target.value)} /></Campo>
       {erro && <p role="alert" className="m-0 -mt-4 text-[13px] text-perigo">{erro}</p>}
       <Botao type="submit" className="h-[46px] w-full" carregando={enviando}>Confirmar e entrar</Botao>
     </form>
@@ -254,7 +255,7 @@ function RecuperarSenha() {
       {etapa === 'email' && (
         <form onSubmit={pedirCodigo} className="flex flex-col gap-3.5" noValidate>
           <Titulo titulo="Recuperar senha." subtitulo="Informe seu e-mail e enviaremos um código para redefinir." />
-          <Campo rotulo="E-mail"><Entrada type="email" autoComplete="email" placeholder="voce@estudio.com" value={email} onChange={(e) => setEmail(e.target.value)} required /></Campo>
+          <Campo rotulo="E-mail"><Entrada className="h-12" type="email" autoComplete="email" placeholder="voce@estudio.com" value={email} onChange={(e) => setEmail(e.target.value)} required /></Campo>
           {erro && <p role="alert" className="m-0 text-[13px] text-perigo">{erro}</p>}
           <Botao type="submit" className="mt-1.5 h-[46px] w-full" carregando={enviando}>Enviar código</Botao>
         </form>
@@ -262,8 +263,8 @@ function RecuperarSenha() {
       {etapa === 'codigo' && (
         <form onSubmit={redefinir} className="flex flex-col gap-3.5" noValidate>
           <Titulo titulo="Nova senha." subtitulo={<>Se existir uma conta para <strong className="font-medium text-texto">{email}</strong>, o código chega em instantes.</>} />
-          <Campo rotulo="Código"><Entrada inputMode="numeric" autoComplete="one-time-code" placeholder="000000" value={codigo} onChange={(e) => setCodigo(e.target.value)} /></Campo>
-          <Campo rotulo="Nova senha"><Entrada type="password" autoComplete="new-password" placeholder="Mínimo de 8 caracteres" value={senha} onChange={(e) => setSenha(e.target.value)} /></Campo>
+          <Campo rotulo="Código"><Entrada className="h-12" inputMode="numeric" autoComplete="one-time-code" placeholder="000000" value={codigo} onChange={(e) => setCodigo(e.target.value)} /></Campo>
+          <Campo rotulo="Nova senha"><Entrada className="h-12" type="password" autoComplete="new-password" placeholder="Mínimo de 8 caracteres" value={senha} onChange={(e) => setSenha(e.target.value)} /></Campo>
           {erro && <p role="alert" className="m-0 text-[13px] text-perigo">{erro}</p>}
           <Botao type="submit" className="mt-1.5 h-[46px] w-full" carregando={enviando}>Redefinir senha</Botao>
         </form>

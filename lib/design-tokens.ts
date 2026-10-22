@@ -44,7 +44,26 @@ export const T = {
     guia: '#F25987',
     canvas: '#F0EFED',
   },
-  raio: { sm: 4, md: 7, lg: 9, xl: 12, pill: 99 },
+  // md 7 e lg 9 continuam por compatibilidade do editor; nas telas do painel use controle, cartao e bloco
+  raio: { sm: 4, md: 7, lg: 9, xl: 12, controle: 8, cartao: 12, bloco: 16, pill: 99 },
+  /** Alturas de controle: sm (ações em cartões e listas), md (padrão), lg (ação principal da tela). */
+  controle: { sm: 32, md: 40, lg: 48 },
+  /**
+   * Grid do painel (components/app/Layout.tsx): 4 colunas no celular, 8 no tablet e com a barra lateral (lg),
+   * 12 a partir de xl, largura máxima de 1248 centralizada. Todo espaçamento de layout sai de `espaco`
+   * (múltiplos de 8); 4 só dentro de componentes (ícone e texto, título e meta de uma linha, badge).
+   */
+  layout: {
+    colunas: { base: 4, sm: 8, lg: 8, xl: 12 },
+    calha: { base: 16, sm: 24 },
+    margem: { base: 16, sm: 32, xl: 48 },
+    larguraMax: 1248,
+    espaco: [8, 16, 24, 32, 40, 48, 56, 64, 80, 96],
+    cartao: { base: 16, sm: 24 },
+    secao: 48,
+    cabecalho: 32,
+    tituloSecao: 16,
+  },
   sombra: { suave: '0 1px 2px rgb(0 0 0 / 0.04), 0 12px 32px -16px rgb(0 0 0 / 0.18)', carimbo: '6px 6px 0 0 #171717' },
   duracao: { rapida: 150, normal: 250, lenta: 450 },
   z: { canvas: 0, selecao: 10, painel: 20, barra: 30, modal: 50, toast: 60 },

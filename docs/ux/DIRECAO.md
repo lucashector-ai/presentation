@@ -121,9 +121,9 @@ Saldo sempre visível (rodapé da barra lateral, cartão do painel, cabeçalho d
 | Landing | `/` · `components/marketing/*` | ✅ créditos em apresentações (calculadora "Gerar uma apresentação", ações dentro de uma apresentação, planos e pacotes com ≈ N); FAQ de créditos; promessas não implementadas removidas |
 | Cadastro / login / recuperar | `/signup` `/login` · `FormAuth.tsx` | ✅ preserva `?proximo=` (inclusive ao alternar login↔cadastro); nome do cadastro vira o usuário |
 | Redirecionamento do Criar com IA | `/criar` · `app/criar/*` | ✅ mantém prompt/formato; sem sessão → cadastro |
-| Painel (Início) | `/app` · `Dashboard.tsx` | ✅ hub: criar (IA + 3 atalhos), continuar, enviados, créditos, primeiros passos, projetos |
+| Painel (Início) | `/app` · `Dashboard.tsx` | ✅ hub: criar (IA + 3 atalhos), continuar, enviados, créditos, primeiros passos, projetos; tudo numa grade só (bordas alinhadas entre as linhas) |
 | Barra lateral + busca ⌘K | `Shell.tsx`, `BuscaRapida.tsx` | ✅ |
-| Criar com IA | `/app/criar` · `CriarComIA.tsx` | ✅ dentro do app; custo em apresentações; limite por plano; compra quando falta saldo |
+| Criar com IA | `/app/criar` · `CriarComIA.tsx` | ✅ dentro do app; custo em apresentações; limite por plano; compra quando falta saldo · ⚠ só o invólucro no grid (U9) |
 | Novo projeto | `/app/novo` · `NovoProjeto.tsx` | ✅ atalhos por query; importar acessível no celular |
 | Detalhes do projeto | `/app/projects/:id` · `DetalheProjeto.tsx` | ✅ publicar aqui mesmo; estado "não encontrado" com saída |
 | Compartilhar | `/app/projects/:id/share` | ✅ publicar aqui mesmo (`BarraPublicacao`); sem avisos repetidos; link novo leva a Enviados |
@@ -137,11 +137,15 @@ Saldo sempre visível (rodapé da barra lateral, cartão do painel, cabeçalho d
 
 ## 6. Padrões de interface (app)
 
-- Cabeçalho de página: rótulo mono + `titulo-display` 32/40 px + descrição curta; ação principal à direita.
-- Cartões: `rounded-xl border-borda bg-superficie p-5`; rótulo mono no topo; número grande `tracking-[-0.04em]`.
+- **Grid do painel** (`components/app/Layout.tsx`, valores em `lib/design-tokens.ts › T.layout`): 4 colunas no celular, 8 no tablet e com a barra lateral (lg), 12 a partir de xl; calha 16 → 24; margem do `main` 16 → 32 → 48; largura máxima 1248 centralizada (`PaginaPainel`). Tudo que fica lado a lado entra numa `Grade` com um `SPAN` (`terco`, `doisTercos`, `quarto`, `sexto`, `metade`, `lateral`, `cheio`), assim as bordas batem entre as linhas por construção. Conjuntos fixos (atalhos, exemplos, formatos, KPIs) fecham as linhas sem órfãos.
+- **Escala de 8:** margens, calhas, paddings e espaços entre blocos só em 8/16/24/32/40/48/56/64/80/96; 4 só dentro de componentes (ícone e texto, título e meta, badge). `components/app/espacamento.test.ts` barra o resto nas telas do painel.
+- Ritmo vertical: rótulo → H1 8 · H1 → descrição 16 · cabeçalho → primeiro bloco 32 · entre seções 48 · H2 (20 px) → conteúdo 16.
+- Controles: 32 (ações em cartões e listas) · 40 (padrão: botão, campo, select, busca, item de navegação) · 48 (ação principal da tela; entrada e cadastro). Raios: 8 controles, 12 cartões e capas, 16 estados vazios e modais.
+- Cabeçalho de página (`CabecalhoPagina`): rótulo mono + `titulo-display` 32/40 px + descrição curta; ação principal à direita; sem linha embaixo.
+- Cartões do painel (`CartaoPainel`): `rounded-cartao border-borda bg-superficie p-4 sm:p-6`, `h-full` (vizinhos com a mesma altura) e rodapé com `mt-auto` (botões na mesma linha de base); rótulo mono numa linha de 24 px; número grande `tracking-[-0.04em]`.
 - Status de projeto: **Rascunho** (cinza, nunca publicado) → **Publicado** (acento, revisão pronta sem link) → **Enviado** (verde, link ativo) · **Arquivado**. "Alterações não publicadas" em âmbar quando o rascunho passou da revisão publicada.
 - Capas: 16:10; telas verticais (Story) aparecem inteiras sobre fundo neutro (`CapaProjeto`).
-- Destaque de IA: ponto acento + sombra carimbo violeta só no cartão de criação com IA.
+- Destaque de IA: ponto acento + sombra carimbo violeta (4 px, dentro da calha; o alinhamento é pela borda) só no cartão de criação com IA.
 - Demonstração: todo "comprar/assinar/exportar" termina com "(demonstração, sem cobrança)".
 
 ## 7. Como validar

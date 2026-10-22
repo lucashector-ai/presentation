@@ -18,6 +18,7 @@ Direção e fluxos em [`DIRECAO.md`](./DIRECAO.md). Feito nesta rodada no fim do
 | E8 | P2 | copia-figma | Slides 16:9 no celular em retrato ficam pequenos e com muito vazio; nenhuma dica de girar. | `components/viewer/Viewer.tsx` | Em retrato com tela horizontal, dica discreta "Gire o celular" uma vez por sessão; tocar nas metades esquerda/direita para navegar. |
 | E9 | P2 | copia-figma | Visualização registra só contagem por link; a landing prometia tempo por tela (texto já suavizado). | `lib/demo/store.ts` `resolverToken`, viewer | Evento por tela vista (`share_view_scene`) com duração; mostrar em Enviados ("parou na tela 4"). Depende de backend — combinar com ux. |
 | E10 | P2 | copia-figma | Toggle "Proteger com senha" desligado tem pouco contraste sobre o fundo claro (parece desabilitado). | `components/ui/index.tsx` `Alternador` (compartilhado) | Trilho desligado `#C9C7C4` + borda; ux pode ajustar junto, é componente compartilhado. |
+| E11 | P2 | copia-figma | Cabeçalho do editor estoura a largura a 1024 px (conteúdo de ~1350 px; "Pré-visualizar" quebra em duas linhas). Já acontecia antes do grid do painel; por isso o `Botao sm` manteve o padding de 12. | `components/editor/EditorShell.tsx` (cabeçalho) | Abaixo de xl, Pré-visualizar só com ícone e ferramentas de forma num menu; depois o `Botao sm` pode ir para padding 16 (escala de 8). |
 | A1 | P2 | animacoes | Telas geradas pela IA usam sempre fade/slide de 600 ms; a aba Animação tem presets melhores que não chegam à geração. | `lib/ia/roteiro.ts` (`montarDocumento`, transições/entradas) | Expor os presets da aba Animação como função pura e aplicar por tipo de tela (capa: entrada em cascata; números: contagem; paleta: blocos em sequência). Manter `prefers-reduced-motion` (AC-14). |
 | A2 | P2 | animacoes | Revelação das telas no passo 3 do Criar com IA é um fade simples a cada 380 ms. | `components/app/CriarComIA.tsx` (passo 3) | Sugerir curva/escala da marca; ux implementa se vier como classe/keyframe em `globals.css`. |
 
@@ -32,7 +33,16 @@ Direção e fluxos em [`DIRECAO.md`](./DIRECAO.md). Feito nesta rodada no fim do
 | U5 | P2 | Alterar senha e exportar dados são só demonstração (toast). | `Configuracoes.tsx` | Ligar ao Neon Auth (troca de senha por código) / job de exportação. |
 | U6 | P2 | Rodapé da landing com "Templates", "Central de ajuda", "Blog" sem página. | `components/marketing/dados.ts` `RODAPE` | Página de templates pública reaproveitando `TEMPLATES` (`lib/ia/roteiro.ts`) com "Usar template" → `/app/novo?comeco=template`. |
 | U7 | P2 | Troca de espaço/equipe (Studio "por membro") ainda não existe; o cartão do espaço leva ao plano. | `Shell.tsx` | Fase 2: seletor de espaço e convites. |
+| U9 | P2 | Conteúdo dos passos do Criar com IA ainda fora da escala de 8 (alturas 52/34/44/28/36, `mt-1.5`, `gap-1.5`, `p-3.5`, raios 14/18). Só o invólucro entrou no grid, para não conflitar com o manual da marca. | `components/app/CriarComIA.tsx`, `components/app/criar/*` | Migrar depois do merge do manual da marca e tirar o arquivo de `AINDA_FORA` em `espacamento.test.ts`. |
+| U10 | P2 | Plano e conta é uma tela longa sem atalhos para as seções. | `Configuracoes.tsx` | Índice lateral fixo no xl (`col-span-4`, `sticky`) com saldo e "Comprar créditos"; fichas âncora em lg. Fica para outra rodada (UI nova). |
 | U8 | P2 | Criar com IA aceita só texto (.txt/.md/.html); PDF/DOCX pedem para colar. | `CriarComIA.tsx` `importar` | Extração no servidor (ADR 0008, pendências). |
+
+## Feito na rodada do grid do painel (ux)
+
+- Um grid só para todas as telas do painel (`components/app/Layout.tsx`: `PaginaPainel`, `CabecalhoPagina`, `Grade`, `SPAN`, `Secao`, `CartaoPainel`, `Esqueleto`, `FiltroFichas`); tokens em `T.layout`, `T.controle` e raios `controle/cartao/bloco`.
+- Início: IA, atalhos, Continuar, Enviados e Créditos na mesma grade (a borda dos atalhos bate com a dos Créditos e da 3ª capa); atalhos sempre com descrição; Continuar não some sem projeto ativo; esqueletos no lugar do "Carregando"; erro dentro dos cartões.
+- Enviados, Biblioteca, Lixeira, Plano e conta, Detalhe do projeto, Compartilhar, Novo projeto e Aceitar convite no mesmo grid e na mesma margem; fim da rolagem lateral de 4 px no Plano e conta a 390 px; formatos do Novo projeto e exemplos do Criar com IA sem órfãos.
+- Guarda: `components/app/espacamento.test.ts`.
 
 ## Feito na rodada do Criar com IA em passos (ux)
 
