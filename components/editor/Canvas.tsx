@@ -24,13 +24,13 @@ import { areasDeEspaco, indiceDeInsercao, type Insercao, type TipoEspaco } from 
 import { alvoDoClique, ancestrais, comDescendentes, mapaDe, ocultasEfetivas, paiDe, raizDe, raizesDaSelecao, temAutoLayout } from '@/lib/scene/arvore'
 import { camadaNoPonto, contemPonto, envolvente, type Alca, type Retangulo } from '@/lib/scene/transform'
 import { comDimensionamento, indiceNoPonto, medirTexto, textoAutomatico } from '@/lib/editor/medirTexto'
-import { caixaCss, corteVertical, decoracaoCss, recuoLista } from '@/lib/scene/tipografia'
+import { caixaCss, corteVertical, decoracaoCss, folgaTinta, recuoLista } from '@/lib/scene/tipografia'
 import { FERRAMENTAS_DESENHO, FORMA_DA_FERRAMENTA, caixaDeLinha } from '@/lib/editor/atalhos'
 import { pilhaFonte } from '@/lib/design-tokens'
 import { SceneRenderer, type AssetsResolvidos } from '@/components/renderer/SceneRenderer'
 import { useTamanho } from '@/components/renderer/useTamanho'
 import { MiniaturaCena } from './MiniaturaCena'
-import { ColunasCanvas, GuiasCanvas, LinhaInsercao, PreviaRegiao, SEM_SOBREPOSICAO, type Sobreposicao } from './GuiasCanvas'
+import { COR_SELECAO, ColunasCanvas, GuiasCanvas, HALO_SELECAO, LinhaInsercao, PreviaRegiao, SEM_SOBREPOSICAO, haloDe, type Sobreposicao } from './GuiasCanvas'
 import { CamadaPresenca } from './Presenca'
 import { alvosDeFracao, colunasDaGrade, gradeLayoutPadrao } from '@/lib/editor/preencher'
 import { EVENTO_PREVIA } from './PreencherGrade'
@@ -777,31 +777,32 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
         {estado.documento.mode === 'story' && <div aria-hidden className="pointer-events-none absolute border border-dashed border-texto3/60" style={{ left: '6%', right: '6%', top: '8%', bottom: '10%' }} />}
       </div>
 
-      {/* hover */}
-      {hover && !vetorAtivo && !estado.selecao.includes(hover) && (!g || g.tipo === 'mover') && !editandoTexto && (() => { const l = mapa.get(hover); return l ? <Contorno r={paraTela(l)} rot={l.rotation} cor={alt && caixaSel ? 'rgb(var(--cor-guia))' : 'rgb(89 101 242 / .55)'} /> : null })()}
+      {/* hover: 2 px na cor da seleção (a seleção tem 1 px e alças) */}
+      {hover && !vetorAtivo && !estado.selecao.includes(hover) && (!g || g.tipo === 'mover') && !editandoTexto && (() => { const l = mapa.get(hover); return l ? <Contorno r={paraTela(l)} rot={l.rotation} cor={alt && caixaSel ? 'rgb(var(--cor-guia))' : COR_SELECAO} largura={alt && caixaSel ? 1 : 2} testid="contorno-hover" /> : null })()}
 
-      {/* frames: contorno discreto do frame pai da seleção (contexto) */}
-      {unica && !editandoTexto && (() => { const p = paiDe(unica, mapa); return p ? <Contorno r={paraTela(p)} rot={p.rotation} cor="rgb(89 101 242 / .35)" tracejado /> : null })()}
+      {/* frames: contorno tracejado do frame pai da seleção (contexto) */}
+      {unica && !editandoTexto && (() => { const p = paiDe(unica, mapa); return p ? <Contorno r={paraTela(p)} rot={p.rotation} cor={COR_SELECAO} tracejado testid="contorno-pai" /> : null })()}
 
       {/* interações: marcadores numerados e fluxo */}
       {interacoesVisiveis && comInteracao.map((l, i) => {
         const r = paraTela(l)
         return (
-          <div key={`h-${l.id}`} className="pointer-events-none absolute" style={{ left: r.x - 6, top: r.y - 6, width: r.width + 12, height: r.height + 12, border: '1px dashed rgb(89 101 242 / .7)', borderRadius: 8, background: 'rgb(89 101 242 / .04)' }}>
-            <span className="absolute -left-2.5 -top-2.5 flex h-5 w-5 items-center justify-center rounded-full bg-acento text-[11px] font-medium text-white">{i + 1}</span>
+          <div key={`h-${l.id}`} className="pointer-events-none absolute" style={{ left: r.x - 6, top: r.y - 6, width: r.width + 12, height: r.height + 12, border: `1px dashed ${COR_SELECAO}`, borderRadius: 8, background: 'rgb(var(--cor-selecao) / .06)', boxShadow: haloDe(1) }}>
+            <span className="absolute -left-2.5 -top-2.5 flex h-5 w-5 items-center justify-center rounded-full bg-selecao text-[11px] font-medium text-white">{i + 1}</span>
           </div>
         )
       })}
       {interacoesVisiveis && unica && <FluxoInteracao camada={unica} editor={editor} assets={assets} r={paraTela(unica)} />}
 
       {/* seleção */}
-      {!editandoTexto && !vetorAtivo && selecionadas.map((l) => <Contorno key={l.id} r={paraTela(l)} rot={l.rotation} cor="rgb(89 101 242)" largura={1.5} />)}
+      {!editandoTexto && !vetorAtivo && selecionadas.map((l) => <Contorno key={l.id} r={paraTela(l)} rot={l.rotation} cor={COR_SELECAO} testid="contorno-selecao" />)}
       {caixaSel && !editandoTexto && !vetorAtivo && !interacoesVisiveis && !(g?.tipo === 'mover' && g.fluxo && g.moveu) && (() => {
         const r = paraTela(caixaSel)
         const travada = selecionadas.every((l) => l.locked)
         return (
           <>
-            {selecionadas.length > 1 && <Contorno r={r} rot={0} cor="rgb(89 101 242)" tracejado />}
+            {/* seleção múltipla: caixa inteira sólida, como no Figma (cada camada já tem o próprio contorno) */}
+            {selecionadas.length > 1 && <Contorno r={r} rot={0} cor={COR_SELECAO} testid="caixa-selecao" />}
             {/* bordas inteiras: arrastar redimensiona naquele eixo; duplo clique abraça o conteúdo (texto, auto layout) */}
             {!travada && (unica ? !unica.rotation : true) && BORDAS.map((a) => {
               const dentroX = Math.min(4, r.width / 4)
@@ -814,11 +815,13 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
             {!travada && (unica ? !unica.rotation : true) && ALCAS.map((a) => {
               const cx = a.includes('w') ? r.x : a.includes('e') ? r.x + r.width : r.x + r.width / 2
               const cy = a.includes('n') ? r.y : a.includes('s') ? r.y + r.height : r.y + r.height / 2
-              return <div key={a} data-alca={a} className="absolute z-10 h-2 w-2 border-[1.5px] border-acento bg-white" style={{ left: cx - 4, top: cy - 4, cursor: CURSORES[a] }} />
+              // alça quadrada branca com borda de 1 px na cor da seleção (legível em fundo claro, escuro ou azul)
+              return <div key={a} data-alca={a} className="absolute z-10 h-2 w-2 border border-selecao bg-white" style={{ left: cx - 4, top: cy - 4, cursor: CURSORES[a] }} />
             })}
-            {unica && !travada && <div data-alca="rot" title="Girar (Shift = 15°)" className="absolute z-10 h-3 w-3 rounded-full border-[1.5px] border-acento bg-white" style={{ left: r.x + r.width / 2 - 6, top: r.y - 28, cursor: 'grab' }} />}
-            {unica && !travada && <div className="pointer-events-none absolute w-px bg-acento" style={{ left: r.x + r.width / 2, top: r.y - 16, height: 16 }} />}
-            <div className="mono pointer-events-none absolute whitespace-nowrap rounded-[4px] bg-acento px-1.5 py-[3px] text-[11px] leading-none text-white" style={{ left: r.x + r.width / 2, top: r.y + r.height + 8, transform: 'translateX(-50%)' }}>
+            {unica && !travada && <div data-alca="rot" title="Girar (Shift = 15°)" className="absolute z-10 h-3 w-3 rounded-full border border-selecao bg-white" style={{ left: r.x + r.width / 2 - 6, top: r.y - 28, cursor: 'grab' }} />}
+            {unica && !travada && <div className="pointer-events-none absolute w-px bg-selecao" style={{ left: r.x + r.width / 2, top: r.y - 16, height: 16, boxShadow: `0 0 0 1px ${HALO_SELECAO}` }} />}
+            {/* etiqueta de medidas: pílula sólida com texto branco */}
+            <div data-testid="etiqueta-medidas" className="mono pointer-events-none absolute whitespace-nowrap rounded-[4px] bg-selecao px-1.5 py-[3px] text-[11px] font-medium leading-none text-white" style={{ left: r.x + r.width / 2, top: r.y + r.height + 8, transform: 'translateX(-50%)', boxShadow: `0 0 0 1px ${HALO_SELECAO}` }}>
               {rotuloTamanho(caixaSel.width, unica?.sizingW)} × {rotuloTamanho(caixaSel.height, unica?.sizingH)}{unica?.rotation ? ` · ${unica.rotation}°` : ''}
             </div>
           </>
@@ -826,7 +829,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
       })()}
 
       {/* auto layout: fantasma do item arrastado e linha azul de inserção */}
-      {g?.tipo === 'mover' && g.fluxo && g.moveu && (() => { const r = paraTela({ ...g.caixa, x: g.caixa.x + g.delta.x, y: g.caixa.y + g.delta.y }); return <div data-testid="fantasma" className="pointer-events-none absolute z-20 border-[1.5px] border-acento bg-acento/15" style={{ left: r.x, top: r.y, width: r.width, height: r.height }} /> })()}
+      {g?.tipo === 'mover' && g.fluxo && g.moveu && (() => { const r = paraTela({ ...g.caixa, x: g.caixa.x + g.delta.x, y: g.caixa.y + g.delta.y }); return <div data-testid="fantasma" className="pointer-events-none absolute z-20 border border-selecao bg-selecao/15" style={{ left: r.x, top: r.y, width: r.width, height: r.height }} /> })()}
       {insercao && g?.tipo === 'mover' && g.moveu && <LinhaInsercao linha={insercao.linha} paraTela={paraTela} />}
 
       {/* grade de layout (12 colunas) e prévia de "Preencher" */}
@@ -860,9 +863,9 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
       )}
 
       {/* área e desenho */}
-      {g?.tipo === 'area' && (() => { const r = paraTela(retDe(g.inicio, g.atual)); return <div className="pointer-events-none absolute border border-acento bg-acento/10" style={{ left: r.x, top: r.y, width: r.width, height: r.height }} /> })()}
-      {g?.tipo === 'desenhar' && linear && (() => { const a = paraTela({ ...g.inicio, width: 0, height: 0 }); const b = paraTela({ ...g.atual, width: 0, height: 0 }); return <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" aria-hidden><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="rgb(89 101 242)" strokeWidth={1.5} /></svg> })()}
-      {g?.tipo === 'desenhar' && !linear && (() => { const r = paraTela(retDe(g.inicio, g.atual)); return <div className="pointer-events-none absolute border-[1.5px] border-acento bg-acento/10" style={{ left: r.x, top: r.y, width: r.width, height: r.height, borderRadius: estado.ferramenta === 'hotspot' ? 6 : estado.ferramenta === 'elipse' ? '50%' : 0, borderStyle: estado.ferramenta === 'hotspot' ? 'dashed' : 'solid' }} /> })()}
+      {g?.tipo === 'area' && (() => { const r = paraTela(retDe(g.inicio, g.atual)); return <div data-testid="area-selecao" className="pointer-events-none absolute border border-selecao bg-selecao/10" style={{ left: r.x, top: r.y, width: r.width, height: r.height }} /> })()}
+      {g?.tipo === 'desenhar' && linear && (() => { const a = paraTela({ ...g.inicio, width: 0, height: 0 }); const b = paraTela({ ...g.atual, width: 0, height: 0 }); return <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" aria-hidden><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={COR_SELECAO} strokeWidth={1} /></svg> })()}
+      {g?.tipo === 'desenhar' && !linear && (() => { const r = paraTela(retDe(g.inicio, g.atual)); return <div className="pointer-events-none absolute border border-selecao bg-selecao/10" style={{ left: r.x, top: r.y, width: r.width, height: r.height, borderRadius: estado.ferramenta === 'hotspot' ? 6 : estado.ferramenta === 'elipse' ? '50%' : 0, borderStyle: estado.ferramenta === 'hotspot' ? 'dashed' : 'solid' }} /> })()}
 
       {/* edição de texto no lugar: o documento muda a cada tecla (sem histórico); um passo de desfazer por sessão */}
       {textoEmEdicao && (() => {
@@ -873,7 +876,14 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
         const r = { ...r0, y: r0.y - corte.topo * vp.s, height: r0.height + (corte.topo + corte.base) * vp.s }
         const recuo = recuoLista(textoEmEdicao)
         const deco = decoracaoCss(textoEmEdicao)
+        // a área de edição recorta o que passa dela (textarea sempre rola): cresce uma folga em volta, com o mesmo
+        // tanto de respiro por dentro, para acentos e descendentes aparecerem enquanto se digita (as letras ficam
+        // no mesmo lugar); contorno e fundo ficam na caixa de verdade, atrás
+        const f = folgaTinta(textoEmEdicao) * vp.s
+        const pad = textoEmEdicao.padding * vp.s + f
         return (
+          <>
+          <div aria-hidden data-testid="caixa-edicao-texto" className="pointer-events-none absolute z-20" style={{ left: r.x, top: r.y, width: r.width, height: r.height, outline: `1px solid ${COR_SELECAO}`, borderRadius: textoEmEdicao.radius * vp.s, background: textoEmEdicao.background, transform: textoEmEdicao.rotation ? `rotate(${textoEmEdicao.rotation}deg)` : undefined, transformOrigin: 'center' }} />
           <textarea
             ref={textareaRef}
             aria-label="Editar texto"
@@ -885,10 +895,11 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
             onPointerDown={(e) => e.stopPropagation()}
             onDoubleClick={(e) => e.stopPropagation()}
             wrap={hug ? 'off' : 'soft'}
-            className="absolute z-20 resize-none overflow-hidden bg-transparent caret-acento selection:bg-acento/20"
-            // um contorno só, fino, exatamente na caixa do texto (o estilo global de foco desenharia outro por fora)
-            style={{ outline: '1px solid rgb(89 101 242)', outlineOffset: 0, borderRadius: textoEmEdicao.radius * vp.s, left: r.x, top: r.y, width: r.width + (hug ? 2 : 0), height: r.height, whiteSpace: hug ? 'pre' : 'pre-wrap', wordBreak: 'break-word', fontFamily: pilhaFonte(textoEmEdicao.fontFamily), fontSize: textoEmEdicao.fontSize * vp.s, fontWeight: textoEmEdicao.fontWeight, fontStyle: textoEmEdicao.italic ? 'italic' : undefined, ...deco, textDecorationThickness: typeof deco.textDecorationThickness === 'number' ? deco.textDecorationThickness * vp.s : undefined, textUnderlineOffset: typeof deco.textUnderlineOffset === 'number' ? deco.textUnderlineOffset * vp.s : undefined, color: textoEmEdicao.color, textAlign: textoEmEdicao.align === 'justify' ? 'justify' : textoEmEdicao.align, lineHeight: textoEmEdicao.lineHeight, letterSpacing: textoEmEdicao.letterSpacing * vp.s, padding: textoEmEdicao.padding * vp.s, paddingLeft: recuo ? `calc(${textoEmEdicao.padding * vp.s}px + ${recuo})` : undefined, ...caixaCss(textoEmEdicao.transform), fontVariantNumeric: textoEmEdicao.tabularNums ? 'tabular-nums' : undefined, fontVariantLigatures: textoEmEdicao.ligatures === false ? 'none' : undefined, background: textoEmEdicao.background, transform: textoEmEdicao.rotation ? `rotate(${textoEmEdicao.rotation}deg)` : undefined, transformOrigin: 'center' }}
+            className="absolute z-20 resize-none overflow-hidden bg-transparent caret-selecao selection:bg-selecao/25"
+            // sem contorno próprio (o estilo global de foco desenharia outro por fora): o da caixa, logo acima
+            style={{ outline: 'none', left: r.x - f, top: r.y - f, width: r.width + (hug ? 2 : 0) + 2 * f, height: r.height + 2 * f, whiteSpace: hug ? 'pre' : 'pre-wrap', wordBreak: 'break-word', fontFamily: pilhaFonte(textoEmEdicao.fontFamily), fontSize: textoEmEdicao.fontSize * vp.s, fontWeight: textoEmEdicao.fontWeight, fontStyle: textoEmEdicao.italic ? 'italic' : undefined, ...deco, textDecorationThickness: typeof deco.textDecorationThickness === 'number' ? deco.textDecorationThickness * vp.s : undefined, textUnderlineOffset: typeof deco.textUnderlineOffset === 'number' ? deco.textUnderlineOffset * vp.s : undefined, color: textoEmEdicao.color, textAlign: textoEmEdicao.align === 'justify' ? 'justify' : textoEmEdicao.align, lineHeight: textoEmEdicao.lineHeight, letterSpacing: textoEmEdicao.letterSpacing * vp.s, padding: pad, paddingLeft: recuo ? `calc(${pad}px + ${recuo})` : pad, ...caixaCss(textoEmEdicao.transform), fontVariantNumeric: textoEmEdicao.tabularNums ? 'tabular-nums' : undefined, fontVariantLigatures: textoEmEdicao.ligatures === false ? 'none' : undefined, transform: textoEmEdicao.rotation ? `rotate(${textoEmEdicao.rotation}deg)` : undefined, transformOrigin: 'center' }}
           />
+          </>
         )
       })()}
 
@@ -906,8 +917,9 @@ function rotuloTamanho(v: number, d: Camada['sizingW']) {
   return d === 'hug' ? `${Math.round(v)} Hug` : d === 'fill' ? `${Math.round(v)} Fill` : `${Math.round(v)}`
 }
 
-function Contorno({ r, rot, cor, largura = 1, tracejado }: { r: Retangulo; rot: number; cor: string; largura?: number; tracejado?: boolean }) {
-  return <div className="pointer-events-none absolute" style={{ left: r.x, top: r.y, width: r.width, height: r.height, outline: `${largura}px ${tracejado ? 'dashed' : 'solid'} ${cor}`, transform: rot ? `rotate(${rot}deg)` : undefined }} />
+/** Contorno sólido (ou tracejado) em px de tela, com o halo claro por fora (ver HALO_SELECAO). */
+function Contorno({ r, rot, cor, largura = 1, tracejado, testid }: { r: Retangulo; rot: number; cor: string; largura?: number; tracejado?: boolean; testid?: string }) {
+  return <div data-testid={testid} className="pointer-events-none absolute" style={{ left: r.x, top: r.y, width: r.width, height: r.height, outline: `${largura}px ${tracejado ? 'dashed' : 'solid'} ${cor}`, boxShadow: haloDe(largura), transform: rot ? `rotate(${rot}deg)` : undefined }} />
 }
 
 /** Cartão "Clique → 05 Aplicações · Morph · 600ms" ligado à camada selecionada (aba Interações). */
@@ -924,8 +936,8 @@ function FluxoInteracao({ camada, editor, assets, r }: { camada: Camada; editor:
   const topo = r.y + r.height + 6
   return (
     <>
-      <div className="pointer-events-none absolute w-px bg-acento" style={{ left: r.x + Math.min(84, r.width / 2), top: topo, height: 64 }} />
-      <div className="pointer-events-none absolute flex items-center gap-3 rounded-[10px] border-[1.5px] border-acento bg-white p-2 pr-3 shadow-[0_12px_30px_-12px_rgba(89,101,242,.45)]" style={{ left: r.x + 16, top: topo + 64 }}>
+      <div className="pointer-events-none absolute w-px bg-selecao" style={{ left: r.x + Math.min(84, r.width / 2), top: topo, height: 64, boxShadow: `0 0 0 1px ${HALO_SELECAO}` }} />
+      <div className="pointer-events-none absolute flex items-center gap-3 rounded-[10px] border border-selecao bg-white p-2 pr-3 shadow-[0_12px_30px_-12px_rgba(13,153,255,.45)]" style={{ left: r.x + 16, top: topo + 64 }}>
         <MiniaturaCena cena={alvo} assets={assets} largura={78} className="border-0" />
         <div className="whitespace-nowrap">
           <div className="text-[13px] font-medium text-acento">{gatilho} → {String(idx + 1).padStart(2, '0')} {alvo.title}</div>

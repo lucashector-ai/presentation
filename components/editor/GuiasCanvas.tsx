@@ -2,13 +2,24 @@
 /**
  * Sobreposições de precisão do canvas (estilo Figma):
  * guias de alinhamento (vermelho), vãos iguais (rosa, com o valor), medidas em px (vermelho, Alt)
- * e a linha azul de inserção do auto layout. Tudo em coordenadas da cena, convertido para a tela.
+ * e a linha azul de inserção do auto layout. Linhas sólidas de 1 px e etiquetas sólidas com texto branco. Tudo em coordenadas da cena, convertido para a tela.
  */
 import type { Guia, Medida } from '@/lib/editor/guias'
 import type { Retangulo } from '@/lib/scene/transform'
 
 const VERMELHO = 'rgb(var(--cor-guia))'
 const ROSA = '#E83FD1'
+
+/**
+ * Seleção, hover, alças e etiqueta de medidas: azul sólido (--cor-selecao, #0D99FF) de 1 px, como no Figma — o
+ * violeta translúcido sumia sobre fundos coloridos. Tudo em px de tela: a espessura é a mesma em qualquer zoom.
+ * HALO: anel claro de 1 px, bem leve, por fora da linha; só aparece onde o fundo tem a cor da seleção (azul sobre
+ * azul) e some no branco.
+ */
+export const COR_SELECAO = 'rgb(var(--cor-selecao))'
+export const HALO_SELECAO = 'rgb(255 255 255 / .3)'
+/** Sombra do halo para um contorno de `largura` px desenhado com outline (o anel fica logo depois da linha). */
+export const haloDe = (largura: number) => `0 0 0 ${largura + 1}px ${HALO_SELECAO}`
 
 export interface Sobreposicao {
   guias: Guia[]
@@ -76,16 +87,16 @@ export function ColunasCanvas({ colunas, paraTela }: { colunas: Retangulo[]; par
   )
 }
 
-/** Prévia da região de "Preencher" (tracejado no acento) enquanto o cursor está sobre uma opção. */
+/** Prévia da região de "Preencher" (tracejado na cor da seleção) enquanto o cursor está sobre uma opção. */
 export function PreviaRegiao({ r, paraTela }: { r: Retangulo; paraTela: ParaTela }) {
   const a = paraTela(r)
-  return <div data-testid="previa-preencher" className="pointer-events-none absolute z-30 rounded-[2px] border-[1.5px] border-dashed border-acento bg-acento/10" style={{ left: a.x, top: a.y, width: a.width, height: a.height }} />
+  return <div data-testid="previa-preencher" className="pointer-events-none absolute z-30 rounded-[2px] border border-dashed border-selecao bg-selecao/10" style={{ left: a.x, top: a.y, width: a.width, height: a.height }} />
 }
 
 /** Linha azul onde o item vai entrar no auto layout. */
 export function LinhaInsercao({ linha, paraTela }: { linha: { eixo: 'v' | 'h'; pos: number; de: number; ate: number }; paraTela: ParaTela }) {
   const a = paraTela(linha.eixo === 'v' ? { x: linha.pos, y: linha.de, width: 0, height: linha.ate - linha.de } : { x: linha.de, y: linha.pos, width: linha.ate - linha.de, height: 0 })
   return (
-    <div data-testid="linha-insercao" className="pointer-events-none absolute z-30 rounded-full bg-acento" style={linha.eixo === 'v' ? { left: a.x - 1, top: a.y, width: 2, height: Math.max(8, a.height) } : { left: a.x, top: a.y - 1, height: 2, width: Math.max(8, a.width) }} />
+    <div data-testid="linha-insercao" className="pointer-events-none absolute z-30 rounded-full bg-selecao" style={{ boxShadow: `0 0 0 1px ${HALO_SELECAO}`, ...(linha.eixo === 'v' ? { left: a.x - 1, top: a.y, width: 2, height: Math.max(8, a.height) } : { left: a.x, top: a.y - 1, height: 2, width: Math.max(8, a.width) }) }} />
   )
 }

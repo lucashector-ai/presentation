@@ -30,7 +30,7 @@ import { Forma } from './camadas/Forma'
 import { Modelo3d } from './camadas/Modelo3d'
 import { Lottie } from './camadas/Lottie'
 import { CorpoTexto, CorteTexto } from './camadas/CorpoTexto'
-import { estiloCaixaTexto } from '@/lib/scene/tipografia'
+import { estiloCaixaTexto, folgaTinta, linhasVisiveis } from '@/lib/scene/tipografia'
 import { useFontesDaCena } from './fontes'
 
 export interface AssetResolvido {
@@ -166,11 +166,13 @@ function herancaDeFrames(camadas: readonly Camada[]): Map<string, Heranca> {
       const y1 = Math.min(...clips.map((a) => a.y + a.height))
       const f = clips[0]!
       const raio = f.radii ? f.radii.map((x) => `${x}px`).join(' ') : f.radius ? `${f.radius}px` : ''
-      const t = Math.max(0, y0 - c.y)
-      const l = Math.max(0, x0 - c.x)
-      const b = Math.max(0, c.y + c.height - y1)
-      const d = Math.max(0, c.x + c.width - x1)
-      if (t || l || b || d) clip = `inset(${t}px ${d}px ${b}px ${l}px${raio && clips.length === 1 ? ` round ${raio}` : ''})`
+      // com sinal: o lado em que o frame fica fora da camada recorta lá na borda do frame (inset negativo), e não na
+      // borda da camada — senão um texto que passa do frame só embaixo perdia os acentos em cima
+      const t = y0 - c.y
+      const l = x0 - c.x
+      const b = c.y + c.height - y1
+      const d = c.x + c.width - x1
+      if (t > 0 || l > 0 || b > 0 || d > 0) clip = `inset(${t}px ${d}px ${b}px ${l}px${raio && clips.length === 1 ? ` round ${raio}` : ''})`
     }
     r.set(c.id, { oculta: anc.some((a) => a.hidden), opacidade: anc.reduce((o, a) => o * a.opacity, 1), clip })
   }
@@ -310,6 +312,8 @@ const LayerView = memo(function LayerView({ camada: c, props, origemMorph, heran
     ['--clip-final' as string]: heranca?.clip ?? 'none',
     zIndex: c.z,
     ...varsAnimacao(c),
+    // texto: as animações que recortam (revelar, máscara) param um pouco fora da caixa (acentos e descendentes)
+    ...(c.type === 'text' ? { ['--clip-folga' as string]: `${folgaTinta(c)}px` } : {}),
     // a entrada termina na opacidade parada da camada (com a dos frames pais): ao soltar a animação no fim,
     // nada muda de lugar nem de opacidade
     ['--op' as string]: (visivel ? c.opacity : 0.3) * (heranca?.opacidade ?? 1),
@@ -497,7 +501,9 @@ function Texto({ c, origem, modo, duracao, easing, animTexto, rolagem }: { c: Ca
         // texto animado por partes: o que muda dentro dele (letras aparecendo, sorteio, contador) não refaz o
         // layout nem o estilo do resto da tela — a caixa tem o tamanho da camada (definido), então a contenção de
         // tamanho não muda nada e faz dela um limite de layout. Sem contenção de pintura: as partes sobem de fora.
-        ...(animTexto ? { contain: 'size layout style' } : {}),
+        // As partes que entram de fora aparecem a partir da borda da caixa (como antes), mas com folga em cima e
+        // embaixo (e um pouco dos lados): acentos, descendentes e itálico nunca são cortados.
+        ...(animTexto ? { contain: 'size layout style', ...(c.leadingTrim !== 'cap' && linhasVisiveis(c) === undefined ? { clipPath: `inset(-${folgaTinta(c)}px -${Math.ceil(c.fontSize * 0.2)}px)` } : {}) } : {}),
       }}
     >
       {animTexto ? (

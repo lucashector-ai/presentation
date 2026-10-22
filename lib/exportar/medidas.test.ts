@@ -50,6 +50,16 @@ describe('exportar seleção', () => {
     expect(sub.size.height).toBeGreaterThanOrEqual(120)
     expect(sub.layers[0]!.y).toBeGreaterThan(0)
   })
+  it('texto com entrelinha justa exporta a tinta toda (descendentes de "pçg" passam da caixa)', () => {
+    const t = parseCamada({ id: 't', type: 'text', x: 100, y: 100, width: 1400, height: 280, text: 'O próximo resultado\ncomeça agora', fontFamily: 'Geist', fontSize: 140, lineHeight: 1 })
+    const sub = cenaDaSelecao(novaCena({ id: 's', size: { width: 1920, height: 1080 }, layers: [t] }), ['t'])!
+    // Geist: ascendente 1,005 + descendente 0,295 = 1,3em; com entrelinha 1,0 sobram .15em em cima e embaixo
+    expect(sub.size.height).toBe(280 + 2 * 21)
+    expect(sub.layers[0]!.y).toBe(21)
+    // entrelinha folgada (≥ 1,3): a caixa já contém a tinta
+    const folgado = parseCamada({ id: 'f', type: 'text', x: 0, y: 0, width: 400, height: 150, text: 'Hgj', fontFamily: 'Geist', fontSize: 100, lineHeight: 1.5 })
+    expect(cenaDaSelecao(novaCena({ id: 's', size: { width: 1920, height: 1080 }, layers: [folgado] }), ['f'])!.size).toEqual({ width: 400, height: 150 })
+  })
   it('várias camadas: caixa que envolve todas; ocultas não contam', () => {
     expect(cenaDaSelecao(cena, ['c', 'o'])!.size).toEqual({ width: 980, height: 780 })
     const oculta = { ...cena, layers: cena.layers.map((l) => (l.id === 'o' ? { ...l, hidden: true } : l)) }

@@ -22,6 +22,7 @@
   --cor-sucesso: 34 160 107;       /* #22A06B */
   --cor-aviso: 242 193 78;         /* ipê #F2C14E */
   --cor-guia: 242 89 135;          /* guias inteligentes #F25987 */
+  --cor-selecao: 13 153 255;       /* seleção no canvas #0D99FF (sólida, 1 px; legível sobre qualquer fundo) */
   --cor-canvas: 240 239 237;       /* #F0EFED */
   /* famílias do @fontsource (importadas em app/layout.tsx) */
   --font-geist-sans: 'Geist Variable';
@@ -47,6 +48,7 @@
   --cor-sucesso: 52 199 135;
   --cor-aviso: 242 193 78;
   --cor-guia: 242 89 135;
+  --cor-selecao: 13 153 255;
   --cor-canvas: 18 18 18;
   color-scheme: dark;
 }
@@ -109,11 +111,12 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 /* 3D */
 @keyframes anim-flip { 0% { opacity: var(--anim-op, 0); transform: perspective(1200px) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotateX(var(--anim-rx, 0deg)) rotateY(var(--anim-ry, 0deg)) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) } 99.9% { opacity: var(--op, 1); transform: perspective(1200px) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotateX(0deg) rotateY(0deg) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) } 100% { opacity: var(--op, 1); transform: var(--tf, translate(0)) } }
 @keyframes anim-flipSai { 0% { opacity: var(--op, 1); transform: var(--tf, translate(0)) } .1% { transform: perspective(1200px) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotateX(0deg) rotateY(0deg) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) } 100% { opacity: var(--anim-op, 0); transform: perspective(1200px) translate(var(--anim-ox, 0%), var(--anim-oy, 0%)) rotateX(var(--anim-rx, 0deg)) rotateY(var(--anim-ry, 0deg)) translate(calc(-1 * var(--anim-ox, 0%)), calc(-1 * var(--anim-oy, 0%))) var(--tf, translate(0)) } }
-/* revelar: cortina (wipe), máscara (o conteúdo sobe de trás de uma borda fixa) e íris */
+/* revelar: cortina (wipe), máscara (o conteúdo sobe de trás de uma borda fixa) e íris. --clip-folga (só nos textos,
+   ~.35em): a borda fica um pouco fora da caixa para não cortar acentos e descendentes no meio da animação */
 @keyframes anim-reveal { 0% { opacity: var(--anim-op, 1); clip-path: var(--clip-de) } 99.9% { opacity: var(--op, 1); clip-path: var(--clip-ate) } 100% { opacity: var(--op, 1); clip-path: var(--clip-final, none) } }
 @keyframes anim-revealSai { 0% { opacity: var(--op, 1); clip-path: var(--clip-final, none) } .1% { clip-path: var(--clip-de) } 100% { opacity: var(--anim-op, 1); clip-path: var(--clip-ate) } }
-@keyframes anim-mask { 0% { transform: translate(var(--mask-x, 0%), var(--mask-y, 0%)) var(--tf, translate(0)); clip-path: inset(calc(-1 * var(--mask-y, 0%)) var(--mask-x, 0%) var(--mask-y, 0%) calc(-1 * var(--mask-x, 0%))) } 99.9% { transform: translate(0%, 0%) var(--tf, translate(0)); clip-path: inset(0% 0% 0% 0%) } 100% { transform: translate(0%, 0%) var(--tf, translate(0)); clip-path: var(--clip-final, none) } }
-@keyframes anim-maskSai { 0% { transform: translate(0%, 0%) var(--tf, translate(0)); clip-path: var(--clip-final, none) } .1% { clip-path: inset(0% 0% 0% 0%) } 100% { transform: translate(var(--mask-x, 0%), var(--mask-y, 0%)) var(--tf, translate(0)); clip-path: inset(calc(-1 * var(--mask-y, 0%)) var(--mask-x, 0%) var(--mask-y, 0%) calc(-1 * var(--mask-x, 0%))) } }
+@keyframes anim-mask { 0% { transform: translate(var(--mask-x, 0%), var(--mask-y, 0%)) var(--tf, translate(0)); clip-path: inset(calc(-1 * var(--mask-y, 0%) - var(--clip-folga, 0px)) calc(var(--mask-x, 0%) - var(--clip-folga, 0px)) calc(var(--mask-y, 0%) - var(--clip-folga, 0px)) calc(-1 * var(--mask-x, 0%) - var(--clip-folga, 0px))) } 99.9% { transform: translate(0%, 0%) var(--tf, translate(0)); clip-path: inset(calc(0% - var(--clip-folga, 0px))) } 100% { transform: translate(0%, 0%) var(--tf, translate(0)); clip-path: var(--clip-final, none) } }
+@keyframes anim-maskSai { 0% { transform: translate(0%, 0%) var(--tf, translate(0)); clip-path: var(--clip-final, none) } .1% { clip-path: inset(calc(0% - var(--clip-folga, 0px))) } 100% { transform: translate(var(--mask-x, 0%), var(--mask-y, 0%)) var(--tf, translate(0)); clip-path: inset(calc(-1 * var(--mask-y, 0%) - var(--clip-folga, 0px)) calc(var(--mask-x, 0%) - var(--clip-folga, 0px)) calc(var(--mask-y, 0%) - var(--clip-folga, 0px)) calc(-1 * var(--mask-x, 0%) - var(--clip-folga, 0px))) } }
 @keyframes anim-iris { 0% { clip-path: circle(0% at var(--iris-pos, 50% 50%)) } 99.9% { clip-path: circle(var(--iris-r, 72%) at var(--iris-pos, 50% 50%)) } 100% { clip-path: var(--clip-final, none) } }
 @keyframes anim-irisSai { 0% { clip-path: var(--clip-final, none) } .1% { clip-path: circle(var(--iris-r, 72%) at var(--iris-pos, 50% 50%)) } 100% { clip-path: circle(0% at var(--iris-pos, 50% 50%)) } }
 /* desenhar contorno: a camada aparece e os traços do SVG se desenham (--len medido no renderizador) */

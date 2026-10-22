@@ -1,6 +1,6 @@
 import { chromium } from 'playwright'
 import fs from 'node:fs'
-import { createCanvas } from '@napi-rs/canvas'
+import { createCanvas, loadImage } from '@napi-rs/canvas'
 
 /**
  * Fluxo ponta a ponta (seção 17.2): conta → projeto → upload → editor → preview → publicar → link → convidado → revogar.
@@ -450,6 +450,63 @@ await passo('Texto: corte vertical (opções de texto) deixa a caixa justa nas m
   await painel.getByRole('radiogroup', { name: 'Quebra de linha' }).waitFor()
   await painel.getByRole('button', { name: 'Fechar opções de texto' }).click()
   await painel.waitFor({ state: 'detached' })
+})
+
+await passo('Texto: entrelinha justa não corta descendentes nem acentos (a tinta passa da caixa, como no Figma)', async () => {
+  await page.getByRole('tab', { name: 'Telas' }).click()
+  await page.getByRole('button', { name: '+ Nova tela' }).click()
+  await page.getByRole('tab', { name: 'Blocos' }).click()
+  await page.getByRole('button', { name: 'Texto', exact: true }).click()
+  await page.getByLabel('Conteúdo do texto').fill('O próximo resultado\ncomeça agora')
+  await page.evaluate(() => document.activeElement?.blur())
+  for (const [r, v] of [['Tamanho da fonte', 140], ['Entrelinha', 1]]) { const f = page.getByLabel(r, { exact: true }); await f.fill(String(v)); await f.press('Enter') }
+  await page.getByLabel('Peso', { exact: true }).selectOption('700')
+  // cor que contrasta com qualquer fundo de tela (o tema da apresentação pode ter fundo escuro e texto escuro)
+  await page.getByRole('button', { name: 'Cor do texto: escolher cor' }).click()
+  const hex = page.getByLabel('Hexadecimal')
+  await hex.fill('#FF2D6F')
+  await hex.press('Enter')
+  await page.keyboard.press('Escape')
+  await page.getByRole('radiogroup', { name: 'Redimensionar texto' }).getByRole('radio', { name: /^Auto horizontal/ }).click()
+  await page.evaluate(() => document.activeElement?.blur())
+  await page.getByRole('button', { name: 'Centralizar na horizontal' }).click()
+  const camada = page.getByTestId('canvas').locator('[data-layer-id^="text-"]').last()
+  const id = await camada.getAttribute('data-layer-id')
+  // nada entre as letras e a tela recorta (overflow, clip-path, contain: paint) — no canvas e na miniatura da tela
+  const cortes = (raiz) => raiz.locator(`[data-layer-id="${id}"]`).first().evaluate((el) => {
+    const r = []
+    for (let n = el.querySelector('span') ?? el; n && n !== el.parentElement; n = n.parentElement) {
+      const cs = getComputedStyle(n)
+      if (cs.overflow !== 'visible' || cs.clipPath !== 'none' || /paint|strict|content/.test(cs.contain)) r.push(`${n.tagName} overflow=${cs.overflow} clip=${cs.clipPath} contain=${cs.contain}`)
+    }
+    return r
+  })
+  const noCanvas = await cortes(page.getByTestId('canvas'))
+  if (noCanvas.length) throw new Error(`o texto é recortado no canvas: ${noCanvas.join(' | ')}`)
+  await page.getByRole('tab', { name: 'Telas' }).click()
+  const miniatura = telas().filter({ has: page.locator(`[data-layer-id="${id}"]`) })
+  await miniatura.waitFor()
+  const naMiniatura = await cortes(miniatura)
+  if (naMiniatura.length) throw new Error(`o texto é recortado na miniatura: ${naMiniatura.join(' | ')}`)
+  // tinta: sem seleção, a faixa logo abaixo da caixa tem pixels das descendentes (p, ç, g); antes ficava vazia
+  await page.keyboard.press('Escape')
+  const tela = await page.getByTestId('canvas').boundingBox()
+  await page.mouse.click(tela.x + tela.width / 2, tela.y + tela.height + 40)
+  await page.mouse.move(tela.x + tela.width / 2, tela.y + tela.height + 60)
+  await page.waitForTimeout(300)
+  const b = await camada.boundingBox()
+  const em = b.height / 2 // duas linhas com entrelinha 1,0: altura da caixa = 2 em
+  const faixa = { x: Math.round(b.x), y: Math.round(b.y + b.height) + 1, width: Math.round(b.width), height: Math.max(4, Math.round(em * 0.2)) }
+  const img = await loadImage(await page.screenshot({ clip: faixa }))
+  const cv = createCanvas(img.width, img.height)
+  const g = cv.getContext('2d')
+  g.drawImage(img, 0, 0)
+  const px = g.getImageData(0, 0, img.width, img.height).data
+  const fundo = [px[px.length - 4], px[px.length - 3], px[px.length - 2]] // canto de baixo à direita: só fundo
+  let tinta = 0
+  for (let i = 0; i < px.length; i += 4) if (Math.abs(px[i] - fundo[0]) + Math.abs(px[i + 1] - fundo[1]) + Math.abs(px[i + 2] - fundo[2]) > 90) tinta++
+  await page.screenshot({ path: `${SHOTS}/15b-texto-descendentes.png` })
+  if (tinta < 15) throw new Error(`descendentes cortadas: ${tinta} px de tinta abaixo da caixa (faixa ${JSON.stringify(faixa)})`)
 })
 
 /** Máscaras: estilo calculado de uma camada no canvas e geometria pelo inspetor. */

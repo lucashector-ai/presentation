@@ -267,8 +267,10 @@ export function cssDaAnimacao(a: Pick<Animacao, 'type'> & Partial<Animacao>, ehT
       const dir = p.direction as keyof typeof lados
       const lado = lados[saida ? oposto[dir] : dir]
       const inset = (v: string) => `inset(${[0, 1, 2, 3].map((i) => (i === lado ? v : '-50%')).join(' ')})`
-      vars['--clip-de'] = inset(saida ? '0%' : '100%')
-      vars['--clip-ate'] = inset(saida ? '100%' : '0%')
+      // aberta, a cortina passa um pouco da caixa (--clip-folga, só nos textos): acentos e descendentes não somem
+      const aberta = 'calc(0% - var(--clip-folga, 0px))'
+      vars['--clip-de'] = inset(saida ? aberta : '100%')
+      vars['--clip-ate'] = inset(saida ? '100%' : aberta)
       return { keyframe: saida ? 'anim-revealSai' : 'anim-reveal', vars }
     }
     case 'mask': {
