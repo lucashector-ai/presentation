@@ -2,11 +2,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Archive, ArrowRight, Check, Copy, Eye, FolderOpen, LayoutTemplate, MoreHorizontal, Pencil, Play, Plus, Search, Send, Share2, Trash2, Upload } from 'lucide-react'
+import { Archive, ArrowRight, Check, Copy, Eye, FolderOpen, LayoutTemplate, MoreHorizontal, Pencil, Play, Plus, Search, Send, Share2, Sparkles, Trash2, Upload } from 'lucide-react'
 import { dados, ehErroDados, mensagemDeErro, telasDo, useCarregar, useDados, type AssetDemo, type Projeto } from '@/lib/dados'
 import { estadoDoLink } from '@/lib/share/token'
-import { PLANOS, custoApresentacao, podeGerarTelas } from '@/lib/planos'
-import { ATALHOS_TELAS, MIN_TELAS_IA, limitarTelas, textoCreditos, textoTelas } from '@/lib/telasIa'
+import { textoTelas } from '@/lib/telasIa'
+import { CHAVE_PEDIDO_COLADO } from './criar/estado'
 import { CapaProjeto } from './CapaProjeto'
 import { CartaoCreditos } from './Creditos'
 import { CarregandoBloco, EstadoErro, EstadoVazio, ModalConfirmar, cx } from '@/components/ui'
@@ -255,37 +255,52 @@ function Atalho({ href, icone, titulo, texto }: { href: string; icone: React.Rea
   )
 }
 
-/** Caixa de prompt do painel: escreve a ideia aqui e continua em /app/criar com tudo preenchido. */
+/**
+ * Atalho do painel para o "Criar com IA": um cartão limpo, com uma linha opcional para a ideia e o botão. O pedido
+ * de verdade (briefing longo, estrutura, dados) é escrito no editor grande da tela do Criar com IA. Colar um texto
+ * longo aqui leva o texto inteiro para lá (nada é cortado).
+ */
 function CriarComIARapido() {
   const router = useRouter()
   const saldo = useDados((e) => e.creditos.saldo)
-  const planoId = useDados((e) => e.workspace.planoId)
-  const [prompt, setPrompt] = useState('')
-  const [telas, setTelas] = useState<number>(10)
-  const ref = useRef<HTMLTextAreaElement>(null)
-  const limite = PLANOS[planoId].limites.telasPorPrompt
-  const opcoes = ATALHOS_TELAS.filter((n) => podeGerarTelas(planoId, n).ok)
-  const custo = custoApresentacao(telas)
-  const [outro, setOutro] = useState(false)
-  const continuar = () => router.push(`/app/criar?${new URLSearchParams({ ...(prompt.trim() ? { prompt: prompt.trim() } : {}), telas: String(telas) })}`)
+  const [ideia, setIdeia] = useState('')
+  const abrir = (texto = ideia) => {
+    const t = texto.trim()
+    if (t.length > 200 || t.includes('\n')) {
+      // texto longo colado: vai inteiro para o editor do Criar com IA (pela sessão do navegador, não pela URL)
+      try { sessionStorage.setItem(CHAVE_PEDIDO_COLADO, t) } catch { /* sem armazenamento: segue sem o texto */ }
+      return router.push('/app/criar?colado=1')
+    }
+    router.push(t ? `/app/criar?${new URLSearchParams({ prompt: t })}` : '/app/criar')
+  }
   return (
-    <form onSubmit={(e) => { e.preventDefault(); continuar() }} className="flex flex-col rounded-xl border-[1.5px] border-grafite bg-superficie p-4 shadow-[5px_5px_0_#5965F2] sm:p-5">
-      <div className="flex items-center justify-between gap-3">
-        <label htmlFor="painel-prompt" className="flex items-center gap-2 text-[14px] font-medium"><span className="h-2 w-2 rounded-full bg-acento" />Criar apresentação com IA</label>
-        <span className="hidden text-[12px] text-texto3 sm:block">marca, estilo e roteiro: você revisa antes</span>
-      </div>
-      <textarea id="painel-prompt" ref={ref} value={prompt} onChange={(e) => setPrompt(e.target.value.slice(0, 4000))} onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) continuar() }} rows={2} placeholder="Ex.: Proposta de identidade visual para uma cafeteria de bairro, com conceito, paleta e aplicações" className="mt-3 w-full resize-none bg-transparent text-[16px] leading-normal outline-none placeholder:text-texto3 focus-visible:outline-none" />
-      <div className="mt-auto flex flex-wrap items-center gap-2 pt-3">
-        <div role="radiogroup" aria-label="Telas" className="flex max-w-full flex-wrap gap-0.5 rounded-[18px] bg-[#F5F5F4] p-[3px] text-[12px]">
-          {opcoes.map((n) => <button key={n} type="button" role="radio" aria-checked={telas === n && !outro} onClick={() => { setTelas(n); setOutro(false) }} className={cx('rounded-full px-2.5 py-1 font-medium', telas === n && !outro ? 'bg-grafite text-fundo' : 'text-[#525252] hover:text-texto')}>{n}</button>)}
-          {outro ? (
-            <input type="number" aria-label="Número de telas" min={MIN_TELAS_IA} max={limite} value={telas} autoFocus onChange={(e) => setTelas(limitarTelas(Number(e.target.value), limite))} className="mono w-[52px] rounded-full bg-white px-2 py-0.5 text-[12px] outline-none" />
-          ) : (
-            <button type="button" onClick={() => setOutro(true)} className="rounded-full px-2.5 py-1 font-medium text-[#525252] hover:text-texto" title={`De ${MIN_TELAS_IA} a ${limite} telas no seu plano`}>outro</button>
-          )}
+    <form onSubmit={(e) => { e.preventDefault(); abrir() }} aria-labelledby="titulo-criar-ia" className="flex min-w-0 flex-col justify-between gap-4 rounded-xl border-[1.5px] border-grafite bg-superficie p-4 shadow-[4px_4px_0_#5965F2] sm:p-5 sm:shadow-[5px_5px_0_#5965F2]">
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-4 gap-y-1">
+        <div className="min-w-0 flex-1">
+          <h2 id="titulo-criar-ia" className="flex items-center gap-2 text-[16px] font-semibold tracking-[-0.01em]"><span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-acento" />Criar apresentação com IA</h2>
+          <p className="mt-1 max-w-[520px] text-[13px] leading-snug text-texto2">Descreva a ideia ou cole um briefing completo (estrutura de telas, dados, cores e regras) na próxima tela. Você revisa o roteiro antes do design.</p>
         </div>
-        <span className="text-[12px] text-texto3"><span className="mono">{telas} telas · {textoCreditos(custo)}</span> · saldo: {textoTelas(saldo)}</span>
-        <button type="submit" className="ml-auto flex h-10 items-center gap-2 rounded-full border-2 border-grafite bg-violeta px-4 text-[14px] font-semibold text-white hover:bg-[#4A55E0]">Continuar <ArrowRight className="h-4 w-4" /></button>
+        <span className="mono hidden shrink-0 pt-1 text-[11px] text-texto3 sm:block">saldo: {textoTelas(saldo)}</span>
+      </div>
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+        <label htmlFor="painel-ideia" className="sr-only">Ideia da apresentação, opcional</label>
+        <input
+          id="painel-ideia"
+          type="text"
+          value={ideia}
+          maxLength={200}
+          autoComplete="off"
+          onChange={(e) => setIdeia(e.target.value)}
+          onPaste={(e) => {
+            const colado = e.clipboardData.getData('text')
+            if (colado.length > 200 || colado.includes('\n')) { e.preventDefault(); abrir(`${ideia}${colado}`) }
+          }}
+          placeholder="Ideia em uma linha (opcional)"
+          className="h-11 w-full min-w-0 shrink-0 rounded-full border-[1.5px] border-borda bg-white px-4 text-[15px] outline-none placeholder:text-texto3 focus:border-grafite sm:w-auto sm:flex-1"
+        />
+        <button type="submit" className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-full border-2 border-grafite bg-violeta px-5 text-[14px] font-semibold text-white hover:bg-[#4A55E0]">
+          <Sparkles className="h-4 w-4" />Criar com IA<ArrowRight className="h-4 w-4" />
+        </button>
       </div>
     </form>
   )

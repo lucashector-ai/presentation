@@ -13,6 +13,7 @@ import { dados, mensagemDeErro, type KitMarca } from '@/lib/dados'
 import { sanitizarSvgNavegador } from '@/lib/editor/importar'
 import { PARES_FONTES, RE_HEX } from '@/lib/ia/designSystem'
 import { coresDoTexto, ordenarCoresDaMarca, paletasDoLogo, PALETAS_PRONTAS, type PaletaSugerida } from '@/lib/ia/marca'
+import { paletaDoPedido } from '@/lib/ia/analisePedido'
 import { pilhaFonte } from '@/lib/design-tokens'
 import { analisarLogo } from './logo'
 import type { MarcaEscolhida } from './estado'
@@ -35,7 +36,10 @@ export function PassoMarca({ marca, aoMudar, prompt, kits, aoSalvarKit, aoExclui
   const entrada = useRef<HTMLInputElement>(null)
   const [enviando, setEnviando] = useState<number | null>(null)
   const [salvando, setSalvando] = useState(false)
-  const doPedido = useMemo(() => coresDoTexto(prompt), [prompt])
+  // hex do pedido com papéis (principal, fundo escuro, claro, positivo/negativo); sem hex, os nomes de cor citados
+  const paletaPedido = useMemo(() => paletaDoPedido(prompt), [prompt])
+  const doPedido = useMemo(() => paletaPedido?.cores ?? coresDoTexto(prompt), [paletaPedido, prompt])
+  const papeisPedido = useMemo(() => { const { claro, cartao, positivo, negativo } = paletaPedido?.papeis ?? {}; const p = { ...(claro ? { claro } : {}), ...(cartao ? { cartao } : {}), ...(positivo ? { positivo } : {}), ...(negativo ? { negativo } : {}) }; return Object.keys(p).length ? p : null }, [paletaPedido])
   const sugestoesLogo = useMemo(() => (marca.logo?.cores.length ? paletasDoLogo(ordenarCoresDaMarca(marca.logo.cores)) : []), [marca.logo])
   useEffect(() => { carregarFontes(PARES_FONTES.flatMap((p) => [p.titulo, p.texto])) }, [])
   useEffect(() => { if (marca.fontes) carregarFontes([marca.fontes.titulo, marca.fontes.texto]) }, [marca.fontes])
@@ -64,7 +68,7 @@ export function PassoMarca({ marca, aoMudar, prompt, kits, aoSalvarKit, aoExclui
   }
 
   const definirCor = (k: number, v: string) => aoMudar((m) => ({ ...m, cores: m.cores.map((x, j) => (j === k ? v.toUpperCase() : x)) }))
-  const usarPaleta = (p: PaletaSugerida) => aoMudar((m) => ({ ...m, cores: p.cores.slice(0, 4), aplicarCores: true }))
+  const usarPaleta = (p: PaletaSugerida) => aoMudar((m) => ({ ...m, cores: p.cores.slice(0, 4), aplicarCores: true, papeis: p.id === 'pedido' ? papeisPedido : m.papeis }))
   const Paleta = ({ p, rotulo }: { p: PaletaSugerida; rotulo?: string }) => {
     const ativa = iguais(marca.cores, p.cores)
     return (
@@ -146,6 +150,15 @@ export function PassoMarca({ marca, aoMudar, prompt, kits, aoSalvarKit, aoExclui
               ))}
               {marca.cores.length < 4 && <button type="button" onClick={() => aoMudar((m) => ({ ...m, cores: [...m.cores, (['#5965F2', '#171717', '#F2C14E', '#E4572E'] as const)[m.cores.length] ?? '#5965F2'] }))} className="flex h-9 items-center gap-1 rounded-full border border-dashed border-[#D6D4D0] px-3 text-[13px] text-texto2 hover:border-grafite hover:text-texto"><Plus className="h-3.5 w-3.5" />{marca.cores.length ? 'Cor' : 'Adicionar cor'}</button>}
             </div>
+            {marca.papeis && Object.keys(marca.papeis).length > 0 && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[12px] text-texto2" aria-label="Papéis de cor do pedido">
+                <span className="text-texto3">Do pedido:</span>
+                {([['claro', 'Fundo claro'], ['cartao', 'Cartões'], ['positivo', 'Positivo'], ['negativo', 'Negativo']] as const).map(([k, nome]) => marca.papeis?.[k] ? (
+                  <span key={k} className="flex items-center gap-1.5"><span className="h-3.5 w-3.5 rounded-full shadow-[inset_0_0_0_1px_rgba(0,0,0,.12)]" style={{ background: marca.papeis[k] }} />{nome} <span className="mono uppercase text-texto3">{marca.papeis[k]}</span></span>
+                ) : null)}
+                <button type="button" onClick={() => aoMudar((m) => ({ ...m, papeis: null }))} className="text-texto3 underline-offset-2 hover:text-texto hover:underline">remover</button>
+              </div>
+            )}
             {doPedido.length > 0 && !iguais(marca.cores, doPedido) && (
               <div className="flex flex-wrap items-center gap-2 rounded-[10px] bg-[#F4F5FE] px-3 py-2 text-[13px]">
                 <span className="text-texto2">Seu pedido cita cores:</span>

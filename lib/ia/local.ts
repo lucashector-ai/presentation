@@ -6,6 +6,8 @@
 import type { TemaId, TipoTela } from './designSystem'
 import { normalizarRoteiro, tipoEfetivo, type PedidoRoteiro, type RoteiroBruto } from './pedido'
 import type { Roteiro } from './roteiro'
+import { roteiroDaEstrutura } from './estruturaLocal'
+import { ajustarRoteiroAoPedido } from './fidelidade'
 import { TIPOS, tipoDoPedido, type Momento, type TipoApresentacao } from './tiposApresentacao'
 
 type Tela = RoteiroBruto['telas'][number]
@@ -170,6 +172,19 @@ export function encaixarMaterial(meio: Tela[], p: Pick<PedidoRoteiro, 'material'
 }
 
 export function gerarRoteiroLocal(p: PedidoRoteiro): Roteiro {
+  // pedido com estrutura explícita (Slide 01, Slide 02…): uma tela para cada tela pedida, com os dados do pedido
+  const daEstrutura = p.prompt ? roteiroDaEstrutura(p.prompt, { marca: p.marca.nome }) : null
+  if (daEstrutura) {
+    const telas = [...daEstrutura.telas]
+    if (telas.length > p.telas) {
+      // menos telas que o pedido (limite do plano): capa, as primeiras do meio e o encerramento, na ordem
+      const fim = telas.pop()!
+      telas.splice(Math.max(1, p.telas - 1))
+      telas.push(fim)
+    }
+    for (let i = 0; telas.length < p.telas; i++) telas.splice(telas.length - 1, 0, deMomento(EXTRAS[i % EXTRAS.length]!))
+    return ajustarRoteiroAoPedido(normalizarRoteiro({ titulo: daEstrutura.titulo, telas }, p.telas), p, tipoEfetivo(p))
+  }
   const base = p.prompt || p.conteudo.split('\n').find((l) => l.trim()) || ''
   const titulo = tituloDoPrompt(base.replace(RE_TITULO, ''))
   const meioN = Math.max(1, p.telas - 2)
@@ -190,7 +205,7 @@ export function gerarRoteiroLocal(p: PedidoRoteiro): Roteiro {
   const restoDaFrase = primeiraFrase.includes(',') ? primeiraFrase.slice(primeiraFrase.indexOf(',') + 1).trim() : ''
   const apoio = p.publico ? `Para ${p.publico}` : capitalizar(semPontoFinal(palavras(restoDaFrase || outras[0] || def.nome, 18)))
   const fim = deMomento(def.fim)
-  return normalizarRoteiro({
+  const r = normalizarRoteiro({
     titulo,
     telas: [
       tela('capa', titulo, apoio, [], 'Apresente-se e diga em uma frase o que a plateia vai ver.', p.marca.nome || (tipoEfetivo(p) === 'geral' ? '' : def.nome)),
@@ -198,4 +213,5 @@ export function gerarRoteiroLocal(p: PedidoRoteiro): Roteiro {
       fim,
     ],
   }, p.telas)
+  return ajustarRoteiroAoPedido(r, p, tipoEfetivo(p))
 }
