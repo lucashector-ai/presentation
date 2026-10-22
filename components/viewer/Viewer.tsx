@@ -422,9 +422,10 @@ export function Viewer(props: ViewerProps) {
 }
 
 /**
- * Tela que entra. A classe da transição sai quando ela termina: com fill-mode both a tela inteira continuava
- * numa camada composta. Estado próprio (e os filhos vêm prontos do Viewer): ao soltar, só este nó re-renderiza,
- * não a cena com as entradas ainda tocando.
+ * Tela que entra. A transição preenche só para trás (o fim é o estilo parado), então a classe pode ficar; ela
+ * sai depois das entradas, com a página ociosa, só para limpar. `sobAnterior`: fade/deslizar/zoom com a tela
+ * anterior por cima sumindo — esta só se move (sem opacidade animada sobre as entradas tocando dentro).
+ * Estado próprio (e os filhos vêm prontos do Viewer): ao soltar, só este nó re-renderiza.
  */
 function TelaEntrando({ transicao, espera, sobAnterior = false, fimEntradas, style, children }: { transicao?: string; espera: boolean; sobAnterior?: boolean; fimEntradas: number; style: CSSProperties; children: ReactNode }) {
   const [feita, setFeita] = useState(false)
