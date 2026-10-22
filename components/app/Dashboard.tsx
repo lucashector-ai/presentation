@@ -9,7 +9,8 @@ import { textoTelas } from '@/lib/telasIa'
 import { CHAVE_PEDIDO_COLADO } from './criar/estado'
 import { CapaProjeto } from './CapaProjeto'
 import { CartaoCreditos } from './Creditos'
-import { CarregandoBloco, EstadoErro, EstadoVazio, ModalConfirmar, cx } from '@/components/ui'
+import { Botao, EstadoErro, EstadoVazio, ModalConfirmar, cx } from '@/components/ui'
+import { CabecalhoPagina, CartaoPainel, Esqueleto, FiltroFichas, Grade, PaginaPainel, SPAN, Secao } from './Layout'
 import { useToast } from '@/components/ui/toast'
 import { abrirApresentacao } from '@/components/viewer/retorno'
 
@@ -106,91 +107,94 @@ export function Dashboard() {
   const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
   const filtros: { id: Filtro; rotulo: string }[] = [{ id: 'todos', rotulo: 'Todos' }, { id: 'rascunhos', rotulo: 'Rascunhos' }, { id: 'publicados', rotulo: 'Publicados' }, { id: 'enviados', rotulo: 'Enviados' }, { id: 'arquivados', rotulo: 'Arquivados' }]
 
-  return (
-    <div className="mx-auto max-w-[1240px]">
-      <div>
-        <div className="rotulo-mono">{hoje}</div>
-        <h1 className="titulo-display mt-2.5 text-[32px] sm:text-[40px]">{saudacao()}, {usuario.nome.split(' ')[0]}.</h1>
-        {novo && <p className="mt-2 text-[15px] text-texto2">Vamos criar sua primeira apresentação. Escolha um jeito de começar.</p>}
-      </div>
+  const arquivados = contagem.arquivados
 
-      <section aria-label="Começar uma apresentação" className="mt-7 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
-        <CriarComIARapido />
-        <div className="grid grid-cols-3 gap-3 lg:grid-cols-1">
+  return (
+    <PaginaPainel>
+      <CabecalhoPagina rotulo={hoje} titulo={`${saudacao()}, ${usuario.nome.split(' ')[0]}.`} descricao={novo ? 'Vamos criar sua primeira apresentação. Escolha um jeito de começar.' : undefined} />
+
+      {/* um grid só para o topo e os cartões: as bordas da IA e dos atalhos batem com as dos cartões de baixo */}
+      <Grade className={cx(novo && 'grid-flow-row-dense')}>
+        <CriarComIARapido className={SPAN.doisTercos} />
+        <nav aria-label="Outros jeitos de começar" className={cx(SPAN.terco, 'grid grid-rows-3 gap-4')}>
           <Atalho href="/app/novo" icone={<Plus />} titulo="Novo projeto" texto="Em branco, no formato que quiser" />
           <Atalho href="/app/novo?comeco=template" icone={<LayoutTemplate />} titulo="Usar template" texto="Estruturas prontas para editar" />
           <Atalho href="/app/novo?passo=arquivos" icone={<Upload />} titulo="Importar arquivos" texto="Figma, Illustrator, Blender, fotos" />
-        </div>
-      </section>
+        </nav>
+        {novo ? (
+          <>
+            {/* conta nova: no xl, passos (8) | créditos (4); no tablet os créditos sobem para o lado dos atalhos (grid denso) */}
+            <PrimeirosPassos className={SPAN.doisTercos} />
+            <CartaoCreditos className={SPAN.terco} />
+          </>
+        ) : (
+          <>
+            <Continuar className={SPAN.terco} projeto={vivos.find((p) => p.status !== 'archived')} assets={assets} carregando={carregando && !vivos.length} erro={erro && !vivos.length ? erro : null} aoTentar={tentarDeNovo} arquivados={arquivados} aoVerArquivados={() => { setFiltro('arquivados'); document.getElementById('projetos')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }} />
+            <ResumoEnviados className={SPAN.terco} carregando={carregando && !links.length} erro={erro && !links.length ? erro : null} aoTentar={tentarDeNovo} />
+            <CartaoCreditos className={SPAN.terco} />
+            <PrimeirosPassos compacto className={SPAN.cheio} />
+          </>
+        )}
+      </Grade>
 
-      {novo ? (
-        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
-          <PrimeirosPassos />
-          <CartaoCreditos />
-        </div>
-      ) : (
-        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <Continuar projeto={vivos.find((p) => p.status !== 'archived')} assets={assets} />
-          <ResumoEnviados />
-          <CartaoCreditos className="md:col-span-2 xl:col-span-1" />
-        </div>
-      )}
-
-      {!novo && <PrimeirosPassos compacto />}
-
-      <section id="projetos" aria-labelledby="titulo-projetos" className="mt-12 scroll-mt-6">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2 id="titulo-projetos" className="text-[20px] font-medium tracking-[-0.02em]">Projetos</h2>
-          <div className="flex items-center gap-2">
-            <label className="flex h-9 w-[220px] max-w-full items-center gap-2 rounded-[9px] border border-[#E7E5E4] bg-superficie px-3 focus-within:border-acento">
-              <Search className="h-[15px] w-[15px] text-texto3" strokeWidth={1.75} />
+      <Secao
+        id="projetos"
+        idTitulo="titulo-projetos"
+        titulo="Projetos"
+        acao={
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-controle border border-[#E7E5E4] bg-superficie px-4 focus-within:border-acento sm:w-64 sm:flex-none">
+              <Search className="h-4 w-4 shrink-0 text-texto3" strokeWidth={1.75} />
               <input aria-label="Buscar projetos" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Filtrar por nome ou cliente" className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-texto3 focus-visible:outline-none" />
             </label>
-            <select aria-label="Ordenar projetos" value={ordem} onChange={(e) => setOrdem(e.target.value as 'recentes' | 'nome')} className="h-9 rounded-[9px] border border-[#E7E5E4] bg-superficie px-2 text-[13px] text-texto2 outline-none">
+            <select aria-label="Ordenar projetos" value={ordem} onChange={(e) => setOrdem(e.target.value as 'recentes' | 'nome')} className="h-10 shrink-0 rounded-controle border border-[#E7E5E4] bg-superficie px-2 text-[13px] text-texto2 outline-none">
               <option value="recentes">Mais recentes</option>
               <option value="nome">Nome (A–Z)</option>
             </select>
           </div>
-        </div>
-        <div className="-mx-4 mt-4 overflow-x-auto border-b border-borda px-4 pb-3 sm:mx-0 sm:px-0">
-          <div className="flex gap-1 whitespace-nowrap text-[14px]" role="tablist" aria-label="Filtrar projetos">
-            {filtros.map((f) => (
-              <button key={f.id} role="tab" aria-selected={filtro === f.id} onClick={() => setFiltro(f.id)} className={cx('flex items-center gap-1.5 rounded-full px-3 py-1.5 transition-colors', filtro === f.id ? 'bg-grafite text-fundo' : 'text-texto2 hover:text-texto')}>
-                {f.rotulo}<span className={cx('text-[12px]', filtro === f.id ? 'text-fundo/60' : 'text-texto3')}>{contagem[f.id]}</span>
-              </button>
-            ))}
-          </div>
+        }
+      >
+        {/* as abas rolam dentro do próprio contêiner no celular (sem rolagem lateral da página) */}
+        <div className="-mx-4 overflow-x-auto border-b border-borda px-4 pb-4 sm:mx-0 sm:px-0">
+          <FiltroFichas abas rotulo="Filtrar projetos" valor={filtro} aoMudar={setFiltro} opcoes={filtros.map((f) => ({ ...f, contagem: contagem[f.id] }))} />
         </div>
 
-        {erro && !vivos.length ? (
-          <div className="mt-8"><EstadoErro titulo="Não foi possível carregar seus projetos" mensagem={erro} aoTentar={tentarDeNovo} /></div>
-        ) : carregando && !vivos.length ? (
-          <CarregandoBloco texto="Carregando projetos…" className="mt-8" />
-        ) : projetos.length === 0 ? (
-          <div className="mt-8">
-            <EstadoVazio
-              icone={<FolderOpen className="h-5 w-5" />}
-              titulo={busca ? 'Nada encontrado' : novo ? 'Nenhum projeto ainda' : 'Nenhum projeto neste filtro'}
-              descricao={busca ? 'Tente outro nome ou cliente.' : novo ? 'Use um dos caminhos acima: a IA monta uma apresentação a partir de uma frase, ou comece do zero.' : 'Troque o filtro para ver os outros projetos.'}
-              acao={busca ? <button onClick={() => setBusca('')} className="rounded-[9px] border-[1.5px] border-bordaForte px-4 py-2 text-[14px] font-medium">Limpar busca</button> : !novo ? <button onClick={() => setFiltro('todos')} className="rounded-[9px] border-[1.5px] border-bordaForte px-4 py-2 text-[14px] font-medium">Ver todos</button> : undefined}
-            />
-          </div>
-        ) : (
-          <ul className="mt-7 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2 xl:grid-cols-3">
-            {projetos.map((p) => {
+        <Grade as="ul" className="mt-6 gap-y-8 sm:gap-y-8">
+          {erro && !vivos.length ? (
+            <li className="col-span-full"><EstadoErro titulo="Não foi possível carregar seus projetos" mensagem={erro} aoTentar={tentarDeNovo} /></li>
+          ) : carregando && !vivos.length ? (
+            // esqueletos na mesma grade (capa 16/10 e duas linhas): nada pula quando os projetos chegam
+            Array.from({ length: 6 }, (_, i) => (
+              <li key={i} className={SPAN.terco} aria-hidden>
+                <Esqueleto className="aspect-[16/10] rounded-cartao" />
+                <Esqueleto className="mt-4 h-4 w-2/3" />
+                <Esqueleto className="mt-2 h-3 w-1/2" />
+              </li>
+            ))
+          ) : projetos.length === 0 ? (
+            <li className="col-span-full">
+              <EstadoVazio
+                icone={<FolderOpen className="h-5 w-5" />}
+                titulo={busca ? 'Nada encontrado' : novo ? 'Nenhum projeto ainda' : 'Nenhum projeto neste filtro'}
+                descricao={busca ? 'Tente outro nome ou cliente.' : novo ? 'Use um dos caminhos acima: a IA monta uma apresentação a partir de uma frase, ou comece do zero.' : 'Troque o filtro para ver os outros projetos.'}
+                acao={busca ? <Botao variante="secundario" onClick={() => setBusca('')}>Limpar busca</Botao> : !novo ? <Botao variante="secundario" onClick={() => setFiltro('todos')}>Ver todos</Botao> : undefined}
+              />
+            </li>
+          ) : (
+            projetos.map((p) => {
               const capa = p.documento.scenes[0]
               const st = statusExibido(p, linksAtivos)
               const telas = telasDo(p)
               return (
-                <li key={p.id} className="group relative">
+                <li key={p.id} className={cx(SPAN.terco, 'group relative min-w-0')}>
                   <Link href={`/app/projects/${p.id}`} className="block">
-                    <div className="overflow-hidden rounded-[8px] border border-black/5 transition-transform duration-normal group-hover:-translate-y-0.5 group-hover:shadow-suave">
+                    <div className="overflow-hidden rounded-cartao border border-black/5 transition-transform duration-normal group-hover:-translate-y-1 group-hover:shadow-suave">
                       {capa && <CapaProjeto cena={capa} assets={assets} proporcao={16 / 10} />}
                     </div>
-                    <div className="mt-3.5 pr-8">
+                    <div className="mt-4 pr-10">
                       <h3 className="truncate text-[15px] font-medium tracking-[-0.01em]">{p.nome}</h3>
-                      <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[12px] text-texto3">
-                        <span className="h-1.5 w-1.5 rounded-full" style={{ background: st.cor }} />
+                      <p className="mt-1 flex flex-wrap items-center gap-x-1 text-[12px] text-texto3">
+                        <span className="mr-1 h-2 w-2 rounded-full" style={{ background: st.cor }} />
                         <span title={st.dica} style={{ color: st.cor === '#A3A3A3' ? undefined : st.cor }}>{st.rotulo}</span>
                         <span>·</span>
                         <span>{telas} {telas === 1 ? 'tela' : 'telas'}</span>
@@ -200,10 +204,10 @@ export function Dashboard() {
                       </p>
                     </div>
                   </Link>
-                  <div className="absolute bottom-6 right-0" data-menu-projeto>
-                    <button aria-label={`Ações de ${p.nome}`} aria-expanded={menu === p.id} onClick={() => setMenu(menu === p.id ? null : p.id)} className="rounded-md p-1.5 text-texto3 hover:bg-hover hover:text-texto"><MoreHorizontal className="h-4 w-4" /></button>
+                  <div className="absolute bottom-4 right-0" data-menu-projeto>
+                    <button aria-label={`Ações de ${p.nome}`} aria-expanded={menu === p.id} onClick={() => setMenu(menu === p.id ? null : p.id)} className="flex h-8 w-8 items-center justify-center rounded-controle text-texto3 hover:bg-hover hover:text-texto"><MoreHorizontal className="h-4 w-4" /></button>
                     {menu === p.id && (
-                      <div role="menu" className="absolute bottom-9 right-0 z-10 w-52 rounded-lg border border-borda bg-superficie p-1 text-[13px] shadow-painel">
+                      <div role="menu" className="absolute bottom-10 right-0 z-10 w-52 rounded-controle border border-borda bg-superficie p-1 text-[13px] shadow-painel">
                         <Item icone={<Pencil />} onClick={() => router.push(`/app/projects/${p.id}/edit`)}>Editar</Item>
                         <Item icone={<Play />} onClick={() => abrirApresentacao(router, p.id)}>Apresentar</Item>
                         <Item icone={<Share2 />} onClick={() => router.push(`/app/projects/${p.id}/share`)}>Compartilhar</Item>
@@ -217,10 +221,10 @@ export function Dashboard() {
                   </div>
                 </li>
               )
-            })}
-          </ul>
-        )}
-      </section>
+            })
+          )}
+        </Grade>
+      </Secao>
 
       <ModalConfirmar
         aberto={!!confirmar}
@@ -237,20 +241,20 @@ export function Dashboard() {
           else void agir(() => dados.atualizarProjeto(projeto.id, { status: 'archived' }), 'Projeto arquivado.', () => void agir(() => dados.atualizarProjeto(projeto.id, { status: projeto.status })))
         }}
       />
-    </div>
+    </PaginaPainel>
   )
 }
 
-/** Atalho de criação (em branco, template, importar). */
+/** Atalho de criação (em branco, template, importar): sempre na horizontal, com descrição, em todos os tamanhos. */
 function Atalho({ href, icone, titulo, texto }: { href: string; icone: React.ReactNode; titulo: string; texto: string }) {
   return (
-    <Link href={href} className="group flex flex-col gap-2 rounded-xl border border-borda bg-superficie p-3 transition-colors hover:border-grafite sm:p-4 lg:flex-row lg:items-center lg:gap-3.5">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] bg-hover text-texto [&>svg]:h-4 [&>svg]:w-4">{icone}</span>
+    <Link href={href} className="group flex min-h-[72px] min-w-0 items-center gap-4 rounded-cartao border border-borda bg-superficie p-4 transition-colors hover:border-grafite">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-controle bg-hover text-texto [&>svg]:h-4 [&>svg]:w-4">{icone}</span>
       <span className="min-w-0 flex-1">
         <span className="block text-[14px] font-medium leading-tight">{titulo}</span>
-        <span className="mt-0.5 hidden text-[12px] leading-snug text-texto2 sm:block">{texto}</span>
+        <span className="mt-1 block truncate text-[12px] leading-snug text-texto2">{texto}</span>
       </span>
-      <ArrowRight className="hidden h-4 w-4 text-texto3 transition-transform group-hover:translate-x-0.5 group-hover:text-texto lg:block" />
+      <ArrowRight className="h-4 w-4 shrink-0 text-texto3 transition-transform group-hover:translate-x-1 group-hover:text-texto" />
     </Link>
   )
 }
@@ -260,7 +264,7 @@ function Atalho({ href, icone, titulo, texto }: { href: string; icone: React.Rea
  * de verdade (briefing longo, estrutura, dados) é escrito no editor grande da tela do Criar com IA. Colar um texto
  * longo aqui leva o texto inteiro para lá (nada é cortado).
  */
-function CriarComIARapido() {
+function CriarComIARapido({ className }: { className?: string }) {
   const router = useRouter()
   const saldo = useDados((e) => e.creditos.saldo)
   const [ideia, setIdeia] = useState('')
@@ -274,11 +278,12 @@ function CriarComIARapido() {
     router.push(t ? `/app/criar?${new URLSearchParams({ prompt: t })}` : '/app/criar')
   }
   return (
-    <form onSubmit={(e) => { e.preventDefault(); abrir() }} aria-labelledby="titulo-criar-ia" className="flex min-w-0 flex-col justify-between gap-4 rounded-xl border-[1.5px] border-grafite bg-superficie p-4 shadow-[4px_4px_0_#5965F2] sm:p-5 sm:shadow-[5px_5px_0_#5965F2]">
+    <form onSubmit={(e) => { e.preventDefault(); abrir() }} aria-labelledby="titulo-criar-ia" className={cx('flex h-full min-w-0 flex-col justify-between gap-6 rounded-cartao border-[1.5px] border-grafite bg-superficie p-4 shadow-[4px_4px_0_#5965F2] sm:p-6', className)}>
+      {/* a sombra carimbo (4 px) cabe na calha; o alinhamento com o grid é pela borda do cartão */}
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-4 gap-y-1">
         <div className="min-w-0 flex-1">
           <h2 id="titulo-criar-ia" className="flex items-center gap-2 text-[16px] font-semibold tracking-[-0.01em]"><span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-acento" />Criar apresentação com IA</h2>
-          <p className="mt-1 max-w-[520px] text-[13px] leading-snug text-texto2">Descreva a ideia ou cole um briefing completo (estrutura de telas, dados, cores e regras) na próxima tela. Você revisa o roteiro antes do design.</p>
+          <p className="mt-2 max-w-[520px] text-[13px] leading-snug text-texto2">Descreva a ideia ou cole um briefing completo (estrutura de telas, dados, cores e regras) na próxima tela. Você revisa o roteiro antes do design.</p>
         </div>
         <span className="mono hidden shrink-0 pt-1 text-[11px] text-texto3 sm:block">saldo: {textoTelas(saldo)}</span>
       </div>
@@ -296,9 +301,9 @@ function CriarComIARapido() {
             if (colado.length > 200 || colado.includes('\n')) { e.preventDefault(); abrir(`${ideia}${colado}`) }
           }}
           placeholder="Ideia em uma linha (opcional)"
-          className="h-11 w-full min-w-0 shrink-0 rounded-full border-[1.5px] border-borda bg-white px-4 text-[15px] outline-none placeholder:text-texto3 focus:border-grafite sm:w-auto sm:flex-1"
+          className="h-12 w-full min-w-0 shrink-0 rounded-full border-[1.5px] border-borda bg-white px-4 text-[15px] outline-none placeholder:text-texto3 focus:border-grafite sm:w-auto sm:flex-1"
         />
-        <button type="submit" className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-full border-2 border-grafite bg-violeta px-5 text-[14px] font-semibold text-white hover:bg-[#4A55E0]">
+        <button type="submit" className="flex h-12 shrink-0 items-center justify-center gap-2 rounded-full border-2 border-grafite bg-violeta px-6 text-[14px] font-semibold text-white hover:bg-[#4A55E0]">
           <Sparkles className="h-4 w-4" />Criar com IA<ArrowRight className="h-4 w-4" />
         </button>
       </div>
@@ -306,30 +311,56 @@ function CriarComIARapido() {
   )
 }
 
-function Continuar({ projeto, assets }: { projeto?: Projeto; assets: Record<string, AssetDemo> }) {
+/** Retomar o último projeto. Sem projeto ativo (todos arquivados), o cartão fica no lugar e explica: a grade não abre buraco. */
+function Continuar({ projeto, assets, carregando, erro, aoTentar, arquivados, aoVerArquivados, className }: { projeto?: Projeto; assets: Record<string, AssetDemo>; carregando: boolean; erro: string | null; aoTentar: () => void; arquivados: number; aoVerArquivados: () => void; className?: string }) {
   const router = useRouter()
-  if (!projeto) return null
-  const capa = projeto.documento.scenes[0]
+  const capa = projeto?.documento.scenes[0]
   return (
-    <section aria-labelledby="titulo-continuar" className="flex flex-col rounded-xl border border-borda bg-superficie p-5">
-      <h2 id="titulo-continuar" className="rotulo-mono">Continuar de onde parou</h2>
-      <Link href={`/app/projects/${projeto.id}/edit`} className="mt-3 flex min-w-0 items-center gap-3.5">
-        <div className="w-[104px] shrink-0 overflow-hidden rounded-md border border-black/5">{capa && <CapaProjeto cena={capa} assets={assets} proporcao={16 / 10} />}</div>
-        <div className="min-w-0">
-          <div className="truncate text-[15px] font-medium">{projeto.nome}</div>
-          <div className="mt-0.5 text-[12px] text-texto3">{formatarRelativo(projeto.atualizadoEm)} · {telasDo(projeto)} telas</div>
+    <CartaoPainel
+      className={className}
+      titulo="Continuar de onde parou"
+      idTitulo="titulo-continuar"
+      rodape={projeto && (
+        <>
+          <Link href={`/app/projects/${projeto.id}/edit`} className="inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-controle bg-grafite px-4 text-[13px] font-medium text-fundo hover:bg-[#2a2a2a]"><Pencil className="h-4 w-4" />Abrir no editor</Link>
+          <button type="button" onClick={() => abrirApresentacao(router, projeto.id)} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-controle border-[1.5px] border-bordaForte px-4 text-[13px] font-medium hover:border-[#D4D4D4]"><Play className="h-4 w-4" />Apresentar</button>
+        </>
+      )}
+    >
+      {projeto ? (
+        <Link href={`/app/projects/${projeto.id}/edit`} className="flex min-w-0 items-center gap-4">
+          <div className="w-28 shrink-0 overflow-hidden rounded-controle border border-black/5">{capa && <CapaProjeto cena={capa} assets={assets} proporcao={16 / 10} />}</div>
+          <div className="min-w-0">
+            <div className="truncate text-[15px] font-medium">{projeto.nome}</div>
+            <div className="mt-1 text-[12px] text-texto3">{formatarRelativo(projeto.atualizadoEm)} · {telasDo(projeto)} telas</div>
+          </div>
+        </Link>
+      ) : carregando ? (
+        <div className="flex items-center gap-4" aria-busy="true"><Esqueleto className="aspect-[16/10] w-28 shrink-0" /><div className="flex-1"><Esqueleto className="h-4 w-3/4" /><Esqueleto className="mt-2 h-3 w-1/2" /></div></div>
+      ) : erro ? (
+        <ErroNoCartao aoTentar={aoTentar} />
+      ) : (
+        <div className="text-[13px] text-texto2">
+          <p>Nenhum projeto em andamento.</p>
+          {arquivados > 0 && <button type="button" onClick={aoVerArquivados} className="mt-2 font-medium text-acento hover:underline">Ver arquivados</button>}
         </div>
-      </Link>
-      <div className="mt-auto flex gap-2 pt-4">
-        <Link href={`/app/projects/${projeto.id}/edit`} className="inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md bg-grafite px-3 text-[13px] font-medium text-fundo hover:bg-[#2a2a2a]"><Pencil className="h-3.5 w-3.5" />Abrir no editor</Link>
-        <button type="button" onClick={() => abrirApresentacao(router, projeto.id)} className="inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border-[1.5px] border-bordaForte px-3 text-[13px] font-medium hover:border-[#D4D4D4]"><Play className="h-3.5 w-3.5" />Apresentar</button>
-      </div>
-    </section>
+      )}
+    </CartaoPainel>
+  )
+}
+
+/** Falha ao carregar dentro de um cartão do painel: o cartão não some, explica e oferece tentar de novo. */
+function ErroNoCartao({ aoTentar }: { aoTentar: () => void }) {
+  return (
+    <div role="alert" className="flex flex-col items-start gap-2 text-[13px] text-texto2">
+      <p>Não deu para carregar.</p>
+      <Botao tamanho="sm" variante="secundario" onClick={aoTentar}>Tentar de novo</Botao>
+    </div>
   )
 }
 
 /** O que foi enviado e como o cliente interagiu (links ativos, visualizações, revisões pendentes). */
-function ResumoEnviados() {
+function ResumoEnviados({ carregando, erro, aoTentar, className }: { carregando: boolean; erro: string | null; aoTentar: () => void; className?: string }) {
   const resumo = useDados((e) => {
     const ativos = e.links.filter((l) => estadoDoLink({ expiresAt: l.expiraEm, revokedAt: l.revogadoEm }) === 'ativo')
     const porProjeto = new Map<string, { views: number; ultimo: string }>()
@@ -341,23 +372,17 @@ function ResumoEnviados() {
     return { itens, views: itens.reduce((s, i) => s + i.views, 0) }
   })
   return (
-    <section aria-labelledby="titulo-enviados" className="flex flex-col rounded-xl border border-borda bg-superficie p-5">
-      <div className="flex items-center justify-between gap-2">
-        <h2 id="titulo-enviados" className="rotulo-mono">Enviados</h2>
-        <Link href="/app/compartilhados" className="text-[12px] text-texto2 hover:text-texto">Ver todos</Link>
-      </div>
-      {resumo.itens.length === 0 ? (
-        <p className="mt-3 text-[13px] text-texto2">Nada enviado ainda. Publique um projeto e gere um link em Compartilhar para acompanhar as visualizações aqui.</p>
-      ) : (
+    <CartaoPainel className={className} titulo="Enviados" idTitulo="titulo-enviados" acao={<Link href="/app/compartilhados" className="shrink-0 text-[12px] text-texto2 hover:text-texto">Ver todos</Link>}>
+      {resumo.itens.length > 0 ? (
         <>
-          <div className="mt-3 flex gap-6">
-            <div><div className="text-[28px] font-medium leading-none tracking-[-0.04em]">{resumo.itens.length}</div><div className="mt-1 text-[12px] text-texto2">{resumo.itens.length === 1 ? 'apresentação com link' : 'apresentações com link'}</div></div>
-            <div><div className="text-[28px] font-medium leading-none tracking-[-0.04em]">{resumo.views}</div><div className="mt-1 text-[12px] text-texto2">visualizações</div></div>
+          <div className="flex gap-6">
+            <div><div className="text-[28px] font-medium leading-none tracking-[-0.04em]">{resumo.itens.length}</div><div className="mt-2 text-[12px] text-texto2">{resumo.itens.length === 1 ? 'apresentação com link' : 'apresentações com link'}</div></div>
+            <div><div className="text-[28px] font-medium leading-none tracking-[-0.04em]">{resumo.views}</div><div className="mt-2 text-[12px] text-texto2">visualizações</div></div>
           </div>
-          <ul className="mt-3 divide-y divide-borda text-[13px]">
+          <ul className="mt-4 divide-y divide-borda text-[13px]">
             {resumo.itens.slice(0, 3).map(({ p, views }) => (
               <li key={p.id}>
-                <Link href={`/app/projects/${p.id}/share`} className="flex items-center gap-2 py-1.5 hover:text-acento">
+                <Link href={`/app/projects/${p.id}/share`} className="flex items-center gap-2 py-2 hover:text-acento">
                   <span className="min-w-0 flex-1 truncate">{p.nome}</span>
                   {temAlteracoes(p) && <span className="shrink-0 text-[11px] text-[#B7791F]">não publicado</span>}
                   <span className="flex shrink-0 items-center gap-1 text-[12px] text-texto3"><Eye className="h-3 w-3" />{views}</span>
@@ -366,13 +391,19 @@ function ResumoEnviados() {
             ))}
           </ul>
         </>
+      ) : carregando ? (
+        <div aria-busy="true"><Esqueleto className="h-8 w-1/2" /><Esqueleto className="mt-4 h-3 w-full" /><Esqueleto className="mt-4 h-3 w-5/6" /></div>
+      ) : erro ? (
+        <ErroNoCartao aoTentar={aoTentar} />
+      ) : (
+        <p className="text-[13px] text-texto2">Nada enviado ainda. Publique um projeto e gere um link em Compartilhar para acompanhar as visualizações aqui.</p>
       )}
-    </section>
+    </CartaoPainel>
   )
 }
 
 /** Checklist de primeira vez: da conta criada até o cliente abrir a apresentação. Some quando tudo foi feito. */
-function PrimeirosPassos({ compacto }: { compacto?: boolean }) {
+function PrimeirosPassos({ compacto, className }: { compacto?: boolean; className?: string }) {
   const passos = useDados((e) => {
     const vivos = e.projetos.filter((p) => !p.excluidoEm)
     const primeiro = vivos[0]
@@ -389,29 +420,30 @@ function PrimeirosPassos({ compacto }: { compacto?: boolean }) {
   if (compacto && feitos === 0) return null
   const proximo = passos.findIndex((p) => !p.feito)
   return (
-    <section aria-labelledby="titulo-passos" className={cx('rounded-xl border border-borda bg-superficie p-5', compacto && 'mt-4')}>
-      <div className="flex items-center justify-between gap-3">
-        <h2 id="titulo-passos" className="rotulo-mono">Primeiros passos · {feitos} de {passos.length}</h2>
-        <div className="h-[3px] w-24 overflow-hidden rounded-sm bg-borda" aria-hidden><div className="h-full bg-sucesso" style={{ width: `${(feitos / passos.length) * 100}%` }} /></div>
-      </div>
-      <ol className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+    <CartaoPainel
+      className={className}
+      titulo={`Primeiros passos · ${feitos} de ${passos.length}`}
+      idTitulo="titulo-passos"
+      acao={<div className="h-1 w-24 shrink-0 overflow-hidden rounded-sm bg-borda" aria-hidden><div className="h-full bg-sucesso" style={{ width: `${(feitos / passos.length) * 100}%` }} /></div>}
+    >
+      <ol className={cx('grid grid-cols-1 gap-4 sm:grid-cols-2', compacto && 'xl:grid-cols-4')}>
         {passos.map((p, i) => (
-          <li key={p.titulo}>
-            <Link href={p.href} className={cx('flex h-full items-start gap-3 rounded-lg border p-3 transition-colors', i === proximo ? 'border-grafite' : 'border-borda hover:border-bordaForte', p.feito && 'opacity-60')}>
-              <span className={cx('mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px] text-[11px] font-semibold', p.feito ? 'border-sucesso bg-sucesso text-white' : i === proximo ? 'border-grafite' : 'border-[#D4D4D4] text-texto3')}>{p.feito ? <Check className="h-3 w-3" /> : i + 1}</span>
-              <span className="min-w-0"><span className={cx('block text-[14px] font-medium', p.feito && 'line-through')}>{p.titulo}</span><span className="mt-0.5 block text-[12px] leading-snug text-texto2">{p.texto}</span></span>
-              {i === proximo && <Send className="ml-auto mt-0.5 h-3.5 w-3.5 shrink-0 text-texto3" />}
+          <li key={p.titulo} className="min-w-0">
+            <Link href={p.href} className={cx('flex h-full items-start gap-2 rounded-controle border p-4 transition-colors', i === proximo ? 'border-grafite' : 'border-borda hover:border-bordaForte', p.feito && 'opacity-60')}>
+              <span className={cx('flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-[1.5px] text-[11px] font-semibold', p.feito ? 'border-sucesso bg-sucesso text-white' : i === proximo ? 'border-grafite' : 'border-[#D4D4D4] text-texto3')}>{p.feito ? <Check className="h-3 w-3" /> : i + 1}</span>
+              <span className="min-w-0"><span className={cx('block text-[14px] font-medium leading-6', p.feito && 'line-through')}>{p.titulo}</span><span className="mt-1 block text-[12px] leading-snug text-texto2">{p.texto}</span></span>
+              {i === proximo && <Send className="ml-auto mt-1 h-4 w-4 shrink-0 text-texto3" />}
             </Link>
           </li>
         ))}
       </ol>
-    </section>
+    </CartaoPainel>
   )
 }
 
 function Item({ icone, children, onClick, perigo }: { icone: React.ReactNode; children: React.ReactNode; onClick: () => void; perigo?: boolean }) {
   return (
-    <button role="menuitem" onClick={onClick} className={cx('flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-hover [&>svg]:h-4 [&>svg]:w-4', perigo && 'text-perigo')}>
+    <button role="menuitem" onClick={onClick} className={cx('flex h-8 w-full items-center gap-2 rounded-controle px-2 text-left hover:bg-hover [&>svg]:h-4 [&>svg]:w-4', perigo && 'text-perigo')}>
       {icone} {children}
     </button>
   )

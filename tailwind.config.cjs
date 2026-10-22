@@ -31,7 +31,10 @@ module.exports = {
         perigo: 'rgb(var(--cor-perigo) / <alpha-value>)',
         sucesso: 'rgb(var(--cor-sucesso) / <alpha-value>)',
       },
-      borderRadius: { md: '7px', lg: '9px', xl: '12px', '2xl': '16px' },
+      // md e lg ficam como estão (o editor usa); as telas do painel usam controle (8), cartao (12) e bloco (16)
+      borderRadius: { md: '7px', lg: '9px', xl: '12px', '2xl': '16px', controle: '8px', cartao: '12px', bloco: '16px' },
+      // largura máxima do conteúdo do painel (12 colunas de 82 px + calhas de 24), ver lib/design-tokens.ts › layout
+      maxWidth: { painel: '1248px' },
       boxShadow: { suave: '0 1px 2px rgb(0 0 0 / 0.04), 0 12px 32px -16px rgb(0 0 0 / 0.18)', carimbo: '6px 6px 0 0 #171717', painel: '0 24px 60px -24px rgb(0 0 0 / .25)' },
       fontFamily: { sans: ['var(--font-geist-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'], mono: ['var(--font-geist-mono)', 'ui-monospace', 'monospace'] },
       transitionDuration: { rapida: '150ms', normal: '250ms', lenta: '450ms' },

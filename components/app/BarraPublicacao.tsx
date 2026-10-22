@@ -28,7 +28,7 @@ export function BarraPublicacao({ projetoId, className }: { projetoId: string; c
     }
   }
   return (
-    <div role="status" className={cx('flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 text-[13px]', nunca || pendente ? 'border-grafite bg-superficie' : 'border-borda bg-superficie', className)}>
+    <div role="status" className={cx('flex min-h-14 flex-wrap items-center gap-4 rounded-cartao border px-4 py-2 text-[13px]', nunca || pendente ? 'border-grafite bg-superficie' : 'border-borda bg-superficie', className)}>
       {nunca || pendente ? <UploadCloud className="h-4 w-4 shrink-0 text-acento" /> : <CheckCircle2 className="h-4 w-4 shrink-0 text-sucesso" />}
       <span className="min-w-0 flex-1">
         {nunca ? 'Ainda não publicado. Publique para congelar uma revisão e poder gerar links.' : pendente ? `O cliente vê a revisão ${projeto.revisaoPublicada}; o rascunho está na ${projeto.revisaoAtual}.` : `Revisão ${projeto.revisaoPublicada} publicada e atualizada.`}

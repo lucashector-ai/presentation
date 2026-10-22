@@ -67,19 +67,19 @@ export function BuscaRapida({ aberta, aoFechar }: { aberta: boolean; aoFechar: (
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 px-4 pt-[12vh]" onMouseDown={(e) => e.target === e.currentTarget && aoFechar()}>
       <div role="dialog" aria-modal="true" aria-label="Busca rápida" className="w-full max-w-[560px] overflow-hidden rounded-xl border border-borda bg-superficie shadow-painel" onKeyDown={tecla}>
-        <div className="flex items-center gap-2.5 border-b border-borda px-4">
+        <div className="flex items-center gap-2 border-b border-borda px-4">
           <Search className="h-4 w-4 text-texto3" />
           <input ref={entrada} role="combobox" aria-expanded aria-controls="busca-rapida-lista" aria-activedescendant={itens[ativo] ? `busca-${itens[ativo]!.id}` : undefined} aria-label="Buscar projetos e ações" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar projetos, criar, ir para…" className="h-12 min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-texto3 focus-visible:outline-none" />
-          <kbd className="mono rounded border border-borda px-1.5 text-[10px] text-texto3">esc</kbd>
+          <kbd className="mono rounded border border-borda px-1 text-[10px] text-texto3">esc</kbd>
         </div>
-        <ul ref={lista} id="busca-rapida-lista" role="listbox" aria-label="Resultados" className="max-h-[56vh] overflow-y-auto p-1.5">
+        <ul ref={lista} id="busca-rapida-lista" role="listbox" aria-label="Resultados" className="max-h-[56vh] overflow-y-auto p-2">
           {itens.map((it, i) => {
             const cabecalho = it.grupo !== grupoAnterior ? it.grupo : null
             grupoAnterior = it.grupo
             return (
               <li key={`${it.grupo}-${it.id}`} role="presentation">
-                {cabecalho && <div className="rotulo-mono px-2.5 pb-1 pt-2.5 text-[10px]">{cabecalho}</div>}
-                <div id={`busca-${it.id}`} role="option" aria-selected={i === ativo} onMouseMove={() => setAtivo(i)} onClick={it.executar} className={cx('flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] [&_svg]:h-4 [&_svg]:w-4 [&_svg]:shrink-0 [&_svg]:text-texto3', i === ativo && 'bg-hover')}>
+                {cabecalho && <div className="rotulo-mono px-2 pb-1 pt-2 text-[10px]">{cabecalho}</div>}
+                <div id={`busca-${it.id}`} role="option" aria-selected={i === ativo} onMouseMove={() => setAtivo(i)} onClick={it.executar} className={cx('flex h-10 cursor-pointer items-center gap-2 rounded-controle px-2 text-[14px] [&_svg]:h-4 [&_svg]:w-4 [&_svg]:shrink-0 [&_svg]:text-texto3', i === ativo && 'bg-hover')}>
                   {it.icone}
                   <span className="min-w-0 truncate">{it.rotulo}</span>
                   {it.dica && <span className="min-w-0 truncate text-[12px] text-texto3">{it.dica}</span>}
@@ -88,7 +88,7 @@ export function BuscaRapida({ aberta, aoFechar }: { aberta: boolean; aoFechar: (
               </li>
             )
           })}
-          {!itens.length && <li className="px-3 py-6 text-center text-[13px] text-texto2">Nada encontrado.</li>}
+          {!itens.length && <li className="px-4 py-6 text-center text-[13px] text-texto2">Nada encontrado.</li>}
         </ul>
       </div>
     </div>

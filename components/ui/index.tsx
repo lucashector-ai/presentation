@@ -24,7 +24,8 @@ const variantes: Record<Variante, string> = {
   destaque: 'bg-lima text-grafite border-transparent hover:brightness-95',
   acento: 'bg-acento text-white border-transparent hover:bg-[#4A55E0]',
 }
-const tamanhos: Record<TamanhoBotao, string> = { sm: 'h-8 px-3 text-[13px] gap-1.5 rounded-md', md: 'h-10 px-4 text-sm gap-2 rounded-lg', lg: 'h-12 px-5 text-[15px] gap-2 rounded-lg' }
+// alturas 32/40/48 (T.controle) e raio de controle 8. O sm segue com padding de 12: a barra do editor não tem folga a 1024 px
+const tamanhos: Record<TamanhoBotao, string> = { sm: 'h-8 px-3 text-[13px] gap-1.5 rounded-controle', md: 'h-10 px-4 text-sm gap-2 rounded-controle', lg: 'h-12 px-6 text-[15px] gap-2 rounded-controle' }
 
 export const Botao = forwardRef<HTMLButtonElement, BotaoProps>(function Botao({ variante = 'primario', tamanho = 'md', carregando, icone, className, children, disabled, ...rest }, ref) {
   return (
@@ -45,7 +46,7 @@ export function BotaoIcone({ rotulo, className, children, ativo, ...rest }: Butt
 
 // ---------- Campos ----------
 export const Entrada = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Entrada({ className, ...rest }, ref) {
-  return <input ref={ref} className={cx('h-11 w-full rounded-lg border border-[#E7E5E4] bg-superficie px-3.5 text-sm text-texto placeholder:text-texto3 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15 disabled:opacity-50', className)} {...rest} />
+  return <input ref={ref} className={cx('h-10 w-full rounded-controle border border-[#E7E5E4] bg-superficie px-4 text-sm text-texto placeholder:text-texto3 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15 disabled:opacity-50', className)} {...rest} />
 })
 
 export const AreaTexto = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function AreaTexto({ className, ...rest }, ref) {
@@ -54,7 +55,7 @@ export const AreaTexto = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<
 
 export function Selecao({ className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select className={cx('h-10 w-full rounded-lg border border-[#E7E5E4] bg-superficie px-3 text-sm text-texto outline-none focus:border-acento', className)} {...rest}>
+    <select className={cx('h-10 w-full rounded-controle border border-[#E7E5E4] bg-superficie px-3 text-sm text-texto outline-none focus:border-acento', className)} {...rest}>
       {children}
     </select>
   )
@@ -115,7 +116,7 @@ export function Alternador({ ativo, onChange, rotulo }: { ativo: boolean; onChan
 // ---------- Superfícies ----------
 export function Cartao({ className, children, ...rest }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cx('rounded-xl border bg-superficie', className)} {...rest}>
+    <div className={cx('rounded-cartao border bg-superficie', className)} {...rest}>
       {children}
     </div>
   )
@@ -144,13 +145,13 @@ export function Abas<T extends string>({ valor, opcoes, onChange, rotulo }: { va
   )
 }
 
-export function EstadoVazio({ icone, titulo, descricao, acao }: { icone?: ReactNode; titulo: string; descricao?: string; acao?: ReactNode }) {
+export function EstadoVazio({ icone, titulo, descricao, acao, className }: { icone?: ReactNode; titulo: string; descricao?: string; acao?: ReactNode; className?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed px-6 py-16 text-center">
-      {icone && <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-superficie2 text-texto2">{icone}</div>}
+    <div className={cx('flex flex-col items-center justify-center rounded-bloco border border-dashed px-6 py-16 text-center', className)}>
+      {icone && <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-bloco bg-superficie2 text-texto2">{icone}</div>}
       <h3 className="text-base font-semibold">{titulo}</h3>
-      {descricao && <p className="mt-1 max-w-sm text-sm text-texto2">{descricao}</p>}
-      {acao && <div className="mt-5">{acao}</div>}
+      {descricao && <p className="mt-2 max-w-sm text-sm text-texto2">{descricao}</p>}
+      {acao && <div className="mt-6">{acao}</div>}
     </div>
   )
 }
@@ -237,12 +238,12 @@ export function CarregandoBloco({ texto = 'Carregando…', className }: { texto?
 }
 
 /** Falha ao carregar: explica e oferece tentar de novo. */
-export function EstadoErro({ titulo = 'Não foi possível carregar', mensagem, aoTentar }: { titulo?: string; mensagem?: string | null; aoTentar?: () => void }) {
+export function EstadoErro({ titulo = 'Não foi possível carregar', mensagem, aoTentar, className }: { titulo?: string; mensagem?: string | null; aoTentar?: () => void; className?: string }) {
   return (
-    <div role="alert" className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-perigo/40 px-6 py-14 text-center">
+    <div role="alert" className={cx('flex flex-col items-center justify-center rounded-bloco border border-dashed border-perigo/40 px-6 py-16 text-center', className)}>
       <h3 className="text-base font-semibold">{titulo}</h3>
-      {mensagem && <p className="mt-1 max-w-sm text-sm text-texto2">{mensagem}</p>}
-      {aoTentar && <div className="mt-5"><Botao variante="secundario" onClick={aoTentar}>Tentar de novo</Botao></div>}
+      {mensagem && <p className="mt-2 max-w-sm text-sm text-texto2">{mensagem}</p>}
+      {aoTentar && <div className="mt-6"><Botao variante="secundario" onClick={aoTentar}>Tentar de novo</Botao></div>}
     </div>
   )
 }

@@ -47,10 +47,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   if (falha) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-fundo p-6 text-center" role="alert">
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-fundo p-6 text-center" role="alert">
         <Marca />
         <p className="max-w-sm text-[15px] text-texto2">{falha}</p>
-        <button type="button" onClick={() => setTentativa((n) => n + 1)} className="rounded-[9px] bg-grafite px-4 py-2.5 text-[14px] font-medium text-fundo">Tentar de novo</button>
+        <button type="button" onClick={() => setTentativa((n) => n + 1)} className="h-10 rounded-controle bg-grafite px-4 text-[14px] font-medium text-fundo">Tentar de novo</button>
       </div>
     )
   }
@@ -99,50 +99,51 @@ function Moldura({ caminho, children }: { caminho: string; children: React.React
   const iniciais = nomeExibido.split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase()
 
   const lateral = (
-    <aside className="flex h-full flex-col gap-5 px-3 py-[18px]">
-      <Link href="/app" className="px-2 text-[20px] text-texto" aria-label="Mostra — início"><Marca /></Link>
-      <Link href="/app/settings#plano" className="flex items-center gap-2.5 rounded-[9px] border border-borda bg-superficie p-2 text-left hover:border-[#D4D4D4]">
-        <span className="flex h-7 w-7 items-center justify-center rounded-[7px] bg-carvao text-[12px] font-semibold text-argila">{ws.nome[0] ?? 'M'}</span>
+    // barra de 232: padding 16 e filhos com px-2, então logo, ícones e textos começam todos a 24 px da borda
+    <aside className="flex h-full flex-col gap-6 px-4 py-6">
+      <Link href="/app" className="flex h-10 items-center px-2 text-[20px] text-texto" aria-label="Mostra — início"><Marca /></Link>
+      <Link href="/app/settings#plano" className="flex items-center gap-2 rounded-controle border border-borda bg-superficie p-2 text-left hover:border-[#D4D4D4]">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-controle bg-carvao text-[12px] font-semibold text-argila">{ws.nome[0] ?? 'M'}</span>
         <span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-medium">{ws.nome}</span><span className="block text-[11px] text-texto3">Plano {plano.nome} · {ws.membros} {ws.membros === 1 ? 'membro' : 'membros'}{ws.papel === 'viewer' ? ' · só ver' : ''}</span></span>
       </Link>
       <SeletorEspaco />
-      <button type="button" onClick={() => { setMenuMovel(false); setBusca(true) }} className="flex h-9 items-center gap-2 rounded-[9px] border border-borda bg-superficie px-2.5 text-[13px] text-texto3 hover:border-[#D4D4D4] hover:text-texto2">
-        <Search className="h-[15px] w-[15px]" strokeWidth={1.75} />Buscar
-        <kbd className="mono ml-auto rounded border border-borda px-1.5 text-[10px]">⌘K</kbd>
+      <button type="button" onClick={() => { setMenuMovel(false); setBusca(true) }} className="flex h-10 items-center gap-2 rounded-controle border border-borda bg-superficie px-2 text-[13px] text-texto3 hover:border-[#D4D4D4] hover:text-texto2">
+        <Search className="h-4 w-4" strokeWidth={1.75} />Buscar
+        <kbd className="mono ml-auto rounded border border-borda px-1 text-[10px]">⌘K</kbd>
       </button>
-      <nav aria-label="Navegação principal" className="flex flex-col gap-0.5 text-[14px]">
+      <nav aria-label="Navegação principal" className="flex flex-col gap-1 text-[14px]">
         {nav.map((n) => (
-          <Link key={n.rotulo} href={n.href} aria-current={n.ativo ? 'page' : undefined} className={cx('flex items-center gap-2.5 rounded-[7px] px-2.5 py-2 transition-colors hover:bg-hover hover:text-texto', n.ativo ? 'bg-hover font-medium text-texto' : 'text-[#525252]')}>
+          <Link key={n.rotulo} href={n.href} aria-current={n.ativo ? 'page' : undefined} className={cx('flex h-10 items-center gap-2 rounded-controle px-2 transition-colors hover:bg-hover hover:text-texto', n.ativo ? 'bg-hover font-medium text-texto' : 'text-[#525252]')}>
             <n.icone className="h-4 w-4 opacity-85" strokeWidth={1.75} />
             {n.rotulo}
-            {n.ponto && <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-acento" />}
+            {n.ponto && <span aria-hidden className="h-2 w-2 rounded-full bg-acento" />}
             {n.contagem !== undefined && <span className="ml-auto text-[12px] text-texto3">{n.contagem}</span>}
           </Link>
         ))}
       </nav>
-      <div className="mt-auto flex flex-col gap-3.5">
-        <div className="rounded-[9px] border border-borda bg-superficie p-3">
+      <div className="mt-auto flex flex-col gap-4">
+        <div className="rounded-controle border border-borda bg-superficie p-2">
           <div className="flex items-center justify-between gap-2 text-[12px]">
-            <span className="flex items-center gap-1.5 font-medium"><Sparkles className="h-3.5 w-3.5 text-acento" />{saldo.toLocaleString('pt-BR')} créditos</span>
+            <span className="flex items-center gap-2 font-medium"><Sparkles className="h-4 w-4 text-acento" />{saldo.toLocaleString('pt-BR')} créditos</span>
             <button type="button" onClick={() => abrirCompra()} className="text-[12px] font-medium text-acento hover:underline">Comprar</button>
           </div>
           <div className="mt-1 text-[11px] text-texto3" title={exemploApresentacoes(saldo)}>{textoTelas(saldo)}</div>
         </div>
-        <div className="flex flex-col gap-2 px-2.5">
+        <div className="flex flex-col gap-2 px-2">
           <div className="flex justify-between text-[12px] text-texto2"><span>Armazenamento</span><span>{formatarBytes(contagem.armazenamento)} / {formatarBytes(plano.limites.armazenamentoBytes)}</span></div>
           <div className="h-[3px] rounded-sm bg-borda"><div className="h-[3px] rounded-sm bg-grafite" style={{ width: `${Math.max(2, percentualUso(contagem.armazenamento, plano.limites.armazenamentoBytes))}%` }} /></div>
         </div>
-        <div className="relative border-t border-borda pt-3.5">
-          <button type="button" aria-label="Menu do usuário" aria-expanded={menuUsuario} onClick={() => setMenuUsuario((v) => !v)} className="flex w-full items-center gap-2.5 rounded-[7px] px-2.5 py-1.5 text-left hover:bg-hover">
-            <span className="flex h-[26px] w-[26px] items-center justify-center rounded-full bg-salvia text-[11px] font-semibold text-musgo">{iniciais}</span>
+        <div className="relative border-t border-borda pt-4">
+          <button type="button" aria-label="Menu do usuário" aria-expanded={menuUsuario} onClick={() => setMenuUsuario((v) => !v)} className="flex h-10 w-full items-center gap-2 rounded-controle px-2 text-left hover:bg-hover">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-salvia text-[11px] font-semibold text-musgo">{iniciais}</span>
             <span className="truncate text-[13px]">{nomeExibido}</span>
           </button>
           {menuUsuario && (
-            <div role="menu" className="absolute bottom-12 left-0 right-0 rounded-lg border border-borda bg-superficie p-1 shadow-painel" onMouseLeave={() => setMenuUsuario(false)}>
-              <div className="truncate px-3 py-2 text-[12px] text-texto2">{usuario.email}</div>
-              <button role="menuitem" onClick={() => router.push('/app/settings')} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-[13px] hover:bg-hover"><Settings2 className="h-4 w-4" /> Plano e conta</button>
-              <button role="menuitem" onClick={() => alternarTema()} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-[13px] hover:bg-hover"><Moon className="h-4 w-4" /> Alternar tema</button>
-              <button role="menuitem" onClick={async () => { await dados.sair(); router.push('/login') }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-[13px] hover:bg-hover"><LogOut className="h-4 w-4" /> Sair</button>
+            <div role="menu" className="absolute bottom-12 left-0 right-0 rounded-controle border border-borda bg-superficie p-1 shadow-painel" onMouseLeave={() => setMenuUsuario(false)}>
+              <div className="truncate px-2 py-2 text-[12px] text-texto2">{usuario.email}</div>
+              <button role="menuitem" onClick={() => router.push('/app/settings')} className="flex h-8 w-full items-center gap-2 rounded-controle px-2 text-[13px] hover:bg-hover"><Settings2 className="h-4 w-4" /> Plano e conta</button>
+              <button role="menuitem" onClick={() => alternarTema()} className="flex h-8 w-full items-center gap-2 rounded-controle px-2 text-[13px] hover:bg-hover"><Moon className="h-4 w-4" /> Alternar tema</button>
+              <button role="menuitem" onClick={async () => { await dados.sair(); router.push('/login') }} className="flex h-8 w-full items-center gap-2 rounded-controle px-2 text-[13px] hover:bg-hover"><LogOut className="h-4 w-4" /> Sair</button>
             </div>
           )}
         </div>
@@ -163,13 +164,14 @@ function Moldura({ caminho, children }: { caminho: string; children: React.React
       {menuMovel && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/30" onClick={() => setMenuMovel(false)} />
-          <div className="absolute inset-y-0 left-0 w-[268px] overflow-y-auto bg-fundo shadow-painel">
-            <button type="button" aria-label="Fechar menu" onClick={() => setMenuMovel(false)} className="absolute right-3 top-4 rounded-md p-1.5 hover:bg-hover"><X className="h-4 w-4" /></button>
+          <div className="absolute inset-y-0 left-0 w-[272px] overflow-y-auto bg-fundo shadow-painel">
+            <button type="button" aria-label="Fechar menu" onClick={() => setMenuMovel(false)} className="absolute right-4 top-6 flex h-10 w-10 items-center justify-center rounded-controle hover:bg-hover"><X className="h-4 w-4" /></button>
             {lateral}
           </div>
         </div>
       )}
-      <main className="min-w-0 px-4 pb-20 pt-7 sm:px-[clamp(24px,4vw,56px)] sm:pt-10">{children}</main>
+      {/* margens do grid do painel (T.layout.margem): 16 → 32 → 48; o conteúdo usa PaginaPainel (components/app/Layout.tsx) */}
+      <main className="min-w-0 px-4 pb-20 pt-6 sm:px-8 sm:pt-8 lg:pt-10 xl:px-12">{children}</main>
       <BuscaRapida aberta={busca} aoFechar={fecharBusca} />
     </div>
   )
@@ -186,12 +188,12 @@ function SeletorEspaco() {
   }, [])
   if (espacos.length < 2) return null
   return (
-    <div className="relative -mt-3">
-      <button type="button" aria-expanded={aberto} onClick={() => setAberto((v) => !v)} className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-[12px] text-texto2 hover:bg-hover hover:text-texto"><ArrowLeftRight className="h-3.5 w-3.5" /> Trocar de espaço</button>
+    <div className="relative -mt-4">
+      <button type="button" aria-expanded={aberto} onClick={() => setAberto((v) => !v)} className="flex h-8 w-full items-center gap-2 rounded-controle px-2 text-left text-[12px] text-texto2 hover:bg-hover hover:text-texto"><ArrowLeftRight className="h-4 w-4" /> Trocar de espaço</button>
       {aberto && (
         <div role="menu" aria-label="Espaços" className="absolute left-0 right-0 z-40 mt-1 rounded-lg border border-borda bg-superficie p-1 shadow-painel" onMouseLeave={() => setAberto(false)}>
           {espacos.map((e) => (
-            <button key={e.id} role="menuitemradio" aria-checked={e.ativo} disabled={e.ativo} onClick={async () => { await dados.espacos.ativar(e.id); window.location.assign('/app') }} className={cx('flex w-full flex-col rounded-md px-3 py-2 text-left text-[13px] hover:bg-hover', e.ativo && 'bg-hover font-medium')}>
+            <button key={e.id} role="menuitemradio" aria-checked={e.ativo} disabled={e.ativo} onClick={async () => { await dados.espacos.ativar(e.id); window.location.assign('/app') }} className={cx('flex w-full flex-col rounded-controle px-2 py-2 text-left text-[13px] hover:bg-hover', e.ativo && 'bg-hover font-medium')}>
               <span className="truncate">{e.nome}</span>
               <span className="text-[11px] font-normal text-texto3">{e.proprio ? 'seu espaço' : e.papel === 'viewer' ? 'você pode ver' : 'você pode editar'}</span>
             </button>

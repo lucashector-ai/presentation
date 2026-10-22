@@ -15,6 +15,7 @@ import { avisoDoOcr, importarPaginasPdf, type ProgressoImportacao } from './impo
 import { enquadrarNaCena } from '@/lib/scene/transform'
 import { CapaProjeto } from './CapaProjeto'
 import { cx } from '@/components/ui'
+import { Grade } from './Layout'
 import { useToast } from '@/components/ui/toast'
 
 const FORMATOS_UI: { id: ModoProjeto; nome: string; descricao: string }[] = [
@@ -22,6 +23,11 @@ const FORMATOS_UI: { id: ModoProjeto; nome: string; descricao: string }[] = [
   { id: 'story', nome: 'Story', descricao: 'Narrativa vertical contínua, guiada pelo scroll.' },
   { id: 'explorar', nome: 'Explorar', descricao: 'Espaço interativo com navegação livre e hotspots.' },
 ]
+
+/** Cabeçalho, conteúdo e rodapé dividem o mesmo contêiner (margens e largura máxima do grid do painel): a trilha começa onde começa o formulário. */
+const MARGENS = 'px-4 sm:px-8 xl:px-12'
+const MOLDURA = 'mx-auto w-full max-w-painel'
+const CAMPO = 'h-10 w-full rounded-controle border border-[#E7E5E4] bg-superficie px-4 text-[14px] outline-none placeholder:text-texto3 focus:border-acento'
 
 const ehPdf = (f: File) => /\.pdf$/i.test(f.name) || f.type === 'application/pdf'
 
@@ -126,121 +132,129 @@ export function NovoProjeto() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-fundo">
-      <header className="flex h-[60px] items-center justify-between border-b border-borda px-6">
-        <nav aria-label="Trilha" className="flex items-center gap-3 text-[14px]"><Link href="/app" className="text-texto2 hover:text-texto">Início</Link><span className="text-[#D4D4D4]">/</span><span className="font-medium">Novo projeto</span></nav>
-        <Link href="/app" aria-label="Fechar" className="rounded-md p-1.5 text-texto2 hover:bg-hover"><X className="h-4 w-4" /></Link>
+      <header className={cx('border-b border-borda', MARGENS)}>
+        <div className={cx(MOLDURA, 'flex h-16 items-center justify-between')}>
+          <nav aria-label="Trilha" className="flex items-center gap-2 text-[14px]"><Link href="/app" className="text-texto2 hover:text-texto">Início</Link><span className="text-[#D4D4D4]">/</span><span className="font-medium">Novo projeto</span></nav>
+          <Link href="/app" aria-label="Fechar" className="-mr-2 flex h-10 w-10 items-center justify-center rounded-controle text-texto2 hover:bg-hover"><X className="h-4 w-4" /></Link>
+        </div>
       </header>
 
-      <main className="mx-auto grid w-full max-w-[1136px] flex-1 gap-12 px-6 py-14 lg:grid-cols-[400px_minmax(0,1fr)] lg:gap-[200px]">
-        {passo === 1 ? (
-          <>
-            <section>
-              <div className="rotulo-mono">Passo 1 de 2</div>
-              <h1 className="titulo-display mt-2 text-[40px]">Novo projeto.</h1>
-              <div className="mt-6 space-y-5">
-                <label className="block"><span className="mb-2 block text-[13px] font-medium">Nome do projeto</span><input autoFocus value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Atlas Cerâmica — Identidade" className="h-11 w-full rounded-lg border border-[#E7E5E4] bg-superficie px-3.5 text-[14px] outline-none placeholder:text-texto3 focus:border-acento" /></label>
-                <label className="block"><span className="mb-2 block text-[13px] font-medium">Cliente <span className="font-normal text-texto3">· opcional</span></span><input value={cliente} onChange={(e) => setCliente(e.target.value)} placeholder="Nome do cliente" className="h-11 w-full rounded-lg border border-[#E7E5E4] bg-superficie px-3.5 text-[14px] outline-none placeholder:text-texto3 focus:border-acento" /></label>
-                <label className="block"><span className="mb-2 block text-[13px] font-medium">Descrição</span><textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={4} placeholder="Contexto, objetivo e para quem será apresentado." className="w-full resize-y rounded-lg border border-[#E7E5E4] bg-superficie px-3.5 py-3 text-[14px] outline-none placeholder:text-texto3 focus:border-acento" /></label>
-              </div>
-            </section>
-            <section>
-              <div className="mb-3 text-[13px] font-medium">Formato</div>
-              <div role="radiogroup" aria-label="Formato" className="grid gap-4 sm:grid-cols-2">
-                {FORMATOS_UI.map((f) => (
-                  <button key={f.id} type="button" role="radio" aria-checked={modo === f.id} onClick={() => setModo(f.id)} className={cx('rounded-xl border-[1.5px] bg-superficie p-2.5 text-left transition-colors', modo === f.id ? 'border-acento' : 'border-borda hover:border-[#D4D4D4]')}>
-                    <div className="aspect-[4/3] overflow-hidden rounded-lg bg-[#F2F1EF] py-[6%]"><Ilustracao modo={f.id} /></div>
-                    <div className="flex items-start justify-between px-1.5 pb-1.5 pt-3">
-                      <div><div className="text-[15px] font-medium">{f.nome}</div><div className="mt-1 text-[13px] leading-snug text-texto2">{f.descricao}</div></div>
-                      <span className={cx('mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-[1.5px]', modo === f.id ? 'border-acento' : 'border-[#D4D4D4]')}>{modo === f.id && <span className="h-2 w-2 rounded-full bg-acento" />}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-              <div className="mt-8 flex items-center justify-between">
-                <span className="text-[13px] font-medium">Começar</span>
-                <div className="inline-flex rounded-lg bg-[#EFEEEC] p-[3px] text-[13px]" role="radiogroup" aria-label="Começar">
-                  {(['branco', 'template'] as const).map((c) => <button key={c} type="button" role="radio" aria-checked={comeco === c} onClick={() => setComeco(c)} className={cx('rounded-md px-3 py-1.5', comeco === c ? 'bg-superficie shadow-sm' : 'text-texto2')}>{c === 'branco' ? 'Em branco' : 'Usar template'}</button>)}
+      <main className={cx('flex-1', MARGENS)}>
+        {/* formulário em 4 colunas (400 px no máximo), uma coluna de respiro e os formatos nas 7 restantes */}
+        <Grade className={cx(MOLDURA, 'gap-y-12 py-14 sm:gap-y-12')}>
+          {passo === 1 ? (
+            <>
+              <section className="col-span-4 min-w-0 sm:col-span-8 xl:col-span-4">
+                <div className="rotulo-mono">Passo 1 de 2</div>
+                <h1 className="titulo-display mt-2 text-[40px]">Novo projeto.</h1>
+                <div className="mt-6 space-y-6">
+                  <label className="block"><span className="mb-2 block text-[13px] font-medium">Nome do projeto</span><input autoFocus value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Atlas Cerâmica — Identidade" className={CAMPO} /></label>
+                  <label className="block"><span className="mb-2 block text-[13px] font-medium">Cliente <span className="font-normal text-texto3">· opcional</span></span><input value={cliente} onChange={(e) => setCliente(e.target.value)} placeholder="Nome do cliente" className={CAMPO} /></label>
+                  <label className="block"><span className="mb-2 block text-[13px] font-medium">Descrição</span><textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={4} placeholder="Contexto, objetivo e para quem será apresentado." className="w-full resize-y rounded-controle border border-[#E7E5E4] bg-superficie px-4 py-2 text-[14px] leading-6 outline-none placeholder:text-texto3 focus:border-acento" /></label>
                 </div>
-              </div>
-              {comeco === 'branco' ? (
-                <div className="mt-3 flex items-center gap-3 rounded-xl border border-dashed border-[#D4D4D4] p-4 text-[13px] text-texto2">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-md border border-borda bg-superficie text-texto"><Plus className="h-3.5 w-3.5" /></span>
-                  Uma tela em branco no formato escolhido. Você pode importar imagens, SVG e modelos 3D em seguida.
+              </section>
+              <section className="col-span-4 min-w-0 sm:col-span-8 xl:col-span-7 xl:col-start-6">
+                <div className="mb-4 text-[13px] font-medium">Formato</div>
+                {/* os 3 formatos lado a lado a partir do tablet: nenhum sobra sozinho numa linha */}
+                <div role="radiogroup" aria-label="Formato" className="grid gap-4 sm:grid-cols-3">
+                  {FORMATOS_UI.map((f) => (
+                    <button key={f.id} type="button" role="radio" aria-checked={modo === f.id} onClick={() => setModo(f.id)} className={cx('flex min-w-0 flex-col rounded-cartao border-[1.5px] bg-superficie p-2 text-left transition-colors', modo === f.id ? 'border-acento' : 'border-borda hover:border-[#D4D4D4]')}>
+                      <div className="aspect-[4/3] overflow-hidden rounded-controle bg-[#F2F1EF] py-[6%]"><Ilustracao modo={f.id} /></div>
+                      <div className="flex items-start justify-between gap-2 px-2 pb-2 pt-4">
+                        <div><div className="text-[15px] font-medium">{f.nome}</div><div className="mt-1 text-[13px] leading-snug text-texto2">{f.descricao}</div></div>
+                        <span className={cx('mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-[1.5px]', modo === f.id ? 'border-acento' : 'border-[#D4D4D4]')}>{modo === f.id && <span className="h-2 w-2 rounded-full bg-acento" />}</span>
+                      </div>
+                    </button>
+                  ))}
                 </div>
-              ) : (
-                <ul className="mt-3 grid gap-3 sm:grid-cols-2">
-                  {templatesDoModo.map((t) => (
-                    <li key={t.id}>
-                      <button type="button" aria-pressed={template === t.id} onClick={() => setTemplate(t.id)} className={cx('w-full rounded-xl border-[1.5px] bg-superficie p-2 text-left', template === t.id ? 'border-acento' : 'border-borda hover:border-[#D4D4D4]')}>
-                        <div className="overflow-hidden rounded-md">{previas[t.id]?.scenes[0] && <CapaProjeto cena={previas[t.id]!.scenes[0]!} assets={{}} proporcao={16 / 9} />}</div>
-                        <div className="px-1 pb-1 pt-2"><div className="text-[13px] font-medium">{t.nome}</div><div className="text-[12px] text-texto2">{t.descricao} · {previas[t.id]?.scenes.length} telas</div></div>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          </>
-        ) : (
-          <>
-            <section>
-              <div className="rotulo-mono">Passo 2 de 2</div>
-              <h1 className="titulo-display mt-2 text-[40px]">Traga seu material.</h1>
-              <p className="mt-4 text-[14px] leading-relaxed text-texto2">Cada imagem vira uma tela, e cada página de um PDF também: apresente um PDF pronto com as transições e animações do Mostra. SVGs do Figma e do Illustrator viram vetores editáveis, GLB do Blender vira 3D, JSON do After Effects vira Lottie. Você também pode pular e colar tudo depois, direto no editor.</p>
-            </section>
-            <section>
-              <input ref={entrada} type="file" multiple accept={`${EXTENSOES_ACEITAS},.pdf,application/pdf`} aria-label="Arquivos do projeto" className="hidden" onChange={(e) => { const novos = Array.from(e.target.files ?? []); setArquivos((a) => [...a, ...novos]); e.target.value = '' }} />
-              <button type="button" onClick={() => entrada.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const soltos = Array.from(e.dataTransfer.files); setArquivos((a) => [...a, ...soltos]) }} className="flex w-full flex-col items-center gap-2 rounded-xl border-[1.5px] border-dashed border-[#D4D4D4] bg-superficie px-6 py-14 text-center hover:border-acento">
-                <Upload className="h-5 w-5 text-texto2" />
-                <span className="text-[15px] font-medium">Arraste arquivos aqui ou clique para escolher</span>
-                <span className="text-[13px] text-texto3">PDF, PNG, JPG, WebP, GIF, SVG, MP4, WebM, GLB/GLTF, Lottie (JSON)</span>
-              </button>
-              {temPdf && (
-                <label className="mt-4 flex items-start gap-3 rounded-xl border border-borda bg-superficie px-4 py-3 text-[13px]">
-                  <input type="checkbox" checked={textoSelecionavel} onChange={(e) => setTextoSelecionavel(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#5965F2]" />
-                  <span>
-                    <span className="block font-medium">Texto selecionável nas páginas do PDF</span>
-                    <span className="mt-0.5 block text-texto3">O texto de cada página fica por cima da imagem, invisível: dá para selecionar, copiar e buscar ao apresentar, e editar no editor. Páginas escaneadas são lidas por reconhecimento de texto (OCR) no seu navegador, sem gastar créditos (até {OCR.maxPaginas} por importação). Cada página vira uma tela em alta resolução; até {PLANOS[planoId].limites.paginasPdfImportar} páginas no plano {PLANOS[planoId].nome}.</span>
-                  </span>
-                </label>
-              )}
-              {temPdf && (
-                <label className="mt-2 flex items-start gap-3 rounded-xl border border-borda bg-superficie px-4 py-3 text-[13px]">
-                  <input type="checkbox" checked={notasOcr} onChange={(e) => setNotasOcr(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#5965F2]" />
-                  <span>
-                    <span className="block font-medium">Texto reconhecido nas notas do apresentador</span>
-                    <span className="mt-0.5 block text-texto3">Nas páginas escaneadas, o texto lido por OCR também vai para as notas de cada tela, que só aparecem na visão do apresentador.</span>
-                  </span>
-                </label>
-              )}
-              {arquivos.length > 0 && (
-                <ul className="mt-4 divide-y divide-borda rounded-xl border border-borda bg-superficie">
-                  {arquivos.map((f, i) => (
-                    <li key={`${f.name}-${i}`} className="flex items-center justify-between px-4 py-2.5 text-[13px]">
-                      <span className="truncate">{f.name}</span>
-                      <button type="button" aria-label={`Remover ${f.name}`} onClick={() => setArquivos((a) => a.filter((_, j) => j !== i))} className="rounded p-1 text-texto3 hover:text-perigo"><X className="h-3.5 w-3.5" /></button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          </>
-        )}
+                <div className="mt-8 flex items-center justify-between">
+                  <span className="text-[13px] font-medium">Começar</span>
+                  <div className="inline-flex h-10 items-center gap-1 rounded-controle bg-[#EFEEEC] p-1 text-[13px]" role="radiogroup" aria-label="Começar">
+                    {(['branco', 'template'] as const).map((c) => <button key={c} type="button" role="radio" aria-checked={comeco === c} onClick={() => setComeco(c)} className={cx('h-8 rounded-md px-4', comeco === c ? 'bg-superficie shadow-sm' : 'text-texto2')}>{c === 'branco' ? 'Em branco' : 'Usar template'}</button>)}
+                  </div>
+                </div>
+                {comeco === 'branco' ? (
+                  <div className="mt-4 flex items-center gap-4 rounded-cartao border border-dashed border-[#D4D4D4] p-4 text-[13px] text-texto2">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-controle border border-borda bg-superficie text-texto"><Plus className="h-4 w-4" /></span>
+                    Uma tela em branco no formato escolhido. Você pode importar imagens, SVG e modelos 3D em seguida.
+                  </div>
+                ) : (
+                  <ul className="mt-4 grid gap-4 sm:grid-cols-2">
+                    {templatesDoModo.map((t) => (
+                      <li key={t.id}>
+                        <button type="button" aria-pressed={template === t.id} onClick={() => setTemplate(t.id)} className={cx('w-full rounded-cartao border-[1.5px] bg-superficie p-2 text-left', template === t.id ? 'border-acento' : 'border-borda hover:border-[#D4D4D4]')}>
+                          <div className="overflow-hidden rounded-md">{previas[t.id]?.scenes[0] && <CapaProjeto cena={previas[t.id]!.scenes[0]!} assets={{}} proporcao={16 / 9} />}</div>
+                          <div className="px-2 pb-2 pt-2"><div className="text-[13px] font-medium">{t.nome}</div><div className="text-[12px] text-texto2">{t.descricao} · {previas[t.id]?.scenes.length} telas</div></div>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            </>
+          ) : (
+            <>
+              <section className="col-span-4 min-w-0 sm:col-span-8 xl:col-span-4">
+                <div className="rotulo-mono">Passo 2 de 2</div>
+                <h1 className="titulo-display mt-2 text-[40px]">Traga seu material.</h1>
+                <p className="mt-4 text-[14px] leading-relaxed text-texto2">Cada imagem vira uma tela, e cada página de um PDF também: apresente um PDF pronto com as transições e animações do Mostra. SVGs do Figma e do Illustrator viram vetores editáveis, GLB do Blender vira 3D, JSON do After Effects vira Lottie. Você também pode pular e colar tudo depois, direto no editor.</p>
+              </section>
+              <section className="col-span-4 min-w-0 sm:col-span-8 xl:col-span-7 xl:col-start-6">
+                <input ref={entrada} type="file" multiple accept={`${EXTENSOES_ACEITAS},.pdf,application/pdf`} aria-label="Arquivos do projeto" className="hidden" onChange={(e) => { const novos = Array.from(e.target.files ?? []); setArquivos((a) => [...a, ...novos]); e.target.value = '' }} />
+                <button type="button" onClick={() => entrada.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const soltos = Array.from(e.dataTransfer.files); setArquivos((a) => [...a, ...soltos]) }} className="flex w-full flex-col items-center gap-2 rounded-cartao border-[1.5px] border-dashed border-[#D4D4D4] bg-superficie px-6 py-14 text-center hover:border-acento">
+                  <Upload className="h-5 w-5 text-texto2" />
+                  <span className="text-[15px] font-medium">Arraste arquivos aqui ou clique para escolher</span>
+                  <span className="text-[13px] text-texto3">PDF, PNG, JPG, WebP, GIF, SVG, MP4, WebM, GLB/GLTF, Lottie (JSON)</span>
+                </button>
+                {temPdf && (
+                  <label className="mt-4 flex items-start gap-4 rounded-cartao border border-borda bg-superficie p-4 text-[13px]">
+                    <input type="checkbox" checked={textoSelecionavel} onChange={(e) => setTextoSelecionavel(e.target.checked)} className="mt-1 h-4 w-4 accent-[#5965F2]" />
+                    <span>
+                      <span className="block font-medium">Texto selecionável nas páginas do PDF</span>
+                      <span className="mt-1 block text-texto3">O texto de cada página fica por cima da imagem, invisível: dá para selecionar, copiar e buscar ao apresentar, e editar no editor. Páginas escaneadas são lidas por reconhecimento de texto (OCR) no seu navegador, sem gastar créditos (até {OCR.maxPaginas} por importação). Cada página vira uma tela em alta resolução; até {PLANOS[planoId].limites.paginasPdfImportar} páginas no plano {PLANOS[planoId].nome}.</span>
+                    </span>
+                  </label>
+                )}
+                {temPdf && (
+                  <label className="mt-2 flex items-start gap-4 rounded-cartao border border-borda bg-superficie p-4 text-[13px]">
+                    <input type="checkbox" checked={notasOcr} onChange={(e) => setNotasOcr(e.target.checked)} className="mt-1 h-4 w-4 accent-[#5965F2]" />
+                    <span>
+                      <span className="block font-medium">Texto reconhecido nas notas do apresentador</span>
+                      <span className="mt-1 block text-texto3">Nas páginas escaneadas, o texto lido por OCR também vai para as notas de cada tela, que só aparecem na visão do apresentador.</span>
+                    </span>
+                  </label>
+                )}
+                {arquivos.length > 0 && (
+                  <ul className="mt-4 divide-y divide-borda rounded-cartao border border-borda bg-superficie">
+                    {arquivos.map((f, i) => (
+                      <li key={`${f.name}-${i}`} className="flex min-h-10 items-center justify-between gap-2 px-4 py-2 text-[13px]">
+                        <span className="truncate">{f.name}</span>
+                        <button type="button" aria-label={`Remover ${f.name}`} onClick={() => setArquivos((a) => a.filter((_, j) => j !== i))} className="rounded p-1 text-texto3 hover:text-perigo"><X className="h-3.5 w-3.5" /></button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            </>
+          )}
+        </Grade>
       </main>
 
       <footer className="sticky bottom-0 border-t border-borda bg-fundo/95 backdrop-blur">
         {progresso && <span aria-hidden className="absolute inset-x-0 top-0 h-0.5 bg-[#EDECEA]"><span className="block h-0.5 bg-violeta transition-[width]" style={{ width: `${Math.round(progresso.progresso * 100)}%` }} /></span>}
-        <div className="mx-auto flex h-[76px] max-w-[1136px] items-center justify-between gap-4 px-4 sm:px-6">
-          <span className={cx('min-w-0 truncate text-[13px] text-texto2', !erro && !progresso && 'hidden sm:block')} aria-live="polite" data-testid="progresso-importacao">{erro ? <span className="text-perigo" role="alert">{erro}</span> : progresso ? `Importando ${progresso.arquivo}: ${progresso.fase}…` : resumo}{arquivos.length && !progresso ? ` · ${arquivos.length} arquivo(s)` : ''}</span>
-          <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
-            {progresso?.cancelar && (
-              <button type="button" onClick={progresso.cancelar} title="Para o reconhecimento de texto e fica com as páginas já lidas" className="flex h-9 items-center gap-1 rounded-full border-[1.5px] border-bordaForte px-3 text-[13px] font-medium hover:border-grafite">
-                <X className="h-3.5 w-3.5" />Parar leitura
-              </button>
-            )}
-            {passo === 1 ? <Link href="/app" className="hidden px-4 py-2.5 text-[14px] font-medium sm:block">Cancelar</Link> : <button type="button" onClick={() => setPasso(1)} className="px-4 py-2.5 text-[14px] font-medium">Voltar</button>}
-            {passo === 1 && <button type="button" onClick={() => setPasso(2)} className="h-11 rounded-[9px] border-[1.5px] border-bordaForte px-3 text-[14px] font-medium hover:border-[#D4D4D4] sm:px-5"><span className="sm:hidden">Arquivos</span><span className="hidden sm:inline">Importar arquivos</span></button>}
-            <button type="button" disabled={criando} onClick={criar} className="h-11 rounded-[9px] bg-grafite px-5 text-[14px] font-medium text-fundo hover:bg-[#2a2a2a] disabled:opacity-60">{criando ? 'Criando…' : 'Criar projeto'}</button>
+        <div className={MARGENS}>
+          <div className={cx(MOLDURA, 'flex h-20 items-center justify-between gap-4')}>
+            <span className={cx('min-w-0 truncate text-[13px] text-texto2', !erro && !progresso && 'hidden sm:block')} aria-live="polite" data-testid="progresso-importacao">{erro ? <span className="text-perigo" role="alert">{erro}</span> : progresso ? `Importando ${progresso.arquivo}: ${progresso.fase}…` : resumo}{arquivos.length && !progresso ? ` · ${arquivos.length} arquivo(s)` : ''}</span>
+            <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-4">
+              {progresso?.cancelar && (
+                <button type="button" onClick={progresso.cancelar} title="Para o reconhecimento de texto e fica com as páginas já lidas" className="flex h-10 items-center gap-1 rounded-full border-[1.5px] border-bordaForte px-4 text-[13px] font-medium hover:border-grafite">
+                  <X className="h-3.5 w-3.5" />Parar leitura
+                </button>
+              )}
+              {passo === 1 ? <Link href="/app" className="hidden h-12 items-center px-4 text-[14px] font-medium sm:flex">Cancelar</Link> : <button type="button" onClick={() => setPasso(1)} className="h-12 px-4 text-[14px] font-medium">Voltar</button>}
+              {passo === 1 && <button type="button" onClick={() => setPasso(2)} className="h-12 rounded-controle border-[1.5px] border-bordaForte px-4 text-[14px] font-medium hover:border-[#D4D4D4] sm:px-6"><span className="sm:hidden">Arquivos</span><span className="hidden sm:inline">Importar arquivos</span></button>}
+              <button type="button" disabled={criando} onClick={criar} className="h-12 rounded-controle bg-grafite px-6 text-[14px] font-medium text-fundo hover:bg-[#2a2a2a] disabled:opacity-60">{criando ? 'Criando…' : 'Criar projeto'}</button>
+            </div>
           </div>
         </div>
       </footer>

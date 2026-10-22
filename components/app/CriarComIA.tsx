@@ -35,6 +35,7 @@ import { CHAVE_PEDIDO_COLADO, INFO_PASSO, MARCA_VAZIA, MATERIAL_VAZIO, PASSOS, P
 import { Amostras, MiniaturaFluida, Secao, Segmento, SeloCusto } from './criar/ui'
 import type { DocumentoProjeto } from '@/lib/scene/schema'
 import { marcaDoPerfil } from '@/lib/marca/perfil'
+import { Grade, PaginaPainel, SPAN } from './Layout'
 
 const FORMATOS: readonly Formato[] = ['slides', 'story', 'explorar']
 const NOMES_FORMATO: Record<Formato, string> = { slides: 'Slides', story: 'Story', explorar: 'Explorar' }
@@ -446,8 +447,8 @@ export function CriarComIA() {
   )
 
   return (
-    <div className="mx-auto flex w-full max-w-[1200px] flex-col">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-borda pb-4">
+    <PaginaPainel className="flex flex-col">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-borda pb-4">
         <h1 className="flex items-center gap-2 text-[15px] font-medium"><span className="h-2 w-2 rounded-full bg-acento" />Criar com IA</h1>
         <div className="ml-auto flex items-center gap-2">
           <button type="button" onClick={() => abrirCompra()} title={`Comprar créditos · ${exemploApresentacoes(saldo)}`} className="flex h-8 items-center gap-1.5 rounded-full border border-borda bg-superficie px-3 text-[12px] text-texto2 hover:border-bordaForte hover:text-texto">
@@ -499,7 +500,7 @@ export function CriarComIA() {
                   </button>
                 ))}
               </div>
-              <div className="overflow-hidden rounded-[18px] border-2 border-grafite bg-white shadow-[6px_6px_0_#171717] sm:shadow-[8px_8px_0_#171717]">
+              <div className="overflow-hidden rounded-[18px] border-2 border-grafite bg-white shadow-[4px_4px_0_#171717]">
                 <EditorPedido
                   valor={briefing.prompt}
                   aoMudar={(v) => setBriefing((b) => ({ ...b, prompt: v }))}
@@ -534,14 +535,15 @@ export function CriarComIA() {
               {avisoTelas}
               <div className="flex flex-col gap-3">
                 <div className="rotulo-mono">Ou comece por um exemplo</div>
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-3">
+                {/* 6 exemplos em 1/3 do grid: 2 linhas no xl, 3 no tablet, sem órfãos */}
+                <Grade>
                   {EXEMPLOS.map((ex) => (
-                    <button key={ex.texto} type="button" onClick={() => setBriefing((b) => ({ ...b, prompt: ex.texto, tipo: ex.tipo }))} className="flex items-center gap-3 rounded-[14px] border-[1.5px] border-[#E7E5E4] bg-white p-3.5 text-left hover:border-grafite">
+                    <button key={ex.texto} type="button" onClick={() => setBriefing((b) => ({ ...b, prompt: ex.texto, tipo: ex.tipo }))} className={cx(SPAN.terco, 'flex min-w-0 items-center gap-4 rounded-cartao border-[1.5px] border-[#E7E5E4] bg-white p-4 text-left hover:border-grafite')}>
                       <span className="h-10 w-10 flex-none" style={{ background: ex.cor, borderRadius: ex.raio }} />
                       <span className="text-[14px] leading-[1.4] text-[#3F3F3F]"><span className="mono mb-0.5 block text-[10px] uppercase tracking-[0.08em] text-texto3">{NOMES_TIPO_CURTO[ex.tipo]}</span>{ex.texto}</span>
                     </button>
                   ))}
-                </div>
+                </Grade>
               </div>
             </div>
           )}
@@ -569,8 +571,8 @@ export function CriarComIA() {
           {passo === 'tamanho' && <PassoTamanho formato={formato} aoFormato={setFormato} telas={telasOk} aoTelas={setTelas} planoId={planoId} limite={limite} aoUpgrade={(p) => abrirPlano(p)} chars={chars} />}
 
           {passo === 'revisar' && (
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-              <div className="flex flex-col gap-3">
+            <Grade>
+              <div className={cx(SPAN.doisTercos, 'flex min-w-0 flex-col gap-3')}>
                 <LinhaResumo titulo="Briefing" aoEditar={() => ir('briefing')} vazio={!briefingOk ? 'Descreva a apresentação (ou traga um texto no material).' : undefined}>
                   <span className="line-clamp-2">{briefing.prompt || conteudoEf.slice(0, 160)}</span>
                   <span className="text-texto3"> · {briefing.tipo === 'auto' ? `${TIPOS[tipoDetectado].nome} (automático)` : TIPOS[briefing.tipo].nome}{briefing.publico ? ` · para ${briefing.publico}` : ''} · {NOMES_IDIOMA[briefing.idioma]}</span>
@@ -593,7 +595,7 @@ export function CriarComIA() {
                   {NOMES_FORMATO[formato]} · {plural(telasOk, 'tela', 'telas')}
                 </LinhaResumo>
               </div>
-              <aside className="flex flex-col gap-4 self-start rounded-xl border border-borda bg-white p-5 lg:sticky lg:top-6">
+              <aside className={cx(SPAN.lateral, 'flex flex-col gap-4 self-start rounded-cartao border border-borda bg-white p-4 sm:p-6 xl:sticky xl:top-6')}>
                 <div className="overflow-hidden rounded-md"><MiniaturaFluida cena={previaCapa} assets={assets} /></div>
                 <div className="flex flex-col gap-1.5 text-[13px]">
                   <div className="flex justify-between"><span>Roteiro, agora</span><span className="mono">{textoCreditos(custoDoRoteiro)}</span></div>
@@ -611,11 +613,11 @@ export function CriarComIA() {
                 {temRoteiro && <button type="button" onClick={() => ir('roteiro')} className="h-9 text-[13px] text-texto3 hover:text-texto">Voltar ao roteiro atual · grátis</button>}
                 {semSaldo && <p className="text-center text-[12px] text-perigo">Saldo insuficiente para o total. <button type="button" onClick={() => abrirCompra()} className="font-medium text-acento hover:underline">Comprar créditos</button></p>}
               </aside>
-            </div>
+            </Grade>
           )}
 
           <div className="sticky bottom-0 z-30 mt-2 border-t border-borda bg-fundo/95 backdrop-blur supports-[backdrop-filter]:bg-fundo/85">
-            <div className="flex w-full flex-wrap items-center gap-3 py-3">
+            <div className="flex w-full flex-wrap items-center gap-4 py-4">
               {resumoCusto}
               <div className="ml-auto flex items-center gap-2">
                 {anterior && <button type="button" onClick={() => ir(anterior)} className="h-10 rounded-full px-3 text-[14px] text-texto3 hover:text-texto">← Voltar</button>}
@@ -629,9 +631,9 @@ export function CriarComIA() {
       )}
 
       {passo === 'roteiro' && roteiro && (
-        <div className="grid min-h-0 flex-1 gap-8 pt-8 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <div className="min-w-0 pb-6">
-            <div className="mx-auto flex max-w-[760px] flex-col gap-5">
+        <Grade className="min-h-0 flex-1 pt-8">
+          <div className={cx(SPAN.doisTercos, 'min-w-0 pb-6')}>
+            <div className="flex flex-col gap-5">
               <div>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="rotulo-mono">Roteiro · {roteiro.telas.length} telas</div>
@@ -678,7 +680,7 @@ export function CriarComIA() {
                 : <p className="text-center text-[13px] text-texto3">Limite de {limite} telas do plano {PLANOS[planoId].nome}. {proximoPlano(planoId) && <button type="button" onClick={() => abrirPlano(proximoPlano(planoId)!)} className="text-acento hover:underline">Ver planos</button>}</p>}
             </div>
           </div>
-          <aside aria-label="Aparência da apresentação" className="flex flex-col gap-6 self-start rounded-xl border border-borda bg-white p-5 lg:sticky lg:top-6">
+          <aside aria-label="Aparência da apresentação" className={cx(SPAN.lateral, 'flex flex-col gap-6 self-start rounded-cartao border border-borda bg-white p-4 sm:p-6 xl:sticky xl:top-6')}>
             <div className="flex flex-col gap-2.5">
               <div className="flex items-baseline justify-between"><span className="text-[14px] font-semibold">Estilo</span><SeloCusto /></div>
               <div className="overflow-hidden rounded-md"><MiniaturaFluida cena={previaCapa} assets={assets} /></div>
@@ -697,19 +699,19 @@ export function CriarComIA() {
               <Segmento cheio rotulo="Texto por tela" opcoes={['minimo', 'medio', 'detalhado'] as const} valor={densidade} aoMudar={setDensidade} nomes={(d) => ({ minimo: 'Mínimo', medio: 'Médio', detalhado: 'Detalhado' })[d]} />
             </div>
             <div className="flex flex-col gap-2.5 pt-1">
-              <button type="button" onClick={gerarApresentacao} className="h-[52px] rounded-full border-2 border-grafite bg-grafite text-[15px] font-semibold text-fundo shadow-[5px_5px_0_#5965F2] transition-transform hover:-translate-x-0.5 hover:-translate-y-0.5">
+              <button type="button" onClick={gerarApresentacao} className="h-[52px] rounded-full border-2 border-grafite bg-grafite text-[15px] font-semibold text-fundo shadow-[4px_4px_0_#5965F2] transition-transform hover:-translate-x-0.5 hover:-translate-y-0.5">
                 Gerar apresentação <span className="mono font-normal opacity-80">· {textoCreditos(custoDoDesenho)}</span>
               </button>
               <p className="text-center text-[12px] text-texto3">{pendentes.length ? (pendentes.length === chaves.length ? `A IA desenha ${plural(pendentes.length, 'tela', 'telas')}` : `Redesenha só ${plural(pendentes.length, 'tela alterada', 'telas alteradas')}; as outras ficam`) : 'Todas as telas já estão desenhadas · grátis'}</p>
               <button type="button" onClick={() => ir('revisar')} className="h-10 text-[14px] text-texto3 hover:text-texto">← Voltar ao pedido</button>
             </div>
           </aside>
-        </div>
+        </Grade>
       )}
 
       {passo === 'design' && documento && (
         <div className="flex-1 pb-10 pt-8">
-          <div className="mx-auto flex max-w-[1200px] flex-col gap-6">
+          <div className="flex flex-col gap-6">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <div className="rotulo-mono flex items-center gap-2" aria-live="polite">
@@ -747,11 +749,12 @@ export function CriarComIA() {
               {galeriaNoDesign && <GaleriaEstilos comAuto={false} valor={temaEfetivo} aoEscolher={(id) => id !== 'auto' && setTema(id)} marca={marcaMont} logo={logoMont} assets={assets} titulo={roteiro?.titulo ?? ''} energia={energia === 'auto' ? null : energia} sugerido={temaIa} />}
               {desenhando && <span className="text-[12px] text-texto3">a IA está desenhando…</span>}
             </div>
-            <div className={cx('grid gap-5', formato === 'story' ? 'grid-cols-[repeat(auto-fill,minmax(180px,1fr))]' : 'grid-cols-[repeat(auto-fill,minmax(min(300px,100%),1fr))]')}>
+            {/* telas no grid do painel: slides em 1/3, story em 1/6 */}
+            <Grade>
               {documento.scenes.map((cena, i) => {
                 const visivel = i < revelar && !!desenhos[chaves[i] ?? '']
                 return (
-                  <div key={cena.id} className="flex flex-col gap-2">
+                  <div key={cena.id} className={cx(formato === 'story' ? SPAN.sexto : SPAN.terco, 'flex min-w-0 flex-col gap-2')}>
                     <div className={cx('overflow-hidden rounded-[10px] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)] transition-[opacity,transform] duration-500 ease-[cubic-bezier(.16,1,.3,1)]', visivel ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-40')}>
                       {visivel ? <MiniaturaFluida cena={cena} assets={assets} /> : <div className="flex items-center justify-center bg-[#F0EFED]" style={{ aspectRatio: `${cena.size.width} / ${cena.size.height}` }}><span aria-hidden className="h-[22px] w-[22px] animate-spin rounded-full border-[2.5px] border-[#E2E1DE] border-t-violeta" /></div>}
                     </div>
@@ -759,11 +762,11 @@ export function CriarComIA() {
                   </div>
                 )
               })}
-            </div>
+            </Grade>
           </div>
         </div>
       )}
-    </div>
+    </PaginaPainel>
   )
 }
 
@@ -785,8 +788,8 @@ function PassoTamanho({ formato, aoFormato, telas, aoTelas, planoId, limite, aoU
   useEffect(() => setLivre(String(telas)), [telas])
   const planoQueLibera = (n: number) => (['plus', 'pro', 'studio'] as PlanoId[]).find((p) => PLANOS[p].limites.telasPorPrompt >= n)
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <div className="flex flex-col gap-4">
+    <Grade>
+      <div className={cx(SPAN.doisTercos, 'flex min-w-0 flex-col gap-4')}>
         <Secao titulo="Formato" selo={<SeloCusto />} id="titulo-formato">
           <div role="radiogroup" aria-label="Formato" className="grid gap-2 sm:grid-cols-3">
             {FORMATOS.map((f) => (
@@ -828,13 +831,13 @@ function PassoTamanho({ formato, aoFormato, telas, aoTelas, planoId, limite, aoU
           </label>
         </Secao>
       </div>
-      <aside className="flex flex-col gap-2 self-start rounded-xl border border-borda bg-white p-5 text-[13px] lg:sticky lg:top-6">
+      <aside className={cx(SPAN.lateral, 'flex flex-col gap-2 self-start rounded-cartao border border-borda bg-white p-4 text-[13px] sm:p-6 xl:sticky xl:top-6')}>
         <div className="text-[14px] font-semibold">Custo de {plural(telas, 'tela', 'telas')}</div>
         <div className="flex justify-between"><span>Roteiro (estrutura e texto)</span><span className="mono">{textoCreditos(custoRoteiro(telas, chars))}</span></div>
         <div className="flex justify-between"><span>Design de cada tela</span><span className="mono">{textoCreditos(custoDesenho(telas))}</span></div>
         <div className="flex justify-between border-t border-borda pt-1.5 font-semibold"><span>Total</span><span className="mono">{textoCreditos(custoApresentacao(telas, chars))}</span></div>
         <p className="pt-1 text-[12px] text-texto3">Marca, estilo, fotos, reordenar e trocar o estilo depois: grátis.</p>
       </aside>
-    </div>
+    </Grade>
   )
 }
