@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'rea
 import { Check, Eraser, Lasso, MousePointer2, PaintBucket, PenTool, Scissors, Spline } from 'lucide-react'
 import type { Camada, CamadaForma, DocumentoProjeto, Vetor } from '@/lib/scene/schema'
 import type { Editor } from '@/lib/editor/useEditor'
-import { LIMIAR_TELA, type Guia } from '@/lib/editor/guias'
+import { LIMIAR_TELA, PASSO_GRANDE, type Guia } from '@/lib/editor/guias'
 import type { AlvosExtras } from '@/lib/editor/guias'
 import { achatar, areaPoligono, dentroDoPoligono, dist, maisProximoNoSegmento, pontosNoLaco, segmentos, vetorParaD, type P, type Segmento } from '@/lib/editor/vetor/geometria'
 import { abrirNoNo, adicionarNo, alternarPreenchimento, alternarTipoNo, apagarSegmento, chaveNo, cortarSegmento, curvarSegmento, definirAlcasDoNo, fecharCaminho, inserirNo, moverAlca, moverNos, novoCaminho, puxarAlcas, removerNos, todosOsNos, type QualAlca, type RefNo } from '@/lib/editor/vetor/operacoes'
@@ -520,7 +520,7 @@ export function EditorVetor({ editor, camadaId, vp, ferramentaInicial = 'mover',
       }
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && vv && c && s.length) {
         e.preventDefault()
-        const p = e.shiftKey ? 10 : 1
+        const p = e.shiftKey ? PASSO_GRANDE : 1
         const dx = e.key === 'ArrowLeft' ? -p : e.key === 'ArrowRight' ? p : 0
         const dy = e.key === 'ArrowUp' ? -p : e.key === 'ArrowDown' ? p : 0
         const dl = deltaParaLocal(c, vv, dx, dy)

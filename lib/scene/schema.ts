@@ -365,6 +365,46 @@ export const RESTRICOES_V = ['top', 'bottom', 'topBottom', 'center', 'scale'] as
 export const RestricoesSchema = z.object({ h: z.enum(RESTRICOES_H).default('left'), v: z.enum(RESTRICOES_V).default('top') })
 export type Restricoes = z.infer<typeof RestricoesSchema>
 
+// ---------- guias de layout ----------
+
+/**
+ * Guias de layout (as "layout guides" do Figma/Framer) de uma tela ou de um frame: grade uniforme, colunas ou linhas.
+ * Só o editor desenha e encaixa nelas; visualizador, miniaturas e exportação ignoram. Aditivo: ausente = nenhuma.
+ * Geometria e padrões em lib/scene/guias.ts.
+ */
+export const TIPOS_GUIA = ['grid', 'columns', 'rows'] as const
+/** Esticar (margens nas duas pontas) · início (esquerda/topo) · centro · fim (direita/base). */
+export const ALINHAMENTOS_GUIA = ['stretch', 'start', 'center', 'end'] as const
+export const MAX_GUIAS = 20
+/** Cor das guias novas: a das guias inteligentes do editor (#F25987) a 10%. */
+export const COR_GUIA_PADRAO = '#F259871A'
+
+const GuiaBase = {
+  /** Cor com alfa (#RRGGBBAA): a opacidade da guia é o alfa da cor. */
+  color: CorSchema.default(COR_GUIA_PADRAO),
+  visible: z.boolean().default(true),
+}
+export const GuiaGradeSchema = z.object({ type: z.literal('grid'), size: z.number().int().min(1).max(1000).default(8), ...GuiaBase })
+const faixas = <T extends 'columns' | 'rows'>(tipo: T) =>
+  z.object({
+    type: z.literal(tipo),
+    count: z.number().int().min(1).max(100).default(12),
+    alignment: z.enum(ALINHAMENTOS_GUIA).default('stretch'),
+    /** Largura (colunas) ou altura (linhas) de cada faixa quando não estica. Ausente = a que esticaria. */
+    width: z.number().min(1).max(8192).optional(),
+    /** Esticar: margem nas duas pontas. Início/fim: deslocamento da borda. Centro: ignorada. */
+    margin: z.number().min(0).max(8192).default(0),
+    gutter: z.number().min(0).max(8192).default(0),
+    ...GuiaBase,
+  })
+export const GuiaColunasSchema = faixas('columns')
+export const GuiaLinhasSchema = faixas('rows')
+export const GuiaLayoutSchema = z.discriminatedUnion('type', [GuiaGradeSchema, GuiaColunasSchema, GuiaLinhasSchema])
+export type GuiaLayout = z.infer<typeof GuiaLayoutSchema>
+export type GuiaGrade = z.infer<typeof GuiaGradeSchema>
+export type GuiaFaixas = z.infer<typeof GuiaColunasSchema> | z.infer<typeof GuiaLinhasSchema>
+export const GuiasLayoutSchema = z.array(GuiaLayoutSchema).max(MAX_GUIAS)
+
 // ---------- camadas ----------
 
 /**
@@ -721,6 +761,8 @@ export const CamadaFrameSchema = CamadaBase.extend({
   clip: z.boolean().default(false),
   /** Ausente = frame livre (filhos com posição própria). */
   layout: AutoLayoutSchema.optional(),
+  /** Guias de layout do frame (só no editor). */
+  guias: GuiasLayoutSchema.optional(),
 })
 
 export const CamadaSchema = z.discriminatedUnion('type', [
@@ -784,6 +826,8 @@ export const CenaSchema = z.object({
   map: z.object({ x: z.number(), y: z.number() }).optional(),
   /** Tempo de avanço automático em ms (0 = manual). */
   autoAdvance: z.number().int().min(0).max(600_000).default(0),
+  /** Guias de layout da tela (grade, colunas, linhas), só no editor. Ausente = nenhuma. */
+  guias: GuiasLayoutSchema.optional(),
 })
 export type Cena = z.infer<typeof CenaSchema>
 

@@ -61,8 +61,8 @@ export interface EstadoEditor {
   snap: boolean
   /** Encaixe nas frações da tela (1/2, 1/3, 2/3, 1/4, 3/4) ao mover e redimensionar. */
   fracoes: boolean
-  /** Grade de layout de 12 colunas (com margens) visível e com encaixe. */
-  colunas: boolean
+  /** Guias de layout (grade, colunas e linhas das telas e frames) visíveis e com encaixe (⌃⇧4). Preferência da sessão. */
+  guiasLayout: boolean
   reguas: boolean
   ferramenta: Ferramenta
   abaEsquerda: AbaEsquerda
@@ -84,7 +84,7 @@ type Acao =
   | { tipo: 'cena'; id: string }
   | { tipo: 'salvamento'; valor: EstadoSalvamento; revisao?: number; salvoEm?: string; conflito?: { currentRevision: number } | null }
   | { tipo: 'substituir'; documento: DocumentoProjeto; revisao: number }
-  | { tipo: 'ui'; patch: Partial<Pick<EstadoEditor, 'zoom' | 'pan' | 'grade' | 'gradePasso' | 'snap' | 'fracoes' | 'colunas' | 'reguas' | 'ferramenta' | 'abaEsquerda' | 'abaDireita' | 'mostrarHotspots' | 'previa'>> }
+  | { tipo: 'ui'; patch: Partial<Pick<EstadoEditor, 'zoom' | 'pan' | 'grade' | 'gradePasso' | 'snap' | 'fracoes' | 'guiasLayout' | 'reguas' | 'ferramenta' | 'abaEsquerda' | 'abaDireita' | 'mostrarHotspots' | 'previa'>> }
 
 const LIMITE_HISTORICO = 150
 
@@ -186,7 +186,7 @@ export function useEditor(projetoId: string, abertura: AberturaEditor | null) {
     gradePasso: 8,
     snap: true,
     fracoes: true,
-    colunas: false,
+    guiasLayout: true,
     reguas: false,
     ferramenta: 'mover',
     abaEsquerda: 'telas',

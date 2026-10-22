@@ -15,7 +15,7 @@ Atalhos escritos no padrão Mac (⌘ = Ctrl, ⌥ = Alt no Windows).
 **Estado:** Feito · Parcial · Falta · Fora (não faz sentido num editor de apresentações).
 **Prioridade:** P0 (próximo ciclo) · P1 (importante) · P2 (desejável) · P3 (talvez nunca).
 
-Última auditoria: out/2026 (rodada 6: máscaras de texto, imagem e SVG, tipos Alfa/Contorno/Luminância — help.figma.com não abriu deste ambiente; comportamento conferido no schema Kiwi da cópia do Figma (`mask`, `maskType` ALPHA/OUTLINE/LUMINANCE), na API de plugins (MaskType) e em material de apoio. Rodada 5: opções de texto — corte vertical, decoração, caixa, listas, parágrafos, truncar,
+Última auditoria: out/2026 (rodada 7: guias de layout — grade, colunas e linhas por tela e frame, ⌃⇧4 com aviso, encaixe; help.figma.com não abriu deste ambiente: tipos, campos e padrões conferidos nas capturas do painel do Figma/Framer e em material de apoio (artigo "Create layout guides", renomeado de "layout grids" em mai/2025). Rodada 6: máscaras de texto, imagem e SVG, tipos Alfa/Contorno/Luminância — help.figma.com não abriu deste ambiente; comportamento conferido no schema Kiwi da cópia do Figma (`mask`, `maskType` ALPHA/OUTLINE/LUMINANCE), na API de plugins (MaskType) e em material de apoio. Rodada 5: opções de texto — corte vertical, decoração, caixa, listas, parágrafos, truncar,
 quebra equilibrada — e duplo clique na borda para abraçar o conteúdo. A Central de Ajuda não abriu deste ambiente;
 nomes e valores conferidos no schema Kiwi que acompanha cada cópia do Figma: `leadingTrim` NONE/CAP_HEIGHT,
 `textTruncation` DISABLED/ENDING + `maxLines`, `paragraphSpacing`, `textDecorationStyle` SOLID/DOTTED/WAVY,
@@ -60,7 +60,7 @@ colar do Figma).
 | Seleção de cores mistas | "Click + to replace mixed content" | Feito — texto explicativo + "+" aplica o primeiro em todas | — | `SecaoPreenchimento.tsx` |
 | Imagem: ajustes | Exposição, contraste, saturação, temperatura, tinta, realces, sombras; modo Fill/Fit/Crop/Tile | Parcial — brilho, contraste, saturação, P&B; cobrir/conter/esticar; recorte numérico; máscara (círculo/arco/triângulo) | P2 (recorte direto no canvas) | `SecoesTipo.tsx` |
 | Painel de tela (nada selecionado) | Propriedades da página/frame: fundo, grades de layout, exportar | Feito — formato e W/H, preenchimento (cor, gradiente linear/radial, imagem com encaixe), transição, auto-avanço, notas, verificação | — | `InspetorTela.tsx` |
-| Grades de layout | Colunas/linhas/grade por frame (⌃G mostra) | Parcial — grade de pixels global e grade de layout de 12 colunas (margem 96 / gutter 24 em 1920) na barra inferior, com encaixe nas colunas; não é por frame nem configurável | P2 | `Canvas.tsx`, `lib/editor/preencher.ts`, `GuiasCanvas.tsx` (`ColunasCanvas`) |
+| Guias de layout ("Layout guide", antes "Layout grid") | Seção com "+" (nova grade uniforme) e lista: ícone do tipo, resumo que abre o popover, olho e "−"; popover com o tipo no topo (Grid · Columns · Rows); grade: Size e Color (vermelho a 10%); colunas/linhas: Count, Color, Type (Stretch · Left/Top · Center · Right/Bottom), Width (Auto ao esticar), Margin (Offset quando não estica; some no Center), Gutter; vale para frames; ⌃⇧4 mostra/esconde todas com o aviso "Layout guides visible · Hide"; a grade some quando a célula fica miúda no zoom; objetos encaixam nas colunas, linhas e na grade visíveis; nada aparece em protótipo/exportação | Feito — `guias` (aditivo) na tela e no frame: grade (tamanho, cor+alfa, visível), colunas e linhas (quantidade, tipo Esticar/Esquerda·Topo/Centro/Direita·Base, largura com "Auto" ao esticar, margem/deslocamento, calha). Seção "Guias de layout" no painel da tela e do frame, "+" = grade de 8 já com o popover aberto, predefinições (12/8/4 colunas, grade de 8), copiar/colar entre telas e frames. Padrões da regra do 8: grade 8; 12 colunas com margem 64 e calha 24 em 1920 (proporcional e múltiplo de 8 nos outros tamanhos); cor = a das guias inteligentes (#F25987) a 10%. Um único `<canvas>` por cima da tela; a grade some abaixo de 4 px de célula na tela. ⌃⇧4, item "Ver → Guias de layout" do menu ⋯ e botão da barra inferior, com o aviso "Guias de layout visíveis · Esconder". Encaixe nas bordas das colunas/linhas (com guia vermelha) e na grade (sem guia, perde para guias inteligentes empatadas), da tela e do frame pai da seleção; ⌘/Ctrl desliga | P3 (estilos de guia, guias de frames girados) | `components/editor/guias/*`, `lib/scene/guias.ts`, `lib/editor/guias.ts` (`grades`), `Canvas.tsx` |
 
 ## 2. Seletor de cor
 
@@ -125,6 +125,8 @@ colar do Figma).
 | Medir distâncias | Selecionar + segurar ⌥ e passar sobre outra camada mostra distâncias em vermelho | Feito — até a camada sob o cursor, o frame pai ou a tela (só parado; arrastando com ⌥ duplica) | — | `Canvas.tsx` |
 | Snap ao pixel | Snap to pixel grid (⇧⌘') | Parcial — posições inteiras ao arrastar; grade opcional | P2 | `Canvas.tsx` |
 | Desligar snap temporariamente | Segurar ⌘ enquanto arrasta | Feito — ⌘/Ctrl (mover e redimensionar) | — | `Canvas.tsx` |
+| Encaixe nas guias de layout | Com as guias visíveis, mover e redimensionar encaixam nas bordas das colunas/linhas e nas linhas da grade | Feito — junto com as guias inteligentes (grade só nas bordas da caixa e só quando legível no zoom); só as guias da tela e do frame pai da seleção puxam | — | `lib/scene/guias.ts` (`alvosDasGuias`), `lib/editor/guias.ts` |
+| Passo grande das setas | ⇧ + setas = 10 px (ajustável em "Nudge amount") | Feito, com a regra do 8 — ⇧ + setas = 8 px (camadas e nós do vetor); campos do painel continuam ⇧ = ×10 | — | `lib/editor/guias.ts` (`PASSO_GRANDE`), `EditorShell.tsx` |
 
 ## 6. Auto layout
 
@@ -191,6 +193,7 @@ colar do Figma).
 | ⌘] / ⌘[ | Um passo à frente/atrás | Feito (também ⌥⌘] / ⌥⌘[) | — |
 | ⇧⌘L | Travar | Feito | — |
 | ⇧R | Réguas | — (sem réguas) | P2 |
+| ⌃⇧4 | Mostrar/esconder guias de layout | Feito (com aviso e "Esconder"/"Mostrar") | — |
 | I | Conta-gotas | só no seletor | P2 |
 | ⌃⌥T | Tidy up | — | P2 |
 | ⇧⌘C | Copiar como PNG | Feito (também no menu ⋯) | — |

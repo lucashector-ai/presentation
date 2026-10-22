@@ -13,7 +13,9 @@
  *   Linha/Seta: arraste do início ao fim (Shift = passos de 45°)
  * - Zoom no cursor (Ctrl/⌘ + roda, pinça), pan (roda, espaço+arrastar, botão do meio, ferramenta Mão)
  * - Soltar arquivos/SVG/links na posição do cursor
- * - Frações da tela (1/2, 1/3, 2/3, 1/4, 3/4) e grade de layout de 12 colunas como alvos de encaixe (com rótulo)
+ * - Frações da tela (1/2, 1/3, 2/3, 1/4, 3/4) como alvos de encaixe (com rótulo)
+ * - Guias de layout da tela e dos frames (grade, colunas, linhas): desenhadas num canvas só (guias/CamadaGuias.tsx);
+ *   mover e redimensionar encaixam nas bordas das colunas/linhas e na grade (do frame pai da seleção e da tela)
  * - Editar vetor: duplo clique (ou Enter) numa forma/SVG selecionada, ou caneta (P) — ver vetor/EditorVetor.tsx
  */
 import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -30,9 +32,11 @@ import { pilhaFonte } from '@/lib/design-tokens'
 import { SceneRenderer, type AssetsResolvidos } from '@/components/renderer/SceneRenderer'
 import { useTamanho } from '@/components/renderer/useTamanho'
 import { MiniaturaCena } from './MiniaturaCena'
-import { COR_SELECAO, ColunasCanvas, GuiasCanvas, HALO_SELECAO, LinhaInsercao, PreviaRegiao, SEM_SOBREPOSICAO, haloDe, type Sobreposicao } from './GuiasCanvas'
+import { COR_SELECAO, GuiasCanvas, HALO_SELECAO, LinhaInsercao, PreviaRegiao, SEM_SOBREPOSICAO, haloDe, type Sobreposicao } from './GuiasCanvas'
 import { CamadaPresenca } from './Presenca'
-import { alvosDeFracao, colunasDaGrade, gradeLayoutPadrao } from '@/lib/editor/preencher'
+import { alvosDeFracao } from '@/lib/editor/preencher'
+import { alvosDasGuias, areasComGuias, type AreaGuias } from '@/lib/scene/guias'
+import { CamadaGuias } from './guias/CamadaGuias'
 import { EVENTO_PREVIA } from './PreencherGrade'
 import { EditorVetor, type FerramentaVetor } from './vetor/EditorVetor'
 import { editavelComoVetor, formasDoSvg } from '@/lib/editor/vetor/camadas'
@@ -348,6 +352,9 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
     else if (!estado.selecao.includes(modoVetor.id)) setModoVetor(null)
   }, [cena, modoVetor, estado.selecao, acoes])
 
+  // guias de layout: a mesma lista enquanto nada nelas muda (arrastar uma camada não redesenha o canvas das guias)
+  const areasGuias = useAreasGuias(cena, estado.guiasLayout)
+
   if (!cena) return null
   const camadas = cena.layers
   const mapa = mapaDe(camadas)
@@ -363,8 +370,12 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
   const interacoesVisiveis = estado.abaDireita === 'interacoes' && estado.mostrarHotspots
   const comInteracao = camadas.filter((l) => l.interactions.length > 0)
   const limiar = vp ? limiarEmCena(LIMIAR_TELA, vp.s) : LIMIAR_TELA
-  const gradeLayout = estado.colunas ? gradeLayoutPadrao(cena.size) : null
-  const extras = alvosDeFracao(cena.size, { fracoes: estado.fracoes, grade: gradeLayout })
+  // guias de layout como alvos: as da tela e as do frame pai da seleção (as de outros frames não puxam)
+  const paisSel = new Set(selecionadas.map((l) => l.parentId).filter(Boolean))
+  const alvosGuias = alvosDasGuias(areasGuias.filter((a) => a.id === cena.id || paisSel.has(a.id)), vp?.s ?? 1)
+  const fracoes = alvosDeFracao(cena.size, { fracoes: estado.fracoes })
+  const extras = alvosGuias.x.length || alvosGuias.y.length ? { x: [...fracoes.x, ...alvosGuias.x], y: [...fracoes.y, ...alvosGuias.y] } : fracoes
+  const grades = alvosGuias.grades
   const vetorAtivo = !!modoVetor || estado.ferramenta === 'caneta'
   const visiveisExceto = (excluir: ReadonlySet<string>) => camadas.filter((l) => !excluir.has(l.id) && !ocultas.has(l.id))
 
@@ -524,7 +535,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
         let final = { x: naGrade(proposta.x), y: naGrade(proposta.y) }
         if (g.fluxo) final = { x: Math.round(proposta.x), y: Math.round(proposta.y) } // reordenar: só a linha azul, sem guias
         else if (!semEncaixe) {
-          const r = encaixar(proposta, visiveisExceto(movidos), cena.size, limiar, { grade, extras })
+          const r = encaixar(proposta, visiveisExceto(movidos), cena.size, limiar, { grade, extras, grades })
           final = { x: r.x, y: r.y }
           setSobre({ guias: r.guias, espacos: r.espacos, medidas: r.medidas })
         } else setSobre(SEM_SOBREPOSICAO)
@@ -547,7 +558,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
         }
         const svgUnico = g.iniciais.size === 1 && camadas.find((l) => g.iniciais.has(l.id))?.type === 'svg'
         const movidos = new Set(comDescendentes([...g.iniciais.keys()], camadas))
-        const res = redimensionarComEncaixe(g.caixa, g.alca, pc.x - g.inicio.x, pc.y - g.inicio.y, visiveisExceto(movidos), cena.size, limiar, { proporcional: ev.shiftKey || svgUnico, doCentro: ev.altKey, semEncaixe, grade, extras })
+        const res = redimensionarComEncaixe(g.caixa, g.alca, pc.x - g.inicio.x, pc.y - g.inicio.y, visiveisExceto(movidos), cena.size, limiar, { proporcional: ev.shiftKey || svgUnico, doCentro: ev.altKey, semEncaixe, grade, extras, grades })
         setSobre({ guias: res.guias, espacos: [], medidas: res.medidas })
         const nova = res.caixa
         const sx = nova.width / g.caixa.width
@@ -777,6 +788,9 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
         {estado.documento.mode === 'story' && <div aria-hidden className="pointer-events-none absolute border border-dashed border-texto3/60" style={{ left: '6%', right: '6%', top: '8%', bottom: '10%' }} />}
       </div>
 
+      {/* guias de layout (grade, colunas, linhas) da tela e dos frames */}
+      {areasGuias.length > 0 && <CamadaGuias areas={areasGuias} vp={vp} largura={tamanho.width} altura={tamanho.height} />}
+
       {/* hover: 2 px na cor da seleção (a seleção tem 1 px e alças) */}
       {hover && !vetorAtivo && !estado.selecao.includes(hover) && (!g || g.tipo === 'mover') && !editandoTexto && (() => { const l = mapa.get(hover); return l ? <Contorno r={paraTela(l)} rot={l.rotation} cor={alt && caixaSel ? 'rgb(var(--cor-guia))' : COR_SELECAO} largura={alt && caixaSel ? 1 : 2} testid="contorno-hover" /> : null })()}
 
@@ -832,13 +846,12 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
       {g?.tipo === 'mover' && g.fluxo && g.moveu && (() => { const r = paraTela({ ...g.caixa, x: g.caixa.x + g.delta.x, y: g.caixa.y + g.delta.y }); return <div data-testid="fantasma" className="pointer-events-none absolute z-20 border border-selecao bg-selecao/15" style={{ left: r.x, top: r.y, width: r.width, height: r.height }} /> })()}
       {insercao && g?.tipo === 'mover' && g.moveu && <LinhaInsercao linha={insercao.linha} paraTela={paraTela} />}
 
-      {/* grade de layout (12 colunas) e prévia de "Preencher" */}
+      {/* realce do gap/padding do auto layout e prévia de "Preencher" */}
       {espacoRealce && (() => {
         const f = mapa.get(espacoRealce.frameId)
         if (f?.type !== 'frame' || !f.layout) return null
         return areasDeEspaco(f, cena.layers, espacoRealce.tipo).map((r, i) => { const t = paraTela(r); return <div key={i} data-testid="realce-espaco" className="pointer-events-none absolute z-20" style={{ left: t.x, top: t.y, width: t.width, height: t.height, background: 'repeating-linear-gradient(135deg, rgb(242 72 160 / .28) 0 3px, rgb(242 72 160 / .14) 3px 6px)', outline: '1px solid rgb(242 72 160 / .6)' }} /> })
       })()}
-      {gradeLayout && <ColunasCanvas colunas={colunasDaGrade(cena.size, gradeLayout)} paraTela={paraTela} />}
       {previaPreencher && <PreviaRegiao r={previaPreencher} paraTela={paraTela} />}
 
       {/* guias inteligentes, vãos iguais e medidas */}
@@ -911,6 +924,21 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
     </div>
   )
 }
+
+/**
+ * Telas e frames com guias de layout, com a mesma identidade enquanto nada muda nelas (memo do CamadaGuias):
+ * mover outras camadas recria a tela, mas não a lista. `visiveis` = ⌃⇧4.
+ */
+function useAreasGuias(cena: Editor['cena'], visiveis: boolean): readonly AreaGuias[] {
+  const anterior = useRef<readonly AreaGuias[]>([])
+  if (!cena || !visiveis) return (anterior.current = SEM_AREAS)
+  const novas = cena.guias?.length || cena.layers.some((l) => l.type === 'frame' && l.guias?.length) ? areasComGuias(cena, cena.layers, ocultasEfetivas(cena.layers)) : SEM_AREAS
+  const a = anterior.current
+  const iguais = a.length === novas.length && a.every((x, i) => { const y = novas[i]!; return x.id === y.id && x.guias === y.guias && x.area.x === y.area.x && x.area.y === y.area.y && x.area.width === y.area.width && x.area.height === y.area.height })
+  if (!iguais) anterior.current = novas
+  return anterior.current
+}
+const SEM_AREAS: readonly AreaGuias[] = []
 
 /** "240 Hug" / "Fill" como no rótulo de tamanho do Figma. */
 function rotuloTamanho(v: number, d: Camada['sizingW']) {

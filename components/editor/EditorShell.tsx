@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronDown, ChevronLeft, ChevronRight, CloudOff, Eye, Keyboard, Loader2, MonitorPlay, PanelLeft, Play, Redo2, SlidersHorizontal, Undo2, TriangleAlert, Grid3X3, Magnet, Box, Columns3, Ratio, UserPlus } from 'lucide-react'
 import { mesmoEditorForaDoCanvas, useEditor, type AberturaEditor, type Editor as EditorEstado, type Ferramenta } from '@/lib/editor/useEditor'
-import { deslocarComGrade } from '@/lib/editor/guias'
+import { PASSO_GRANDE, deslocarComGrade } from '@/lib/editor/guias'
 import { atalhoFigma, opacidadePorDigito, type MemoriaDigito } from '@/lib/editor/atalhos'
 import { envolvente } from '@/lib/scene/transform'
 import { mapaDe, paiDe, temAutoLayout } from '@/lib/scene/arvore'
@@ -30,6 +30,7 @@ import { Compartilhar } from '@/components/compartilhar/Compartilhar'
 import { PainelEquipe } from '@/components/app/Equipe'
 import { PresencaCabecalho } from './Presenca'
 import { EsqueletoEditor } from './EsqueletoEditor'
+import { alternarGuias, ehAtalhoGuias } from './guias/estado'
 import { Atrasado, Botao, BotaoIcone, Carregando, Modal, Simbolo, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 
@@ -55,12 +56,12 @@ const ATALHOS: [string, string][] = [
   ['Ctrl/⌘ + roda', 'Zoom no cursor'], ['Shift + 1', 'Ajustar à tela'], ['Shift + 2', 'Zoom na seleção'], ['Ctrl/⌘ + Shift + C', 'Copiar como PNG'], ['Ctrl/⌘ + ] / [', 'Um passo à frente / atrás'], ['Ctrl/⌘ + 0', 'Zoom 100%'], ['+ / −', 'Zoom'],
   ['Ctrl/⌘ + C / X / V', 'Copiar, recortar, colar (também do Figma e Illustrator)'], ['Ctrl/⌘ + D', 'Duplicar'], ['Delete', 'Excluir'],
   ['Ctrl/⌘ + G', 'Agrupar'], ['Ctrl/⌘ + Shift + G', 'Desagrupar / desfazer frame'], ['Ctrl/⌘ + Alt + G', 'Envolver em frame'], ['Shift + A', 'Adicionar auto layout'], ['Shift + Alt + A', 'Remover auto layout'],
-  ['Enter / duplo clique', 'Editar texto, editar vetor (forma/SVG) ou selecionar filhos'], ['Editar vetor: V Q P B X E ⇧B', 'Mover, Laço, Caneta, Curvar, Cortar, Apagar, Pintar'], ['Editar vetor: Delete / setas / Esc', 'Apagar nós / mover nós (Shift = 10) / concluir'],
+  ['Enter / duplo clique', 'Editar texto, editar vetor (forma/SVG) ou selecionar filhos'], ['Editar vetor: V Q P B X E ⇧B', 'Mover, Laço, Caneta, Curvar, Cortar, Apagar, Pintar'], ['Editar vetor: Delete / setas / Esc', 'Apagar nós / mover nós (Shift = 8) / concluir'],
   ['Ctrl + Alt + ← → ↑ ↓', 'Preencher metade esquerda / direita / superior / inferior'], ['Ctrl + Alt + Enter', 'Preencher a tela inteira'], ['Ctrl + Alt + D F G / E T', 'Terços / dois terços'], ['Ctrl + Alt + U I J K', 'Quartos (cantos)'], ['Shift + Enter', 'Selecionar frame pai'], ['Ctrl/⌘ + clique', 'Selecionar camada dentro do frame'], ['Ctrl/⌘ + Alt + C / V', 'Copiar / colar estilo'],
-  [']  /  [', 'Trazer para frente / enviar para trás'], ['Setas', 'Mover 1 px (Shift = 10 px)'], ['Ctrl/⌘ + A', 'Selecionar tudo'],
+  [']  /  [', 'Trazer para frente / enviar para trás'], ['Setas', 'Mover 1 px (Shift = 8 px)'], ['Ctrl/⌘ + A', 'Selecionar tudo'],
   ['Ctrl/⌘ + Z', 'Desfazer'], ['Ctrl/⌘ + Shift + Z', 'Refazer'], ['Ctrl/⌘ + L', 'Travar / destravar'], ['Ctrl/⌘ + Shift + H', 'Ocultar / mostrar'],
   ['Ctrl/⌘ + arrastar', 'Mover / redimensionar sem encaixe'], ['Alt (segurar)', 'Medir distâncias até a camada sob o cursor'], ['Alt + alça', 'Redimensionar a partir do centro'], ['Shift + arrastar', 'Travar eixo / proporção'],
-  ["Shift + '", 'Grade (encaixe na grade)'], ['T + clique', 'Texto com largura automática (arraste = largura fixa)'], ['← →', 'Telas (sem seleção)'], ['Ctrl/⌘ + Enter', 'Pré-visualizar'], ['?', 'Esta lista'],
+  ["Shift + '", 'Grade (encaixe na grade)'], ['Ctrl + Shift + 4', 'Mostrar / esconder guias de layout'], ['T + clique', 'Texto com largura automática (arraste = largura fixa)'], ['← →', 'Telas (sem seleção)'], ['Ctrl/⌘ + Enter', 'Pré-visualizar'], ['?', 'Esta lista'],
 ]
 
 /**
@@ -293,6 +294,8 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
       if (mod && e.key === 'Enter') { e.preventDefault(); abrirPreview(); return }
       if (mod && e.altKey && k === 'c' && camadasSelecionadas[0]) { e.preventDefault(); acoes.copiarEstilo(camadasSelecionadas[0]); mostrar('Estilo copiado.'); return }
       if (mod && e.altKey && k === 'v') { e.preventDefault(); acoes.colarEstilo(sel); return }
+      // ⌃⇧4: mostrar/esconder todas as guias de layout (como no Figma), com aviso no rodapé
+      if (ehAtalhoGuias(e)) { e.preventDefault(); alternarGuias(acoes, estado.guiasLayout, mostrar); return }
       if (mod && k === 'd' && sel.length) { e.preventDefault(); acoes.duplicarCamadas(sel); return }
       if (mod && e.altKey && e.code === 'KeyG' && sel.length) { e.preventDefault(); acoes.emoldurar(sel); return }
       if (mod && k === 'g') { e.preventDefault(); if (e.shiftKey) acoes.desagrupar(sel); else acoes.agrupar(sel); return }
@@ -349,8 +352,8 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
             return
           }
         }
-        // 1 px (Shift = 10 px) em pixels inteiros; com a grade ligada, vai para a próxima linha da grade
-        const p = e.shiftKey ? 10 : 1
+        // 1 px (Shift = 8 px, a regra do 8) em pixels inteiros; com a grade ligada, vai para a próxima linha da grade
+        const p = e.shiftKey ? PASSO_GRANDE : 1
         const g = estado.grade ? estado.gradePasso : 0
         const caixa = camadasSelecionadas.length ? envolvente(camadasSelecionadas) : { x: 0, y: 0, width: 0, height: 0 }
         const sx = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0
@@ -377,7 +380,7 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
     }
     window.addEventListener('keydown', tecla)
     return () => window.removeEventListener('keydown', tecla)
-  }, [acoes, sel, cena, preview, escala, estado.documento.scenes, estado.grade, estado.gradePasso, editor, editor.indiceCena, camadasSelecionadas, mostrar, abrirPreview])
+  }, [acoes, sel, cena, preview, escala, estado.documento.scenes, estado.grade, estado.gradePasso, estado.guiasLayout, editor, editor.indiceCena, camadasSelecionadas, mostrar, abrirPreview])
 
   if (!editor.existe || !projeto) {
     return <div className="flex h-dvh items-center justify-center p-6 text-center text-sm text-texto2">Projeto não encontrado. <Link className="ml-1 underline" href="/app">Voltar ao painel</Link></div>
@@ -531,6 +534,7 @@ const BarraMovel = memo(function BarraMovel({ ferramenta, aoFerramenta, aoMidia,
 /** Barra inferior: zoom, grade, encaixes, telas e verificação. */
 const Rodape = comEditor(function Rodape({ editor, escala, interagir3d, aoInteragir3d, aoAtalhos }: { editor: EditorEstado; escala: number; interagir3d: boolean; aoInteragir3d: (f: (v: boolean) => boolean) => void; aoAtalhos: () => void }) {
   const { estado, acoes, validacao, indiceCena } = editor
+  const { mostrar } = useToast()
   const total = estado.documento.scenes.length
   return (
     <footer className="hidden h-9 shrink-0 items-center gap-1 border-t border-borda bg-superficie px-3 text-[12px] text-texto2 md:flex">
@@ -548,7 +552,7 @@ const Rodape = comEditor(function Rodape({ editor, escala, interagir3d, aoIntera
       )}
       <BotaoIcone rotulo="Guias inteligentes" ativo={estado.snap} className="h-6 w-6" onClick={() => acoes.ui({ snap: !estado.snap })}><Magnet className="h-3.5 w-3.5" /></BotaoIcone>
       <BotaoIcone rotulo="Encaixar nas frações da tela (1/2, 1/3, 1/4…)" ativo={estado.fracoes} className="h-6 w-6" onClick={() => acoes.ui({ fracoes: !estado.fracoes })}><Ratio className="h-3.5 w-3.5" /></BotaoIcone>
-      <BotaoIcone rotulo="Grade de layout (12 colunas com margens)" ativo={estado.colunas} className="h-6 w-6" onClick={() => acoes.ui({ colunas: !estado.colunas })}><Columns3 className="h-3.5 w-3.5" /></BotaoIcone>
+      <BotaoIcone rotulo="Guias de layout (Ctrl + Shift + 4)" ativo={estado.guiasLayout} className="h-6 w-6" onClick={() => alternarGuias(acoes, estado.guiasLayout, mostrar)}><Columns3 className="h-3.5 w-3.5" /></BotaoIcone>
       <BotaoIcone rotulo="Interagir com 3D e incorporados no canvas" ativo={interagir3d} className="h-6 w-6" onClick={() => aoInteragir3d((v) => !v)}><Box className="h-3.5 w-3.5" /></BotaoIcone>
       <span className="flex-1" />
       <button aria-label="Tela anterior" className="rounded p-1 hover:bg-hover disabled:opacity-30" disabled={indiceCena <= 0} onClick={() => acoes.irParaCena(estado.documento.scenes[indiceCena - 1]!.id)}><ChevronLeft className="h-3.5 w-3.5" /></button>

@@ -9,6 +9,7 @@
  * - Medidas (linhas vermelhas com números): distâncias entre caixas (Alt) e ao longo das guias
  */
 import { redimensionar, type Alca, type Retangulo, type Tamanho } from '@/lib/scene/transform'
+import type { GradeEncaixe } from '@/lib/scene/guias'
 
 export interface Guia {
   /** 'v' = linha vertical em x; 'h' = linha horizontal em y. */
@@ -48,8 +49,13 @@ export interface OpcoesEncaixe {
   grade?: number
   /** Desliga o encaixe de espaçamento igual. */
   semEspacamento?: boolean
-  /** Frações da tela / grade de layout (lib/editor/preencher.ts). */
+  /** Frações da tela e bordas das colunas/linhas das guias de layout (lib/editor/preencher.ts, lib/scene/guias.ts). */
   extras?: AlvosExtras
+  /**
+   * Grades das guias de layout visíveis: as bordas da caixa encaixam na linha mais próxima (dentro do limiar),
+   * sem desenhar guia; guias inteligentes empatadas ganham. Diferente de `grade`, não arredonda tudo.
+   */
+  grades?: readonly GradeEncaixe[]
 }
 
 /** Limiar padrão de encaixe, em pixels de tela (independe do zoom). */
@@ -73,6 +79,22 @@ function alvos(outros: readonly Retangulo[], cena: Tamanho, eixo: 'x' | 'y', ext
   const pts = eixo === 'x' ? pontosX : pontosY
   // frações vêm por último: em empate, bordas de camadas e da tela ganham
   return [...pts(tela).map((v) => ({ v, ref: null })), ...outros.flatMap((o) => pts(o).map((v) => ({ v, ref: o }))), ...(extras?.[eixo] ?? []).map((a) => ({ v: a.v, ref: null, rotulo: a.rotulo }))]
+}
+
+/** Linha de grade mais próxima das bordas `pontos` no eixo, entre as grades cuja área contém `centro`. */
+function naGradeGuia(pontos: number[], grades: readonly GradeEncaixe[] | undefined, eixo: 'x' | 'y', centro: { x: number; y: number }, limiar: number): { d: number; ajuste: number } | null {
+  let melhor: { d: number; ajuste: number } | null = null
+  for (const g of grades ?? []) {
+    const a = g.area
+    if (centro.x < a.x || centro.x > a.x + a.width || centro.y < a.y || centro.y > a.y + a.height) continue
+    const o = eixo === 'x' ? g.x0 : g.y0
+    for (const p of pontos) {
+      const v = o + Math.round((p - o) / g.passo) * g.passo
+      const d = Math.abs(v - p)
+      if (d <= limiar && (!melhor || d < melhor.d - 1e-9)) melhor = { d, ajuste: v - p }
+    }
+  }
+  return melhor
 }
 
 function maisProximo(pontos: number[], lista: Alvo[], limiar: number): { d: number; ajuste: number } | null {
@@ -131,6 +153,10 @@ export function encaixar(movendo: Retangulo, outros: readonly Retangulo[], cena:
         if (d <= limiar && (!melhor || d < melhor.d - 1e-9)) melhor = { d, ajuste: v - p0 }
       }
     }
+    // grade das guias de layout: só as bordas (como no Figma), e perde para guias e vãos empatados
+    const centro = { x: movendo.x + movendo.width / 2, y: movendo.y + movendo.height / 2 }
+    const naGrade = naGradeGuia(eixo === 'x' ? [movendo.x, dir(movendo)] : [movendo.y, base(movendo)], opcoes.grades, eixo, centro, limiar)
+    if (naGrade && (!melhor || naGrade.d < melhor.d - 1e-9)) melhor = naGrade
     return melhor?.ajuste ?? 0
   }
   const x = Math.round(movendo.x + ajusteEixo('x'))
@@ -247,7 +273,9 @@ export function redimensionarComEncaixe(
     if (grade) { const v = Math.round(b / grade) * grade; return { d: Math.abs(v - b), v } }
     if (opcoes.semEncaixe) return null
     const m = maisProximo([b], alvos(outros, cena, eixo, opcoes.extras), limiar)
-    return m ? { d: m.d, v: b + m.ajuste } : null
+    const naGrade = naGradeGuia([b], opcoes.grades, eixo, { x: r0.x + r0.width / 2, y: r0.y + r0.height / 2 }, limiar)
+    const melhor = naGrade && (!m || naGrade.d < m.d - 1e-9) ? naGrade : m
+    return melhor ? { d: melhor.d, v: b + melhor.ajuste } : null
   }
   const sx = moveX ? encaixeDe('x') : null
   const sy = moveY ? encaixeDe('y') : null
@@ -325,10 +353,13 @@ export function medirDistancias(a: Retangulo, b: Retangulo): Medida[] {
   return r
 }
 
-/** Próxima posição ao deslocar com as setas: 1/10 px, ou a próxima linha da grade. */
+/** Passo das setas com Shift (regra do 8: um passo da grade de 8). */
+export const PASSO_GRANDE = 8
+
+/** Próxima posição ao deslocar com as setas: 1 px (Shift = 8), ou a próxima linha da grade. */
 export function deslocarComGrade(v: number, sentido: -1 | 1, passo: number, grade: number): number {
   if (!grade) return Math.round(v) + sentido * passo
-  const linhas = passo > 1 ? Math.max(1, Math.round(10 / grade)) : 1
+  const linhas = passo > 1 ? Math.max(1, Math.round(passo / grade)) : 1
   const alvo = sentido > 0 ? Math.floor(v / grade + 1e-9) + linhas : Math.ceil(v / grade - 1e-9) - linhas
   return alvo * grade
 }
