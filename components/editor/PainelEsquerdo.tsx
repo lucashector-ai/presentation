@@ -1,5 +1,6 @@
 'use client'
 import { useRef, useState, type JSX } from 'react'
+import { createPortal } from 'react-dom'
 import { Box, ChevronDown, ChevronRight, Code2, Copy, Crosshair, Eye, EyeOff, Film, GalleryHorizontal, Image as ImageIcon, Lock, LockOpen, MousePointerClick, PenTool, Quote, Sparkles, Square, Tag, Trash2, Type, Upload, Video, ArrowRight } from 'lucide-react'
 import { IconeAutoLayout, IconeMascara } from './inspetor/icones'
 import type { Camada } from '@/lib/scene/schema'
@@ -263,10 +264,12 @@ function Arquivos({ editor, assets, avisar }: { editor: Editor; assets: AssetDem
       {assets.length > 1 && filtro !== 'model3d' && filtro !== 'lottie' && (
         <button type="button" onClick={() => editor.acoes.cenasDeAssets(lista.filter((a) => a.tipo === 'image' || a.tipo === 'svg').slice(0, 30))} className="mt-4 h-8 w-full rounded-md border border-borda text-[12px] hover:border-[#D4D4D4]">Uma tela por imagem ({lista.filter((a) => a.tipo === 'image' || a.tipo === 'svg').length})</button>
       )}
-      {excluindo && (
+      {/* no <body>: o painel é uma camada própria (will-change), que prenderia o diálogo fixo dentro dele */}
+      {excluindo && createPortal(
         <Modal aberto aoFechar={() => setExcluindo(null)} titulo="Excluir arquivo?" largura="sm" descricao={excluindo.asset.nome} rodape={<><Botao variante="secundario" onClick={() => setExcluindo(null)}>Cancelar</Botao><Botao variante="perigo" carregando={apagando} onClick={() => void apagar()}>{excluindo.usos == null || excluindo.usos.length ? 'Excluir mesmo assim' : 'Excluir'}</Botao></>}>
           {excluindo.usos == null ? <p className="text-sm text-texto2">Se algum projeto usar este arquivo, avisamos antes de excluir.</p> : excluindo.usos.length ? <p className="text-sm text-perigo">Usado em: {excluindo.usos.join(', ')}. As telas mostrarão “mídia indisponível”.</p> : <p className="text-sm text-texto2">Nenhum projeto usa este arquivo.</p>}
-        </Modal>
+        </Modal>,
+        document.body
       )}
     </div>
   )
