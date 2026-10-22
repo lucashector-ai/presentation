@@ -267,6 +267,7 @@ async function medir(page, cdp, acao, ms) {
       const exemplos = new Map()
       for (const e of anim) { const d = e.args?.data; if (d?.compositeFailed) { const k = `${d.compositeFailed}|${nomes.get(e.id2?.local ?? e.id)?.name}`; exemplos.set(k, (exemplos.get(k) ?? 0) + 1) } }
       console.log('    por keyframe:', Object.fromEntries(exemplos))
+      if (process.env.DESEMPENHO_AMOSTRA) for (const e of anim.filter((x) => x.args?.data?.compositeFailed).slice(0, 4)) console.log('     ', e.ph, JSON.stringify(e.args).slice(0, 300), JSON.stringify(nomes.get(e.id2?.local ?? e.id) ?? {}).slice(0, 200))
     }
     const porNome = new Map()
     const contagem = new Map()
