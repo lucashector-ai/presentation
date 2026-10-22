@@ -40,9 +40,9 @@ export const faseOcr = (p: ProgressoOcr) =>
  * navegador. `sinal` aborta tudo (trocar de arquivo); o botão "Cancelar" da fase de OCR para só o OCR e fica
  * com o que já foi lido.
  */
-export async function lerPdfParaMaterial(d: DocumentoPdf, op: { sinal: AbortSignal; aoProgredir: (f: FaseLeitura) => void }): Promise<PdfLido> {
+export async function lerPdfParaMaterial(d: DocumentoPdf, op: { sinal: AbortSignal; aoProgredir: (f: FaseLeitura) => void; /** Lê só as primeiras N páginas (manual da marca: limite do plano). */ maxPaginas?: number }): Promise<PdfLido> {
   const pdf = await import('@/lib/pdf/navegador')
-  const r = await pdf.lerTextoPdf(d, { sinal: op.sinal, aoProgredir: (n, total) => op.aoProgredir({ fase: `Lendo a página ${n} de ${total}…`, progresso: n / total }) })
+  const r = await pdf.lerTextoPdf(d, { sinal: op.sinal, maxPaginas: op.maxPaginas, aoProgredir: (n, total) => op.aoProgredir({ fase: `Lendo a página ${n} de ${total}…`, progresso: n / total }) })
   const base = { paginas: r.paginas, caracteres: r.caracteres, titulos: r.titulos, itensLista: r.itensLista, tabelas: r.tabelas, semTexto: r.paginasSemTexto, lidasPorOcr: [], ocrIncerto: [], emBranco: [] }
   const alvo = paginasParaOcr(r.paginasSemTexto)
   if (!alvo.length) return { texto: r.texto, porPagina: r.porPagina, material: base, aviso: null }

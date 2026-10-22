@@ -6,6 +6,7 @@
 import type { MaterialLido } from '@/lib/pdf/material'
 import type { Estilo } from '@/lib/ia/roteiro'
 import type { PapeisMarca, TemaId } from '@/lib/ia/designSystem'
+import type { PerfilMarca } from '@/lib/marca/perfil'
 import type { Idioma } from '@/lib/ia/pedido'
 import type { TipoPedido, Tom } from '@/lib/ia/tiposApresentacao'
 
@@ -16,7 +17,7 @@ export const PASSOS_PEDIDO = ['briefing', 'marca', 'material', 'estilo', 'tamanh
 
 export const INFO_PASSO: Record<Passo, { nome: string; dica: string; opcional?: boolean }> = {
   briefing: { nome: 'Briefing', dica: 'o que é, para quem, tom e idioma' },
-  marca: { nome: 'Marca', dica: 'logo, cores e fontes', opcional: true },
+  marca: { nome: 'Marca', dica: 'manual, logo, cores e fontes', opcional: true },
   material: { nome: 'Material', dica: 'texto, PDF, fotos e números', opcional: true },
   estilo: { nome: 'Estilo', dica: 'mais de 20 estilos de design', opcional: true },
   tamanho: { nome: 'Tamanho', dica: 'formato e número de telas' },
@@ -65,6 +66,8 @@ export interface MarcaEscolhida {
   kitId: string | null
   /** Papéis de cor citados no pedido (fundo claro, cartão, positivo, negativo), aplicados sem digitar de novo. */
   papeis?: PapeisMarca | null
+  /** Perfil do manual da marca (revisado), salvo no kit e usado no roteiro, no design e na montagem. */
+  perfil?: PerfilMarca | null
 }
 
 export interface MaterialEscolhido {
@@ -85,7 +88,7 @@ export interface EstiloEscolhido {
   energia: Estilo | 'auto'
 }
 
-export const MARCA_VAZIA: MarcaEscolhida = { nome: '', cores: [], aplicarCores: true, fontes: null, logo: null, logoRodape: false, kitId: null, papeis: null }
+export const MARCA_VAZIA: MarcaEscolhida = { nome: '', cores: [], aplicarCores: true, fontes: null, logo: null, logoRodape: false, kitId: null, papeis: null, perfil: null }
 export const MATERIAL_VAZIO: MaterialEscolhido = { origem: 'zero', conteudo: '', arquivo: null, lido: null, numeros: '', obrigatorio: '', evitar: '', fotos: [] }
 
 /** Números-chave digitados (um por linha: "38% | mais passageiros") no formato do roteiro ("valor|legenda"). */

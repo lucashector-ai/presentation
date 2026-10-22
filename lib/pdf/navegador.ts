@@ -9,10 +9,11 @@
  * scripts (o pdf.js não executa o JavaScript de um PDF fora do visualizador com `enableScripting`). Arquivos
  * acima de `MAX_BYTES_PDF` são recusados antes de abrir.
  */
-import { AnnotationMode, getDocument, GlobalWorkerOptions, InvalidPDFException, PasswordException, Util, version, type PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
+import { AnnotationMode, getDocument, GlobalWorkerOptions, InvalidPDFException, OPS, PasswordException, Util, version, type PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
 // build "legacy": inclui os polyfills de recursos recentes (ex.: Map.getOrInsertComputed) que o build moderno exige do navegador
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
 import { LEITURA_PDF } from '@/lib/ia/pdf'
+import { imagensEAmostrasDoPdf, type AmostraPdf, type ImagemPdf } from '@/lib/marca/pdf'
 import { extrairPaginas } from './ler'
 import { montarPdfDeImagens, type ImagemPagina } from './montar'
 import { escalaOcr, OCR, paginaDoOcr, type BlocoOcr, type PaginaOcr } from './ocr'
@@ -63,6 +64,11 @@ export interface LeituraPdf extends ResultadoTexto { paginasPdf: PaginaPdf[] }
 export async function lerTextoPdf(d: DocumentoPdf, op: { maxPaginas?: number; aoProgredir?: (lidas: number, total: number) => void; sinal?: AbortSignal } = {}): Promise<LeituraPdf> {
   const paginasPdf = await extrairPaginas(d.doc, (a, b) => Util.transform(a, b) as number[], op)
   return { ...estruturarPdf(paginasPdf), paginasPdf }
+}
+
+/** Manual da marca: imagens embutidas (candidatas a logo) e amostras de cor das primeiras páginas (lib/marca/pdf.ts). */
+export async function lerImagensEAmostras(d: DocumentoPdf, op: { maxPaginas?: number; sinal?: AbortSignal } = {}): Promise<{ imagens: ImagemPdf[]; amostras: AmostraPdf[] }> {
+  return imagensEAmostrasDoPdf(d.doc, OPS, op)
 }
 
 export interface PaginaRenderizada { blob: Blob; largura: number; altura: number; larguraPt: number; alturaPt: number; emBranco: boolean }

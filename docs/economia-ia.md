@@ -12,6 +12,7 @@ Decidido com o dono depois do teste lado a lado em produção (mesmo roteiro de 
 | Gerar apresentação | **1 por tela** (6 telas = 6, 30 telas = 30), cobrado no design |
 | Adicionar 1 tela nova com IA, redesenhar ou refazer 1 tela | 1 |
 | Ler PDF escaneado pela IA | 4 por página (a página vai como imagem; com 2 o lucro ficaria em ≈ 40%) |
+| Resumir o manual da marca pela IA (opcional) | 1 a cada 12 mil caracteres enviados (mínimo 1, teto 24 mil = 2); ler o manual (PDF, imagens, tokens, CSS, .pptx) é grátis, no navegador |
 | Roteiro (até 3 por apresentação; teto de 40 por dia por espaço), reescrever/traduzir texto, estilo, cores, logo, reordenar, editar | **grátis** |
 | Material colado | grátis até 20 mil caracteres; depois 1 a cada 20 mil |
 
@@ -105,6 +106,7 @@ Premissas: **1 crédito cobre até US$ 0,002 de IA** (teto de custo do crédito)
 - Gerar outro roteiro: só a parte do roteiro (10 telas = 24).
 - Trocar tema, estilo ou reordenar: grátis (o design de cada tela é guardado pelo conteúdo; o tema é aplicado na montagem). Só telas novas ou alteradas são redesenhadas, a 6 créditos cada.
 - Refazer uma tela: **8**. Reescrever o texto de uma tela: **1**. Imagem: 20 (indisponível; preço a confirmar com o fornecedor).
+- Resumir o manual da marca (`MANUAL_MARCA_CREDITOS`, `custoResumoManual`, rota `/api/ai/marca`, Haiku 5.5, esforço baixo): vão só os trechos do manual que falam de marca (`trechoParaIa`, até 24 mil caracteres ≈ 7.300 tokens) mais as cores e fontes já achadas sem IA; saída ≈ 2.500 tokens. Pior caso ≈ US$ 0,003 por resumo, cobrado 1 crédito a cada 12 mil caracteres (lucro ≥ 75% no crédito mais barato, conferido em `lib/marca/aplicar.test.ts`). O custo aparece no botão antes; se falhar, estorna.
 - Ler PDF escaneado (`LEITURA_PDF_CREDITOS` e `custoLeituraPdf`): **4 + 15 por página** lida pela IA (≈ US$ 0,024 de custo por página, 0,030 de cobertura). Páginas com texto, páginas em branco e .docx não pagam leitura. O valor aparece no botão ("Ler 3 páginas com a IA · 49 créditos") antes de qualquer cobrança; se a leitura falhar, estorna. Limite por leitura: Free 10 páginas, Plus 25, Pro e Studio 40 (`paginasPdfIa`). Importar PDF como apresentação não usa IA (Free 30 páginas, Plus 150, Pro e Studio 300: `paginasPdfImportar`).
 
 Casos de borda conhecidos (prejuízo pequeno, coberto pela sobra da geração do mesmo deck):

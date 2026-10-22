@@ -34,6 +34,7 @@ import { PassoMaterial } from './criar/PassoMaterial'
 import { CHAVE_PEDIDO_COLADO, INFO_PASSO, MARCA_VAZIA, MATERIAL_VAZIO, PASSOS, PASSOS_PEDIDO, linhasDeNumeros, type Briefing, type Formato, type MarcaEscolhida, type MaterialEscolhido, type Passo } from './criar/estado'
 import { Amostras, MiniaturaFluida, Secao, Segmento, SeloCusto } from './criar/ui'
 import type { DocumentoProjeto } from '@/lib/scene/schema'
+import { marcaDoPerfil } from '@/lib/marca/perfil'
 
 const FORMATOS: readonly Formato[] = ['slides', 'story', 'explorar']
 const NOMES_FORMATO: Record<Formato, string> = { slides: 'Slides', story: 'Story', explorar: 'Explorar' }
@@ -159,7 +160,7 @@ export function CriarComIA() {
 
   // ---------- o que vai para a IA e para a montagem ----------
   const tipoDetectado = tipoEfetivo({ tipo: briefing.tipo, prompt: briefing.prompt, conteudo: material.origem === 'zero' ? '' : material.conteudo })
-  const marcaMont = useMemo<Marca & { aplicarCores: boolean }>(() => ({ nome: marca.nome.trim().slice(0, 60), cores: marca.cores.filter((c) => RE_HEX.test(c)).slice(0, 4), aplicarCores: marca.aplicarCores, fontes: marca.fontes, ...(marca.papeis ? { papeis: marca.papeis } : {}) }), [marca.nome, marca.cores, marca.aplicarCores, marca.fontes, marca.papeis])
+  const marcaMont = useMemo<Marca & { aplicarCores: boolean }>(() => ({ nome: marca.nome.trim().slice(0, 60), cores: marca.cores.filter((c) => RE_HEX.test(c)).slice(0, 4), aplicarCores: marca.aplicarCores, fontes: marca.fontes, ...(marca.papeis ? { papeis: marca.papeis } : {}), ...(marca.perfil ? { perfil: marca.perfil } : {}) }), [marca.nome, marca.cores, marca.aplicarCores, marca.fontes, marca.papeis, marca.perfil])
   const logoMont = useMemo<LogoMontagem | null>(() => (marca.logo ? { assetId: marca.logo.assetId, largura: marca.logo.largura, altura: marca.logo.altura, cor: marca.logo.cor, rodape: marca.logoRodape } : null), [marca.logo, marca.logoRodape])
   const fotosMont = useMemo<FotoMontagem[]>(() => material.fotos.map((f) => ({ assetId: f.assetId, legenda: f.legenda })), [material.fotos])
   const assets = useMemo<AssetsResolvidos>(() => {
@@ -189,6 +190,9 @@ export function CriarComIA() {
   const [imagens, setImagens] = useState<OpcaoImagens | null>(null)
   const imagensEf: OpcaoImagens = imagens ?? (material.fotos.length ? 'placeholders' : 'formas')
   const [densidade, setDensidade] = useState<Densidade>('detalhado')
+  // o manual pede pouco texto: as telas começam na densidade média (a pessoa ainda pode trocar no design)
+  const densidadeManual = marca.perfil?.densidade ?? null
+  useEffect(() => { if (densidadeManual) setDensidade(densidadeManual === 'baixa' ? 'medio' : 'detalhado') }, [densidadeManual])
   /** Desenhos já feitos, pela chave do conteúdo da tela (mudar o estilo não redesenha; mudar o texto, sim). */
   const [desenhos, setDesenhos] = useState<Record<string, TelaDesenhada>>({})
   const [desenhando, setDesenhando] = useState(false)
@@ -382,6 +386,9 @@ export function CriarComIA() {
       logo: k.logo && urlLogo ? { assetId: k.logo.assetId, url: urlLogo, nome: 'Logo do kit', largura: k.logo.largura, altura: k.logo.altura, cor: k.logo.cor, cores: k.cores } : null,
       logoRodape: k.logoRodape,
       kitId: k.id,
+      // manual da marca do kit: perfil e os papéis de cor dele (fundo claro, cartão, indicadores)
+      perfil: k.perfil ?? null,
+      papeis: k.perfil ? marcaDoPerfil(k.perfil).papeis : null,
     })
     mostrar(`Kit “${k.nome}” aplicado · grátis.`, 'sucesso')
   }
@@ -394,6 +401,7 @@ export function CriarComIA() {
         fontes: marca.fontes,
         logo: marca.logo ? { assetId: marca.logo.assetId, largura: marca.logo.largura, altura: marca.logo.altura, cor: marca.logo.cor } : null,
         logoRodape: marca.logoRodape,
+        perfil: marca.perfil ?? null,
       })
       setMarca((m) => ({ ...m, kitId: k.id }))
       setKits((ks) => [k, ...ks.filter((x) => x.id !== k.id)])
@@ -477,7 +485,7 @@ export function CriarComIA() {
                 {{ briefing: 'O que você quer apresentar?', marca: 'A sua marca, antes de gerar', material: 'O que você já tem', estilo: 'Escolha o estilo de design', tamanho: 'Formato e tamanho', revisar: 'Revisar e gerar', roteiro: '', design: '' }[passo]}
               </h2>
               <p className="mt-2 max-w-[640px] text-[15px] text-[#525252]">
-                {{ briefing: 'Descreva o assunto. Nos próximos passos você dá a marca, o material e o estilo: tudo entra de uma vez, sem gerar de novo.', marca: 'Logo, cores e fontes entram nas telas sem usar IA. Sem cores definidas, sugerimos paletas.', material: 'Texto, PDF, fotos e números que já existem. Pule se não tiver.', estilo: `${TEMAS.length} estilos com tipografia, cor, forma e composição próprias. Trocar depois é grátis.`, tamanho: `De ${MIN_TELAS_IA} até ${limite} telas no plano ${PLANOS[planoId].nome}. Cada tela entra no custo; o resto é grátis.`, revisar: 'Confira tudo. O custo abaixo é o que será cobrado.', roteiro: '', design: '' }[passo]}
+                {{ briefing: 'Descreva o assunto. Nos próximos passos você dá a marca, o material e o estilo: tudo entra de uma vez, sem gerar de novo.', marca: 'Manual da marca, logo, cores e fontes entram nas telas sem usar IA. Sem cores definidas, sugerimos paletas.', material: 'Texto, PDF, fotos e números que já existem. Pule se não tiver.', estilo: `${TEMAS.length} estilos com tipografia, cor, forma e composição próprias. Trocar depois é grátis.`, tamanho: `De ${MIN_TELAS_IA} até ${limite} telas no plano ${PLANOS[planoId].nome}. Cada tela entra no custo; o resto é grátis.`, revisar: 'Confira tudo. O custo abaixo é o que será cobrado.', roteiro: '', design: '' }[passo]}
               </p>
             </div>
           </div>

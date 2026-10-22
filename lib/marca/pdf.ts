@@ -11,8 +11,23 @@ import { paraHex } from '@/lib/ia/designSystem'
 /** Os códigos de operação do pdf.js usados aqui (vêm do módulo carregado: `pdfjs.OPS`). */
 export interface OpsPdf { fill: number; eoFill: number; fillStroke: number; eoFillStroke: number; constructPath: number; setFillRGBColor: number; paintImageXObject: number; paintInlineImageXObject: number }
 
-/** Imagem embutida, já em RGBA (`rgba`) ou como bitmap do navegador (`bitmap`, convertido por quem chama). */
-export interface ImagemPdf { pagina: number; largura: number; altura: number; rgba?: Uint8ClampedArray; bitmap?: CanvasImageSource & { width: number; height: number } }
+/**
+ * Imagem embutida: tamanho original e os pixels RGBA (`rgba`, com `w` × `h`; o bitmap que o pdf.js entrega no
+ * navegador é reduzido a no máximo 800 px de lado e copiado na hora, antes de a página liberar a memória).
+ */
+export interface ImagemPdf { pagina: number; largura: number; altura: number; rgba: Uint8ClampedArray; w: number; h: number }
+
+/** Copia um ImageBitmap do pdf.js para RGBA (OffscreenCanvas; null sem ele). */
+function rgbaDoBitmap(b: CanvasImageSource & { width: number; height: number }): { rgba: Uint8ClampedArray; w: number; h: number } | null {
+  if (typeof OffscreenCanvas === 'undefined') return null
+  const escala = Math.min(1, 800 / Math.max(b.width, b.height))
+  const w = Math.max(1, Math.round(b.width * escala))
+  const h = Math.max(1, Math.round(b.height * escala))
+  const g = new OffscreenCanvas(w, h).getContext('2d', { willReadFrequently: true })
+  if (!g) return null
+  g.drawImage(b, 0, 0, w, h)
+  return { rgba: g.getImageData(0, 0, w, h).data, w, h }
+}
 export interface AmostraPdf { hex: string; vezes: number; paginas: number[] }
 
 export const LIMITES_PDF_MARCA = {
@@ -87,17 +102,19 @@ export async function imagensEAmostrasDoPdf(doc: PDFDocumentProxy, OPS: OpsPdf, 
             amostras.set(cor, a)
           }
         } else if ((f === OPS.paintImageXObject || f === OPS.paintInlineImageXObject) && imagens.length < LIMITES_PDF_MARCA.imagens) {
-          const bruto = (f === OPS.paintInlineImageXObject ? args[0] : await obter(String(args[0]).startsWith('g_') ? pagina.commonObjs : pagina.objs, String(args[0]))) as { width: number; height: number; kind?: number; data?: Uint8ClampedArray; bitmap?: ImagemPdf['bitmap'] } | null
+          const bruto = (f === OPS.paintInlineImageXObject ? args[0] : await obter(String(args[0]).startsWith('g_') ? pagina.commonObjs : pagina.objs, String(args[0]))) as { width: number; height: number; kind?: number; data?: Uint8ClampedArray; bitmap?: CanvasImageSource & { width: number; height: number } } | null
           if (!bruto?.width || !bruto.height) continue
           const { width: w, height: h } = bruto
           if (Math.min(w, h) < LIMITES_PDF_MARCA.ladoMin || Math.max(w, h) > LIMITES_PDF_MARCA.ladoMax) continue
           const chave = `${w}x${h}:${String(args[0])}`
           if (vistas.has(chave)) continue
           vistas.add(chave)
-          if (bruto.bitmap) imagens.push({ pagina: n, largura: w, altura: h, bitmap: bruto.bitmap })
-          else {
+          if (bruto.bitmap) {
+            const r = rgbaDoBitmap(bruto.bitmap)
+            if (r) imagens.push({ pagina: n, largura: w, altura: h, ...r })
+          } else {
             const rgba = paraRgba(bruto)
-            if (rgba) imagens.push({ pagina: n, largura: w, altura: h, rgba })
+            if (rgba) imagens.push({ pagina: n, largura: w, altura: h, rgba, w, h })
           }
         }
       }

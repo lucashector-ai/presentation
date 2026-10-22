@@ -84,7 +84,7 @@ describe('perfil de marca aplicado no design (montagem e desenho local)', () => 
     expect(t.regras?.margem).toBeGreaterThanOrEqual(1.15)
     const doc = montarDocumento(roteiro, { modo: 'slides', tema: 'mare', estilo: 'editorial', marca })
     expect(doc.scenes.every((s) => !s.backgroundGradient)).toBe(true)
-    expect(doc.theme.fontTitle).toBe('Montserrat')
+    expect(doc.theme?.fontTitle).toBe('Montserrat')
   })
 
   it('sem manual, a montagem continua igual (nada é trocado)', () => {
