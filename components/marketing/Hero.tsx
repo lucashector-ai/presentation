@@ -15,8 +15,9 @@ export function Hero() {
             Seus projetos merecem mais do que um{' '}
             <span className="inline-block -rotate-2 rounded-[0.12em] bg-violeta px-[0.14em] text-[#FAFAF9]">PDF.</span>
           </h1>
+          {/* frase-definição citável (buscadores e IAs): a mesma de lib/seo.ts › DEFINICAO, na voz da landing */}
           <p className="mt-9 max-w-[520px] text-[18px] leading-[1.5] text-[#3F3F3F] [text-wrap:pretty] sm:text-[20px]">
-            Crie, apresente e compartilhe experiências visuais que vão além dos slides — com movimento, interações e links privados, sem escrever código.
+            Mostra é a plataforma brasileira para criar apresentações com IA e um editor de nível profissional — com movimento, interações, 3D e links privados, sem escrever código.
           </p>
           {/* calha de 16: a sombra carimbo do botão escuro (5 px, 7 no hover) não encosta no botão claro ao lado */}
           <div className="mt-9 flex flex-wrap gap-4">

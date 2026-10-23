@@ -1,7 +1,10 @@
 import { Suspense } from 'react'
+import type { Metadata } from 'next'
 import { FormAuth, LayoutAuth } from '@/components/app/FormAuth'
+import { metadadosPagina } from '@/lib/seo'
 
-export const metadata = { title: 'Criar conta' }
+/** Indexável (quem busca "mostra criar conta" chega aqui); o canônico ignora ?proximo=. */
+export const metadata: Metadata = metadadosPagina('/signup')
 
 export default function Signup() {
   return (
