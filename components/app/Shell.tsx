@@ -9,6 +9,7 @@ import { PLANOS, formatarBytes, percentualUso } from '@/lib/planos'
 import { exemploApresentacoes, textoTelas } from '@/lib/telasIa'
 import { estadoDoLink } from '@/lib/share/token'
 import { Atrasado, Carregando, Marca, cx } from '@/components/ui'
+import { TAMANHO_MARCA } from '@/components/ui/Logo'
 import { CreditosProvider, useCreditos } from './Creditos'
 import { BuscaRapida } from './BuscaRapida'
 import { ProgressoNavegacao } from './ProgressoNavegacao'
@@ -101,7 +102,7 @@ function Moldura({ caminho, children }: { caminho: string; children: React.React
   const lateral = (
     // barra de 232: padding 16 e filhos com px-2, então logo, ícones e textos começam todos a 24 px da borda
     <aside className="flex h-full flex-col gap-6 px-4 py-6">
-      <Link href="/app" className="flex h-10 items-center px-2 text-[20px] text-texto" aria-label="Mostra — início"><Marca /></Link>
+      <Link href="/app" className={cx('flex h-10 items-center px-2 text-texto', TAMANHO_MARCA)} aria-label="Mostra — início"><Marca /></Link>
       <Link href="/app/settings#plano" className="flex items-center gap-2 rounded-controle border border-borda bg-superficie p-2 text-left hover:border-[#D4D4D4]">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-controle bg-carvao text-[12px] font-semibold text-argila">{ws.nome[0] ?? 'M'}</span>
         <span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-medium">{ws.nome}</span><span className="block text-[11px] text-texto3">Plano {plano.nome} · {ws.membros} {ws.membros === 1 ? 'membro' : 'membros'}{ws.papel === 'viewer' ? ' · só ver' : ''}</span></span>
@@ -155,7 +156,7 @@ function Moldura({ caminho, children }: { caminho: string; children: React.React
     <div className="min-h-dvh bg-fundo lg:grid lg:grid-cols-[232px_minmax(0,1fr)]">
       <div className="sticky top-0 hidden h-dvh overflow-y-auto border-r border-borda lg:block">{lateral}</div>
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b border-borda bg-fundo/95 px-4 backdrop-blur lg:hidden">
-        <Link href="/app" className="text-[20px]" aria-label="Mostra — início"><Marca /></Link>
+        <Link href="/app" className={TAMANHO_MARCA} aria-label="Mostra — início"><Marca /></Link>
         <div className="flex items-center gap-1">
           <button type="button" aria-label="Buscar" onClick={() => setBusca(true)} className="rounded-md p-2 hover:bg-hover"><Search className="h-5 w-5" /></button>
           <button type="button" aria-label="Abrir menu" aria-expanded={menuMovel} onClick={() => setMenuMovel(true)} className="rounded-md p-2 hover:bg-hover"><Menu className="h-5 w-5" /></button>
@@ -170,8 +171,9 @@ function Moldura({ caminho, children }: { caminho: string; children: React.React
           </div>
         </div>
       )}
-      {/* margens do grid do painel (T.layout.margem): 16 → 32 → 48; o conteúdo usa PaginaPainel (components/app/Layout.tsx) */}
-      <main className="min-w-0 px-4 pb-20 pt-6 sm:px-8 sm:pt-8 lg:pt-10 xl:px-12">{children}</main>
+      {/* margens do grid do painel (T.layout.margem): 16 → 32 → 48; o conteúdo usa PaginaPainel (components/app/Layout.tsx).
+          Em telas largas o main para em 1248 + margens e fica encostado na barra lateral (não centralizado no que sobra) */}
+      <main className="min-w-0 px-4 pb-20 pt-6 sm:px-8 sm:pt-8 lg:max-w-painel-lg lg:pt-10 xl:max-w-painel-xl xl:px-12">{children}</main>
       <BuscaRapida aberta={busca} aoFechar={fecharBusca} />
     </div>
   )

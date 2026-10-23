@@ -1,15 +1,23 @@
 import Link from 'next/link'
-import { Marca } from '@/components/ui/Logo'
+import { Marca, TAMANHO_MARCA } from '@/components/ui/Logo'
 import { NAV, ROTAS } from './dados'
 import { BOTAO_ESCURO } from './ui'
 import { MenuMovel } from './MenuMovel'
+
+/** Selo "DEMO" no canto da logo enquanto o produto está em demonstração. Só na landing; tire daqui quando sair da demo. */
+const SELO_DEMO = true
 
 export function Cabecalho() {
   return (
     <header className="sticky top-0 z-30 border-b-2 border-grafite bg-[rgba(250,250,249,0.9)] backdrop-blur-md">
       <div className="relative mx-auto flex h-[64px] max-w-[1360px] items-center gap-4 px-4 sm:h-[76px] sm:px-8 xl:gap-12">
-        <Link href="/" className="flex shrink-0 text-grafite hover:text-grafite">
-          <Marca className="text-[28px] sm:text-[34px]" />
+        <Link href="/" className="flex shrink-0 items-start text-grafite hover:text-grafite">
+          <Marca className={TAMANHO_MARCA} />
+          {SELO_DEMO && (
+            <span title="Versão de demonstração" className="-mt-1 ml-1 rounded-full bg-violeta px-1.5 py-px font-mono text-[10px] leading-[1.4] tracking-[0.06em] text-white">
+              DEMO
+            </span>
+          )}
         </Link>
         <nav aria-label="Principal" className="hidden min-w-0 flex-1 lg:block">
           <ul className="flex gap-[clamp(14px,2vw,28px)] whitespace-nowrap text-[15px] font-medium">

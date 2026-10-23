@@ -14,7 +14,7 @@ export function CtaFinal() {
           Seu próximo projeto merece um palco.
         </h2>
         <p className="mx-auto mt-7 max-w-[520px] text-[18px] leading-[1.5] text-[#E6E8FD] sm:text-[20px]">Três projetos grátis, para sempre. Sem cartão de crédito.</p>
-        <div className="mt-10 flex flex-wrap justify-center gap-3">
+        <div className="mt-10 flex flex-wrap justify-center gap-4">
           <Link href={ROTAS.cadastro} className={`${BOTAO_ESCURO} px-7 py-[18px] text-[17px] shadow-[5px_5px_0_#D7F25C] hover:shadow-[7px_7px_0_#D7F25C]`}>
             Começar gratuitamente
           </Link>

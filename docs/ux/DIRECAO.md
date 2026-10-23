@@ -80,6 +80,7 @@ Decisões:
 
 - **D6 — Créditos em telas.** O saldo é mostrado como telas com IA (`lib/telasIa.ts`: `textoTelas`, `exemploApresentacoes` — "≈ 4 apresentações de 10 ou 2 de 20"), nunca fixo em "apresentações de 10 telas". Valores vêm de `lib/planos.ts`/`lib/ia/economia.ts`.
 - **D7 — Criar com IA em passos.** Briefing → Marca → Material → Estilo → Tamanho → Revisar e gerar → Roteiro → Design. Passos opcionais se pulam com um clique ("Pular", "Ir para revisar"); a barra de baixo mostra sempre o custo; o que é grátis (marca, cores, logo, estilo, troca de estilo depois) diz "grátis". O atalho do painel entra direto, com prompt e tamanho preenchidos.
+- **D10 — Painel alinhado à barra lateral, não centralizado.** O conteúdo começa sempre a 48 px da barra (32 no lg) e para em 1248; em telas largas o vazio fica à direita, não dos dois lados. Com a barra lateral como âncora, a leitura começa no mesmo x em todas as telas e larguras; centralizar no que sobra abria um vão (220 px em 1920) que parecia erro.
 - **D8 — Auto layout nas telas geradas.** Nada de caixas soltas empilhadas por conta: os grupos de conteúdo são frames de auto layout (gap do tema), textos abraçam a altura e o título com ênfase são duas partes num frame com gap 0. Se o conteúdo não cabe, a tela é montada de novo menor (nunca transborda nem sobrepõe).
 
 ## 4. Fluxos principais (cliques contados a partir do estado inicial; digitação não conta)
@@ -118,8 +119,8 @@ Saldo sempre visível (rodapé da barra lateral, cartão do painel, cabeçalho d
 
 | Tela | Rota / arquivo | Status |
 | --- | --- | --- |
-| Landing | `/` · `components/marketing/*` | ✅ créditos em apresentações (calculadora "Gerar uma apresentação", ações dentro de uma apresentação, planos e pacotes com ≈ N); FAQ de créditos; promessas não implementadas removidas |
-| Cadastro / login / recuperar | `/signup` `/login` · `FormAuth.tsx` | ✅ preserva `?proximo=` (inclusive ao alternar login↔cadastro); nome do cadastro vira o usuário |
+| Landing | `/` · `components/marketing/*` | ✅ créditos em apresentações (calculadora "Gerar uma apresentação", ações dentro de uma apresentação, planos e pacotes com ≈ N); FAQ de créditos; promessas não implementadas removidas; selo DEMO na logo enquanto o produto está em demonstração (`Cabecalho.tsx › SELO_DEMO`) · ⚠ "Explorar a plataforma" só existe no build demo (U11) |
+| Cadastro / login / recuperar | `/signup` `/login` · `FormAuth.tsx` | ✅ preserva `?proximo=` (inclusive ao alternar login↔cadastro); nome do cadastro vira o usuário; formulário centralizado na coluna, logo no topo, "G" oficial do Google |
 | Redirecionamento do Criar com IA | `/criar` · `app/criar/*` | ✅ mantém prompt/formato; sem sessão → cadastro |
 | Painel (Início) | `/app` · `Dashboard.tsx` | ✅ hub: criar (IA + 3 atalhos), continuar, enviados, créditos, primeiros passos, projetos; tudo numa grade só (bordas alinhadas entre as linhas) |
 | Barra lateral + busca ⌘K | `Shell.tsx`, `BuscaRapida.tsx` | ✅ |
@@ -137,11 +138,13 @@ Saldo sempre visível (rodapé da barra lateral, cartão do painel, cabeçalho d
 
 ## 6. Padrões de interface (app)
 
-- **Grid do painel** (`components/app/Layout.tsx`, valores em `lib/design-tokens.ts › T.layout`): 4 colunas no celular, 8 no tablet e com a barra lateral (lg), 12 a partir de xl; calha 16 → 24; margem do `main` 16 → 32 → 48; largura máxima 1248 centralizada (`PaginaPainel`). Tudo que fica lado a lado entra numa `Grade` com um `SPAN` (`terco`, `doisTercos`, `quarto`, `sexto`, `metade`, `lateral`, `cheio`), assim as bordas batem entre as linhas por construção. Conjuntos fixos (atalhos, exemplos, formatos, KPIs) fecham as linhas sem órfãos.
+- **Grid do painel** (`components/app/Layout.tsx`, valores em `lib/design-tokens.ts › T.layout`): 4 colunas no celular, 8 no tablet e com a barra lateral (lg), 12 a partir de xl; calha 16 → 24; margem do `main` 16 → 32 → 48; largura máxima 1248 (`PaginaPainel`) **alinhada à barra lateral** — o `main` do Shell para em 1248 + margens (`max-w-painel-lg/xl`), então o conteúdo começa a 48 px da barra (32 no lg) em qualquer largura, em vez de centralizar no que sobra; sem barra lateral (Novo projeto) fica centralizado. Tudo que fica lado a lado entra numa `Grade` com um `SPAN` (`terco`, `doisTercos`, `quarto`, `sexto`, `metade`, `lateral`, `cheio`), assim as bordas batem entre as linhas por construção. Conjuntos fixos (atalhos, exemplos, formatos, KPIs) fecham as linhas sem órfãos.
 - **Escala de 8:** margens, calhas, paddings e espaços entre blocos só em 8/16/24/32/40/48/56/64/80/96; 4 só dentro de componentes (ícone e texto, título e meta, badge). `components/app/espacamento.test.ts` barra o resto nas telas do painel.
 - Ritmo vertical: rótulo → H1 8 · H1 → descrição 16 · cabeçalho → primeiro bloco 32 · entre seções 48 · H2 (20 px) → conteúdo 16.
 - Controles: 32 (ações em cartões e listas) · 40 (padrão: botão, campo, select, busca, item de navegação) · 48 (ação principal da tela; entrada e cadastro). Raios: 8 controles, 12 cartões e capas, 16 estados vazios e modais.
 - Cabeçalho de página (`CabecalhoPagina`): rótulo mono + `titulo-display` 32/40 px + descrição curta; ação principal à direita; sem linha embaixo.
+- **Marca:** um tamanho só onde ela identifica o produto (`TAMANHO_MARCA` em `components/ui/Logo.tsx`: 28 px, 34 a partir de sm) — cabeçalho da landing, barra lateral e cabeçalho móvel do painel, entrada e cadastro. Favicon: `public/favicon.svg` (símbolo em `#5965F2`, fundo transparente) + `apple-touch-icon.png` gerado por `scripts/gerar-favicon.mjs`.
+- **Botões da landing:** ao lado de um botão com sombra carimbo, calha de 16 (a sombra avança 5 px, 7 no hover; com 12 ela invade o vizinho).
 - Cartões do painel (`CartaoPainel`): `rounded-cartao border-borda bg-superficie p-4 sm:p-6`, `h-full` (vizinhos com a mesma altura) e rodapé com `mt-auto` (botões na mesma linha de base); rótulo mono numa linha de 24 px; número grande `tracking-[-0.04em]`.
 - Status de projeto: **Rascunho** (cinza, nunca publicado) → **Publicado** (acento, revisão pronta sem link) → **Enviado** (verde, link ativo) · **Arquivado**. "Alterações não publicadas" em âmbar quando o rascunho passou da revisão publicada.
 - Capas: 16:10; telas verticais (Story) aparecem inteiras sobre fundo neutro (`CapaProjeto`).

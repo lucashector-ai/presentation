@@ -17,6 +17,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <head>
+        {/* favicon: o símbolo da marca em SVG (public/favicon.svg); o PNG da tela inicial do iOS sai de scripts/gerar-favicon.mjs */}
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         {/* tema salvo aplicado antes da pintura (sem flash). Padrão: claro, como no design. */}
         <script dangerouslySetInnerHTML={{ __html: `try{if(localStorage.getItem('tema')==='escuro')document.documentElement.dataset.tema='escuro'}catch(e){}` }} />
       </head>
