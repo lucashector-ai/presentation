@@ -80,11 +80,11 @@ export async function lerPdfParaMaterial(d: DocumentoPdf, op: { sinal: AbortSign
 export function ProgressoLeitura({ lendo }: { lendo: FaseLeitura }) {
   return (
     <div className="mt-2.5 flex items-center gap-3 text-[13px] text-texto3" role="status" aria-live="polite">
-      <span aria-hidden className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-[#E7E5E4] border-t-violeta" />
+      <span aria-hidden className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-bordaForte border-t-violeta" />
       <span className="min-w-0 shrink truncate">{lendo.fase}</span>
-      <span className="h-1 min-w-[48px] flex-1 overflow-hidden rounded-sm bg-[#EDECEA]"><span className="block h-1 bg-violeta transition-[width]" style={{ width: `${Math.round(lendo.progresso * 100)}%` }} /></span>
+      <span className="h-1 min-w-[48px] flex-1 overflow-hidden rounded-sm bg-borda"><span className="block h-1 bg-violeta transition-[width]" style={{ width: `${Math.round(lendo.progresso * 100)}%` }} /></span>
       {lendo.cancelar && (
-        <button type="button" onClick={lendo.cancelar} className="flex h-7 shrink-0 items-center gap-1 rounded-full border-[1.5px] border-bordaForte px-2.5 text-[12px] font-medium text-texto hover:border-grafite">
+        <button type="button" onClick={lendo.cancelar} className="flex h-7 shrink-0 items-center gap-1 rounded-full border-[1.5px] border-bordaForte px-2.5 text-[12px] font-medium text-texto hover:border-tinta">
           <X className="h-3 w-3" />Cancelar
         </button>
       )}
@@ -105,7 +105,7 @@ export function AvisoPaginasPdf({ material, paraIa, custo, limite, plano, onLerC
   return (
     <div className="flex flex-col gap-2" data-testid="paginas-escaneadas">
       {ocr.length > 0 && (
-        <div className="flex items-start gap-2 rounded-[10px] bg-[#EEF5EC] px-3 py-2.5 text-[#28502A]" data-testid="aviso-ocr">
+        <div className="flex items-start gap-2 rounded-[10px] bg-sucessoFundo px-3 py-2.5 text-sucessoTexto" data-testid="aviso-ocr">
           <ScanText className="mt-0.5 h-4 w-4 shrink-0" />
           <span className="min-w-0 flex-1">
             {ocr.length === material.paginas ? 'O PDF é escaneado: ' : `${pl(ocr.length, 'Página', 'Páginas')} ${listaDePaginas(ocr)} sem texto digital: `}
@@ -115,13 +115,13 @@ export function AvisoPaginasPdf({ material, paraIa, custo, limite, plano, onLerC
         </div>
       )}
       {sem.length > 0 && (
-        <div className="rounded-[10px] bg-[#FFF7E8] px-3 py-2.5 text-[#6B4E16]">
+        <div className="rounded-[10px] bg-avisoFundo px-3 py-2.5 text-avisoTexto">
           {sem.length === material.paginas ? 'Nenhuma página tem texto legível' : `${sem.length} ${pl(sem.length, 'página continua', 'páginas continuam')} sem texto (${pl(sem.length, 'página', 'páginas')} ${listaDePaginas(sem)})`}: pode ser foto, gráfico ou manuscrito.
         </div>
       )}
       {paraIa.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-texto3">
-          <button type="button" onClick={onLerComIa} className="flex min-h-8 shrink-0 items-center gap-1.5 rounded-full border-[1.5px] border-bordaForte bg-white px-3 py-1 text-left text-[13px] font-medium text-texto hover:border-grafite">
+          <button type="button" onClick={onLerComIa} className="flex min-h-8 shrink-0 items-center gap-1.5 rounded-full border-[1.5px] border-bordaForte bg-superficie px-3 py-1 text-left text-[13px] font-medium text-texto hover:border-tinta">
             <Sparkles className="h-3.5 w-3.5 shrink-0 text-acento" />
             <span>Ler com IA (melhor para gráficos, tabelas complexas e manuscrito) · <span className="mono">{custo}</span> créditos</span>
           </button>

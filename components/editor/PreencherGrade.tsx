@@ -203,7 +203,7 @@ export function PainelPreencher({ editor, x, y, aoFechar }: { editor: Editor; x:
                 <input aria-label={{ cols: 'Colunas', lins: 'Linhas', gap: 'Espaço entre células' }[k]} type="number" min={k === 'gap' ? 0 : 1} max={k === 'gap' ? 400 : 12} value={dividir[k]} onKeyDown={(e) => e.stopPropagation()} onChange={(e) => { const v = Math.round(Number(e.target.value)); if (Number.isFinite(v)) setDividir((d) => ({ ...d, [k]: Math.max(k === 'gap' ? 0 : 1, Math.min(k === 'gap' ? 400 : 12, v)) })) }} className="mono w-full min-w-0 bg-transparent text-[11px] outline-none" />
               </label>
             ))}
-            <button type="button" onClick={() => { if (dividirSelecao(editor, dividir.cols, dividir.lins, dividir.gap)) aoFechar() }} disabled={dividir.cols * dividir.lins < 2} className="h-7 shrink-0 rounded-md bg-grafite px-2.5 text-[11px] font-medium text-white hover:bg-grafite/90 disabled:opacity-40">Dividir</button>
+            <button type="button" onClick={() => { if (dividirSelecao(editor, dividir.cols, dividir.lins, dividir.gap)) aoFechar() }} disabled={dividir.cols * dividir.lins < 2} className="h-7 shrink-0 rounded-md bg-acao px-2.5 text-[11px] font-medium text-acaoTexto hover:bg-acao/90 disabled:opacity-40">Dividir</button>
           </div>
         </div>
       )}

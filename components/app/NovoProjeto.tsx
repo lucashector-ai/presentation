@@ -27,27 +27,27 @@ const FORMATOS_UI: { id: ModoProjeto; nome: string; descricao: string }[] = [
 /** Cabeçalho, conteúdo e rodapé dividem o mesmo contêiner (margens e largura máxima do grid do painel): a trilha começa onde começa o formulário. */
 const MARGENS = 'px-4 sm:px-8 xl:px-12'
 const MOLDURA = 'mx-auto w-full max-w-painel'
-const CAMPO = 'h-10 w-full rounded-controle border border-[#E7E5E4] bg-superficie px-4 text-[14px] outline-none placeholder:text-texto3 focus:border-acento'
+const CAMPO = 'h-10 w-full rounded-controle border border-bordaForte bg-superficie px-4 text-[14px] outline-none placeholder:text-texto3 focus:border-acento'
 
 const ehPdf = (f: File) => /\.pdf$/i.test(f.name) || f.type === 'application/pdf'
 
 function Ilustracao({ modo }: { modo: ModoProjeto }) {
   if (modo === 'slides') return (
     <div className="relative h-full w-full">
-      <div className="absolute left-[48%] top-[34%] h-[36%] w-[28%] rounded-[3px] bg-[#E2E1DE]" />
-      <div className="absolute left-[12%] top-[28%] h-[42%] w-[50%] rounded-[3px] bg-white shadow-[0_6px_16px_-8px_rgba(0,0,0,.2)]"><div className="ml-[12%] mt-[12%] h-[8%] w-[40%] bg-grafite" /><div className="ml-[12%] mt-[6%] h-[4%] w-[28%] bg-[#E2E1DE]" /></div>
-      <div className="absolute bottom-[14%] left-[12%] flex gap-1"><span className="h-[2px] w-4 bg-acento" /><span className="h-[2px] w-2 bg-[#D4D4D4]" /><span className="h-[2px] w-2 bg-[#D4D4D4]" /></div>
+      <div className="absolute left-[48%] top-[34%] h-[36%] w-[28%] rounded-[3px] bg-bordaForte" />
+      <div className="absolute left-[12%] top-[28%] h-[42%] w-[50%] rounded-[3px] bg-superficie shadow-[0_6px_16px_-8px_rgba(0,0,0,.2)]"><div className="ml-[12%] mt-[12%] h-[8%] w-[40%] bg-acao" /><div className="ml-[12%] mt-[6%] h-[4%] w-[28%] bg-bordaForte" /></div>
+      <div className="absolute bottom-[14%] left-[12%] flex gap-1"><span className="h-[2px] w-4 bg-acento" /><span className="h-[2px] w-2 bg-bordaHover" /><span className="h-[2px] w-2 bg-bordaHover" /></div>
     </div>
   )
   if (modo === 'story') return (
-    <div className="relative mx-auto h-full w-[36%] bg-white">
-      <div className="mx-[8%] mt-[8%] h-[30%] bg-[#E2E1DE]" /><div className="mx-[8%] mt-[4%] h-[3%] w-[60%] bg-grafite" /><div className="mx-[8%] mt-[3%] h-[2%] w-[40%] bg-[#E2E1DE]" /><div className="mx-[8%] mt-[4%] h-[30%] bg-[#E2E1DE]" />
-      <span className="absolute -right-[18%] top-[14%] h-[30%] w-[2px] bg-acento" /><span className="absolute -right-[18%] top-[44%] h-[22%] w-[2px] bg-[#D4D4D4]" />
+    <div className="relative mx-auto h-full w-[36%] bg-superficie">
+      <div className="mx-[8%] mt-[8%] h-[30%] bg-bordaForte" /><div className="mx-[8%] mt-[4%] h-[3%] w-[60%] bg-acao" /><div className="mx-[8%] mt-[3%] h-[2%] w-[40%] bg-bordaForte" /><div className="mx-[8%] mt-[4%] h-[30%] bg-bordaForte" />
+      <span className="absolute -right-[18%] top-[14%] h-[30%] w-[2px] bg-acento" /><span className="absolute -right-[18%] top-[44%] h-[22%] w-[2px] bg-bordaHover" />
     </div>
   )
   return (
     <div className="relative h-full w-full">
-      <div className="absolute left-[14%] top-[18%] h-[30%] w-[30%] rounded-[3px] bg-white shadow-sm" /><div className="absolute right-[12%] top-[12%] h-[34%] w-[26%] rounded-[3px] bg-[#E2E1DE]" /><div className="absolute bottom-[14%] left-[40%] h-[30%] w-[34%] rounded-[3px] bg-white shadow-sm" />
+      <div className="absolute left-[14%] top-[18%] h-[30%] w-[30%] rounded-[3px] bg-superficie shadow-sm" /><div className="absolute right-[12%] top-[12%] h-[34%] w-[26%] rounded-[3px] bg-bordaForte" /><div className="absolute bottom-[14%] left-[40%] h-[30%] w-[34%] rounded-[3px] bg-superficie shadow-sm" />
       <span className="absolute left-[38%] top-[44%] h-2.5 w-2.5 rounded-full border-[1.5px] border-acento bg-acentoSuave" /><span className="absolute right-[32%] top-[52%] h-2.5 w-2.5 rounded-full border-[1.5px] border-acento bg-acentoSuave" />
     </div>
   )
@@ -134,7 +134,7 @@ export function NovoProjeto() {
     <div className="flex min-h-dvh flex-col bg-fundo">
       <header className={cx('border-b border-borda', MARGENS)}>
         <div className={cx(MOLDURA, 'flex h-16 items-center justify-between')}>
-          <nav aria-label="Trilha" className="flex items-center gap-2 text-[14px]"><Link href="/app" className="text-texto2 hover:text-texto">Início</Link><span className="text-[#D4D4D4]">/</span><span className="font-medium">Novo projeto</span></nav>
+          <nav aria-label="Trilha" className="flex items-center gap-2 text-[14px]"><Link href="/app" className="text-texto2 hover:text-texto">Início</Link><span className="text-bordaHover">/</span><span className="font-medium">Novo projeto</span></nav>
           <Link href="/app" aria-label="Fechar" className="-mr-2 flex h-10 w-10 items-center justify-center rounded-controle text-texto2 hover:bg-hover"><X className="h-4 w-4" /></Link>
         </div>
       </header>
@@ -150,7 +150,7 @@ export function NovoProjeto() {
                 <div className="mt-6 space-y-6">
                   <label className="block"><span className="mb-2 block text-[13px] font-medium">Nome do projeto</span><input autoFocus value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Atlas Cerâmica — Identidade" className={CAMPO} /></label>
                   <label className="block"><span className="mb-2 block text-[13px] font-medium">Cliente <span className="font-normal text-texto3">· opcional</span></span><input value={cliente} onChange={(e) => setCliente(e.target.value)} placeholder="Nome do cliente" className={CAMPO} /></label>
-                  <label className="block"><span className="mb-2 block text-[13px] font-medium">Descrição</span><textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={4} placeholder="Contexto, objetivo e para quem será apresentado." className="w-full resize-y rounded-controle border border-[#E7E5E4] bg-superficie px-4 py-2 text-[14px] leading-6 outline-none placeholder:text-texto3 focus:border-acento" /></label>
+                  <label className="block"><span className="mb-2 block text-[13px] font-medium">Descrição</span><textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={4} placeholder="Contexto, objetivo e para quem será apresentado." className="w-full resize-y rounded-controle border border-bordaForte bg-superficie px-4 py-2 text-[14px] leading-6 outline-none placeholder:text-texto3 focus:border-acento" /></label>
                 </div>
               </section>
               <section className="col-span-4 min-w-0 sm:col-span-8 xl:col-span-7 xl:col-start-6">
@@ -158,23 +158,23 @@ export function NovoProjeto() {
                 {/* os 3 formatos lado a lado a partir do tablet: nenhum sobra sozinho numa linha */}
                 <div role="radiogroup" aria-label="Formato" className="grid gap-4 sm:grid-cols-3">
                   {FORMATOS_UI.map((f) => (
-                    <button key={f.id} type="button" role="radio" aria-checked={modo === f.id} onClick={() => setModo(f.id)} className={cx('flex min-w-0 flex-col rounded-cartao border-[1.5px] bg-superficie p-2 text-left transition-colors', modo === f.id ? 'border-acento' : 'border-borda hover:border-[#D4D4D4]')}>
-                      <div className="aspect-[4/3] overflow-hidden rounded-controle bg-[#F2F1EF] py-[6%]"><Ilustracao modo={f.id} /></div>
+                    <button key={f.id} type="button" role="radio" aria-checked={modo === f.id} onClick={() => setModo(f.id)} className={cx('flex min-w-0 flex-col rounded-cartao border-[1.5px] bg-superficie p-2 text-left transition-colors', modo === f.id ? 'border-acento' : 'border-borda hover:border-bordaHover')}>
+                      <div className="aspect-[4/3] overflow-hidden rounded-controle bg-hover py-[6%]"><Ilustracao modo={f.id} /></div>
                       <div className="flex items-start justify-between gap-2 px-2 pb-2 pt-4">
                         <div><div className="text-[15px] font-medium">{f.nome}</div><div className="mt-1 text-[13px] leading-snug text-texto2">{f.descricao}</div></div>
-                        <span className={cx('mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-[1.5px]', modo === f.id ? 'border-acento' : 'border-[#D4D4D4]')}>{modo === f.id && <span className="h-2 w-2 rounded-full bg-acento" />}</span>
+                        <span className={cx('mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-[1.5px]', modo === f.id ? 'border-acento' : 'border-bordaHover')}>{modo === f.id && <span className="h-2 w-2 rounded-full bg-acento" />}</span>
                       </div>
                     </button>
                   ))}
                 </div>
                 <div className="mt-8 flex items-center justify-between">
                   <span className="text-[13px] font-medium">Começar</span>
-                  <div className="inline-flex h-10 items-center gap-1 rounded-controle bg-[#EFEEEC] p-1 text-[13px]" role="radiogroup" aria-label="Começar">
+                  <div className="inline-flex h-10 items-center gap-1 rounded-controle bg-hover p-1 text-[13px]" role="radiogroup" aria-label="Começar">
                     {(['branco', 'template'] as const).map((c) => <button key={c} type="button" role="radio" aria-checked={comeco === c} onClick={() => setComeco(c)} className={cx('h-8 rounded-md px-4', comeco === c ? 'bg-superficie shadow-sm' : 'text-texto2')}>{c === 'branco' ? 'Em branco' : 'Usar template'}</button>)}
                   </div>
                 </div>
                 {comeco === 'branco' ? (
-                  <div className="mt-4 flex items-center gap-4 rounded-cartao border border-dashed border-[#D4D4D4] p-4 text-[13px] text-texto2">
+                  <div className="mt-4 flex items-center gap-4 rounded-cartao border border-dashed border-bordaHover p-4 text-[13px] text-texto2">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-controle border border-borda bg-superficie text-texto"><Plus className="h-4 w-4" /></span>
                     Uma tela em branco no formato escolhido. Você pode importar imagens, SVG e modelos 3D em seguida.
                   </div>
@@ -182,7 +182,7 @@ export function NovoProjeto() {
                   <ul className="mt-4 grid gap-4 sm:grid-cols-2">
                     {templatesDoModo.map((t) => (
                       <li key={t.id}>
-                        <button type="button" aria-pressed={template === t.id} onClick={() => setTemplate(t.id)} className={cx('w-full rounded-cartao border-[1.5px] bg-superficie p-2 text-left', template === t.id ? 'border-acento' : 'border-borda hover:border-[#D4D4D4]')}>
+                        <button type="button" aria-pressed={template === t.id} onClick={() => setTemplate(t.id)} className={cx('w-full rounded-cartao border-[1.5px] bg-superficie p-2 text-left', template === t.id ? 'border-acento' : 'border-borda hover:border-bordaHover')}>
                           <div className="overflow-hidden rounded-md">{previas[t.id]?.scenes[0] && <CapaProjeto cena={previas[t.id]!.scenes[0]!} assets={{}} proporcao={16 / 9} />}</div>
                           <div className="px-2 pb-2 pt-2"><div className="text-[13px] font-medium">{t.nome}</div><div className="text-[12px] text-texto2">{t.descricao} · {previas[t.id]?.scenes.length} telas</div></div>
                         </button>
@@ -201,14 +201,14 @@ export function NovoProjeto() {
               </section>
               <section className="col-span-4 min-w-0 sm:col-span-8 xl:col-span-7 xl:col-start-6">
                 <input ref={entrada} type="file" multiple accept={`${EXTENSOES_ACEITAS},.pdf,application/pdf`} aria-label="Arquivos do projeto" className="hidden" onChange={(e) => { const novos = Array.from(e.target.files ?? []); setArquivos((a) => [...a, ...novos]); e.target.value = '' }} />
-                <button type="button" onClick={() => entrada.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const soltos = Array.from(e.dataTransfer.files); setArquivos((a) => [...a, ...soltos]) }} className="flex w-full flex-col items-center gap-2 rounded-cartao border-[1.5px] border-dashed border-[#D4D4D4] bg-superficie px-6 py-14 text-center hover:border-acento">
+                <button type="button" onClick={() => entrada.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const soltos = Array.from(e.dataTransfer.files); setArquivos((a) => [...a, ...soltos]) }} className="flex w-full flex-col items-center gap-2 rounded-cartao border-[1.5px] border-dashed border-bordaHover bg-superficie px-6 py-14 text-center hover:border-acento">
                   <Upload className="h-5 w-5 text-texto2" />
                   <span className="text-[15px] font-medium">Arraste arquivos aqui ou clique para escolher</span>
                   <span className="text-[13px] text-texto3">PDF, PNG, JPG, WebP, GIF, SVG, MP4, WebM, GLB/GLTF, Lottie (JSON)</span>
                 </button>
                 {temPdf && (
                   <label className="mt-4 flex items-start gap-4 rounded-cartao border border-borda bg-superficie p-4 text-[13px]">
-                    <input type="checkbox" checked={textoSelecionavel} onChange={(e) => setTextoSelecionavel(e.target.checked)} className="mt-1 h-4 w-4 accent-[#5965F2]" />
+                    <input type="checkbox" checked={textoSelecionavel} onChange={(e) => setTextoSelecionavel(e.target.checked)} className="mt-1 h-4 w-4 accent-acento" />
                     <span>
                       <span className="block font-medium">Texto selecionável nas páginas do PDF</span>
                       <span className="mt-1 block text-texto3">O texto de cada página fica por cima da imagem, invisível: dá para selecionar, copiar e buscar ao apresentar, e editar no editor. Páginas escaneadas são lidas por reconhecimento de texto (OCR) no seu navegador, sem gastar créditos (até {OCR.maxPaginas} por importação). Cada página vira uma tela em alta resolução; até {PLANOS[planoId].limites.paginasPdfImportar} páginas no plano {PLANOS[planoId].nome}.</span>
@@ -217,7 +217,7 @@ export function NovoProjeto() {
                 )}
                 {temPdf && (
                   <label className="mt-2 flex items-start gap-4 rounded-cartao border border-borda bg-superficie p-4 text-[13px]">
-                    <input type="checkbox" checked={notasOcr} onChange={(e) => setNotasOcr(e.target.checked)} className="mt-1 h-4 w-4 accent-[#5965F2]" />
+                    <input type="checkbox" checked={notasOcr} onChange={(e) => setNotasOcr(e.target.checked)} className="mt-1 h-4 w-4 accent-acento" />
                     <span>
                       <span className="block font-medium">Texto reconhecido nas notas do apresentador</span>
                       <span className="mt-1 block text-texto3">Nas páginas escaneadas, o texto lido por OCR também vai para as notas de cada tela, que só aparecem na visão do apresentador.</span>
@@ -241,19 +241,19 @@ export function NovoProjeto() {
       </main>
 
       <footer className="sticky bottom-0 border-t border-borda bg-fundo/95 backdrop-blur">
-        {progresso && <span aria-hidden className="absolute inset-x-0 top-0 h-0.5 bg-[#EDECEA]"><span className="block h-0.5 bg-violeta transition-[width]" style={{ width: `${Math.round(progresso.progresso * 100)}%` }} /></span>}
+        {progresso && <span aria-hidden className="absolute inset-x-0 top-0 h-0.5 bg-borda"><span className="block h-0.5 bg-violeta transition-[width]" style={{ width: `${Math.round(progresso.progresso * 100)}%` }} /></span>}
         <div className={MARGENS}>
           <div className={cx(MOLDURA, 'flex h-20 items-center justify-between gap-4')}>
             <span className={cx('min-w-0 truncate text-[13px] text-texto2', !erro && !progresso && 'hidden sm:block')} aria-live="polite" data-testid="progresso-importacao">{erro ? <span className="text-perigo" role="alert">{erro}</span> : progresso ? `Importando ${progresso.arquivo}: ${progresso.fase}…` : resumo}{arquivos.length && !progresso ? ` · ${arquivos.length} arquivo(s)` : ''}</span>
             <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-4">
               {progresso?.cancelar && (
-                <button type="button" onClick={progresso.cancelar} title="Para o reconhecimento de texto e fica com as páginas já lidas" className="flex h-10 items-center gap-1 rounded-full border-[1.5px] border-bordaForte px-4 text-[13px] font-medium hover:border-grafite">
+                <button type="button" onClick={progresso.cancelar} title="Para o reconhecimento de texto e fica com as páginas já lidas" className="flex h-10 items-center gap-1 rounded-full border-[1.5px] border-bordaForte px-4 text-[13px] font-medium hover:border-tinta">
                   <X className="h-3.5 w-3.5" />Parar leitura
                 </button>
               )}
               {passo === 1 ? <Link href="/app" className="hidden h-12 items-center px-4 text-[14px] font-medium sm:flex">Cancelar</Link> : <button type="button" onClick={() => setPasso(1)} className="h-12 px-4 text-[14px] font-medium">Voltar</button>}
-              {passo === 1 && <button type="button" onClick={() => setPasso(2)} className="h-12 rounded-controle border-[1.5px] border-bordaForte px-4 text-[14px] font-medium hover:border-[#D4D4D4] sm:px-6"><span className="sm:hidden">Arquivos</span><span className="hidden sm:inline">Importar arquivos</span></button>}
-              <button type="button" disabled={criando} onClick={criar} className="h-12 rounded-controle bg-grafite px-6 text-[14px] font-medium text-fundo hover:bg-[#2a2a2a] disabled:opacity-60">{criando ? 'Criando…' : 'Criar projeto'}</button>
+              {passo === 1 && <button type="button" onClick={() => setPasso(2)} className="h-12 rounded-controle border-[1.5px] border-bordaForte px-4 text-[14px] font-medium hover:border-bordaHover sm:px-6"><span className="sm:hidden">Arquivos</span><span className="hidden sm:inline">Importar arquivos</span></button>}
+              <button type="button" disabled={criando} onClick={criar} className="h-12 rounded-controle bg-acao px-6 text-[14px] font-medium text-acaoTexto hover:bg-acaoHover disabled:opacity-60">{criando ? 'Criando…' : 'Criar projeto'}</button>
             </div>
           </div>
         </div>

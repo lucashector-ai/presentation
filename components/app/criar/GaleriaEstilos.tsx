@@ -63,19 +63,19 @@ export function GaleriaEstilos({ valor, aoEscolher, marca, logo, assets, titulo,
       <div className="flex flex-wrap items-center gap-2">
         <div role="radiogroup" aria-label="Categoria de estilo" className="flex min-w-0 flex-1 flex-wrap gap-1.5">
           {(['todos', ...CATEGORIAS_ESTILO] as const).map((c) => (
-            <button key={c} type="button" role="radio" aria-checked={categoria === c} onClick={() => setCategoria(c)} className={cx('rounded-full border-[1.5px] px-3 py-1 text-[12px] font-medium transition-colors', categoria === c ? 'border-grafite bg-grafite text-fundo' : 'border-[#E2E1DE] bg-white text-[#525252] hover:border-grafite hover:text-texto')}>
+            <button key={c} type="button" role="radio" aria-checked={categoria === c} onClick={() => setCategoria(c)} className={cx('rounded-full border-[1.5px] px-3 py-1 text-[12px] font-medium transition-colors', categoria === c ? 'border-tinta bg-acao text-acaoTexto' : 'border-bordaForte bg-superficie text-textoCorpo hover:border-tinta hover:text-texto')}>
               {c === 'todos' ? `Todos · ${TEMAS.length}` : `${NOMES_CATEGORIA[c]} · ${contagem(c)}`}
             </button>
           ))}
         </div>
-        <label className="flex h-9 w-full items-center gap-2 rounded-full border-[1.5px] border-[#E2E1DE] bg-white px-3 text-[13px] sm:w-[220px]">
+        <label className="flex h-9 w-full items-center gap-2 rounded-full border-[1.5px] border-bordaForte bg-superficie px-3 text-[13px] sm:w-[220px]">
           <Search className="h-3.5 w-3.5 shrink-0 text-texto3" aria-hidden />
-          <input aria-label="Buscar estilo" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar: luxo, tech, aula…" className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#B5B5B5]" />
+          <input aria-label="Buscar estilo" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar: luxo, tech, aula…" className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-texto3" />
         </label>
       </div>
 
       {escolhido && (
-        <div className="grid grid-cols-3 gap-2 rounded-[14px] bg-[#F5F5F4] p-2" aria-label="Prévia do estilo escolhido">
+        <div className="grid grid-cols-3 gap-2 rounded-[14px] bg-superficie2 p-2" aria-label="Prévia do estilo escolhido">
           {escolhido.scenes.map((c) => <div key={c.id} className="overflow-hidden rounded-md shadow-[0_1px_2px_rgba(0,0,0,0.06)]"><MiniaturaFluida cena={c} assets={assets} /></div>)}
         </div>
       )}
@@ -83,7 +83,7 @@ export function GaleriaEstilos({ valor, aoEscolher, marca, logo, assets, titulo,
       <div role="radiogroup" aria-label="Estilo de design" className="grid grid-cols-[repeat(auto-fill,minmax(min(190px,100%),1fr))] gap-3">
         {comAuto && categoria === 'todos' && !q && (
           <button type="button" role="radio" aria-checked={valor === 'auto'} onClick={() => aoEscolher('auto')} className="group flex flex-col gap-1.5 text-left">
-            <span className={cx('flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-lg border-[1.5px] border-dashed bg-white outline outline-2 outline-offset-2', valor === 'auto' ? 'border-violeta outline-violeta' : 'border-[#D6D4D0] outline-transparent group-hover:border-grafite')}>
+            <span className={cx('flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-lg border-[1.5px] border-dashed bg-superficie outline outline-2 outline-offset-2', valor === 'auto' ? 'border-violeta outline-violeta' : 'border-bordaHover outline-transparent group-hover:border-tinta')}>
               <Sparkles className="h-5 w-5 text-acento" aria-hidden />
               <span className="px-3 text-center text-[12px] text-texto2">A IA escolhe pelo assunto</span>
             </span>

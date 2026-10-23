@@ -123,12 +123,12 @@ export function CriarComIA() {
 
   const avisoTelas = telasPedidas ? (
     acimaDoLimite ? (
-      <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[12px] border-[1.5px] border-[#F2C14E] bg-[#FFF8E6] px-4 py-3 text-[13px] text-[#5A4500]">
+      <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[12px] border-[1.5px] border-aviso bg-avisoFundo px-4 py-3 text-[13px] text-avisoTexto">
         <span className="min-w-0 flex-1"><strong className="font-semibold">Seu pedido tem {telasPedidas} telas.</strong> O plano {PLANOS[planoId].nome} gera até {limite} por apresentação: com {limite}, a IA mantém a ordem e junta as telas de assunto mais próximo (nada é cortado em silêncio).</span>
-        {planoParaPedido && <button type="button" onClick={() => abrirPlano(planoParaPedido)} className="h-8 shrink-0 rounded-full border-[1.5px] border-grafite bg-grafite px-3 text-[12px] font-semibold text-fundo">Fazer upgrade para o {PLANOS[planoParaPedido].nome} · {telasPedidas} telas</button>}
+        {planoParaPedido && <button type="button" onClick={() => abrirPlano(planoParaPedido)} className="h-8 shrink-0 rounded-full border-[1.5px] border-tinta bg-acao px-3 text-[12px] font-semibold text-acaoTexto">Fazer upgrade para o {PLANOS[planoParaPedido].nome} · {telasPedidas} telas</button>}
       </div>
     ) : (
-      <div className="flex items-center gap-2 text-[13px] text-texto3"><Check className="h-3.5 w-3.5 text-[#2F6B45]" />{analise.estrutura.length >= 3 ? `Estrutura de ${telasPedidas} telas reconhecida no pedido: a IA segue tela a tela.` : `${telasPedidas} telas pedidas no texto.`}{telasOk === telasPedidas ? ' Já selecionado no tamanho.' : ` Selecionado: ${telasOk}.`}</div>
+      <div className="flex items-center gap-2 text-[13px] text-texto3"><Check className="h-3.5 w-3.5 text-sucessoTexto" />{analise.estrutura.length >= 3 ? `Estrutura de ${telasPedidas} telas reconhecida no pedido: a IA segue tela a tela.` : `${telasPedidas} telas pedidas no texto.`}{telasOk === telasPedidas ? ' Já selecionado no tamanho.' : ` Selecionado: ${telasOk}.`}</div>
     )
   ) : null
 
@@ -465,8 +465,8 @@ export function CriarComIA() {
               return (
                 <li key={p} className="flex items-center">
                   {i === 6 && <span aria-hidden className="mx-1.5 h-4 w-px bg-borda" />}
-                  <button type="button" disabled={!ok} aria-current={atual ? 'step' : undefined} onClick={() => ir(p)} className={cx('flex items-center gap-2 rounded-full px-3 py-1.5 transition-colors disabled:cursor-not-allowed', atual ? 'bg-grafite text-fundo' : ok ? 'text-texto hover:bg-hover' : 'text-[#B5B5B5]')}>
-                    <span className={cx('flex h-5 w-5 items-center justify-center rounded-full border-[1.5px] border-current text-[11px] font-semibold', feito && 'border-[#2F6B45] bg-[#2F6B45] text-white')}>{feito ? <Check className="h-3 w-3" /> : i + 1}</span>
+                  <button type="button" disabled={!ok} aria-current={atual ? 'step' : undefined} onClick={() => ir(p)} className={cx('flex items-center gap-2 rounded-full px-3 py-1.5 transition-colors disabled:cursor-not-allowed', atual ? 'bg-acao text-acaoTexto' : ok ? 'text-texto hover:bg-hover' : 'text-texto3')}>
+                    <span className={cx('flex h-5 w-5 items-center justify-center rounded-full border-[1.5px] border-current text-[11px] font-semibold', feito && 'border-sucessoTexto bg-sucessoTexto text-sucessoFundo')}>{feito ? <Check className="h-3 w-3" /> : i + 1}</span>
                     <span>{INFO_PASSO[p].nome}</span>
                     {INFO_PASSO[p].opcional && !atual && <span className="hidden text-[11px] text-texto3 lg:inline">opcional</span>}
                   </button>
@@ -485,7 +485,7 @@ export function CriarComIA() {
               <h2 className="titulo-display mt-1.5 text-balance text-[clamp(28px,3.6vw,44px)] font-semibold leading-[1] tracking-[-0.045em]">
                 {{ briefing: 'O que você quer apresentar?', marca: 'A sua marca, antes de gerar', material: 'O que você já tem', estilo: 'Escolha o estilo de design', tamanho: 'Formato e tamanho', revisar: 'Revisar e gerar', roteiro: '', design: '' }[passo]}
               </h2>
-              <p className="mt-2 max-w-[640px] text-[15px] text-[#525252]">
+              <p className="mt-2 max-w-[640px] text-[15px] text-textoCorpo">
                 {{ briefing: 'Descreva o assunto. Nos próximos passos você dá a marca, o material e o estilo: tudo entra de uma vez, sem gerar de novo.', marca: 'Manual da marca, logo, cores e fontes entram nas telas sem usar IA. Sem cores definidas, sugerimos paletas.', material: 'Texto, PDF, fotos e números que já existem. Pule se não tiver.', estilo: `${TEMAS.length} estilos com tipografia, cor, forma e composição próprias. Trocar depois é grátis.`, tamanho: `De ${MIN_TELAS_IA} até ${limite} telas no plano ${PLANOS[planoId].nome}. Cada tela entra no custo; o resto é grátis.`, revisar: 'Confira tudo. O custo abaixo é o que será cobrado.', roteiro: '', design: '' }[passo]}
               </p>
             </div>
@@ -495,12 +495,12 @@ export function CriarComIA() {
             <div className="flex flex-col gap-5">
               <div role="radiogroup" aria-label="Tipo de apresentação" className="flex flex-wrap gap-1.5">
                 {(['auto', ...TIPOS_APRESENTACAO] as TipoPedido[]).map((t) => (
-                  <button key={t} type="button" role="radio" aria-checked={briefing.tipo === t} title={t === 'auto' ? `A IA reconhece pelo pedido${briefing.prompt.trim() ? ` (agora: ${TIPOS[tipoDetectado].nome})` : ''}` : TIPOS[t].descricao} onClick={() => setBriefing((b) => ({ ...b, tipo: t }))} className={cx('rounded-full border-[1.5px] px-3 py-1 text-[13px] font-medium transition-colors', briefing.tipo === t ? 'border-grafite bg-grafite text-fundo' : 'border-[#E2E1DE] bg-white text-[#525252] hover:border-grafite hover:text-texto')}>
+                  <button key={t} type="button" role="radio" aria-checked={briefing.tipo === t} title={t === 'auto' ? `A IA reconhece pelo pedido${briefing.prompt.trim() ? ` (agora: ${TIPOS[tipoDetectado].nome})` : ''}` : TIPOS[t].descricao} onClick={() => setBriefing((b) => ({ ...b, tipo: t }))} className={cx('rounded-full border-[1.5px] px-3 py-1 text-[13px] font-medium transition-colors', briefing.tipo === t ? 'border-tinta bg-acao text-acaoTexto' : 'border-bordaForte bg-superficie text-textoCorpo hover:border-tinta hover:text-texto')}>
                     {NOMES_TIPO_CURTO[t]}
                   </button>
                 ))}
               </div>
-              <div className="overflow-hidden rounded-[18px] border-2 border-grafite bg-white shadow-[4px_4px_0_#171717]">
+              <div className="overflow-hidden rounded-[18px] border-2 border-tinta bg-superficie shadow-carimbo-sm">
                 <EditorPedido
                   valor={briefing.prompt}
                   aoMudar={(v) => setBriefing((b) => ({ ...b, prompt: v }))}
@@ -512,21 +512,21 @@ export function CriarComIA() {
                   aoEnviar={() => { if (briefingOk) ir('marca') }}
                   placeholder="Ex.: Proposta de identidade visual para uma marca de cerâmica artesanal, com conceito, paleta, tipografia e aplicações… Pode colar um briefing completo, com a estrutura de cada tela, dados e regras."
                 />
-                <div className="flex flex-wrap items-center gap-2 border-t border-[#F0EFED] px-5 py-3 text-[13px]">
+                <div className="flex flex-wrap items-center gap-2 border-t border-borda px-5 py-3 text-[13px]">
                   <label className="flex min-w-[220px] flex-1 items-center gap-2 text-texto3">
                     <span className="shrink-0">Para quem</span>
-                    <input value={briefing.publico} maxLength={200} onChange={(e) => setBriefing((b) => ({ ...b, publico: e.target.value }))} placeholder={TIPOS[tipoDetectado].publico || 'ex.: diretoria, alunos, clientes'} className="min-w-0 flex-1 rounded-md bg-[#F5F5F4] px-2.5 py-1.5 text-texto outline-none placeholder:text-[#B5B5B5]" />
+                    <input value={briefing.publico} maxLength={200} onChange={(e) => setBriefing((b) => ({ ...b, publico: e.target.value }))} placeholder={TIPOS[tipoDetectado].publico || 'ex.: diretoria, alunos, clientes'} className="min-w-0 flex-1 rounded-md bg-superficie2 px-2.5 py-1.5 text-texto outline-none placeholder:text-texto3" />
                   </label>
                   <label className="flex items-center gap-2 text-texto3">
                     <span>Tom</span>
-                    <select aria-label="Tom" value={briefing.tom} onChange={(e) => setBriefing((b) => ({ ...b, tom: e.target.value as Tom | '' }))} className="rounded-md bg-[#F5F5F4] px-2 py-1.5 text-texto outline-none">
+                    <select aria-label="Tom" value={briefing.tom} onChange={(e) => setBriefing((b) => ({ ...b, tom: e.target.value as Tom | '' }))} className="rounded-md bg-superficie2 px-2 py-1.5 text-texto outline-none">
                       <option value="">Padrão ({NOMES_TOM[TIPOS[tipoDetectado].tom]})</option>
                       {TONS.map((t) => <option key={t} value={t}>{NOMES_TOM[t]}</option>)}
                     </select>
                   </label>
                   <label className="flex items-center gap-2 text-texto3">
                     <span>Idioma</span>
-                    <select aria-label="Idioma" value={briefing.idioma} onChange={(e) => setBriefing((b) => ({ ...b, idioma: e.target.value as Idioma }))} className="rounded-md bg-[#F5F5F4] px-2 py-1.5 text-texto outline-none">
+                    <select aria-label="Idioma" value={briefing.idioma} onChange={(e) => setBriefing((b) => ({ ...b, idioma: e.target.value as Idioma }))} className="rounded-md bg-superficie2 px-2 py-1.5 text-texto outline-none">
                       {IDIOMAS.map((i) => <option key={i} value={i}>{NOMES_IDIOMA[i]}</option>)}
                     </select>
                   </label>
@@ -538,9 +538,9 @@ export function CriarComIA() {
                 {/* 6 exemplos em 1/3 do grid: 2 linhas no xl, 3 no tablet, sem órfãos */}
                 <Grade>
                   {EXEMPLOS.map((ex) => (
-                    <button key={ex.texto} type="button" onClick={() => setBriefing((b) => ({ ...b, prompt: ex.texto, tipo: ex.tipo }))} className={cx(SPAN.terco, 'flex min-w-0 items-center gap-4 rounded-cartao border-[1.5px] border-[#E7E5E4] bg-white p-4 text-left hover:border-grafite')}>
+                    <button key={ex.texto} type="button" onClick={() => setBriefing((b) => ({ ...b, prompt: ex.texto, tipo: ex.tipo }))} className={cx(SPAN.terco, 'flex min-w-0 items-center gap-4 rounded-cartao border-[1.5px] border-bordaForte bg-superficie p-4 text-left hover:border-tinta')}>
                       <span className="h-10 w-10 flex-none" style={{ background: ex.cor, borderRadius: ex.raio }} />
-                      <span className="text-[14px] leading-[1.4] text-[#3F3F3F]"><span className="mono mb-0.5 block text-[10px] uppercase tracking-[0.08em] text-texto3">{NOMES_TIPO_CURTO[ex.tipo]}</span>{ex.texto}</span>
+                      <span className="text-[14px] leading-[1.4] text-textoCorpo"><span className="mono mb-0.5 block text-[10px] uppercase tracking-[0.08em] text-texto3">{NOMES_TIPO_CURTO[ex.tipo]}</span>{ex.texto}</span>
                     </button>
                   ))}
                 </Grade>
@@ -595,7 +595,7 @@ export function CriarComIA() {
                   {NOMES_FORMATO[formato]} · {plural(telasOk, 'tela', 'telas')}
                 </LinhaResumo>
               </div>
-              <aside className={cx(SPAN.lateral, 'flex flex-col gap-4 self-start rounded-cartao border border-borda bg-white p-4 sm:p-6 xl:sticky xl:top-6')}>
+              <aside className={cx(SPAN.lateral, 'flex flex-col gap-4 self-start rounded-cartao border border-borda bg-superficie p-4 sm:p-6 xl:sticky xl:top-6')}>
                 <div className="overflow-hidden rounded-md"><MiniaturaFluida cena={previaCapa} assets={assets} /></div>
                 <div className="flex flex-col gap-1.5 text-[13px]">
                   <div className="flex justify-between"><span>Roteiro, agora</span><span className="mono">{textoCreditos(custoDoRoteiro)}</span></div>
@@ -604,9 +604,9 @@ export function CriarComIA() {
                   <div className="flex justify-between text-texto3"><span>Seu saldo depois</span><span className="mono">{semSaldo ? 'insuficiente' : (saldo - custoTotal).toLocaleString('pt-BR')}</span></div>
                 </div>
                 <ul className="flex flex-col gap-1 text-[12px] text-texto2">
-                  {['Logo, cores e fontes da marca', 'Fotos nos espaços de imagem', 'Trocar o estilo depois', 'Reordenar e editar o roteiro'].map((x) => <li key={x} className="flex items-center gap-1.5"><Check className="h-3 w-3 text-[#2F6B45]" />{x} <span className="text-texto3">· grátis</span></li>)}
+                  {['Logo, cores e fontes da marca', 'Fotos nos espaços de imagem', 'Trocar o estilo depois', 'Reordenar e editar o roteiro'].map((x) => <li key={x} className="flex items-center gap-1.5"><Check className="h-3 w-3 text-sucessoTexto" />{x} <span className="text-texto3">· grátis</span></li>)}
                 </ul>
-                <button type="button" onClick={() => void gerarRoteiro(temRoteiro)} disabled={!briefingOk || gerando || lendoMaterial} className="flex h-[52px] items-center justify-center gap-2.5 rounded-full border-2 border-grafite bg-violeta text-[15px] font-semibold text-white hover:bg-[#4A55E0] disabled:cursor-not-allowed disabled:opacity-45">
+                <button type="button" onClick={() => void gerarRoteiro(temRoteiro)} disabled={!briefingOk || gerando || lendoMaterial} className="flex h-[52px] items-center justify-center gap-2.5 rounded-full border-2 border-tinta bg-violeta text-[15px] font-semibold text-white hover:bg-acentoHover disabled:cursor-not-allowed disabled:opacity-45">
                   {gerando ? 'Gerando roteiro' : temRoteiro ? 'Gerar outro roteiro →' : 'Gerar roteiro →'}
                   {gerando && <span aria-hidden className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
                 </button>
@@ -621,9 +621,9 @@ export function CriarComIA() {
               {resumoCusto}
               <div className="ml-auto flex items-center gap-2">
                 {anterior && <button type="button" onClick={() => ir(anterior)} className="h-10 rounded-full px-3 text-[14px] text-texto3 hover:text-texto">← Voltar</button>}
-                {INFO_PASSO[passo].opcional && proximo && <button type="button" onClick={() => ir(proximo)} className="h-10 rounded-full border-[1.5px] border-[#E2E1DE] bg-white px-4 text-[14px] font-medium hover:border-grafite">Pular</button>}
+                {INFO_PASSO[passo].opcional && proximo && <button type="button" onClick={() => ir(proximo)} className="h-10 rounded-full border-[1.5px] border-bordaForte bg-superficie px-4 text-[14px] font-medium hover:border-tinta">Pular</button>}
                 {passo !== 'revisar' && <button type="button" onClick={() => ir('revisar')} className="hidden h-10 rounded-full px-3 text-[14px] text-texto3 hover:text-texto md:block">Ir para revisar</button>}
-                {proximo && <button type="button" disabled={passo === 'briefing' && !briefingOk && !conteudoEf} onClick={() => ir(proximo)} className="flex h-10 items-center gap-2 rounded-full border-2 border-grafite bg-grafite px-5 text-[14px] font-semibold text-fundo hover:bg-[#2a2a2a] disabled:cursor-not-allowed disabled:opacity-40">Continuar →</button>}
+                {proximo && <button type="button" disabled={passo === 'briefing' && !briefingOk && !conteudoEf} onClick={() => ir(proximo)} className="flex h-10 items-center gap-2 rounded-full border-2 border-tinta bg-acao px-5 text-[14px] font-semibold text-acaoTexto hover:bg-acaoHover disabled:cursor-not-allowed disabled:opacity-40">Continuar →</button>}
               </div>
             </div>
           </div>
@@ -637,7 +637,7 @@ export function CriarComIA() {
               <div>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="rotulo-mono">Roteiro · {roteiro.telas.length} telas</div>
-                  <button type="button" onClick={() => void gerarRoteiro(true)} disabled={gerando} className="flex h-[34px] items-center gap-2 rounded-full border-[1.5px] border-[#E2E1DE] bg-white px-3.5 text-[13px] font-medium hover:border-grafite disabled:opacity-50">
+                  <button type="button" onClick={() => void gerarRoteiro(true)} disabled={gerando} className="flex h-[34px] items-center gap-2 rounded-full border-[1.5px] border-bordaForte bg-superficie px-3.5 text-[13px] font-medium hover:border-tinta disabled:opacity-50">
                     <RotateCcw className={cx('h-3.5 w-3.5', gerando && 'animate-spin')} />Gerar outro roteiro <span className="mono text-texto3">· {textoCreditos(custoDoRoteiro)}</span>
                   </button>
                 </div>
@@ -649,38 +649,38 @@ export function CriarComIA() {
                 const c = CORES_CARTAO[i % CORES_CARTAO.length]!
                 const comp = COMPONENTES[t.tipo]
                 return (
-                  <div key={i} className="flex items-start gap-4 rounded-[14px] border-[1.5px] border-[#E7E5E4] bg-white py-4 pl-3 pr-4 hover:border-[#A3A3A3]">
+                  <div key={i} className="flex items-start gap-4 rounded-[14px] border-[1.5px] border-bordaForte bg-superficie py-4 pl-3 pr-4 hover:border-texto3">
                     <span className="flex h-[34px] w-[34px] flex-none items-center justify-center text-[13px] font-semibold" style={{ background: c, color: tinta(c), borderRadius: FORMAS[i % 4] === '0' ? '4px' : FORMAS[i % 4] }}>{i + 1}</span>
                     <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                       <div className="flex items-center gap-2">
-                        <input aria-label={`Rótulo da tela ${i + 1}`} value={t.rotulo} maxLength={40} placeholder="rótulo" onChange={(e) => atualizarTela(i, { rotulo: e.target.value })} className="mono w-[120px] shrink-0 bg-transparent p-0 text-[11px] uppercase tracking-[0.06em] text-texto3 outline-none placeholder:normal-case placeholder:text-[#C5C5C5]" />
+                        <input aria-label={`Rótulo da tela ${i + 1}`} value={t.rotulo} maxLength={40} placeholder="rótulo" onChange={(e) => atualizarTela(i, { rotulo: e.target.value })} className="mono w-[120px] shrink-0 bg-transparent p-0 text-[11px] uppercase tracking-[0.06em] text-texto3 outline-none placeholder:normal-case placeholder:text-texto3" />
                         <span className="flex-1" />
-                        {desenhos[chaves[i] ?? ''] ? <span className="mono rounded-full bg-[#F0F7EC] px-1.5 py-0.5 text-[9px] text-[#3F6B4A]" title="Já desenhada: trocar o estilo não custa nada">DESENHADA</span> : Object.keys(desenhos).length > 0 && <span className="mono rounded-full bg-acentoSuave px-1.5 py-0.5 text-[9px] text-acento" title="Alterada: será redesenhada">{textoCreditos(custoDesenho(1)).toUpperCase()}</span>}
-                        <select aria-label={`Tipo da tela ${i + 1}`} value={t.tipo} onChange={(e) => atualizarTela(i, { tipo: e.target.value as TipoTela })} className="rounded-md bg-[#F5F5F4] px-2 py-1 text-[12px] text-[#525252] outline-none hover:bg-hover">
+                        {desenhos[chaves[i] ?? ''] ? <span className="mono rounded-full bg-sucessoFundo px-1.5 py-0.5 text-[9px] text-sucessoTexto" title="Já desenhada: trocar o estilo não custa nada">DESENHADA</span> : Object.keys(desenhos).length > 0 && <span className="mono rounded-full bg-acentoSuave px-1.5 py-0.5 text-[9px] text-acento" title="Alterada: será redesenhada">{textoCreditos(custoDesenho(1)).toUpperCase()}</span>}
+                        <select aria-label={`Tipo da tela ${i + 1}`} value={t.tipo} onChange={(e) => atualizarTela(i, { tipo: e.target.value as TipoTela })} className="rounded-md bg-superficie2 px-2 py-1 text-[12px] text-textoCorpo outline-none hover:bg-hover">
                           {TIPOS_TELA.map((tp) => <option key={tp} value={tp}>{NOMES_TIPO_TELA[tp]}</option>)}
                         </select>
                       </div>
                       <input aria-label={`Título da tela ${i + 1}`} value={t.titulo} maxLength={160} onChange={(e) => atualizarTela(i, { titulo: e.target.value })} className="min-w-0 bg-transparent p-0 text-[17px] font-semibold tracking-[-0.02em] outline-none" />
-                      {comp.limites.texto > 0 && <textarea aria-label={`Texto da tela ${i + 1}`} value={t.texto} maxLength={600} rows={2} placeholder="Texto de apoio (opcional)" onChange={(e) => atualizarTela(i, { texto: e.target.value })} className="w-full resize-none bg-transparent p-0 text-[14px] leading-normal text-[#525252] outline-none placeholder:text-[#B5B5B5]" />}
+                      {comp.limites.texto > 0 && <textarea aria-label={`Texto da tela ${i + 1}`} value={t.texto} maxLength={600} rows={2} placeholder="Texto de apoio (opcional)" onChange={(e) => atualizarTela(i, { texto: e.target.value })} className="w-full resize-none bg-transparent p-0 text-[14px] leading-normal text-textoCorpo outline-none placeholder:text-texto3" />}
                       {comp.maxItens > 0 && (
-                        <textarea aria-label={`Itens da tela ${i + 1}`} value={t.itens.join('\n')} rows={Math.max(2, Math.min(6, t.itens.length))} placeholder={`Um por linha: ${comp.itens}`} onChange={(e) => atualizarTela(i, { itens: e.target.value.split('\n').slice(0, Math.max(6, comp.maxItens)).map((l) => l.slice(0, 160)) })} className="mono w-full resize-none rounded-md bg-[#FAFAF9] px-2 py-1.5 text-[13px] leading-relaxed text-[#3F3F3F] outline-none placeholder:text-[#B5B5B5]" />
+                        <textarea aria-label={`Itens da tela ${i + 1}`} value={t.itens.join('\n')} rows={Math.max(2, Math.min(6, t.itens.length))} placeholder={`Um por linha: ${comp.itens}`} onChange={(e) => atualizarTela(i, { itens: e.target.value.split('\n').slice(0, Math.max(6, comp.maxItens)).map((l) => l.slice(0, 160)) })} className="mono w-full resize-none rounded-md bg-fundo px-2 py-1.5 text-[13px] leading-relaxed text-textoCorpo outline-none placeholder:text-texto3" />
                       )}
-                      {t.notas && <details className="text-[13px] text-texto3"><summary className="cursor-pointer select-none">Notas do apresentador</summary><textarea aria-label={`Notas da tela ${i + 1}`} value={t.notas} maxLength={1200} rows={3} onChange={(e) => atualizarTela(i, { notas: e.target.value })} className="mt-1 w-full resize-none rounded-md bg-[#FAFAF9] px-2 py-1.5 outline-none" /></details>}
+                      {t.notas && <details className="text-[13px] text-texto3"><summary className="cursor-pointer select-none">Notas do apresentador</summary><textarea aria-label={`Notas da tela ${i + 1}`} value={t.notas} maxLength={1200} rows={3} onChange={(e) => atualizarTela(i, { notas: e.target.value })} className="mt-1 w-full resize-none rounded-md bg-fundo px-2 py-1.5 outline-none" /></details>}
                     </div>
                     <div className="flex flex-col gap-0.5">
                       <button type="button" title="Subir" aria-label={`Subir tela ${i + 1}`} disabled={i === 0} onClick={() => mover(i, -1)} className="flex h-[26px] w-7 items-center justify-center rounded-md text-texto3 hover:bg-hover hover:text-texto disabled:opacity-30"><ArrowUp className="h-3.5 w-3.5" /></button>
                       <button type="button" title="Descer" aria-label={`Descer tela ${i + 1}`} disabled={i === roteiro.telas.length - 1} onClick={() => mover(i, 1)} className="flex h-[26px] w-7 items-center justify-center rounded-md text-texto3 hover:bg-hover hover:text-texto disabled:opacity-30"><ArrowDown className="h-3.5 w-3.5" /></button>
-                      <button type="button" title="Remover" aria-label={`Remover tela ${i + 1}`} disabled={roteiro.telas.length <= 1} onClick={() => remover(i)} className="flex h-[26px] w-7 items-center justify-center rounded-md text-texto3 hover:bg-[#FBF0EE] hover:text-[#C0392B] disabled:opacity-30"><X className="h-3.5 w-3.5" /></button>
+                      <button type="button" title="Remover" aria-label={`Remover tela ${i + 1}`} disabled={roteiro.telas.length <= 1} onClick={() => remover(i)} className="flex h-[26px] w-7 items-center justify-center rounded-md text-texto3 hover:bg-perigo/10 hover:text-perigo disabled:opacity-30"><X className="h-3.5 w-3.5" /></button>
                     </div>
                   </div>
                 )
               })}
               {roteiro.telas.length < limite
-                ? <button type="button" onClick={adicionar} className="h-12 rounded-[14px] border-[1.5px] border-dashed border-[#D6D4D0] text-[14px] text-texto3 hover:border-grafite hover:text-texto">+ Adicionar tela <span className="mono">· {textoCreditos(custoDesenho(1))} no design</span></button>
+                ? <button type="button" onClick={adicionar} className="h-12 rounded-[14px] border-[1.5px] border-dashed border-bordaHover text-[14px] text-texto3 hover:border-tinta hover:text-texto">+ Adicionar tela <span className="mono">· {textoCreditos(custoDesenho(1))} no design</span></button>
                 : <p className="text-center text-[13px] text-texto3">Limite de {limite} telas do plano {PLANOS[planoId].nome}. {proximoPlano(planoId) && <button type="button" onClick={() => abrirPlano(proximoPlano(planoId)!)} className="text-acento hover:underline">Ver planos</button>}</p>}
             </div>
           </div>
-          <aside aria-label="Aparência da apresentação" className={cx(SPAN.lateral, 'flex flex-col gap-6 self-start rounded-cartao border border-borda bg-white p-4 sm:p-6 xl:sticky xl:top-6')}>
+          <aside aria-label="Aparência da apresentação" className={cx(SPAN.lateral, 'flex flex-col gap-6 self-start rounded-cartao border border-borda bg-superficie p-4 sm:p-6 xl:sticky xl:top-6')}>
             <div className="flex flex-col gap-2.5">
               <div className="flex items-baseline justify-between"><span className="text-[14px] font-semibold">Estilo</span><SeloCusto /></div>
               <div className="overflow-hidden rounded-md"><MiniaturaFluida cena={previaCapa} assets={assets} /></div>
@@ -689,7 +689,7 @@ export function CriarComIA() {
             <div className="flex flex-col gap-2.5">
               <div className="flex items-baseline justify-between"><span className="text-[14px] font-semibold">Imagens</span><SeloCusto /></div>
               {([['formas', 'Formas do estilo', 'motivos e cor'], ['placeholders', material.fotos.length ? 'Suas fotos' : 'Espaços para imagens', material.fotos.length ? plural(material.fotos.length, 'foto', 'fotos') : 'você envia'], ['nenhuma', 'Sem imagens', 'só tipografia']] as const).map(([id, rotulo, sub]) => (
-                <button key={id} type="button" aria-pressed={imagensEf === id} onClick={() => setImagens(id)} className={cx('flex justify-between gap-2 rounded-[10px] border-[1.5px] px-3.5 py-3 text-left text-[14px]', imagensEf === id ? 'border-violeta bg-[#F4F5FE]' : 'border-borda bg-white hover:border-bordaForte')}>
+                <button key={id} type="button" aria-pressed={imagensEf === id} onClick={() => setImagens(id)} className={cx('flex justify-between gap-2 rounded-[10px] border-[1.5px] px-3.5 py-3 text-left text-[14px]', imagensEf === id ? 'border-violeta bg-acentoSuave' : 'border-borda bg-superficie hover:border-bordaForte')}>
                   <span>{rotulo}</span><span className="text-[12px] text-texto3">{sub}</span>
                 </button>
               ))}
@@ -699,7 +699,7 @@ export function CriarComIA() {
               <Segmento cheio rotulo="Texto por tela" opcoes={['minimo', 'medio', 'detalhado'] as const} valor={densidade} aoMudar={setDensidade} nomes={(d) => ({ minimo: 'Mínimo', medio: 'Médio', detalhado: 'Detalhado' })[d]} />
             </div>
             <div className="flex flex-col gap-2.5 pt-1">
-              <button type="button" onClick={gerarApresentacao} className="h-[52px] rounded-full border-2 border-grafite bg-grafite text-[15px] font-semibold text-fundo shadow-[4px_4px_0_#5965F2] transition-transform hover:-translate-x-0.5 hover:-translate-y-0.5">
+              <button type="button" onClick={gerarApresentacao} className="h-[52px] rounded-full border-2 border-tinta bg-acao text-[15px] font-semibold text-acaoTexto shadow-[4px_4px_0_#5965F2] transition-transform hover:-translate-x-0.5 hover:-translate-y-0.5">
                 Gerar apresentação <span className="mono font-normal opacity-80">· {textoCreditos(custoDoDesenho)}</span>
               </button>
               <p className="text-center text-[12px] text-texto3">{pendentes.length ? (pendentes.length === chaves.length ? `A IA desenha ${plural(pendentes.length, 'tela', 'telas')}` : `Redesenha só ${plural(pendentes.length, 'tela alterada', 'telas alteradas')}; as outras ficam`) : 'Todas as telas já estão desenhadas · grátis'}</p>
@@ -715,26 +715,26 @@ export function CriarComIA() {
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <div className="rotulo-mono flex items-center gap-2" aria-live="polite">
-                  {(!pronto || salvandoProjeto) && <span aria-hidden className="h-3 w-3 animate-spin rounded-full border-2 border-[#E7E5E4] border-t-violeta" />}
+                  {(!pronto || salvandoProjeto) && <span aria-hidden className="h-3 w-3 animate-spin rounded-full border-2 border-bordaForte border-t-violeta" />}
                   {pronto ? (salvandoProjeto ? 'Salvando o projeto…' : `Pronto · ${total} telas`) : `Desenhando tela ${Math.min(revelar + 1, total)} de ${total}`}
                 </div>
                 <h2 className="mt-2 text-[clamp(28px,4vw,40px)] font-semibold tracking-[-0.045em]">{roteiro?.titulo}</h2>
               </div>
               <div className={cx('flex flex-wrap gap-2.5 transition-opacity', !pronto && 'pointer-events-none opacity-35')}>
                 <button type="button" onClick={() => ir('roteiro')} className="flex h-11 items-center rounded-full px-4 text-[14px] text-texto3 hover:text-texto">← Ajustar roteiro</button>
-                {projetoId && <button type="button" onClick={() => abrirApresentacao(router, projetoId)} className="flex h-11 items-center rounded-full border-[1.5px] border-[#E2E1DE] bg-white px-[18px] text-[14px] font-medium hover:border-grafite">Apresentar</button>}
-                {projetoId && <Link href={`/app/projects/${projetoId}/share`} className="flex h-11 items-center rounded-full border-[1.5px] border-[#E2E1DE] bg-white px-[18px] text-[14px] font-medium hover:border-grafite">Publicar e enviar</Link>}
-                {projetoId && <button type="button" onClick={() => router.push(`/app/projects/${projetoId}/edit`)} className="flex h-11 items-center rounded-full border-2 border-grafite bg-violeta px-[18px] text-[14px] font-semibold text-white hover:bg-[#4A55E0]">Abrir no editor →</button>}
+                {projetoId && <button type="button" onClick={() => abrirApresentacao(router, projetoId)} className="flex h-11 items-center rounded-full border-[1.5px] border-bordaForte bg-superficie px-[18px] text-[14px] font-medium hover:border-tinta">Apresentar</button>}
+                {projetoId && <Link href={`/app/projects/${projetoId}/share`} className="flex h-11 items-center rounded-full border-[1.5px] border-bordaForte bg-superficie px-[18px] text-[14px] font-medium hover:border-tinta">Publicar e enviar</Link>}
+                {projetoId && <button type="button" onClick={() => router.push(`/app/projects/${projetoId}/edit`)} className="flex h-11 items-center rounded-full border-2 border-tinta bg-violeta px-[18px] text-[14px] font-semibold text-white hover:bg-acentoHover">Abrir no editor →</button>}
               </div>
             </div>
-            <div className="h-1 overflow-hidden rounded-sm bg-[#EDECEA]"><div className="h-1 bg-violeta transition-[width] duration-400" style={{ width: `${total ? (Math.min(revelar, total) / total) * 100 : 0}%` }} /></div>
+            <div className="h-1 overflow-hidden rounded-sm bg-borda"><div className="h-1 bg-violeta transition-[width] duration-400" style={{ width: `${total ? (Math.min(revelar, total) / total) * 100 : 0}%` }} /></div>
             <div className={cx('flex flex-col gap-3 transition-opacity', !pronto && 'pointer-events-none opacity-35')}>
               <div role="radiogroup" aria-label="Trocar estilo" className="flex flex-wrap items-center gap-2 text-[12px] text-texto3">
                 <span className="mr-1">Estilo · grátis:</span>
                 {(TEMAS as readonly TemaVisual[]).map((t) => {
                   const r = resolverTema(t.id, marcaMont)
                   return (
-                    <button key={t.id} type="button" role="radio" aria-checked={temaEfetivo === t.id} title={t.descricao} onClick={() => setTema(t.id as TemaId)} className={cx('flex h-7 items-center gap-1.5 rounded-full border-[1.5px] pl-1 pr-2.5', temaEfetivo === t.id ? 'border-grafite text-texto' : 'border-[#E2E1DE] hover:border-grafite')}>
+                    <button key={t.id} type="button" role="radio" aria-checked={temaEfetivo === t.id} title={t.descricao} onClick={() => setTema(t.id as TemaId)} className={cx('flex h-7 items-center gap-1.5 rounded-full border-[1.5px] pl-1 pr-2.5', temaEfetivo === t.id ? 'border-tinta text-texto' : 'border-bordaForte hover:border-tinta')}>
                       <span className="h-4 w-4 rounded-full" style={{ background: `linear-gradient(135deg, ${r.capa === 'escuro' ? r.escuro.fundo : r.claro.fundo} 50%, ${r.acento} 50%)`, boxShadow: 'inset 0 0 0 1px rgba(0,0,0,.08)' }} />{t.nome}
                     </button>
                   )
@@ -756,9 +756,9 @@ export function CriarComIA() {
                 return (
                   <div key={cena.id} className={cx(formato === 'story' ? SPAN.sexto : SPAN.terco, 'flex min-w-0 flex-col gap-2')}>
                     <div className={cx('overflow-hidden rounded-[10px] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)] transition-[opacity,transform] duration-500 ease-[cubic-bezier(.16,1,.3,1)]', visivel ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-40')}>
-                      {visivel ? <MiniaturaFluida cena={cena} assets={assets} /> : <div className="flex items-center justify-center bg-[#F0EFED]" style={{ aspectRatio: `${cena.size.width} / ${cena.size.height}` }}><span aria-hidden className="h-[22px] w-[22px] animate-spin rounded-full border-[2.5px] border-[#E2E1DE] border-t-violeta" /></div>}
+                      {visivel ? <MiniaturaFluida cena={cena} assets={assets} /> : <div className="flex items-center justify-center bg-canvas" style={{ aspectRatio: `${cena.size.width} / ${cena.size.height}` }}><span aria-hidden className="h-[22px] w-[22px] animate-spin rounded-full border-[2.5px] border-bordaForte border-t-violeta" /></div>}
                     </div>
-                    <div className="truncate text-[13px] text-[#525252]">{String(i + 1).padStart(2, '0')} · {cena.title}</div>
+                    <div className="truncate text-[13px] text-textoCorpo">{String(i + 1).padStart(2, '0')} · {cena.title}</div>
                   </div>
                 )
               })}
@@ -773,9 +773,9 @@ export function CriarComIA() {
 /** Uma linha do resumo no passo "Revisar e gerar". */
 function LinhaResumo({ titulo, children, aoEditar, vazio, gratis }: { titulo: string; children?: React.ReactNode; aoEditar: () => void; vazio?: string; gratis?: boolean }) {
   return (
-    <div className="flex items-start gap-4 rounded-[14px] border-[1.5px] border-[#E7E5E4] bg-white px-4 py-3.5">
+    <div className="flex items-start gap-4 rounded-[14px] border-[1.5px] border-bordaForte bg-superficie px-4 py-3.5">
       <div className="w-[88px] shrink-0 pt-0.5 text-[13px] font-semibold">{titulo}</div>
-      <div className="min-w-0 flex-1 text-[14px] text-[#3F3F3F]">{vazio ? <span className="text-texto3">{vazio}</span> : children}</div>
+      <div className="min-w-0 flex-1 text-[14px] text-textoCorpo">{vazio ? <span className="text-texto3">{vazio}</span> : children}</div>
       {gratis && <SeloCusto />}
       <button type="button" onClick={aoEditar} aria-label={`Editar ${titulo.toLowerCase()}`} className="shrink-0 text-[13px] text-acento hover:underline">Editar</button>
     </div>
@@ -793,7 +793,7 @@ function PassoTamanho({ formato, aoFormato, telas, aoTelas, planoId, limite, aoU
         <Secao titulo="Formato" selo={<SeloCusto />} id="titulo-formato">
           <div role="radiogroup" aria-label="Formato" className="grid gap-2 sm:grid-cols-3">
             {FORMATOS.map((f) => (
-              <button key={f} type="button" role="radio" aria-checked={formato === f} onClick={() => aoFormato(f)} className={cx('flex flex-col gap-1 rounded-[12px] border-[1.5px] px-4 py-3 text-left', formato === f ? 'border-violeta bg-[#F4F5FE]' : 'border-[#E7E5E4] bg-white hover:border-grafite')}>
+              <button key={f} type="button" role="radio" aria-checked={formato === f} onClick={() => aoFormato(f)} className={cx('flex flex-col gap-1 rounded-[12px] border-[1.5px] px-4 py-3 text-left', formato === f ? 'border-violeta bg-acentoSuave' : 'border-bordaForte bg-superficie hover:border-tinta')}>
                 <span className="flex items-center gap-2 text-[15px] font-medium"><span className={cx('inline-block rounded-[3px] border-2 border-current', f === 'story' ? 'h-5 w-3' : 'h-3 w-5')} />{NOMES_FORMATO[f]}</span>
                 <span className="text-[12px] text-texto3">{DICA_FORMATO[f]}</span>
               </button>
@@ -806,9 +806,9 @@ function PassoTamanho({ formato, aoFormato, telas, aoTelas, planoId, limite, aoU
               const ok = n <= limite
               const p = planoQueLibera(n)
               return ok ? (
-                <button key={n} type="button" role="radio" aria-checked={telas === n} onClick={() => aoTelas(n)} className={cx('h-10 min-w-[86px] rounded-full border-[1.5px] px-3 text-[14px] font-medium', telas === n ? 'border-grafite bg-grafite text-fundo' : 'border-[#E2E1DE] bg-white text-[#3F3F3F] hover:border-grafite')}>{n} telas</button>
+                <button key={n} type="button" role="radio" aria-checked={telas === n} onClick={() => aoTelas(n)} className={cx('h-10 min-w-[86px] rounded-full border-[1.5px] px-3 text-[14px] font-medium', telas === n ? 'border-tinta bg-acao text-acaoTexto' : 'border-bordaForte bg-superficie text-textoCorpo hover:border-tinta')}>{n} telas</button>
               ) : (
-                <button key={n} type="button" onClick={() => p && aoUpgrade(p)} title={p ? `Disponível no plano ${PLANOS[p].nome}` : undefined} className="flex h-10 items-center gap-1.5 rounded-full border-[1.5px] border-dashed border-[#E2E1DE] px-3 text-[13px] text-[#A3A3A3] hover:border-grafite hover:text-texto">
+                <button key={n} type="button" onClick={() => p && aoUpgrade(p)} title={p ? `Disponível no plano ${PLANOS[p].nome}` : undefined} className="flex h-10 items-center gap-1.5 rounded-full border-[1.5px] border-dashed border-bordaForte px-3 text-[13px] text-texto3 hover:border-tinta hover:text-texto">
                   <Lock className="h-3 w-3" />{n} {p && <span className="mono text-[10px] uppercase">{PLANOS[p].nome}</span>}
                 </button>
               )
@@ -825,13 +825,13 @@ function PassoTamanho({ formato, aoFormato, telas, aoTelas, planoId, limite, aoU
               onChange={(e) => setLivre(e.target.value)}
               onBlur={() => aoTelas(limitarTelas(Number(livre), limite))}
               onKeyDown={(e) => { if (e.key === 'Enter') aoTelas(limitarTelas(Number(livre), limite)) }}
-              className="mono h-9 w-[84px] rounded-[10px] border-[1.5px] border-[#E7E5E4] bg-white px-2.5 text-[14px] outline-none focus:border-grafite"
+              className="mono h-9 w-[84px] rounded-[10px] border-[1.5px] border-bordaForte bg-superficie px-2.5 text-[14px] outline-none focus:border-tinta"
             />
             <span className="text-texto3">telas</span>
           </label>
         </Secao>
       </div>
-      <aside className={cx(SPAN.lateral, 'flex flex-col gap-2 self-start rounded-cartao border border-borda bg-white p-4 text-[13px] sm:p-6 xl:sticky xl:top-6')}>
+      <aside className={cx(SPAN.lateral, 'flex flex-col gap-2 self-start rounded-cartao border border-borda bg-superficie p-4 text-[13px] sm:p-6 xl:sticky xl:top-6')}>
         <div className="text-[14px] font-semibold">Custo de {plural(telas, 'tela', 'telas')}</div>
         <div className="flex justify-between"><span>Roteiro (estrutura e texto)</span><span className="mono">{textoCreditos(custoRoteiro(telas, chars))}</span></div>
         <div className="flex justify-between"><span>Design de cada tela</span><span className="mono">{textoCreditos(custoDesenho(telas))}</span></div>

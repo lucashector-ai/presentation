@@ -7,12 +7,12 @@ export const CONTEUDO = 'relative mx-auto w-full max-w-[1360px] px-4 sm:px-8'
 /** Triângulo com a ponta para cima (clip-path). */
 export const TRIANGULO = '[clip-path:polygon(50%_0,100%_100%,0_100%)]'
 
-const BOTAO = 'inline-flex items-center justify-center gap-2 rounded-full border-2 border-grafite font-semibold transition-[transform,box-shadow,background-color,color] duration-150 motion-reduce:transition-none'
+const BOTAO = 'inline-flex items-center justify-center gap-2 rounded-full border-2 border-tinta font-semibold transition-[transform,box-shadow,background-color,color] duration-150 motion-reduce:transition-none'
 const LEVANTA = 'hover:-translate-x-0.5 hover:-translate-y-0.5 motion-reduce:hover:translate-x-0 motion-reduce:hover:translate-y-0'
-/** Botão preto com sombra "carimbo" colorida — combine com uma classe de sombra (ex.: shadow-[5px_5px_0_#E4572E]). */
-export const BOTAO_ESCURO = `${BOTAO} ${LEVANTA} bg-grafite text-[#FAFAF9] hover:text-[#FAFAF9]`
-/** Botão branco de contorno; no hover vira lima. Ao lado de um BOTAO_ESCURO, deixe calha de 16 (a sombra carimbo dele avança 5–7 px). */
-export const BOTAO_CLARO = `${BOTAO} bg-white text-grafite hover:bg-lima hover:text-grafite`
+/** Botão de tinta (grafite no claro, off-white no escuro) com sombra "carimbo" colorida — combine com uma classe de sombra (ex.: shadow-[5px_5px_0_#E4572E]). */
+export const BOTAO_ESCURO = `${BOTAO} ${LEVANTA} bg-acao text-acaoTexto hover:text-acaoTexto`
+/** Botão de superfície com contorno; no hover vira lima. Ao lado de um BOTAO_ESCURO, deixe calha de 16 (a sombra carimbo dele avança 5–7 px). */
+export const BOTAO_CLARO = `${BOTAO} bg-superficie text-texto hover:bg-lima hover:text-texto`
 
 const FORMAS: Record<TipoForma, string> = {
   circulo: 'rounded-full',
@@ -43,7 +43,7 @@ export const pontos = (cor: string, raio: number, passo: number): CSSProperties 
   backgroundSize: `${passo}px ${passo}px`,
 })
 
-/** Hachura diagonal preta. */
+/** Hachura diagonal na cor da tinta. */
 export const hachura = (traco = '4px', vao = '12px'): CSSProperties => ({
-  backgroundImage: `repeating-linear-gradient(-45deg, #171717 0 ${traco}, transparent ${traco} ${vao})`,
+  backgroundImage: `repeating-linear-gradient(-45deg, rgb(var(--cor-tinta)) 0 ${traco}, transparent ${traco} ${vao})`,
 })

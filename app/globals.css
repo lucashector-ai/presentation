@@ -2,7 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ---------- tokens Mostra (ver lib/design-tokens.ts) ---------- */
+/* ---------- tokens Mostra (ver lib/design-tokens.ts) ----------
+   Tema claro em :root; tema escuro em [data-tema='escuro'] e, com o tema Automático (sem data-tema), quando o
+   sistema prefere escuro. Os dois blocos escuros são iguais (lib/tema.test.ts confere). Os valores são canais RGB
+   para o Tailwind compor a opacidade (tailwind.config.cjs). O conteúdo das apresentações não usa estes tokens:
+   o SceneRenderer fixa color-scheme: light e as cores vêm do documento. */
 :root {
   --cor-fundo: 250 250 249;        /* #FAFAF9 */
   --cor-superficie: 255 255 255;
@@ -10,47 +14,106 @@
   --cor-hover: 243 242 240;        /* #F3F2F0 */
   --cor-borda: 237 236 234;        /* #EDECEA */
   --cor-borda-forte: 226 225 222;  /* #E2E1DE */
+  --cor-borda-hover: 212 212 212;  /* #D4D4D4 — borda de cartões e controles ao passar o mouse */
   --cor-texto: 23 23 23;           /* #171717 */
+  --cor-texto-corpo: 82 82 82;     /* #525252 — parágrafos um tom abaixo do título */
   --cor-texto-2: 115 115 115;      /* #737373 */
   --cor-texto-3: 163 163 163;      /* #A3A3A3 */
+  --cor-tinta: 23 23 23;           /* traço da marca: bordas de 2 px, sombra carimbo, hachuras */
   --cor-acao: 23 23 23;
+  --cor-acao-hover: 42 42 42;      /* #2A2A2A */
   --cor-acao-texto: 250 250 249;
   --cor-acento: 89 101 242;        /* violeta #5965F2 */
+  --cor-acento-hover: 74 85 224;   /* #4A55E0 */
+  --cor-acento-texto: 255 255 255; /* texto sobre o acento */
   --cor-acento-suave: 240 241 254; /* #F0F1FE */
   --cor-destaque: 215 242 92;      /* lima #D7F25C */
   --cor-perigo: 228 87 46;         /* coral #E4572E */
   --cor-sucesso: 34 160 107;       /* #22A06B */
+  --cor-sucesso-texto: 47 107 69;  /* #2F6B45 — texto verde legível (AA) */
+  --cor-sucesso-fundo: 238 245 236;/* #EEF5EC */
   --cor-aviso: 242 193 78;         /* ipê #F2C14E */
+  --cor-aviso-texto: 122 90 18;    /* #7A5A12 */
+  --cor-aviso-fundo: 255 248 230;  /* #FFF8E6 */
   --cor-guia: 242 89 135;          /* guias inteligentes #F25987 */
   --cor-selecao: 13 153 255;       /* seleção no canvas #0D99FF (sólida, 1 px; legível sobre qualquer fundo) */
   --cor-canvas: 240 239 237;       /* #F0EFED */
   /* famílias do @fontsource (importadas em app/layout.tsx) */
   --font-geist-sans: 'Geist Variable';
   --font-geist-mono: 'Geist Mono Variable';
-  color-scheme: light;
+  /* Automático: o navegador pode usar controles e barras de rolagem escuros quando o sistema prefere escuro */
+  color-scheme: light dark;
 }
-[data-tema='escuro'] {
-  --cor-fundo: 23 23 23;
-  --cor-superficie: 30 30 30;
-  --cor-superficie-2: 38 38 38;
-  --cor-hover: 45 45 45;
-  --cor-borda: 46 46 46;
-  --cor-borda-forte: 64 64 64;
-  --cor-texto: 250 250 249;
-  --cor-texto-2: 163 163 163;
-  --cor-texto-3: 115 115 115;
-  --cor-acao: 250 250 249;
-  --cor-acao-texto: 23 23 23;
-  --cor-acento: 124 133 255;
-  --cor-acento-suave: 40 42 70;
+/* Claro escolhido: `only light` impede o "tema escuro automático" do Chrome (e extensões) de inverter o app */
+:root[data-tema='claro'] { color-scheme: only light; }
+/* ===== tema escuro — mantenha os dois blocos iguais (lib/tema.test.ts) ===== */
+:root[data-tema='escuro'] {
+  --cor-fundo: 18 17 16;           /* #121110 — quase preto quente */
+  --cor-superficie: 26 25 24;      /* #1A1918 */
+  --cor-superficie-2: 35 33 32;    /* #232120 */
+  --cor-hover: 42 40 38;           /* #2A2826 */
+  --cor-borda: 44 42 40;           /* #2C2A28 */
+  --cor-borda-forte: 58 55 52;     /* #3A3734 */
+  --cor-borda-hover: 74 70 66;     /* #4A4642 */
+  --cor-texto: 242 239 234;        /* #F2EFEA — off-white */
+  --cor-texto-corpo: 201 196 188;  /* #C9C4BC */
+  --cor-texto-2: 163 158 150;      /* #A39E96 */
+  --cor-texto-3: 143 138 130;      /* #8F8A82 */
+  --cor-tinta: 242 239 234;
+  --cor-acao: 242 239 234;
+  --cor-acao-hover: 255 255 255;
+  --cor-acao-texto: 18 17 16;
+  --cor-acento: 127 137 255;       /* #7F89FF — violeta clareado (6,2:1 sobre o fundo) */
+  --cor-acento-hover: 153 161 255; /* #99A1FF */
+  --cor-acento-texto: 18 17 16;
+  --cor-acento-suave: 35 38 63;    /* #23263F */
   --cor-destaque: 215 242 92;
-  --cor-perigo: 255 120 80;
-  --cor-sucesso: 52 199 135;
+  --cor-perigo: 255 122 87;        /* #FF7A57 */
+  --cor-sucesso: 76 196 143;       /* #4CC48F */
+  --cor-sucesso-texto: 111 211 158;/* #6FD39E */
+  --cor-sucesso-fundo: 22 41 31;   /* #16291F */
   --cor-aviso: 242 193 78;
+  --cor-aviso-texto: 242 193 78;
+  --cor-aviso-fundo: 46 38 18;     /* #2E2612 */
   --cor-guia: 242 89 135;
   --cor-selecao: 13 153 255;
-  --cor-canvas: 18 18 18;
+  --cor-canvas: 14 13 12;          /* #0E0D0C */
   color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema='claro']) {
+    --cor-fundo: 18 17 16;           /* #121110 — quase preto quente */
+    --cor-superficie: 26 25 24;      /* #1A1918 */
+    --cor-superficie-2: 35 33 32;    /* #232120 */
+    --cor-hover: 42 40 38;           /* #2A2826 */
+    --cor-borda: 44 42 40;           /* #2C2A28 */
+    --cor-borda-forte: 58 55 52;     /* #3A3734 */
+    --cor-borda-hover: 74 70 66;     /* #4A4642 */
+    --cor-texto: 242 239 234;        /* #F2EFEA — off-white */
+    --cor-texto-corpo: 201 196 188;  /* #C9C4BC */
+    --cor-texto-2: 163 158 150;      /* #A39E96 */
+    --cor-texto-3: 143 138 130;      /* #8F8A82 */
+    --cor-tinta: 242 239 234;
+    --cor-acao: 242 239 234;
+    --cor-acao-hover: 255 255 255;
+    --cor-acao-texto: 18 17 16;
+    --cor-acento: 127 137 255;       /* #7F89FF — violeta clareado (6,2:1 sobre o fundo) */
+    --cor-acento-hover: 153 161 255; /* #99A1FF */
+    --cor-acento-texto: 18 17 16;
+    --cor-acento-suave: 35 38 63;    /* #23263F */
+    --cor-destaque: 215 242 92;
+    --cor-perigo: 255 122 87;        /* #FF7A57 */
+    --cor-sucesso: 76 196 143;       /* #4CC48F */
+    --cor-sucesso-texto: 111 211 158;/* #6FD39E */
+    --cor-sucesso-fundo: 22 41 31;   /* #16291F */
+    --cor-aviso: 242 193 78;
+    --cor-aviso-texto: 242 193 78;
+    --cor-aviso-fundo: 46 38 18;     /* #2E2612 */
+    --cor-guia: 242 89 135;
+    --cor-selecao: 13 153 255;
+    --cor-canvas: 14 13 12;          /* #0E0D0C */
+    color-scheme: dark;
+  }
 }
 
 html, body { height: 100%; }
@@ -272,9 +335,9 @@ aside[aria-label="Propriedades"], aside[aria-label="Painel esquerdo"] { will-cha
 
 /* grade do editor */
 .grade-editor { background-image: linear-gradient(to right, rgb(var(--cor-acento) / .12) 1px, transparent 1px), linear-gradient(to bottom, rgb(var(--cor-acento) / .12) 1px, transparent 1px); }
-/* sombra "carimbo" das superfícies da landing (deslocada, sólida) */
-.sombra-carimbo { box-shadow: 6px 6px 0 0 #171717; }
-.borda-carimbo { border: 1.5px solid #171717; }
+/* sombra "carimbo" das superfícies da landing (deslocada, sólida, na cor da tinta: grafite no claro, off-white no escuro) */
+.sombra-carimbo { box-shadow: 6px 6px 0 0 rgb(var(--cor-tinta)); }
+.borda-carimbo { border: 1.5px solid rgb(var(--cor-tinta)); }
 /* corte vertical do texto (altura das maiúsculas até a linha de base): nativo onde houver text-box; senão margens
    negativas calculadas com as métricas da fonte (lib/scene/tipografia.ts → corteVertical) */
 .texto-corte { margin-top: calc(-1 * var(--corte-topo, 0px)); margin-bottom: calc(-1 * var(--corte-base, 0px)); }

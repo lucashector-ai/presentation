@@ -145,7 +145,7 @@ export function SeletorLista({ valor, aoMudar, opcoes, rotulo, prefixo }: { valo
 export function Interruptor({ ativo, aoMudar, rotulo }: { ativo: boolean; aoMudar: (v: boolean) => void; rotulo: string }) {
   return (
     <button type="button" role="switch" aria-checked={ativo} aria-label={rotulo} onClick={() => aoMudar(!ativo)} className={cx('relative h-[18px] w-[30px] shrink-0 rounded-full transition-colors', ativo ? 'bg-acento' : 'bg-bordaForte')}>
-      <span className={cx('absolute left-0 top-[2px] h-[14px] w-[14px] rounded-full bg-white shadow transition-transform', ativo ? 'translate-x-[14px]' : 'translate-x-[2px]')} />
+      <span className={cx('absolute left-0 top-[2px] h-[14px] w-[14px] rounded-full bg-superficie shadow transition-transform', ativo ? 'translate-x-[14px]' : 'translate-x-[2px]')} />
     </button>
   )
 }
@@ -155,7 +155,7 @@ export function GradeCartoes<T extends string>({ valor, opcoes, aoMudar, rotulo,
   return (
     <div role="radiogroup" aria-label={rotulo} className="grid gap-2" style={{ gridTemplateColumns: `repeat(${colunas}, minmax(0,1fr))` }}>
       {opcoes.map((o) => (
-        <button key={o.id} type="button" role="radio" aria-checked={valor === o.id} onClick={() => aoMudar(o.id)} className={cx('flex flex-col items-center justify-center gap-2 rounded-lg border py-3 text-[12px] transition-colors', valor === o.id ? 'border-acento bg-acentoSuave text-acento' : 'border-borda bg-superficie text-texto2 hover:border-[#D4D4D4] hover:text-texto')}>
+        <button key={o.id} type="button" role="radio" aria-checked={valor === o.id} onClick={() => aoMudar(o.id)} className={cx('flex flex-col items-center justify-center gap-2 rounded-lg border py-3 text-[12px] transition-colors', valor === o.id ? 'border-acento bg-acentoSuave text-acento' : 'border-borda bg-superficie text-texto2 hover:border-bordaHover hover:text-texto')}>
           <span className="flex h-5 items-center justify-center">{o.icone}</span>
           {o.rotulo}
         </button>

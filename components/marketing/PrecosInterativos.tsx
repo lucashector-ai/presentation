@@ -16,14 +16,14 @@ export function PlanosPrecos() {
     <>
       <div className="mb-12 mt-4 flex flex-wrap items-end justify-between gap-6 sm:mb-14">
         <TituloSecao className="relative">Comece grátis. Cresça com créditos.</TituloSecao>
-        <div role="group" aria-label="Cobrança" className="relative flex gap-1 rounded-full border-2 border-grafite bg-white p-1 text-[14px]">
+        <div role="group" aria-label="Cobrança" className="relative flex gap-1 rounded-full border-2 border-tinta bg-superficie p-1 text-[14px]">
           {opcoes.map((o) => (
             <button
               key={o.rotulo}
               type="button"
               aria-pressed={anual === o.anual}
               onClick={() => setAnual(o.anual)}
-              className={`rounded-full px-4 py-[9px] font-semibold transition-colors ${anual === o.anual ? 'bg-grafite text-[#FAFAF9]' : 'bg-transparent text-grafite hover:bg-[#F3F2F0]'}`}
+              className={`rounded-full px-4 py-[9px] font-semibold transition-colors ${anual === o.anual ? 'bg-acao text-acaoTexto' : 'bg-transparent text-texto hover:bg-hover'}`}
             >
               {o.rotulo}
             </button>
@@ -129,24 +129,24 @@ export function CalculadoraApresentacao() {
   const [telas, setTelas] = useState<number>(TELAS_EXEMPLO)
   const total = CUSTO_APRESENTACAO.calcular(telas)
   return (
-    <div className="rounded-xl border-2 border-grafite bg-[#F4F5FE] p-4 sm:p-5">
+    <div className="rounded-xl border-2 border-tinta bg-acentoSuave p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="m-0 flex items-center gap-2.5 text-[17px] font-semibold tracking-[-0.02em]"><span aria-hidden className="h-2.5 w-2.5 rounded-full bg-violeta" />Gerar uma apresentação</p>
-          <p className="m-0 mt-1 text-[13px] text-[#525252]">roteiro grátis + telas desenhadas, prontas para editar</p>
+          <p className="m-0 mt-1 text-[13px] text-textoCorpo">roteiro grátis + telas desenhadas, prontas para editar</p>
         </div>
         <p className="m-0 text-right" aria-live="polite">
           <span className="block text-[34px] font-semibold leading-none tracking-[-0.04em]">{total}</span>
-          <span className="font-mono text-[12px] text-[#525252]">créditos</span>
+          <span className="font-mono text-[12px] text-textoCorpo">créditos</span>
         </p>
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <div role="radiogroup" aria-label="Telas da apresentação" className="flex gap-1 rounded-full border-[1.5px] border-grafite bg-white p-[3px] text-[13px]">
+        <div role="radiogroup" aria-label="Telas da apresentação" className="flex gap-1 rounded-full border-[1.5px] border-tinta bg-superficie p-[3px] text-[13px]">
           {OPCOES_TELAS.map((n) => (
-            <button key={n} type="button" role="radio" aria-checked={telas === n} onClick={() => setTelas(n)} className={`rounded-full px-3 py-1.5 font-semibold transition-colors ${telas === n ? 'bg-grafite text-[#FAFAF9]' : 'text-grafite hover:bg-[#F3F2F0]'}`}>{n} telas</button>
+            <button key={n} type="button" role="radio" aria-checked={telas === n} onClick={() => setTelas(n)} className={`rounded-full px-3 py-1.5 font-semibold transition-colors ${telas === n ? 'bg-acao text-acaoTexto' : 'text-texto hover:bg-hover'}`}>{n} telas</button>
           ))}
         </div>
-        <span className="font-mono text-[12px] text-[#525252]">1 crédito por tela · roteiro grátis</span>
+        <span className="font-mono text-[12px] text-textoCorpo">1 crédito por tela · roteiro grátis</span>
       </div>
     </div>
   )

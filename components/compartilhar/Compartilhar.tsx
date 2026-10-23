@@ -87,7 +87,7 @@ export function Compartilhar({ projetoId, publicarFora = false }: { projetoId: s
           {publicarFora && !publicado && <span className="text-[12px] text-texto2">Publique acima para gerar links.</span>}
         </div>
         {novoToken && (
-          <div className="rounded-[12px] border-2 border-grafite bg-superficie p-3 shadow-[4px_4px_0_#5965F2]">
+          <div className="rounded-[12px] border-2 border-tinta bg-superficie p-3 shadow-[4px_4px_0_#5965F2]">
             <p className="mb-1 text-xs font-medium">Seu link (exibido uma única vez)</p>
             <div className="flex items-center gap-2">
               <code className="mono flex-1 truncate rounded-md bg-superficie2 px-2 py-1.5 text-xs">{urlDoLink(BASE, novoToken)}</code>

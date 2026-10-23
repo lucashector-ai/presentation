@@ -50,7 +50,7 @@ export function MenuEditor({ editor, projetoId, nomeProjeto, aoPreview, aoAprese
 
   return (
     <div ref={ref} className="relative">
-      <button type="button" aria-label="Mais opções" aria-haspopup="menu" aria-expanded={aberto} title="Mais opções" onClick={() => setAberto((v) => !v)} className={cx('inline-flex h-8 w-8 items-center justify-center rounded-md text-[#525252] transition-colors hover:bg-hover hover:text-texto', aberto && 'bg-hover text-texto')}>
+      <button type="button" aria-label="Mais opções" aria-haspopup="menu" aria-expanded={aberto} title="Mais opções" onClick={() => setAberto((v) => !v)} className={cx('inline-flex h-8 w-8 items-center justify-center rounded-md text-textoCorpo transition-colors hover:bg-hover hover:text-texto', aberto && 'bg-hover text-texto')}>
         {exp.ocupado ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
       </button>
       {aberto && (

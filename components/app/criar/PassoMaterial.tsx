@@ -178,7 +178,7 @@ export function PassoMaterial({ material, aoMudar, telas, planoId, aoLer }: {
         <div className="self-start"><Segmento rotulo="Origem do conteúdo" opcoes={ORIGENS} valor={material.origem} aoMudar={(o) => aoMudar((x) => ({ ...x, origem: o }))} nomes={(o) => NOMES_ORIGEM[o]} /></div>
         {material.origem !== 'zero' && (
           <div
-            className={`overflow-hidden rounded-[12px] border-[1.5px] border-[#E7E5E4] bg-white ${arrastando ? 'ring-4 ring-acento/40' : ''}`}
+            className={`overflow-hidden rounded-[12px] border-[1.5px] border-bordaForte bg-superficie ${arrastando ? 'ring-4 ring-acento/40' : ''}`}
             onDragOver={(e) => { e.preventDefault(); setArrastando(true) }}
             onDragLeave={() => setArrastando(false)}
             onDrop={(e) => { e.preventDefault(); setArrastando(false); void importar(e.dataTransfer.files[0]) }}
@@ -187,7 +187,7 @@ export function PassoMaterial({ material, aoMudar, telas, planoId, aoLer }: {
               <div className="border-b border-borda px-4 py-3 text-[14px]">
                 <div className="flex items-center gap-3">
                   {material.arquivo ? <><FileText className="h-4 w-4 shrink-0 text-acento" /><span className="truncate font-medium">{material.arquivo}</span></> : <span className="text-texto3">Nenhum arquivo ainda · PDF, .docx, .txt, .md ou .html</span>}
-                  <button type="button" onClick={() => entradaArquivo.current?.click()} disabled={!!lendo} className="ml-auto flex shrink-0 items-center gap-2 rounded-full border-[1.5px] border-bordaForte px-3 py-1.5 text-[13px] font-medium hover:border-grafite disabled:opacity-50"><Upload className="h-3.5 w-3.5" />{material.arquivo ? 'Trocar arquivo' : 'Escolher arquivo'}</button>
+                  <button type="button" onClick={() => entradaArquivo.current?.click()} disabled={!!lendo} className="ml-auto flex shrink-0 items-center gap-2 rounded-full border-[1.5px] border-bordaForte px-3 py-1.5 text-[13px] font-medium hover:border-tinta disabled:opacity-50"><Upload className="h-3.5 w-3.5" />{material.arquivo ? 'Trocar arquivo' : 'Escolher arquivo'}</button>
                   <input ref={entradaArquivo} type="file" accept={EXTENSOES_TEXTO} aria-label="Arquivo de material" className="hidden" onChange={(e) => { void importar(e.target.files?.[0]); e.target.value = '' }} />
                 </div>
                 {lendo && <ProgressoLeitura lendo={lendo} />}
@@ -211,7 +211,7 @@ export function PassoMaterial({ material, aoMudar, telas, planoId, aoLer }: {
               onChange={(e) => aoMudar((x) => ({ ...x, conteudo: e.target.value.slice(0, MAX_TEXTO) }))}
               rows={7}
               placeholder={material.origem === 'texto' ? 'Cole aqui seu briefing, roteiro, relatório ou anotações. A IA organiza em telas.' : 'Arraste um PDF, um .docx ou um arquivo de texto: o texto lido aparece aqui para você revisar.'}
-              className="w-full resize-y bg-transparent px-4 py-3 text-[15px] leading-normal outline-none placeholder:text-[#A3A3A3]"
+              className="w-full resize-y bg-transparent px-4 py-3 text-[15px] leading-normal outline-none placeholder:text-texto3"
             />
           </div>
         )}
@@ -222,16 +222,16 @@ export function PassoMaterial({ material, aoMudar, telas, planoId, aoLer }: {
         <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
           {material.fotos.map((f, k) => (
             <div key={f.assetId} className="flex flex-col gap-1.5">
-              <div className="relative aspect-[4/3] overflow-hidden rounded-[10px] bg-[#F0EFED]">
+              <div className="relative aspect-[4/3] overflow-hidden rounded-[10px] bg-canvas">
                 <img src={f.url} alt={f.legenda || f.nome} className="h-full w-full object-cover" />
                 <button type="button" aria-label={`Remover foto ${k + 1}`} onClick={() => aoMudar((x) => ({ ...x, fotos: x.fotos.filter((_, j) => j !== k) }))} className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"><X className="h-3 w-3" /></button>
               </div>
-              <input aria-label={`Legenda da foto ${k + 1}`} value={f.legenda} maxLength={120} onChange={(e) => aoMudar((x) => ({ ...x, fotos: x.fotos.map((y, j) => (j === k ? { ...y, legenda: e.target.value } : y)) }))} placeholder="Legenda (opcional)" className="rounded-md bg-[#F5F5F4] px-2 py-1 text-[12px] outline-none" />
+              <input aria-label={`Legenda da foto ${k + 1}`} value={f.legenda} maxLength={120} onChange={(e) => aoMudar((x) => ({ ...x, fotos: x.fotos.map((y, j) => (j === k ? { ...y, legenda: e.target.value } : y)) }))} placeholder="Legenda (opcional)" className="rounded-md bg-superficie2 px-2 py-1 text-[12px] outline-none" />
             </div>
           ))}
           {material.fotos.length < MAX_FOTOS && (
-            <button type="button" onClick={() => entradaFotos.current?.click()} disabled={enviandoFotos > 0} className="flex aspect-[4/3] flex-col items-center justify-center gap-1.5 rounded-[10px] border-[1.5px] border-dashed border-[#D6D4D0] text-[13px] text-texto2 hover:border-grafite hover:text-texto disabled:opacity-60">
-              {enviandoFotos > 0 ? <><span aria-hidden className="h-4 w-4 animate-spin rounded-full border-2 border-[#E7E5E4] border-t-violeta" />Enviando {enviandoFotos}…</> : <><ImagePlus className="h-5 w-5" />Adicionar fotos</>}
+            <button type="button" onClick={() => entradaFotos.current?.click()} disabled={enviandoFotos > 0} className="flex aspect-[4/3] flex-col items-center justify-center gap-1.5 rounded-[10px] border-[1.5px] border-dashed border-bordaHover text-[13px] text-texto2 hover:border-tinta hover:text-texto disabled:opacity-60">
+              {enviandoFotos > 0 ? <><span aria-hidden className="h-4 w-4 animate-spin rounded-full border-2 border-bordaForte border-t-violeta" />Enviando {enviandoFotos}…</> : <><ImagePlus className="h-5 w-5" />Adicionar fotos</>}
             </button>
           )}
         </div>
@@ -240,14 +240,14 @@ export function PassoMaterial({ material, aoMudar, telas, planoId, aoLer }: {
 
       <div className="grid gap-4 md:grid-cols-2">
         <Secao titulo="Números-chave" dica="Um por linha, valor e legenda. Viram métricas ou gráfico com estes valores exatos." selo={<SeloCusto>{numeros.length ? `${numeros.length} no roteiro` : 'grátis'}</SeloCusto>} id="titulo-numeros">
-          <textarea aria-label="Números-chave" value={material.numeros} onChange={(e) => aoMudar((x) => ({ ...x, numeros: e.target.value.slice(0, 1500) }))} rows={4} placeholder={'38% | mais passageiros no pico\nR$ 1,2 mi | de receita em 2026\n6 semanas | até o lançamento'} className="mono w-full resize-y rounded-[10px] bg-[#FAFAF9] px-3 py-2 text-[13px] leading-relaxed outline-none placeholder:text-[#B5B5B5]" />
+          <textarea aria-label="Números-chave" value={material.numeros} onChange={(e) => aoMudar((x) => ({ ...x, numeros: e.target.value.slice(0, 1500) }))} rows={4} placeholder={'38% | mais passageiros no pico\nR$ 1,2 mi | de receita em 2026\n6 semanas | até o lançamento'} className="mono w-full resize-y rounded-[10px] bg-fundo px-3 py-2 text-[13px] leading-relaxed outline-none placeholder:text-texto3" />
         </Secao>
         <div className="flex flex-col gap-4">
           <Secao titulo="O que não pode faltar" selo={<SeloCusto />} id="titulo-obrigatorio">
-            <textarea aria-label="O que não pode faltar" value={material.obrigatorio} onChange={(e) => aoMudar((x) => ({ ...x, obrigatorio: e.target.value.slice(0, 1500) }))} rows={2} placeholder="Ex.: prazo de 6 semanas; suporte de 3 meses; case da Atlas" className="w-full resize-y rounded-[10px] bg-[#FAFAF9] px-3 py-2 text-[14px] outline-none placeholder:text-[#B5B5B5]" />
+            <textarea aria-label="O que não pode faltar" value={material.obrigatorio} onChange={(e) => aoMudar((x) => ({ ...x, obrigatorio: e.target.value.slice(0, 1500) }))} rows={2} placeholder="Ex.: prazo de 6 semanas; suporte de 3 meses; case da Atlas" className="w-full resize-y rounded-[10px] bg-fundo px-3 py-2 text-[14px] outline-none placeholder:text-texto3" />
           </Secao>
           <Secao titulo="O que evitar" selo={<SeloCusto />} id="titulo-evitar">
-            <textarea aria-label="O que evitar" value={material.evitar} onChange={(e) => aoMudar((x) => ({ ...x, evitar: e.target.value.slice(0, 800) }))} rows={2} placeholder="Ex.: não citar preço; sem jargão técnico" className="w-full resize-y rounded-[10px] bg-[#FAFAF9] px-3 py-2 text-[14px] outline-none placeholder:text-[#B5B5B5]" />
+            <textarea aria-label="O que evitar" value={material.evitar} onChange={(e) => aoMudar((x) => ({ ...x, evitar: e.target.value.slice(0, 800) }))} rows={2} placeholder="Ex.: não citar preço; sem jargão técnico" className="w-full resize-y rounded-[10px] bg-fundo px-3 py-2 text-[14px] outline-none placeholder:text-texto3" />
           </Secao>
         </div>
       </div>

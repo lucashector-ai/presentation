@@ -5,11 +5,11 @@ import { Sparkles } from 'lucide-react'
 import { dados, mensagemDeErro, useCarregar, useDados } from '@/lib/dados'
 import { ACOES_IA, PLANOS, resumoCobranca, TELAS_REFERENCIA, custoApresentacao, formatarBytes, formatarLimite, percentualUso, precoComCiclo } from '@/lib/planos'
 import { exemploApresentacoes, textoTelas } from '@/lib/telasIa'
-import { alternarTema } from '@/lib/sessao'
 import { Botao, Campo, Entrada, ModalConfirmar, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 import { useCreditos } from './Creditos'
 import { PainelEquipe } from './Equipe'
+import { SeletorTema } from './SeletorTema'
 import { CabecalhoPagina, PaginaPainel } from './Layout'
 
 const fmt = (n: number) => n.toLocaleString('pt-BR')
@@ -103,8 +103,8 @@ export function Configuracoes() {
         </Bloco>
 
         <Bloco id="plano" titulo="Plano e uso" acao={
-          <div className="inline-flex h-8 items-center gap-1 rounded-full border-[1.5px] border-grafite p-1 text-[12px]">
-            {(['anual', 'mensal'] as const).map((c) => <button key={c} onClick={() => setCiclo(c)} aria-pressed={ciclo === c} className={cx('flex h-full items-center rounded-full px-4 font-medium', ciclo === c ? 'bg-grafite text-fundo' : '')}>{c === 'anual' ? 'Anual · −20%' : 'Mensal'}</button>)}
+          <div className="inline-flex h-8 items-center gap-1 rounded-full border-[1.5px] border-tinta p-1 text-[12px]">
+            {(['anual', 'mensal'] as const).map((c) => <button key={c} onClick={() => setCiclo(c)} aria-pressed={ciclo === c} className={cx('flex h-full items-center rounded-full px-4 font-medium', ciclo === c ? 'bg-acao text-acaoTexto' : '')}>{c === 'anual' ? 'Anual · −20%' : 'Mensal'}</button>)}
           </div>
         }>
           <div className="space-y-4 text-[13px]">
@@ -115,7 +115,7 @@ export function Configuracoes() {
           {/* calha de 24, a mesma do perfil e dos créditos: as colunas de dentro dos blocos também batem entre si */}
           <div className="mt-6 grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
             {Object.values(PLANOS).map((p) => (
-              <div key={p.id} className={cx('flex min-w-0 flex-col rounded-cartao border-[1.5px] p-4 text-[13px]', p.id === plano.id ? 'border-grafite' : 'border-borda')}>
+              <div key={p.id} className={cx('flex min-w-0 flex-col rounded-cartao border-[1.5px] p-4 text-[13px]', p.id === plano.id ? 'border-tinta' : 'border-borda')}>
                 <div className="flex items-center justify-between"><span className="font-medium">{p.nome}</span>{p.id === 'pro' && <span className="mono rounded-full bg-lima px-2 py-1 text-[9px] leading-none">MAIS ESCOLHIDO</span>}</div>
                 <div className="mt-2 text-[24px] font-medium tracking-tight">R${precoComCiclo(p, ciclo)}<span className="text-[12px] font-normal text-texto2"> /{p.porMembro ? 'membro/' : ''}mês</span></div>
                 <div className="mt-1 text-[12px]">{fmt(p.creditos.quantidade)} créditos {p.creditos.recorrencia === 'mensal' ? 'por mês' : 'no cadastro'}</div>
@@ -152,7 +152,10 @@ export function Configuracoes() {
           <PainelEquipe />
         </Bloco>
 
-        <Bloco titulo="Aparência"><Botao variante="secundario" onClick={() => alternarTema()}>Alternar tema claro/escuro</Botao></Bloco>
+        <Bloco id="preferencias" titulo="Preferências">
+          <p className="mb-4 text-[13px] text-texto2">Tema da interface neste navegador. As apresentações não mudam de cor: o cliente vê sempre o que você desenhou.</p>
+          <SeletorTema />
+        </Bloco>
 
         <Bloco titulo="Dados e privacidade (LGPD)">
           <p className="mb-4 text-[13px] text-texto2">Exporte seus dados ou exclua a conta. A exclusão apaga projetos, mídias e links após o prazo de retenção.</p>
@@ -184,7 +187,7 @@ function Barra({ rotulo, usado, limite, fmt }: { rotulo: string; usado: number; 
   return (
     <div>
       <div className="mb-2 flex justify-between gap-4"><span>{rotulo}</span><span className="text-texto2">{limite >= Number.MAX_SAFE_INTEGER ? `${fmt(usado)} · ilimitados` : `${fmt(usado)} de ${fmt(limite)}`}</span></div>
-      <div className="h-1 overflow-hidden rounded-sm bg-borda" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={rotulo}><div className={pct >= 90 ? 'h-full bg-perigo' : 'h-full bg-grafite'} style={{ width: `${Math.max(1, pct)}%` }} /></div>
+      <div className="h-1 overflow-hidden rounded-sm bg-borda" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={rotulo}><div className={pct >= 90 ? 'h-full bg-perigo' : 'h-full bg-acao'} style={{ width: `${Math.max(1, pct)}%` }} /></div>
     </div>
   )
 }

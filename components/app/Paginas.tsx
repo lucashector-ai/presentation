@@ -45,7 +45,7 @@ export function Lixeira() {
               <div className="mt-4 flex items-center justify-between gap-2">
                 <div className="min-w-0"><div className="truncate text-[15px] font-medium">{p.nome}</div><div className="mt-1 text-[12px] text-texto3">Excluído {formatarRelativo(p.excluidoEm!).replace('Editado ', '')}</div></div>
                 <div className="flex shrink-0 gap-1">
-                  <button onClick={() => void restaurar(p)} className="flex h-8 items-center gap-2 rounded-controle border border-bordaForte px-2 text-[13px] hover:border-[#D4D4D4]"><RotateCcw className="h-3.5 w-3.5" /> Restaurar</button>
+                  <button onClick={() => void restaurar(p)} className="flex h-8 items-center gap-2 rounded-controle border border-bordaForte px-2 text-[13px] hover:border-bordaHover"><RotateCcw className="h-3.5 w-3.5" /> Restaurar</button>
                   <button aria-label={`Excluir ${p.nome} definitivamente`} onClick={() => setExcluir(p.id)} className="flex h-8 w-8 items-center justify-center rounded-controle text-perigo hover:bg-perigo/10"><Trash2 className="h-3.5 w-3.5" /></button>
                 </div>
               </div>
@@ -239,7 +239,7 @@ export function Compartilhados() {
             {Array.from({ length: 3 }, (_, i) => <div key={i} className="flex items-center gap-4 px-4 py-4 sm:px-6"><Esqueleto className="aspect-[16/10] w-24 shrink-0 sm:w-28" /><div className="flex-1"><Esqueleto className="h-4 w-1/3" /><Esqueleto className="mt-2 h-3 w-1/2" /></div></div>)}
           </div>
         ) : linhas.length === 0 ? (
-          <EstadoVazio icone={<Send className="h-5 w-5" />} titulo="Nada enviado ainda" descricao="Publique um projeto e gere um link em Compartilhar. As visualizações do cliente aparecem aqui." acao={prontos[0] ? <Link href={`/app/projects/${prontos[0].id}/share`} className="inline-flex h-10 items-center rounded-controle bg-grafite px-4 text-[14px] font-medium text-fundo">Enviar “{prontos[0].nome}”</Link> : <Link href="/app" className="inline-flex h-10 items-center rounded-controle border-[1.5px] border-bordaForte px-4 text-[14px] font-medium">Ver projetos</Link>} />
+          <EstadoVazio icone={<Send className="h-5 w-5" />} titulo="Nada enviado ainda" descricao="Publique um projeto e gere um link em Compartilhar. As visualizações do cliente aparecem aqui." acao={prontos[0] ? <Link href={`/app/projects/${prontos[0].id}/share`} className="inline-flex h-10 items-center rounded-controle bg-acao px-4 text-[14px] font-medium text-acaoTexto">Enviar “{prontos[0].nome}”</Link> : <Link href="/app" className="inline-flex h-10 items-center rounded-controle border-[1.5px] border-bordaForte px-4 text-[14px] font-medium">Ver projetos</Link>} />
         ) : (
           <ul className="divide-y divide-borda rounded-cartao border border-borda bg-superficie">
             {linhas.map(({ p, ativos: at, todos }) => {
@@ -259,12 +259,12 @@ export function Compartilhados() {
                         {at.some((l) => l.senhaHash) && <span className="flex items-center gap-1"><Lock className="h-3 w-3" />com senha</span>}
                         {expira && <span className="flex items-center gap-1"><Clock className="h-3 w-3" />expira em {new Date(expira).toLocaleDateString('pt-BR')}</span>}
                       </div>
-                      {pendente && <div className="mt-2 text-[12px] text-[#B7791F]">O cliente vê a revisão {p.revisaoPublicada}; o rascunho está na {p.revisaoAtual}.</div>}
+                      {pendente && <div className="mt-2 text-[12px] text-avisoTexto">O cliente vê a revisão {p.revisaoPublicada}; o rascunho está na {p.revisaoAtual}.</div>}
                     </div>
                   </Link>
                   <div className="flex shrink-0 gap-2">
                     {pendente && at.length > 0 && <Botao tamanho="sm" onClick={() => void publicarAgora(p)}>Publicar ajustes</Botao>}
-                    <Link href={`/app/projects/${p.id}/share`} className="inline-flex h-8 items-center rounded-controle border-[1.5px] border-bordaForte px-4 text-[13px] font-medium hover:border-[#D4D4D4]">Gerenciar links</Link>
+                    <Link href={`/app/projects/${p.id}/share`} className="inline-flex h-8 items-center rounded-controle border-[1.5px] border-bordaForte px-4 text-[13px] font-medium hover:border-bordaHover">Gerenciar links</Link>
                   </div>
                 </li>
               )
@@ -280,7 +280,7 @@ export function Compartilhados() {
               <li key={p.id} className={cx(SPAN.metade, 'flex min-w-0 items-center gap-4 rounded-cartao border border-borda bg-superficie p-4')}>
                 <div className="w-20 shrink-0 overflow-hidden rounded-controle border border-black/5">{p.documento.scenes[0] && <CapaProjeto cena={p.documento.scenes[0]} assets={assets} proporcao={16 / 10} />}</div>
                 <div className="min-w-0 flex-1"><div className="truncate text-[14px] font-medium">{p.nome}</div><div className="mt-1 text-[12px] text-texto3">Revisão {p.revisaoPublicada} publicada</div></div>
-                <Link href={`/app/projects/${p.id}/share`} className="inline-flex h-8 shrink-0 items-center gap-2 rounded-controle bg-acento px-4 text-[13px] font-medium text-white hover:bg-[#4A55E0]"><Send className="h-3.5 w-3.5" />Gerar link</Link>
+                <Link href={`/app/projects/${p.id}/share`} className="inline-flex h-8 shrink-0 items-center gap-2 rounded-controle bg-acento px-4 text-[13px] font-medium text-acentoTexto hover:bg-acentoHover"><Send className="h-3.5 w-3.5" />Gerar link</Link>
               </li>
             ))}
           </Grade>

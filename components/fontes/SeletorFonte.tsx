@@ -61,7 +61,7 @@ export function SeletorFonte({ valor, aoMudar, doDocumento = [], rotulo = 'Fonte
         className={cx(
           variante === 'campo'
             ? 'relative flex h-7 w-full min-w-0 items-center rounded-md bg-superficie2 pl-2 pr-7 text-left text-[12px] text-texto ring-inset hover:ring-1 hover:ring-bordaForte focus-visible:outline-none focus-visible:!ring-1 focus-visible:!ring-acento'
-            : 'relative flex h-10 w-full min-w-0 items-center rounded-[10px] border-[1.5px] border-[#E7E5E4] bg-white pl-3 pr-8 text-left text-[15px] text-texto hover:border-grafite',
+            : 'relative flex h-10 w-full min-w-0 items-center rounded-[10px] border-[1.5px] border-bordaForte bg-superficie pl-3 pr-8 text-left text-[15px] text-texto hover:border-tinta',
           aberto && '!ring-1 !ring-acento',
           className,
         )}

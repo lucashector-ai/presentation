@@ -1,6 +1,6 @@
 # Mostra — direção de UX
 
-Dono: agente `ux` (`.claude/agents/ux.md`). Última revisão: 21.10.2026. Problemas e pendências ficam em [`BACKLOG.md`](./BACKLOG.md).
+Dono: agente `ux` (`.claude/agents/ux.md`). Última revisão: 23.10.2026. Problemas e pendências ficam em [`BACKLOG.md`](./BACKLOG.md).
 
 O Mostra **gera e envia apresentações**. A pessoa traz artes (Figma, Illustrator, Blender) ou pede para a IA montar a apresentação, ajusta no editor, publica e manda um link privado ao cliente — e depois acompanha se o cliente abriu. Tudo que não serve a esse ciclo é ruído.
 
@@ -81,6 +81,7 @@ Decisões:
 - **D6 — Créditos em telas.** O saldo é mostrado como telas com IA (`lib/telasIa.ts`: `textoTelas`, `exemploApresentacoes` — "≈ 4 apresentações de 10 ou 2 de 20"), nunca fixo em "apresentações de 10 telas". Valores vêm de `lib/planos.ts`/`lib/ia/economia.ts`.
 - **D7 — Criar com IA em passos.** Briefing → Marca → Material → Estilo → Tamanho → Revisar e gerar → Roteiro → Design. Passos opcionais se pulam com um clique ("Pular", "Ir para revisar"); a barra de baixo mostra sempre o custo; o que é grátis (marca, cores, logo, estilo, troca de estilo depois) diz "grátis". O atalho do painel entra direto, com prompt e tamanho preenchidos.
 - **D10 — Painel alinhado à barra lateral, não centralizado.** O conteúdo começa sempre a 48 px da barra (32 no lg) e para em 1248; em telas largas o vazio fica à direita, não dos dois lados. Com a barra lateral como âncora, a leitura começa no mesmo x em todas as telas e larguras; centralizar no que sobra abria um vão (220 px em 1920) que parecia erro.
+- **D11 — Tema claro, escuro e automático por tokens** (`app/globals.css`, `lib/design-tokens.ts › CORES_TEMA`, `lib/tema.ts`). Toda cor de interface sai de `--cor-*` (fundo, duas superfícies, bordas, texto 1/2/3 + corpo, **tinta** = traço da marca, ação, acento com texto próprio, estados, canvas). O escuro é um quase-preto quente (#121110/#1A1918/#232120), off-white #F2EFEA, violeta clareado #7F89FF (6,2:1), bordas sutis; contraste conferido (texto ≥ 4,5:1; placeholder ≥ 3:1). Preferência em `localStorage` + cookie `tema` (`auto | claro | escuro`); `<html data-tema>` guarda o tema efetivo, escrito pelo servidor (cookie) e por um script inline no `<head>` antes do CSS — sem piscar. "Automático" segue `prefers-color-scheme` (listener + `@media` no CSS para quando não há JS). Seletor em **Plano e conta → Preferências** e no **menu do usuário**; sem atalho de teclado. **O conteúdo das apresentações nunca muda de cor**: o `SceneRenderer` fixa `color-scheme: light` e `forced-color-adjust: none`, miniaturas e exportação PNG/PDF renderizam o documento como ele é; só a moldura (canvas, painéis, página de senha do `/p`) segue o tema. O visualizador e o apresentador continuam sempre escuros (moldura de cinema). Navegador com "escuro forçado" (Chrome Android, Dark Reader): `color-scheme` coerente (`light dark` no automático, `only light` no claro, `dark` no escuro) e campos/cartões/placeholders com fundo explícito — o navegador não tem mais o que inverter. Landing: fundo e tinta seguem o tema; as seções com cor de marca (grafite, ipê, sálvia, ameixa, violeta) e os cartões de plano ficam como no design.
 - **D8 — Auto layout nas telas geradas.** Nada de caixas soltas empilhadas por conta: os grupos de conteúdo são frames de auto layout (gap do tema), textos abraçam a altura e o título com ênfase são duas partes num frame com gap 0. Se o conteúdo não cabe, a tela é montada de novo menor (nunca transborda nem sobrepõe).
 
 ## 4. Fluxos principais (cliques contados a partir do estado inicial; digitação não conta)
@@ -131,7 +132,7 @@ Saldo sempre visível (rodapé da barra lateral, cartão do painel, cabeçalho d
 | Enviados | `/app/compartilhados` · `Paginas.tsx` | ✅ métricas, links, ajustes pendentes, prontos para enviar, inativos sob demanda |
 | Biblioteca | `/app/biblioteca` | ✅ envio direto e por arrastar |
 | Lixeira | `/app/lixeira` | ✅ esvaziar; aviso de que links revogados não voltam |
-| Plano e conta | `/app/settings` | ✅ créditos (saldo, ≈, extrato, quanto custa), plano (uso, troca), perfil salva, conta nova na demonstração |
+| Plano e conta | `/app/settings` | ✅ créditos (saldo, ≈, extrato, quanto custa), plano (uso, troca), perfil salva, **Preferências → Tema** (Automático · Claro · Escuro), conta nova na demonstração |
 | Editor | `/app/projects/:id/edit` | ✅ IA na tela (✦ IA: reescrever, refazer; imagem em breve) · ⚠ demais itens no backlog (agentes copia-figma/animações) |
 | Apresentar / apresentador | `/apresentar` `/apresentador` | ⚠ ver backlog (viewer) |
 | Página do cliente | `/p/:token` | ✅ selo "Feito com Mostra" só nos planos com marca da plataforma (Free) |
@@ -150,9 +151,12 @@ Saldo sempre visível (rodapé da barra lateral, cartão do painel, cabeçalho d
 - Capas: 16:10; telas verticais (Story) aparecem inteiras sobre fundo neutro (`CapaProjeto`).
 - Destaque de IA: ponto acento + sombra carimbo violeta (4 px, dentro da calha; o alinhamento é pela borda) só no cartão de criação com IA.
 - Demonstração: todo "comprar/assinar/exportar" termina com "(demonstração, sem cobrança)".
+- **Cores só por token** (`bg-superficie`, `text-texto2`, `border-tinta`, `bg-acao text-acaoTexto`, `bg-acento text-acentoTexto`, `shadow-carimbo`…): nada de `bg-white`, `#525252` ou `border-grafite` na interface — esses não viram no escuro. `grafite`, `lima`, `violeta` etc. (paleta da marca) só em blocos de cor fixa (selo, cartões de marca da landing, moldura do viewer). Pares: texto branco sobre `bg-violeta` (fixo) continua `text-white`; sobre `bg-acento` (muda no escuro) é `text-acentoTexto`.
 
 ## 7. Como validar
 
 - `npx tsc --noEmit`, `npx vitest run` (planos e store cobrem créditos, compra, troca de plano, conta vazia), `npx next lint`.
-- E2E `e2e/fluxo.mjs` (cadastro → painel → novo projeto → editor → publicar → link → convidado → revogar → Criar com IA).
+- E2E `e2e/fluxo.mjs` (cadastro → painel → novo projeto → editor → publicar → link → convidado → revogar → tema escuro → Criar com IA). O passo do tema confere `data-tema`, fundo do body, contraste do campo "Para quem" do Criar com IA, cor da tela no canvas e no PNG exportado, persistência ao recarregar e o automático com `prefers-color-scheme`.
+- Capturas claro/escuro das telas principais (1440 e 390): `E2E_BASE_URL=http://localhost:8855 node e2e/tema-capturas.mjs`.
+- `lib/tema.test.ts` garante que os dois blocos escuros do CSS são iguais e que `CORES_TEMA` espelha as variáveis.
 - Conta nova: Plano e conta → Demonstração → **Começar como conta nova** (Free, 400 créditos, nada criado).

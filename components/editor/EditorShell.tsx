@@ -482,7 +482,7 @@ const Cabecalho = comEditor(function Cabecalho({ editor, projetoId, nomeProjeto,
     <header className="flex h-[52px] shrink-0 items-center gap-1.5 border-b border-borda bg-superficie px-2 sm:gap-2 sm:px-3">
       <Link href="/app" onClick={() => acoes.salvarAgora()} aria-label="Início" title="Voltar ao Início" className="shrink-0 rounded-md p-0.5 hover:bg-hover"><Simbolo tamanho={26} /></Link>
       <Link href="/app" onClick={() => acoes.salvarAgora()} className="hidden shrink-0 text-[13px] text-texto2 hover:text-texto lg:inline">Início</Link>
-      <span className="hidden text-[#D4D4D4] sm:inline">/</span>
+      <span className="hidden text-bordaHover sm:inline">/</span>
       <input aria-label="Nome do projeto" defaultValue={nomeProjeto} onBlur={(e) => { if (e.target.value.trim() && e.target.value !== nomeProjeto) renomear(e.target.value.trim()) }} className="h-8 w-0 min-w-0 flex-1 truncate rounded-md bg-transparent px-1.5 text-[14px] font-medium outline-none hover:bg-hover focus:bg-hover md:w-44 md:flex-none lg:w-64" />
       <EstadoSalvo editor={editor} />
       <span className="hidden flex-1 md:block" />
@@ -570,7 +570,7 @@ function ModalEmbed({ aberto, aoFechar, aoConfirmar }: { aberto: boolean; aoFech
   const [url, setUrl] = useState('')
   return (
     <Modal aberto={aberto} aoFechar={aoFechar} titulo="Incorporar conteúdo" descricao="Cole um link do YouTube, Vimeo, Figma, Loom, Spline, Sketchfab ou Spotify." largura="md" rodape={<><Botao variante="secundario" onClick={aoFechar}>Cancelar</Botao><Botao onClick={() => { aoConfirmar(url); setUrl('') }} disabled={!/^https:\/\//.test(url)}>Incorporar</Botao></>}>
-      <input aria-label="Link para incorporar" autoFocus value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://www.youtube.com/watch?v=…" className="h-11 w-full rounded-lg border border-[#E7E5E4] px-3.5 text-sm outline-none focus:border-acento" />
+      <input aria-label="Link para incorporar" autoFocus value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://www.youtube.com/watch?v=…" className="h-11 w-full rounded-lg border border-bordaForte bg-superficie px-3.5 text-sm text-texto outline-none focus:border-acento" />
     </Modal>
   )
 }
@@ -580,7 +580,7 @@ function EstadoSalvo({ editor }: { editor: ReturnType<typeof useEditor> }) {
   const s = estado.salvamento
   if (s === 'conflito')
     return (
-      <span className="ml-2 hidden items-center gap-1.5 text-[12px] text-[#7a5a12] sm:flex" role="status" aria-live="polite">
+      <span className="ml-2 hidden items-center gap-1.5 text-[12px] text-avisoTexto sm:flex" role="status" aria-live="polite">
         <TriangleAlert className="h-3 w-3" /> Não salvo: versão mais recente
       </span>
     )
@@ -620,7 +620,7 @@ function AvisoConflito({ editor }: { editor: ReturnType<typeof useEditor> }) {
   }
   return (
     <div role="alert" className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-aviso/40 bg-aviso/15 px-4 py-2 text-[13px] text-texto">
-      <TriangleAlert className="h-4 w-4 shrink-0 text-[#B7791F]" />
+      <TriangleAlert className="h-4 w-4 shrink-0 text-avisoTexto" />
       <span className="min-w-0 flex-1">
         <strong className="font-medium">Este projeto mudou em outra aba ou dispositivo.</strong>{' '}
         <span className="text-texto2">Suas mudanças desta sessão não foram salvas, mas continuam aqui{estado.conflito ? ` (o servidor está na revisão ${estado.conflito.currentRevision})` : ''}. Recarregue para ver a versão mais recente ou mantenha a sua por cima dela.</span>

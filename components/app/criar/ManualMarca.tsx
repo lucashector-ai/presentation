@@ -39,7 +39,7 @@ function Regras({ titulo, itens, aoMudar }: { titulo: string; itens: string[]; a
       <div className="rotulo-mono">{titulo}</div>
       <ul className="flex flex-col gap-1" aria-label={titulo}>
         {itens.map((r, k) => (
-          <li key={`${k}-${r}`} className="flex items-start gap-2 rounded-[8px] bg-[#F7F7F5] px-2.5 py-1.5 text-[13px] leading-snug">
+          <li key={`${k}-${r}`} className="flex items-start gap-2 rounded-[8px] bg-superficie2 px-2.5 py-1.5 text-[13px] leading-snug">
             <span className="min-w-0 flex-1">{r}</span>
             <button type="button" aria-label={`Remover regra: ${r.slice(0, 40)}`} onClick={() => aoMudar(itens.filter((_, j) => j !== k))} className="mt-0.5 text-texto3 hover:text-texto"><X className="h-3 w-3" /></button>
           </li>
@@ -151,7 +151,7 @@ export function ManualMarca({ marca, aoMudar, prompt, aoUsarLogo }: {
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => { e.preventDefault(); void ler([...e.dataTransfer.files]) }}
       disabled={!!lendo}
-      className="flex min-h-16 w-full items-center justify-center gap-2.5 rounded-[12px] border-[1.5px] border-dashed border-[#D6D4D0] px-3 py-3 text-center text-[14px] text-texto2 hover:border-grafite hover:text-texto disabled:opacity-60"
+      className="flex min-h-16 w-full items-center justify-center gap-2.5 rounded-[12px] border-[1.5px] border-dashed border-bordaHover px-3 py-3 text-center text-[14px] text-texto2 hover:border-tinta hover:text-texto disabled:opacity-60"
     >
       <FileUp className="h-4 w-4 shrink-0" />Enviar o manual da marca · PDF, imagens, tokens .json, .css ou .pptx
     </button>
@@ -163,12 +163,12 @@ export function ManualMarca({ marca, aoMudar, prompt, aoUsarLogo }: {
       {lendo && <ProgressoLeitura lendo={lendo} />}
 
       {!rascunho && !lendo && (aplicado ? (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[10px] bg-[#EEF5EC] px-3 py-2.5 text-[13px] text-[#28502A]" data-testid="manual-aplicado">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[10px] bg-sucessoFundo px-3 py-2.5 text-[13px] text-sucessoTexto" data-testid="manual-aplicado">
           <BookOpen className="h-4 w-4 shrink-0" />
           <span className="min-w-0 flex-1">Manual aplicado{aplicado.origem.arquivos.length ? ` (${aplicado.origem.arquivos.join(', ')})` : ''}: {resumoPerfil(aplicado)}{aplicado.origem.resumidoPorIa ? ' · resumido pela IA' : ''}.</span>
-          <button type="button" onClick={() => setRascunho({ perfil: aplicado, texto: '', candidatos: [], avisos: [], nome: '' })} className="h-8 rounded-full border-[1.5px] border-[#2F6B45] px-3 text-[12px] font-medium hover:bg-white">Revisar</button>
-          <button type="button" onClick={() => entrada.current?.click()} className="h-8 rounded-full border-[1.5px] border-[#2F6B45] px-3 text-[12px] font-medium hover:bg-white">Trocar</button>
-          <button type="button" aria-label="Remover o manual da marca" onClick={() => aoMudar((m) => ({ ...m, perfil: null }))} className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-white"><Trash2 className="h-3.5 w-3.5" /></button>
+          <button type="button" onClick={() => setRascunho({ perfil: aplicado, texto: '', candidatos: [], avisos: [], nome: '' })} className="h-8 rounded-full border-[1.5px] border-sucessoTexto px-3 text-[12px] font-medium hover:bg-superficie">Revisar</button>
+          <button type="button" onClick={() => entrada.current?.click()} className="h-8 rounded-full border-[1.5px] border-sucessoTexto px-3 text-[12px] font-medium hover:bg-superficie">Trocar</button>
+          <button type="button" aria-label="Remover o manual da marca" onClick={() => aoMudar((m) => ({ ...m, perfil: null }))} className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-superficie"><Trash2 className="h-3.5 w-3.5" /></button>
         </div>
       ) : zona)}
 
@@ -181,13 +181,13 @@ export function ManualMarca({ marca, aoMudar, prompt, aoUsarLogo }: {
               <div className="rotulo-mono">Cores e papéis</div>
               <ul className="grid gap-1.5 sm:grid-cols-2" aria-label="Cores do manual">
                 {rascunho.perfil.cores.map((c, k) => (
-                  <li key={`${c.hex}-${k}`} className="flex min-w-0 items-center gap-2 rounded-[10px] border border-borda bg-white py-1.5 pl-1.5 pr-2">
+                  <li key={`${c.hex}-${k}`} className="flex min-w-0 items-center gap-2 rounded-[10px] border border-borda bg-superficie py-1.5 pl-1.5 pr-2">
                     <input type="color" aria-label={`Cor do manual ${k + 1}`} value={RE_HEX.test(c.hex) ? c.hex : '#5965F2'} onChange={(e) => mudarPerfil((p) => ({ ...p, cores: p.cores.map((x, j) => (j === k ? { ...x, hex: e.target.value.toUpperCase() } : x)) }))} className="h-8 w-8 shrink-0 cursor-pointer rounded-full border-0 bg-transparent p-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-full [&::-webkit-color-swatch]:border-0" />
                     <span className="min-w-0 flex-1">
                       <span className="mono block text-[12px] uppercase">{c.hex}</span>
                       <span className="block truncate text-[11px] text-texto3" title={c.nome}>{c.nome || '—'}</span>
                     </span>
-                    <select aria-label={`Papel da cor ${c.hex}`} value={c.papel} onChange={(e) => mudarPerfil((p) => ({ ...p, cores: p.cores.map((x, j) => (j === k ? { ...x, papel: e.target.value as PapelCor } : x)) }))} className="rounded-md bg-[#F5F5F4] px-1.5 py-1 text-[12px] outline-none">
+                    <select aria-label={`Papel da cor ${c.hex}`} value={c.papel} onChange={(e) => mudarPerfil((p) => ({ ...p, cores: p.cores.map((x, j) => (j === k ? { ...x, papel: e.target.value as PapelCor } : x)) }))} className="rounded-md bg-superficie2 px-1.5 py-1 text-[12px] outline-none">
                       {PAPEIS_COR.map((p) => <option key={p} value={p}>{NOMES_PAPEL[p]}</option>)}
                     </select>
                     <button type="button" aria-label={`Remover a cor ${c.hex}`} onClick={() => mudarPerfil((p) => ({ ...p, cores: p.cores.filter((_, j) => j !== k) }))} className="text-texto3 hover:text-texto"><X className="h-3 w-3" /></button>
@@ -206,7 +206,7 @@ export function ManualMarca({ marca, aoMudar, prompt, aoUsarLogo }: {
                   <div key={n} className="flex min-w-0 flex-col gap-1 text-[12px] text-texto3">
                     <span className="flex items-center justify-between gap-1">{NOMES_NIVEL[n]}{f && <button type="button" aria-label={`Tirar a fonte de ${NOMES_NIVEL[n].toLowerCase()}`} onClick={() => mudarPerfil((p) => ({ ...p, fontes: { ...p.fontes, [n]: null } }))} className="hover:text-texto"><X className="h-3 w-3" /></button>}</span>
                     <SeletorFonte variante="cartao" rotulo={`Fonte do manual: ${NOMES_NIVEL[n].toLowerCase()}`} valor={f?.familia ?? 'Do estilo'} aoMudar={(familia) => mudarPerfil((p) => ({ ...p, fontes: { ...p.fontes, [n]: { familia, original: familia, substituta: false } } }))} />
-                    {f?.substituta && <span className="leading-snug text-[#8A5A00]" data-testid={`aviso-fonte-${n}`}>“{f.original}” não está no Google Fonts: usamos <span style={{ fontFamily: pilhaFonte(f.familia) }}>{f.familia}</span>, a mais parecida.</span>}
+                    {f?.substituta && <span className="leading-snug text-avisoTexto" data-testid={`aviso-fonte-${n}`}>“{f.original}” não está no Google Fonts: usamos <span style={{ fontFamily: pilhaFonte(f.familia) }}>{f.familia}</span>, a mais parecida.</span>}
                   </div>
                 )
               })}
@@ -218,7 +218,7 @@ export function ManualMarca({ marca, aoMudar, prompt, aoUsarLogo }: {
               <div className="rotulo-mono">Logo encontrado no manual</div>
               <div className="flex flex-wrap gap-2">
                 {rascunho.candidatos.map((c, k) => (
-                  <button key={c.id} type="button" disabled={!!usandoLogo} onClick={() => void usarCandidato(c)} aria-label={`Usar a imagem ${k + 1} do manual como logo`} className="flex items-center gap-2 rounded-[10px] border-[1.5px] border-[#E7E5E4] bg-white p-1.5 pr-3 text-[12px] hover:border-grafite disabled:opacity-60">
+                  <button key={c.id} type="button" disabled={!!usandoLogo} onClick={() => void usarCandidato(c)} aria-label={`Usar a imagem ${k + 1} do manual como logo`} className="flex items-center gap-2 rounded-[10px] border-[1.5px] border-bordaForte bg-superficie p-1.5 pr-3 text-[12px] hover:border-tinta disabled:opacity-60">
                     <span className="flex h-12 w-24 items-center justify-center rounded-md bg-[repeating-conic-gradient(#F0EFED_0_25%,#fff_0_50%)] bg-[length:12px_12px] p-1"><img src={c.url} alt="" className="max-h-full max-w-full object-contain" /></span>
                     {usandoLogo === c.id ? 'Enviando…' : 'Usar como logo'}
                   </button>
@@ -245,17 +245,17 @@ export function ManualMarca({ marca, aoMudar, prompt, aoUsarLogo }: {
           </div>
           <label className="flex flex-wrap items-center gap-2 text-[13px] text-texto2">
             Densidade das telas
-            <select aria-label="Densidade do manual" value={rascunho.perfil.densidade ?? ''} onChange={(e) => mudarPerfil((p) => ({ ...p, densidade: (e.target.value || null) as PerfilMarca['densidade'] }))} className="rounded-md bg-[#F5F5F4] px-2 py-1.5 text-texto outline-none">
+            <select aria-label="Densidade do manual" value={rascunho.perfil.densidade ?? ''} onChange={(e) => mudarPerfil((p) => ({ ...p, densidade: (e.target.value || null) as PerfilMarca['densidade'] }))} className="rounded-md bg-superficie2 px-2 py-1.5 text-texto outline-none">
               <option value="">O manual não diz</option>
               {DENSIDADES_MARCA.map((d) => <option key={d} value={d}>{NOMES_DENSIDADE[d]}</option>)}
             </select>
           </label>
           <p className="text-[12px] text-texto3">O que você escrever no pedido tem prioridade sobre o manual quando os dois conflitarem. O texto do manual entra na IA só como referência da marca, nunca como instrução.</p>
 
-          <div className="flex flex-wrap items-center gap-2 border-t border-[#F0EFED] pt-3">
-            <button type="button" onClick={aplicar} className="flex h-10 items-center gap-2 rounded-full bg-grafite px-4 text-[14px] font-medium text-fundo hover:opacity-90"><Check className="h-4 w-4" />Aplicar à marca</button>
+          <div className="flex flex-wrap items-center gap-2 border-t border-borda pt-3">
+            <button type="button" onClick={aplicar} className="flex h-10 items-center gap-2 rounded-full bg-acao px-4 text-[14px] font-medium text-acaoTexto hover:opacity-90"><Check className="h-4 w-4" />Aplicar à marca</button>
             {rascunho.texto.trim().length >= 40 && (
-              <button type="button" onClick={() => void resumirComIa()} disabled={resumindo} className="flex h-10 items-center gap-2 rounded-full border-[1.5px] border-bordaForte bg-white px-4 text-[14px] font-medium hover:border-grafite disabled:opacity-60">
+              <button type="button" onClick={() => void resumirComIa()} disabled={resumindo} className="flex h-10 items-center gap-2 rounded-full border-[1.5px] border-bordaForte bg-superficie px-4 text-[14px] font-medium hover:border-tinta disabled:opacity-60">
                 <Sparkles className="h-4 w-4 text-acento" />{resumindo ? 'A IA está lendo o manual…' : <>Resumir com IA · <span className="mono">{custoIa}</span> {custoIa === 1 ? 'crédito' : 'créditos'}</>}
               </button>
             )}

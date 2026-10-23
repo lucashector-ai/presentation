@@ -72,7 +72,7 @@ export function PainelEquipe({ projetoId, aoSair }: { projetoId?: string; aoSair
             <button type="button" className="inline-flex items-center gap-1 font-medium text-acento hover:underline disabled:opacity-50" disabled={enviando} onClick={() => void convidar(false)}><Link2 className="h-3.5 w-3.5" /> Criar link de convite</button>
             <span>· vale 7 dias para quem tiver o link · {ocupadas} de {equipe.limite} {equipe.limite === 1 ? 'vaga' : 'vagas'} do plano</span>
           </div>
-          {lotado && <p className="text-[12px] text-[#7a5a12]">O plano deste espaço não tem vaga para mais pessoas. Convidar em equipe está disponível no plano Studio.</p>}
+          {lotado && <p className="text-[12px] text-avisoTexto">O plano deste espaço não tem vaga para mais pessoas. Convidar em equipe está disponível no plano Studio.</p>}
           {gerado && (
             <div className="rounded-controle border border-acento/40 bg-acento/5 p-4 text-[13px]" role="status">
               <div className="mb-2 font-medium">{gerado.convite.email ? `Convite para ${gerado.convite.email}` : 'Link de convite'} · {PAPEL[gerado.convite.papel]}</div>
