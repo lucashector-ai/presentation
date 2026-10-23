@@ -12,12 +12,11 @@
   // (lib/site.ts usa a origem do pedido nesses hosts).
   "vars": { "NEXT_PUBLIC_SITE_URL": "https://mostra.page" },
   // Domínio próprio: Custom Domains do Worker (criam o DNS e o certificado sozinhos). Só funcionam com a zona
-  // mostra.page ATIVA na conta; enquanto ela não existir, o `wrangler deploy` falha com as rotas ligadas, por isso
-  // ficam comentadas. Passo a passo e ordem de ativação em docs/dominio.md.
-  // "routes": [
-  //   { "pattern": "mostra.page", "custom_domain": true },
-  //   { "pattern": "www.mostra.page", "custom_domain": true }
-  // ],
+  // Custom Domains: a zona mostra.page está ativa na conta (docs/dominio.md).
+  "routes": [
+    { "pattern": "mostra.page", "custom_domain": true },
+    { "pattern": "www.mostra.page", "custom_domain": true }
+  ],
   "assets": {
     "directory": "dist/client",
     "html_handling": "none",
