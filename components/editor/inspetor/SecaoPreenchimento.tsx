@@ -58,7 +58,7 @@ export function SecaoPreenchimento({ editor }: PropsSecao) {
   return (
     <Secao titulo="Preenchimento" vazia={vazia} aoAdicionar={vazia || pintura === MISTO ? (pintura === MISTO ? () => { const p = pinturaDe(camadas[0]!); setFn((c) => comPintura(c, p)) } : adicionar) : undefined} rotuloAdicionar="Adicionar preenchimento">
       {pintura === MISTO ? (
-        <p className="text-[12px] text-texto2">Preenchimentos diferentes. Clique em + para usar o mesmo em todos.</p>
+        <LinhaPintura rotulo={forma ? 'Cor de preenchimento (mista)' : 'Cor do texto (mista)'} valor={pinturaDe(camadas[0]!)} vazio placeholder="Misto" tipos={['solido', 'linear', 'radial']} aoMudar={(p) => setFn((c) => comPintura(c, p))} />
       ) : (
         <LinhaPintura
           rotulo={forma ? 'Cor de preenchimento' : 'Cor do texto'}

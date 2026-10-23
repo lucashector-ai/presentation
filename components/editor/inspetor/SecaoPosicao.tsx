@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceAround, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceAround, FlipHorizontal2, FlipVertical2, RotateCw } from 'lucide-react'
 import type { Alinhamento } from '@/lib/scene/transform'
 import { cx } from '@/components/ui'
-import { BotaoCampo, CampoNum, Secao } from './controles'
+import { BotaoCampo, CampoNum, Secao, SeletorLista } from './controles'
 import { IconeAngulo } from './SeletorCor'
 import { comum, useCamadas, type PropsSecao } from './selecao'
 
@@ -34,6 +34,18 @@ export function BotaoGrupo({ rotulo, onClick, children, ativo }: { rotulo: strin
     </button>
   )
 }
+
+/** Vistas 3D prontas (rx, ry em graus). */
+const VISTAS_3D = [
+  { id: 'plano', nome: 'Plano', rx: 0, ry: 0 },
+  { id: 'esquerda', nome: 'Esquerda', rx: 0, ry: -35 },
+  { id: 'direita', nome: 'Direita', rx: 0, ry: 35 },
+  { id: 'sup-esquerda', nome: 'Superior esquerda', rx: 30, ry: -35 },
+  { id: 'sup-direita', nome: 'Superior direita', rx: 30, ry: 35 },
+  { id: 'isometrico', nome: 'Isométrico', rx: 45, ry: -30 },
+  { id: 'personalizado', nome: 'Personalizado', rx: NaN, ry: NaN },
+] as const
+const vista3d = (rx: unknown, ry: unknown) => VISTAS_3D.find((v) => v.rx === rx && v.ry === ry)?.id ?? 'personalizado'
 
 export function SecaoPosicao({ editor }: PropsSecao) {
   const { acoes } = editor
@@ -71,16 +83,21 @@ export function SecaoPosicao({ editor }: PropsSecao) {
           <BotaoCampo rotulo="Espelhar na vertical" ativo={comum(sel, (c) => c.flipY) === true} onClick={() => acoes.inverter(ids, 'y')}><FlipVertical2 className="h-3.5 w-3.5" /></BotaoCampo>
         </div>
       </div>
-      {/* 3D: inclinação com perspectiva (isométrico, cartões em ângulo); presets como os do plugin Isometric do Figma */}
-      <div className="grid grid-cols-[1fr_1fr_32px] gap-2">
-        <CampoNum prefixo="3D X" rotulo="Inclinação 3D no eixo X" valor={comum(sel, (c) => c.rotateX ?? 0)} min={-180} max={180} sufixo="°" aoMudar={(v) => set({ rotateX: v || undefined })} aoDelta={(d) => setFn((c) => ({ ...c, rotateX: ((c.rotateX ?? 0) + d) || undefined }))} />
-        <CampoNum prefixo="3D Y" rotulo="Inclinação 3D no eixo Y" valor={comum(sel, (c) => c.rotateY ?? 0)} min={-180} max={180} sufixo="°" aoMudar={(v) => set({ rotateY: v || undefined })} aoDelta={(d) => setFn((c) => ({ ...c, rotateY: ((c.rotateY ?? 0) + d) || undefined }))} />
-      </div>
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Predefinições 3D">
-        {([['Plano', 0, 0], ['Esquerda', 0, -35], ['Direita', 0, 35], ['Sup. esquerda', 30, -35], ['Sup. direita', 30, 35], ['Isométrico', 45, -30]] as const).map(([nome, rx, ry]) => (
-          <button key={nome} type="button" onClick={() => set({ rotateX: rx || undefined, rotateY: ry || undefined })} className="h-7 rounded-full border border-borda px-2.5 text-[11px] text-textoCorpo hover:border-bordaHover">{nome}</button>
-        ))}
-      </div>
+      {/* 3D: um menu com as vistas (como o plugin Isometric do Figma); os ângulos só aparecem quando há inclinação */}
+      <SeletorLista
+        rotulo="Vista 3D"
+        prefixo={<span className="mono text-[10px] text-texto3">3D</span>}
+        valor={vista3d(comum(sel, (c) => c.rotateX ?? 0), comum(sel, (c) => c.rotateY ?? 0))}
+        opcoes={VISTAS_3D.map((v) => ({ id: v.id, rotulo: v.nome }))}
+        aoMudar={(id) => { const v = VISTAS_3D.find((x) => x.id === id); if (v && v.id !== 'personalizado') set({ rotateX: v.rx || undefined, rotateY: v.ry || undefined, perspective: v.rx || v.ry ? 1200 : undefined }) }}
+      />
+      {(comum(sel, (c) => c.rotateX ?? 0) !== 0 || comum(sel, (c) => c.rotateY ?? 0) !== 0) && (
+        <div className="grid grid-cols-[1fr_1fr_32px] gap-2">
+          <CampoNum prefixo="X" rotulo="Inclinação 3D no eixo X" valor={comum(sel, (c) => c.rotateX ?? 0)} min={-180} max={180} sufixo="°" aoMudar={(v) => set({ rotateX: v || undefined })} aoDelta={(d) => setFn((c) => ({ ...c, rotateX: ((c.rotateX ?? 0) + d) || undefined }))} />
+          <CampoNum prefixo="Y" rotulo="Inclinação 3D no eixo Y" valor={comum(sel, (c) => c.rotateY ?? 0)} min={-180} max={180} sufixo="°" aoMudar={(v) => set({ rotateY: v || undefined })} aoDelta={(d) => setFn((c) => ({ ...c, rotateY: ((c.rotateY ?? 0) + d) || undefined }))} />
+          <CampoNum prefixo="P" rotulo="Perspectiva (distância da câmera)" titulo="Perspectiva" valor={comum(sel, (c) => c.perspective ?? 1200)} min={100} max={5000} aoMudar={(v) => set({ perspective: v })} />
+        </div>
+      )}
     </Secao>
   )
 }

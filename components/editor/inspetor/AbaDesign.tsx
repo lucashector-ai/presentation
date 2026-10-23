@@ -10,6 +10,7 @@ import { CabecalhoCamada } from './CabecalhoCamada'
 import { SecaoPosicao } from './SecaoPosicao'
 import { SecaoLayout } from './SecaoLayout'
 import { SecaoAutoLayout } from './SecaoAutoLayout'
+import { SecaoBento } from './SecaoBento'
 import { SecaoAparencia } from './SecaoAparencia'
 import { SecaoMascara } from './SecaoMascara'
 import { SecoesDoTipo } from './SecoesTipo'
@@ -34,6 +35,7 @@ export function AbaDesign({ editor, assets }: { editor: Editor; assets: AssetDem
       <SecaoPosicao {...p} />
       <SecaoLayout {...p} />
       <SecaoAutoLayout {...p} />
+      <SecaoBento {...p} />
       <SecaoRestricoes {...p} />
       <SecaoAparencia {...p} />
       <SecaoMascara {...p} />

@@ -34,6 +34,8 @@ import { alternarGuias, ehAtalhoGuias } from './guias/estado'
 import { Atrasado, Botao, BotaoIcone, Carregando, Modal, Simbolo, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 import { MAX_HTML_EMBED } from '@/lib/scene/schema'
+import { gerarBento } from '@/lib/editor/bento'
+import { novoId } from '@/lib/scene/order'
 
 /**
  * Painéis e botões que recebem o editor inteiro só re-renderizam quando algo além do zoom/pan muda; durante um
@@ -219,23 +221,15 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
       }
       case 'embed': return setEmbed({ ponto })
       case 'bento': {
-        // mosaico 3×2 na grade de 8: um cartão grande (2 colunas), dois médios e um alto
-        const gap = 24
+        // frame externo com auto layout → linhas/colunas → cartões (frames com recorte), tudo na grade de 8
         const larg = Math.round((W * 0.72) / 8) * 8
         const alt = Math.round((H * 0.6) / 8) * 8
-        const col = Math.round((larg - gap * 2) / 3 / 8) * 8
-        const lin = Math.round((alt - gap) / 2 / 8) * 8
         const x0 = Math.round(((ponto?.x ?? W / 2) - larg / 2) / 8) * 8
         const y0 = Math.round(((ponto?.y ?? H / 2) - alt / 2) / 8) * 8
-        const cartoes = [
-          { x: 0, y: 0, w: col * 2 + gap, h: lin, fill: '#171717' },
-          { x: col * 2 + gap * 2, y: 0, w: col, h: lin * 2 + gap, fill: '#D7F25C' },
-          { x: 0, y: lin + gap, w: col, h: lin, fill: '#F2F1EF' },
-          { x: col + gap, y: lin + gap, w: col, h: lin, fill: '#5965F2' },
-        ]
-        const ids = cartoes.map((k, i) => acoes.criarCamada({ type: 'shape', fill: k.fill, radius: 24, name: `bento-${i + 1}` }, { x: x0 + k.x, y: y0 + k.y, width: k.w, height: k.h })?.id).filter((x): x is string => !!x)
-        setTimeout(() => { acoes.agrupar(ids); acoes.selecionar(ids) }, 0)
-        avisar('Bento grid criado. Arraste imagens ou textos para dentro dos cartões.', 'info')
+        const camadas = gerarBento({ x: x0, y: y0, width: larg, height: alt }, { preset: 'classico', gap: 24, radius: 24, clip: true }, novoId('bento', cena.layers))
+        acoes.inserirCamadas(camadas)
+        setTimeout(() => acoes.selecionar([camadas[0]!.id]), 0)
+        avisar('Bento grid criado. Arraste imagens ou textos para dentro dos cartões; formato e espaço ficam na seção Bento grid.', 'info')
         return
       }
       case 'imagem': case 'video': case 'modelo3d': case 'lottie': case 'vetor':

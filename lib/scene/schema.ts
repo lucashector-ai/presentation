@@ -793,6 +793,8 @@ export const CamadaFrameSchema = CamadaBase.extend({
   layout: AutoLayoutSchema.optional(),
   /** Guias de layout do frame (só no editor). */
   guias: GuiasLayoutSchema.optional(),
+  /** Bento grid (Blocos): preset, espaço e raio dos cartões; regenerado pela seção Bento do inspetor. */
+  bento: z.object({ preset: z.string().max(40), gap: z.number().min(0).max(200), radius: z.number().min(0).max(200) }).optional(),
 })
 
 export const CamadaSchema = z.discriminatedUnion('type', [
