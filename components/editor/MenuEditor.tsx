@@ -1,12 +1,13 @@
 'use client'
 /**
- * Menu "⋯" da barra superior do editor: ver (guias de layout, ⌃⇧4), exportar (PNG/JPG 1×–3× da tela ou da seleção, PDF da apresentação),
+ * Menu "⋯" da barra superior do editor: ver (guias de layout, ⌃⇧4), tela (ajustar espaçamento em 8 px na tela ou na
+ * apresentação inteira), exportar (PNG/JPG 1×–3× da tela ou da seleção, PDF da apresentação),
  * detalhes do projeto e atalhos. No celular também reúne o que não cabe na barra (desfazer, pré-visualizar,
  * opções de apresentação).
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
-import { Check, Copy, Download, Eye, FileText, Info, Keyboard, Loader2, MonitorPlay, MoreHorizontal, Play, Redo2, Undo2 } from 'lucide-react'
+import { AlignHorizontalSpaceAround, Check, Copy, Download, Eye, FileText, Info, Keyboard, Loader2, MonitorPlay, MoreHorizontal, Play, Redo2, Undo2 } from 'lucide-react'
 import type { Editor } from '@/lib/editor/useEditor'
 import { ESCALAS, type FormatoImagem } from '@/lib/exportar/medidas'
 import { cx } from '@/components/ui'
@@ -68,6 +69,10 @@ export function MenuEditor({ editor, projetoId, nomeProjeto, aoPreview, aoAprese
 
           <div className="px-2 pb-0.5 pt-1.5"><div className="rotulo-mono text-[10px] text-texto3">Ver</div></div>
           <Item role="menuitemcheckbox" aria-checked={estado.guiasLayout} icone={estado.guiasLayout ? <Check className="h-3.5 w-3.5" /> : <span className="w-3.5" />} onClick={fechar(() => alternarGuias(acoes, estado.guiasLayout, mostrar))}>Guias de layout <span className="mono float-right text-[11px] text-texto3">⌃⇧4</span></Item>
+          <div className="my-1 h-px bg-borda" />
+          <div className="px-2 pb-0.5 pt-1.5"><div className="rotulo-mono text-[10px] text-texto3">Espaçamento</div></div>
+          <Item icone={<AlignHorizontalSpaceAround className="h-3.5 w-3.5" />} disabled={estado.somenteLeitura} onClick={fechar(() => { acoes.ajustarEspacamento('tela'); mostrar('Espaçamento ajustado em 8 px nesta tela') })}>Ajustar espaçamento (8 px) · tela atual</Item>
+          <Item icone={<AlignHorizontalSpaceAround className="h-3.5 w-3.5" />} disabled={estado.somenteLeitura} onClick={fechar(() => { acoes.ajustarEspacamento('apresentacao'); mostrar(`Espaçamento ajustado em 8 px em ${estado.documento.scenes.length} tela(s)`) })}>Ajustar espaçamento (8 px) · apresentação inteira</Item>
           <div className="my-1 h-px bg-borda" />
           <div className="px-2 pb-1 pt-1.5">
             <div className="rotulo-mono mb-2 text-[10px] text-texto3">Exportar</div>

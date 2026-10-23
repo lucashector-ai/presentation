@@ -1,9 +1,12 @@
 /**
- * Regra do 8 (lib/ia/grade8.ts): toda geometria que a IA gera cai na grade de 8 px — posições, larguras e alturas,
- * gaps e paddings de auto layout — em todos os estilos × componentes × variantes (slides e story), no pedido real da
+ * Regra do 8 (lib/ia/grade8.ts): a DISTÂNCIA borda a borda entre vizinhos e de cada filho até a borda do pai é
+ * múltipla de 8 em todas as telas geradas — estilos × componentes × variantes (slides e story), o pedido real da
  * Nexora (lib/ia/fixtures/prompt-nexora-resultados.md) pelo gerador local (modo demo) e com o Claude simulado
- * (servidor local, nada sai da máquina), em slides, story e explorar. Exceções conferidas à parte: espessura de traços
- * (até 6 px), comprimento das barras de dados, marcadores no ponto do dado e itens centralizados em meio passo (4 px).
+ * (servidor local, nada sai da máquina), em slides, story e explorar. Vale também depois que o editor mede os
+ * textos de novo: o teste mede os textos com a medição do ambiente de teste (as linhas de `contarLinhas` ×
+ * entrelinha, como o navegador abraça a caixa), resolve o auto layout e só então confere as distâncias
+ * (lib/ia/distancias8.mjs, a mesma conferência do e2e no navegador). Exceções: espessura de traços (até 6 px),
+ * comprimento das barras de dados e marcadores no ponto do dado do gráfico de linha.
  */
 import { readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type Server } from 'node:http'
@@ -16,9 +19,10 @@ import { direcoesDoPedido } from './analisePedido'
 import { MAX_TELAS_POR_PEDIDO_DESIGN, PedidoDesignSchema, type DesenhoModelo } from './design'
 import { COMPONENTES, ESCALA_ESPACO, GRADE, TEMAS, TIPOS_TELA, resolverTema, type TipoTela } from './designSystem'
 import { desenharLocal } from './desenhoLocal'
-import { acimaNaGrade, alinharNaGrade, colunasNaGrade, entrelinhaNaGrade, espacoNaGrade, naGrade, repartirNaGrade, type CamadaGrade } from './grade8'
+import { distanciasForaDe8 } from './distancias8.mjs'
+import { acimaNaGrade, ajustarEspacamento, alinharNaGrade, colunasNaGrade, entrelinhaNaGrade, espacoNaGrade, naGrade, repartirNaGrade, type CamadaGrade } from './grade8'
 import { gerarRoteiroLocal } from './local'
-import { montarTela, type ContextoMontagem, type Estilo, type TelaDesenhada } from './montagem'
+import { contarLinhas, montarTela, type ContextoMontagem, type Estilo, type TelaDesenhada } from './montagem'
 import { PedidoRoteiroSchema } from './pedido'
 import { montarDocumento, type Roteiro } from './roteiro'
 
@@ -26,58 +30,47 @@ type C = CamadaGrade & { type: string; parentId?: string }
 interface Layout { direction: string; gap: number; rowGap?: number; gapAuto: boolean; padding: Record<'top' | 'right' | 'bottom' | 'left', number>; alignX: string; alignY: string }
 
 const de8 = (v: number) => Math.abs(v / 8 - Math.round(v / 8)) < 1e-6
-const de4 = (v: number) => Math.abs(v / 4 - Math.round(v / 4)) < 1e-6
+
+/** Linhas de um texto na largura da caixa (a medição do ambiente de teste). */
+const linhasDe = (l: C) => contarLinhas(String(l.text), String(l.fontFamily), Number(l.fontSize), l.width, { maiusculas: l.transform === 'uppercase', espacamento: Number(l.letterSpacing ?? 0), peso: Number(l.fontWeight ?? 400) })
 
 /**
- * O que está fora da grade numa tela montada (lista vazia = tudo no 8). Exceções: a espessura de traços de até
- * 6 px (e, no comprimento, a posição de um fio que liga centros pode cair em 4), o comprimento das barras de dados e
- * do "gap" entre meta e realizado e o lado do logo que segue a proporção do arquivo (um eixo é medida exata; o outro
- * fica na grade), os marcadores sobre os pontos do gráfico
- * de linha e o meio passo (4 px) de um item centralizado pelo pai, que o conteúdo dele herda.
+ * O que o editor faz ao abrir: mede de novo os textos de altura automática (linhas × entrelinha, arredondado para
+ * cima, como o medidor do DOM) e resolve o auto layout. `menos` simula um navegador que quebra uma linha a menos
+ * nos textos de duas ou mais linhas (fonte real mais estreita que a estimativa).
  */
-function foraDaGrade(layers: C[], variante = ''): string[] {
-  const porId = new Map(layers.map((l) => [l.id, l]))
+function abrirNoEditor(layers: C[], menos = false): C[] {
+  const medidos = layers.map((l) => {
+    if (l.type !== 'text' || (l.sizingH !== 'hug' && l.sizingW !== 'hug')) return l
+    const n = Math.max(1, linhasDe(l) - (menos && linhasDe(l) >= 2 ? 1 : 0))
+    const pad = typeof l.padding === 'number' && l.background ? l.padding * 2 : 0
+    return { ...l, height: Math.ceil(n * Number(l.fontSize) * Number(l.lineHeight) - 1e-6) + pad }
+  })
+  return calcularLayout(medidos.map((l, i) => ({ ...l, z: i })) as unknown as CamadaCena[]) as unknown as C[]
+}
+
+/** Distâncias fora do 8 numa tela, depois de aberta no editor (ver abrirNoEditor). */
+function distancias(layers: C[], tamanho: { width: number; height: number }, menos = false): string[] {
+  const R = abrirNoEditor(layers, menos)
+  return distanciasForaDe8(R as never, new Map(R.map((l) => [l.id, { x: l.x, y: l.y, w: l.width, h: l.height }])), tamanho).problemas
+}
+
+/**
+ * Espaçamentos fora da regra: gaps e paddings de auto layout, padding das etiquetas de texto e a entrelinha (em px,
+ * múltipla de 8; corpo pequeno em 4 só com caixa de altura fixa, que o navegador não muda).
+ */
+function espacamentosForaDe8(layers: C[]): string[] {
   const r: string[] = []
-  // meio passo herdado: um item centralizado a 4 px leva o conteúdo junto (a posição conta a partir dele)
-  const meio = new Map<string, { x: number; y: number }>()
-  const deslocamento = (l: C): { x: number; y: number } => {
-    const m = meio.get(l.id)
-    if (m) return m
-    const pai = typeof l.parentId === 'string' ? porId.get(l.parentId) : undefined
-    const base = pai ? deslocamento(pai) : { x: 0, y: 0 }
-    const lay = pai && !l.absolute ? (pai.layout as Layout | undefined) : undefined
-    const d = { ...base }
-    for (const e of ['x', 'y'] as const) {
-      const centro = !!lay && (e === 'x' ? lay.alignX : lay.alignY) === 'center'
-      if (centro && !de8(l[e] - base[e]) && de4(l[e] - base[e])) d[e] = base[e] + 4
-    }
-    meio.set(l.id, d)
-    return d
-  }
   for (const l of layers) {
-    if (variante === 'grafico.linha' && /^marcador-/.test(l.id)) continue
-    const base = deslocamento(l)
-    const dado = /^(barra|gap|logo)-/.test(l.id)
-    const foraDoEixo: string[][] = []
-    for (const [pos, tam] of [['x', 'width'], ['y', 'height']] as const) {
-      const fora: string[] = []
-      const traco = l.type === 'shape' && l[tam] <= 6
-      if (traco) continue
-      if (!de8(l[pos] - base[pos]) && !(l.type === 'shape' && Math.min(l.width, l.height) <= 6 && de4(l[pos]))) fora.push(`${l.id}.${pos} = ${l[pos]}`)
-      if (!de8(l[tam])) fora.push(`${l.id}.${tam} = ${l[tam]}`)
-      if (fora.length) foraDoEixo.push(fora)
-    }
-    // barra de dados ou logo: um eixo é medida exata (o valor, a proporção do arquivo); o outro fica na grade
-    if (!(dado && foraDoEixo.length === 1)) r.push(...foraDoEixo.flat())
-    const lay0 = l.layout as Layout | undefined
-    if (lay0) {
-      for (const [k, v] of Object.entries({ gap: lay0.gap, rowGap: lay0.rowGap ?? 0, ...lay0.padding })) if (!de8(v)) r.push(`${l.id}.${k} = ${v}`)
-    }
-    if (l.type === 'text') {
-      if (typeof l.padding === 'number' && !de8(l.padding)) r.push(`${l.id}.padding = ${l.padding}`)
-      const lh = Number(l.fontSize) * Number(l.lineHeight)
-      if (Math.abs(lh / 4 - Math.round(lh / 4)) > 0.01) r.push(`${l.id}: entrelinha ${lh.toFixed(2)} px`)
-    }
+    const lay = l.layout as Layout | undefined
+    if (lay) for (const [k, v] of Object.entries({ gap: lay.gap, rowGap: lay.rowGap ?? 0, ...lay.padding })) if (!de8(v)) r.push(`${l.id}.${k} = ${v}`)
+    if (l.type !== 'text') continue
+    if (typeof l.padding === 'number' && !de8(l.padding)) r.push(`${l.id}.padding = ${l.padding}`)
+    const lh = Number(l.fontSize) * Number(l.lineHeight)
+    const passo = l.sizingH === 'fixed' ? 4 : 8
+    if (Math.abs(lh / passo - Math.round(lh / passo)) * passo > 0.05) r.push(`${l.id}: entrelinha ${lh.toFixed(2)} px`)
+    if (l.sizingW === 'hug') r.push(`${l.id}: largura automática`)
+    if (l.leadingTrim === 'cap') r.push(`${l.id}: corte vertical`)
   }
   return r
 }
@@ -160,7 +153,7 @@ describe('passo final da montagem (alinharNaGrade)', () => {
     expect(fio.height).toBe(2)
     expect(p(String(fio.parentId)).height).toBe(8)
     expect((p('f').layout as Layout).gap).toBe(24)
-    expect(foraDaGrade(R)).toEqual([])
+    expect([...espacamentosForaDe8(R), ...distancias(R, { width: 1920, height: 1080 })]).toEqual([])
     expect(resolvido(R)).toBe(true)
   })
 
@@ -213,6 +206,70 @@ function telasDeTeste(story: boolean): TelaDesenhada[] {
   return r
 }
 
+describe('"Ajustar espaçamento (8 px)" do editor (ajustarEspacamento)', () => {
+  let seq = 0
+  const uid = (p: string) => `${p}-e${++seq}`
+  const tela = { width: 1920, height: 1080 }
+  const lay = (gap: number, extra: Partial<Layout> = {}): Layout => ({ direction: 'horizontal', gap, gapAuto: false, padding: { top: 0, right: 0, bottom: 0, left: 0 }, alignX: 'start', alignY: 'center', ...extra })
+  /** Distância borda a borda, no eixo x, entre a camada `a` e a vizinha seguinte no mesmo pai. */
+  const vao = (R: C[], a: string) => {
+    const A = R.find((l) => l.id === a)!
+    const irmaos = R.filter((l) => l.parentId === A.parentId && l.id !== a && l.x >= A.x + A.width - 0.5).sort((p, q) => p.x - q.x)
+    return irmaos[0]!.x - (A.x + A.width)
+  }
+
+  it('o que o usuário mediu: rótulo Hug a 60 px da barra vira 56; dois cartões a 36 px ficam a 32; um desfazer (a tela volta igual)', () => {
+    const L: C[] = [
+      { id: 'linha', type: 'frame', x: 160, y: 160, width: 1200, height: 40, sizingW: 'fixed', sizingH: 'hug', layout: lay(60) },
+      { id: 'rotulo', type: 'text', parentId: 'linha', x: 160, y: 165, width: 143, height: 29, text: 'Receita recorrente', fontFamily: 'Inter', fontSize: 24, lineHeight: 1.2, sizingW: 'hug', sizingH: 'hug', align: 'left' },
+      { id: 'barra-1', type: 'shape', parentId: 'linha', x: 363, y: 168, width: 611, height: 24, fill: '#06F' },
+      { id: 'cartoes', type: 'frame', x: 160, y: 400, width: 1600, height: 200, sizingW: 'fixed', sizingH: 'hug', layout: lay(36, { alignY: 'start' }) },
+      { id: 'cartao-1', type: 'frame', parentId: 'cartoes', x: 160, y: 400, width: 400, height: 200, sizingW: 'fixed', sizingH: 'fixed', fill: '#EEE', layout: { ...lay(8), direction: 'vertical', padding: { top: 24, right: 24, bottom: 24, left: 24 } } },
+      { id: 'cartao-2', type: 'frame', parentId: 'cartoes', x: 596, y: 400, width: 400, height: 200, sizingW: 'fixed', sizingH: 'fixed', fill: '#EEE', layout: { ...lay(8), direction: 'vertical', padding: { top: 24, right: 24, bottom: 24, left: 24 } } },
+    ]
+    const antes = calcularLayout(L.map((l, i) => ({ ...l, z: i })) as unknown as CamadaCena[]) as unknown as C[]
+    expect(vao(antes, 'rotulo')).toBe(60)
+    expect(vao(antes, 'cartao-1')).toBe(36)
+    expect(distancias(antes, tela).length).toBeGreaterThan(0)
+    const R = ajustarEspacamento(antes, { uid }) as C[]
+    const p = (id: string) => R.find((l) => l.id === id)!
+    expect(vao(R, 'rotulo')).toBe(56)
+    expect(vao(R, 'cartao-1')).toBe(32)
+    expect((p('linha').layout as Layout).gap).toBe(56)
+    expect((p('cartoes').layout as Layout).gap).toBe(32)
+    // o rótulo deixa de ser Hug: largura fixa na grade (o navegador não a muda ao medir de novo)
+    expect(p('rotulo').sizingW).toBe('fixed')
+    expect(p('rotulo').width % 8).toBe(0)
+    // a barra continua com o comprimento exato (é o valor)
+    expect(p('barra-1').width).toBe(611)
+    expect([...espacamentosForaDe8(R), ...distancias(R, tela)]).toEqual([])
+    expect(resolvido(R)).toBe(true)
+    // aplicar de novo não muda nada (idempotente: o segundo "ajustar" é um passo vazio)
+    const R2 = ajustarEspacamento(R, { uid }) as C[]
+    expect(R2.map((l) => [l.id, l.x, l.y, l.width, l.height])).toEqual(R.map((l) => [l.id, l.x, l.y, l.width, l.height]))
+  })
+
+  it('camadas soltas (sem auto layout) também: cartões absolutos a 36 px e o valor a 20 px da ponta da barra vai para 16', () => {
+    const L: C[] = [
+      { id: 'c1', type: 'shape', x: 160, y: 160, width: 400, height: 200, fill: '#EEE' },
+      { id: 'c2', type: 'shape', x: 596, y: 160, width: 400, height: 200, fill: '#EEE' },
+      { id: 'barra-1', type: 'shape', x: 160, y: 480, width: 611, height: 24, fill: '#06F' },
+      { id: 'barra-2', type: 'shape', x: 160, y: 560, width: 377, height: 24, fill: '#06F' },
+      { id: 'v1', type: 'text', x: 791, y: 476, width: 120, height: 32, text: '61%', fontFamily: 'Inter', fontSize: 28, lineHeight: 1.15, sizingW: 'fixed', sizingH: 'hug' },
+      { id: 'v2', type: 'text', x: 557, y: 556, width: 120, height: 32, text: '38%', fontFamily: 'Inter', fontSize: 28, lineHeight: 1.15, sizingW: 'fixed', sizingH: 'hug' },
+    ]
+    const R = ajustarEspacamento(L, { uid }) as C[]
+    const p = (id: string) => R.find((l) => l.id === id)!
+    // (camada solta: cada borda vai para a grade, então 36 vira 32 ou 40)
+    expect([32, 40]).toContain(p('c2').x - (p('c1').x + p('c1').width))
+    // o valor acompanha a ponta da barra a um vão da escala (16), e a barra não muda de comprimento
+    expect(p('barra-1').width).toBe(611)
+    expect(p('v1').x - (p('barra-1').x + p('barra-1').width)).toBe(16)
+    expect(p('v2').x - (p('barra-2').x + p('barra-2').width)).toBe(16)
+    expect([...espacamentosForaDe8(R), ...distancias(R, tela)]).toEqual([])
+  })
+})
+
 describe('todas as telas geradas ficam na grade de 8', () => {
   for (const story of [false, true]) {
     for (const estilo of ['editorial', 'ousado'] as Estilo[]) {
@@ -229,7 +286,8 @@ describe('todas as telas geradas ficam na grade de 8', () => {
             }
             const m = montarTela({ ...d, fundo: (['claro', 'escuro', 'acento'] as const)[i % 3]! }, c)
             camadas += m.layers.length
-            for (const p of foraDaGrade(m.layers as C[], d.variante)) erros.push(`${tema.id} · ${d.variante}: ${p}`)
+            const tela = story ? { width: 1080, height: 1920 } : { width: 1920, height: 1080 }
+            for (const p of [...espacamentosForaDe8(m.layers as C[]), ...distancias(m.layers as C[], tela), ...distancias(m.layers as C[], tela, true).map((x) => `(uma linha a menos) ${x}`)]) erros.push(`${tema.id} · ${d.variante}: ${p}`)
             if (!resolvido(m.layers as C[])) erros.push(`${tema.id} · ${d.variante}: auto layout não resolvido`)
           })
         }
@@ -253,8 +311,8 @@ function conferirDocumento(doc: ReturnType<typeof montarDocumento>) {
   expect(validarDocumento(doc).ok).toBe(true)
   const erros: string[] = []
   for (const cena of doc.scenes) {
-    const variante = cena.id.split('-').slice(2).join('-')
-    for (const p of foraDaGrade(cena.layers as unknown as C[], variante === 'grafico' && cena.layers.some((l) => l.id.startsWith('area-')) ? 'grafico.linha' : variante)) erros.push(`${cena.id}: ${p}`)
+    const L = cena.layers as unknown as C[]
+    for (const p of [...espacamentosForaDe8(L), ...distancias(L, cena.size), ...distancias(L, cena.size, true).map((x) => `(uma linha a menos) ${x}`)]) erros.push(`${cena.id}: ${p}`)
     if (!resolvido(cena.layers as unknown as C[])) erros.push(`${cena.id}: auto layout não resolvido`)
   }
   return erros

@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import { createCanvas, loadImage } from '@napi-rs/canvas'
 import { jsPDF } from 'jspdf'
 import { gerarManualFicticio } from '../lib/marca/fixtures/manual-ficticio.mjs'
+import { distanciasForaDe8 } from '../lib/ia/distancias8.mjs'
 
 /**
  * Fluxo ponta a ponta (seção 17.2): conta → projeto → upload → editor → preview → publicar → link → convidado → revogar
@@ -917,6 +918,119 @@ await passo('Criar com IA: briefing longo colado no painel vai inteiro; 15 telas
   for (const t of ['↓ 41,9%  maior perda', '41,1%', '91,9%', 'Ana Souza']) await page.getByText(t, { exact: true }).first().waitFor({ timeout: 5000 })
   if (await page.getByText(/arraste sua imagem|\[data\]|\[Nome\]/).count()) throw new Error('placeholder numa tela gerada')
   await page.screenshot({ path: `${SHOTS}/18-criar-15-telas.png`, fullPage: true })
+  await page.getByText('Salvando o projeto…').waitFor({ state: 'hidden', timeout: 20000 }).catch(() => {})
+})
+
+/**
+ * Caixas reais das camadas da tela atual no canvas do editor (lidas do DOM, em coordenadas da cena), com tipo, pai
+ * e texto — o que a conferência da regra do 8 (lib/ia/distancias8.mjs) usa. Camadas giradas ficam de fora (a caixa
+ * do DOM é a envolvente da rotação, não a que o editor mede).
+ */
+const lerCaixasDaTela = async () => {
+  // as animações de entrada terminam antes da leitura (as que ficam em loop são puladas na leitura)
+  await page.waitForFunction(() => document.querySelector('[data-testid="canvas"]')?.getAnimations({ subtree: true }).every((a) => a.playState !== 'running' || a.effect?.getTiming().iterations === Infinity), null, { timeout: 8000 }).catch(() => {})
+  return page.evaluate(() => {
+  const tela = document.querySelector('[data-testid="canvas"]')
+  const T = tela.getBoundingClientRect()
+  const largura = T.width >= T.height ? 1920 : 1080
+  const s = T.width / largura
+  const tamanho = { width: largura, height: Math.round(T.height / s) }
+  const camadas = []
+  const caixas = {}
+  for (const el of tela.querySelectorAll('[data-layer-id]')) {
+    const r = el.getBoundingClientRect()
+    if (r.width === 0 && r.height === 0) continue
+    if (el.getAnimations().some((a) => a.playState === 'running')) continue
+    const m = getComputedStyle(el).transform.match(/matrix\(([^)]+)\)/)
+    if (m) { const [, b, c] = m[1].split(',').map(Number); if (Math.abs(b) > 1e-3 || Math.abs(c) > 1e-3) continue }
+    const id = el.dataset.layerId
+    camadas.push({ id, type: el.dataset.layerType, parentId: el.dataset.parentId || undefined, text: el.dataset.layerType === 'text' ? el.textContent : undefined })
+    caixas[id] = { x: (r.x - T.x) / s, y: (r.y - T.y) / s, w: r.width / s, h: r.height / s, tela: { x: r.x, y: r.y, w: r.width, h: r.height } }
+  }
+  return { camadas, caixas, tamanho }
+  })
+}
+
+await passo('Regra do 8 no editor: nas 15 telas da Nexora toda distância entre vizinhos e até o pai é múltipla de 8; "Ajustar espaçamento (8 px)" leva 36 → 32 e 60 → 56, com desfazer', async () => {
+  await page.getByRole('button', { name: 'Abrir no editor →' }).click()
+  await page.waitForURL(/\/app\/projects\/.+\/edit/, { timeout: 15000 })
+  await esperarTelas(15)
+  const conferir = async (rotulo) => {
+    const { camadas, caixas, tamanho } = await lerCaixasDaTela()
+    const r = distanciasForaDe8(camadas, new Map(Object.entries(caixas)), tamanho)
+    if (!r.conferidas) throw new Error(`${rotulo}: nenhuma distância conferida`)
+    return r.problemas
+  }
+  const problemas = []
+  let conferidas = 0
+  for (let i = 0; i < 15; i++) {
+    await telas().nth(i).click()
+    await page.waitForTimeout(500)
+    const { camadas, caixas, tamanho } = await lerCaixasDaTela()
+    const r = distanciasForaDe8(camadas, new Map(Object.entries(caixas)), tamanho)
+    conferidas += r.conferidas
+    problemas.push(...r.problemas.map((p) => `tela ${i + 1}: ${p}`))
+  }
+  if (!conferidas) throw new Error('nenhuma distância conferida')
+  if (problemas.length) throw new Error(`${problemas.length} distância(s) fora do 8 em ${conferidas} conferidas:\n${problemas.slice(0, 40).join('\n')}`)
+  console.log(`  regra do 8: ${conferidas} distâncias conferidas nas 15 telas, 0 fora`)
+
+  // um frame de auto layout com dois ou mais filhos numa linha (cartões): o vão vira 36 e depois 60 à mão — o
+  // comando leva para 32 e 56 (a escala), e um desfazer volta
+  const gapCampo = page.getByLabel('Espaço entre itens', { exact: true })
+  const vaoEntreFilhos = async (id) => {
+    const { caixas, camadas } = await lerCaixasDaTela()
+    const fs = camadas.filter((c) => c.parentId === id).map((c) => caixas[c.id]).sort((a, b) => a.x - b.x || a.y - b.y)
+    return Math.max(fs[1].x - (fs[0].x + fs[0].w), fs[1].y - (fs[0].y + fs[0].h))
+  }
+  let alvo = null
+  for (let i = 0; i < 15 && !alvo; i++) {
+    await telas().nth(i).click()
+    await page.waitForTimeout(300)
+    const { camadas, caixas } = await lerCaixasDaTela()
+    // (o clique seleciona a camada de cima da árvore, como no Figma: o frame tem de ser de primeiro nível)
+    const candidatos = camadas.filter((c) => c.type === 'frame' && !c.parentId && camadas.filter((f) => f.parentId === c.id).length >= 2 && !camadas.some((f) => f.parentId === c.id && f.type === 'shape' && Math.min(caixas[f.id].w, caixas[f.id].h) <= 6))
+    const dentroDe = (o, id) => { let p = o; while (p && p.id !== id) p = camadas.find((q) => q.id === p.parentId); return !!p }
+    for (const c of candidatos) {
+      const b = caixas[c.id]
+      // canto do frame sem nenhuma camada de fora dele por cima: o clique seleciona o frame
+      const ponto = { x: b.tela.x + 2, y: b.tela.y + 2 }
+      const coberto = camadas.some((o) => !dentroDe(o, c.id) && camadas.indexOf(o) > camadas.indexOf(c) && caixas[o.id].tela.x <= ponto.x && caixas[o.id].tela.x + caixas[o.id].tela.w >= ponto.x && caixas[o.id].tela.y <= ponto.y && caixas[o.id].tela.y + caixas[o.id].tela.h >= ponto.y)
+      if (coberto || (await vaoEntreFilhos(c.id)) < 8) continue
+      await page.mouse.click(ponto.x, ponto.y)
+      await page.waitForTimeout(150)
+      if (await gapCampo.count()) { alvo = { id: c.id, tela: i }; break }
+    }
+  }
+  if (!alvo) throw new Error('nenhum frame de auto layout com dois filhos para o teste do comando')
+  const vaoOriginal = await vaoEntreFilhos(alvo.id)
+  for (const [torto, certo] of [[36, 32], [60, 56]]) {
+    await gapCampo.fill(String(torto))
+    await gapCampo.press('Enter')
+    await page.waitForTimeout(150)
+    if (Math.round(await vaoEntreFilhos(alvo.id)) !== torto) throw new Error(`vão não ficou em ${torto}: ${await vaoEntreFilhos(alvo.id)}`)
+    const antes = await conferir(`tela ${alvo.tela + 1} torta`)
+    if (!antes.some((p) => p.endsWith(`= ${torto}`))) throw new Error(`a conferência não viu o vão de ${torto}: ${antes.join('; ') || 'nada'}`)
+    // o comando, pelo menu de contexto da tela
+    const area = await page.getByTestId('canvas-area').boundingBox()
+    await page.mouse.click(area.x + 12, area.y + area.height - 12, { button: 'right' })
+    await page.getByRole('menu', { name: 'Ações' }).getByRole('menuitem', { name: 'Ajustar espaçamento (8 px)' }).click()
+    await page.waitForTimeout(300)
+    if (Math.round(await vaoEntreFilhos(alvo.id)) !== certo) throw new Error(`o comando levou ${torto} para ${await vaoEntreFilhos(alvo.id)}, não ${certo}`)
+    const depois = await conferir(`tela ${alvo.tela + 1} ajustada`)
+    if (depois.length) throw new Error(`depois do comando ainda fora do 8: ${depois.slice(0, 8).join('; ')}`)
+    console.log(`  comando: vão de ${torto} → ${certo}; fora do 8 antes ${antes.length}, depois ${depois.length}`)
+    // um passo de desfazer volta o vão torto; o seguinte, o original
+    await page.getByRole('button', { name: /^Desfazer/ }).first().click()
+    await page.waitForTimeout(200)
+    if (Math.round(await vaoEntreFilhos(alvo.id)) !== torto) throw new Error(`desfazer não voltou o vão de ${torto}: ${await vaoEntreFilhos(alvo.id)}`)
+    await page.getByRole('button', { name: /^Desfazer/ }).first().click()
+    await page.waitForTimeout(200)
+    if (Math.round(await vaoEntreFilhos(alvo.id)) !== Math.round(vaoOriginal)) throw new Error(`desfazer não voltou o vão original ${vaoOriginal}: ${await vaoEntreFilhos(alvo.id)}`)
+    // o frame continua selecionado para a próxima rodada
+    if (!(await gapCampo.count())) { const b = (await lerCaixasDaTela()).caixas[alvo.id]; await page.mouse.click(b.tela.x + 2, b.tela.y + 2) }
+  }
+  await page.screenshot({ path: `${SHOTS}/18b-editor-regra-do-8.png` })
   await page.getByText('Salvando o projeto…').waitFor({ state: 'hidden', timeout: 20000 }).catch(() => {})
 })
 

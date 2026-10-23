@@ -1,10 +1,17 @@
 /**
- * Regra do 8 nas telas geradas pela IA: o último passo da montagem (`montarTela`) põe na grade de 8 px a posição,
- * o tamanho e os espaçamentos de todas as camadas — margens, gaps e paddings de auto layout, vãos entre rótulo,
- * título e conteúdo, colunas e calhas, cartões, gráficos, tabelas, ícones e imagens. Vale para slides, story e
- * explorar, em todos os estilos, com o desenho do Claude ou o local. Determinístico e puro (sem rede, sem DOM).
+ * Regra do 8 nas telas geradas pela IA (e no "Ajustar espaçamento (8 px)" do editor): a DISTÂNCIA borda a borda
+ * entre vizinhos — e de cada filho até a borda do pai — é sempre múltipla de 8, como o editor mede (Alt sobre um
+ * vizinho), mesmo depois que o editor mede os textos de novo no navegador. O último passo da montagem
+ * (`montarTela`) põe na grade a posição, o tamanho e os espaçamentos de todas as camadas — margens, gaps e paddings
+ * de auto layout, vãos entre rótulo, título e conteúdo, colunas e calhas, cartões, gráficos, tabelas, ícones e
+ * imagens. Vale para slides, story e explorar, em todos os estilos, com o desenho do Claude ou o local.
+ * Determinístico e puro (sem rede, sem DOM: a medida do texto vem de fora).
  *
  * Como:
+ *  0. texto: a entrelinha vai para múltiplos de 8 px (a caixa que abraça N linhas tem altura múltipla de 8 quando
+ *     o navegador mede de novo); largura automática (hug) vira largura fixa na grade; corpo pequeno (entrelinha de
+ *     4 em 4) ganha caixa de altura fixa na grade, centrada; o corte vertical sai (a caixa justa nas maiúsculas
+ *     não fecha em 8) e o espaço entre parágrafos vai para a escala;
  *  1. gaps e paddings (dos frames e das etiquetas de texto) vão para o múltiplo de 8 mais próximo; o que não é zero
  *     nunca some (um vão de 6 vira 8);
  *  2. traços finos e barras de dados que estão no fluxo de um auto layout ganham uma faixa de 8 em 8 em volta
@@ -15,17 +22,18 @@
  *     exatos e o total não cresce. Quadrados (avatares, marcadores) continuam quadrados; pílulas e círculos
  *     acompanham o raio;
  *  4. texto nunca fica menor que as próprias linhas (medidas de novo na largura final) nem mais estreito que antes;
- *  5. o auto layout é resolvido de novo com os tamanhos novos — o editor abre sem mover nada — e um item
- *     centralizado que caiu em meio passo ganha 8 px de caixa (texto centrado, sem mudar onde as letras ficam).
+ *  5. o auto layout é resolvido de novo com os tamanhos novos — o editor abre sem mover nada. Item centralizado pelo
+ *     pai que cairia em meio passo (4 px do pai) muda 8 px de tamanho até a distância fechar em 8: texto ganha caixa
+ *     8 px maior (centrada, as letras não saem do lugar); marcador, avatar e forma crescem ou encolhem 8 px. Texto
+ *     centrado no eixo cruzado fica com altura fixa (o navegador não muda a altura e o centro não vai para 4 px);
+ *  6. o valor que acompanha a ponta de uma barra fica a um vão fixo da ponta (8, 16 ou 24 px), não na grade.
  *
  * Exceções (não vão para a grade, de propósito):
  *  - espessura de traços de até 6 px (fios, divisores, sublinhados, pontos da textura): a posição vai, a espessura não;
- *  - comprimento das barras de dados (é o valor, não espaço) e os marcadores sobre os pontos de um gráfico de linha:
- *    a âncora da barra (a base, o início ou o centro) vai para a grade; o logo tem um lado na grade e o outro na
- *    proporção do arquivo;
- *  - item centralizado (marcador, avatar) num espaço cujo vão livre não fecha em 16: fica a 4 px (meio passo);
- *  - tamanho de fonte (escala tipográfica do tema), raio, rotação, opacidade e efeitos. A entrelinha fica em
- *    múltiplos de 4 px (montagem), então mesmo medida de novo no editor a caixa de texto segue o ritmo de 4/8.
+ *  - comprimento das barras de dados (é o valor, não espaço) — a âncora da barra (a base, o início ou o centro) vai
+ *    para a grade e o valor que acompanha a ponta fica a um vão fixo dela —, e os marcadores sobre os pontos de um
+ *    gráfico de linha;
+ *  - tamanho de fonte (escala tipográfica do tema), raio, rotação, opacidade e efeitos.
  */
 import { calcularLayout } from '@/lib/editor/autolayout'
 import type { Camada as CamadaCena } from '@/lib/scene/schema'
@@ -48,17 +56,27 @@ export const acimaNaGrade = (n: number) => Math.ceil(n / GRADE - 0.0125) * GRADE
  * (12 → 8, 20 → 16): o respiro fica no ritmo sem empurrar o conteúdo para fora da área.
  */
 export const espacoNaGrade = (n: number) => (n <= 0 ? 0 : Math.max(GRADE, Math.ceil(n / GRADE - 0.5) * GRADE))
+/** Entrelinha em px no passo dado: a mais perto (no meio do caminho, a menor), sem apertar abaixo do corpo. */
+function entrelinhaPx(tamanho: number, lh: number, passo: number): number {
+  const px = Math.max(passo, Math.ceil((tamanho * lh) / passo - 0.5) * passo)
+  // (entrelinha < 1 encosta as linhas)
+  return px < tamanho * Math.min(lh, 1) - 1e-6 ? px + passo : px
+}
+/** Corpo pequeno (rodapé, selo de 12–14 px) em que a entrelinha de 8 em 8 ficaria apertada demais: fica em 4. */
+const corpoPequeno = (tamanho: number, lh: number) => tamanho < 20 && entrelinhaPx(tamanho, lh, GRADE) < tamanho * Math.min(lh, 1.25) - 1e-6
 /**
- * Entrelinha na grade para o corpo dado: múltiplos de 8 px nos corpos de 40 px para cima (títulos, números) e de
- * 4 px nos menores, então a caixa de N linhas fecha no ritmo de 8 (ou 4) mesmo quando o editor mede de novo.
+ * Entrelinha na grade para o corpo dado: múltiplos de 8 px, então a caixa de N linhas tem altura múltipla de 8
+ * mesmo quando o editor mede o texto de novo no navegador (a caixa abraça linhas × entrelinha). Corpos pequenos
+ * (rodapé de 12–14 px), em que 8 em 8 apertaria as linhas, ficam em 4 em 4 — e a caixa deles vira de altura fixa
+ * na grade (`alinharNaGrade`). A razão é arredondada para baixo: corpo × razão nunca passa da entrelinha em px (o
+ * navegador arredonda a caixa para cima, e um milésimo a mais viraria 1 px a mais).
  */
 export function entrelinhaNaGrade(tamanho: number, lh: number): number {
-  const passo = tamanho >= 40 ? GRADE : GRADE / 2
-  // o mais perto (no meio do caminho, a menor), sem apertar abaixo do corpo (entrelinha < 1 encosta as linhas)
-  let px = Math.max(passo, Math.ceil((tamanho * lh) / passo - 0.5) * passo)
-  if (px < tamanho * Math.min(lh, 1) - 1e-6) px += passo
-  return Math.round((px / tamanho) * 1e4) / 1e4
+  const px = entrelinhaPx(tamanho, lh, corpoPequeno(tamanho, lh) ? GRADE / 2 : GRADE)
+  return Math.floor((px / tamanho) * 1e4 + 1e-6) / 1e4
 }
+/** A entrelinha (em px) do texto é múltipla de 8 (tolera o arredondamento da razão). */
+export const entrelinhaDe8 = (tamanho: number, lh: number) => Math.abs((tamanho * lh) / GRADE - Math.round((tamanho * lh) / GRADE)) * GRADE < 0.05
 
 /**
  * Colunas iguais na grade: `cols` colunas com largura múltipla de 8 que, com a calha, fecham a largura `w` (que já
@@ -100,9 +118,18 @@ export function repartirNaGrade(total: number, pesos: readonly number[]): number
  */
 export interface MedidaDado { eixo: 'x' | 'y'; ancora: 'inicio' | 'centro' | 'fim' }
 
+/**
+ * Rótulo que acompanha a ponta de uma barra (o valor depois da barra, ou acima da coluna): no eixo da barra, a
+ * posição é a ponta mais o vão (múltiplo de 8); no outro eixo, a grade. `de` pode ser outro seguidor (a
+ * porcentagem logo depois do valor). Só para camadas fora do fluxo de um auto layout (no fluxo, o gap já faz isso).
+ */
+export interface Seguidor { de: string; eixo: 'x' | 'y'; lado: 'depois' | 'antes'; gap: number }
+
 export interface OpcoesGrade {
-  /** Medidas exatas por id (barras de dados, logos). */
+  /** Medidas exatas por id (barras de dados). */
   dados?: ReadonlyMap<string, MedidaDado>
+  /** Rótulos que acompanham a ponta de uma barra, por id. */
+  seguir?: ReadonlyMap<string, Seguidor>
   /** Camadas que ficam exatamente onde estão (marcadores sobre os pontos de um gráfico de linha). */
   exatas?: ReadonlySet<string>
   /** Id das faixas criadas em volta de traços e barras no fluxo. */
@@ -121,6 +148,25 @@ export function alinharNaGrade(camadas: readonly Camada[], o: OpcoesGrade): Cama
   const dados = o.dados ?? new Map<string, MedidaDado>()
   const exatas = o.exatas ?? new Set<string>()
   let L: Camada[] = camadas.map((l) => ({ ...l, ...(l.layout ? { layout: { ...(l.layout as Layout), padding: { ...(l.layout as Layout).padding } } } : {}) }) as Camada)
+
+  // 0. texto: entrelinha de 8 em 8, sem largura automática, corpo pequeno em caixa fixa, sem corte vertical
+  for (const l of L) {
+    if (l.type !== 'text' || exatas.has(l.id)) continue
+    const tam = Number(l.fontSize) || 16
+    l.lineHeight = entrelinhaNaGrade(tam, Number(l.lineHeight ?? 1.15))
+    if (l.leadingTrim === 'cap') delete l.leadingTrim
+    if (typeof l.paragraphSpacing === 'number' && l.paragraphSpacing > 0) l.paragraphSpacing = espacoNaGrade(l.paragraphSpacing)
+    if (l.sizingW === 'hug') {
+      // largura fixa na grade, crescendo para o lado do alinhamento (o texto não sai do lugar)
+      const w = Math.max(GRADE, acimaNaGrade(l.width))
+      const noFluxo = typeof l.parentId === 'string' && !l.absolute && !!layoutDe(L.find((p) => p.id === l.parentId))
+      if (!noFluxo) l.x = l.align === 'center' ? l.x - (w - l.width) / 2 : l.align === 'right' ? l.x - (w - l.width) : l.x
+      l.width = w
+      l.sizingW = 'fixed'
+      if (l.sizingH !== 'fixed') l.sizingH = 'hug'
+    }
+    if (!entrelinhaDe8(tam, Number(l.lineHeight)) && l.sizingH !== 'fill') { l.sizingH = 'fixed'; l.valign = 'middle' }
+  }
 
   // 1. espaçamentos: gaps, paddings e o padding das etiquetas de texto
   for (const l of L) {
@@ -151,6 +197,9 @@ export function alinharNaGrade(camadas: readonly Camada[], o: OpcoesGrade): Cama
       const dadoP = !!dado && (dado.eixo === 'x') === horizontal
       const tracoP = ehTraco(l) && l[principal] <= TRACO_MAX
       if (!dadoP && !tracoP) { saida.push(l); continue }
+      // já numa faixa (segundo "ajustar" da mesma tela): o pai só tem este filho, sem padding, e já fecha em 8
+      const jaNaFaixa = L.filter((c) => c.parentId === pai.id).length === 1 && Object.values(lay.padding).every((v) => v === 0) && pai[principal] === Math.max(GRADE, acimaNaGrade(l[principal]))
+      if (jaNaFaixa) { saida.push(l); continue }
       // barra com o dado no eixo cruzado (a da tabela): a faixa preenche e alinha a barra como o pai alinharia
       const dadoC = !!dado && !dadoP
       const preencheC = l[dimC] === 'fill' || dadoC
@@ -239,15 +288,83 @@ export function alinharNaGrade(camadas: readonly Camada[], o: OpcoesGrade): Cama
       const pad = typeof b.padding === 'number' && b.background ? b.padding * 2 : 0
       const precisa = o.alturaTexto ? acimaNaGrade(o.alturaTexto(b) + pad) : 0
       if (precisa > b.height + 1e-6) { l.height = precisa; mudou = true; continue }
-      // centralizado pelo pai em meio passo: a caixa cresce 8 px e o texto fica onde estava (centrado na caixa)
-      const pai = typeof b.parentId === 'string' && !b.absolute ? mapaR.get(b.parentId) : undefined
-      const lay = layoutDe(pai)
-      if (!lay || lay.gapAuto) continue
-      const horizontal = lay.direction !== 'vertical'
-      const centroX = lay.alignX === 'center' && (horizontal || b.sizingW !== 'fill')
-      const centroY = lay.alignY === 'center' && (!horizontal || b.sizingH !== 'fill')
-      if (centroX && fora(b.x) && b.align === 'center' && b.sizingW !== 'fill' && b.width + GRADE <= pai!.width) { l.width = b.width + GRADE; mudou = true }
-      if (centroY && fora(b.y) && b.height + GRADE <= pai!.height) { l.height = b.height + GRADE; l.valign = 'middle'; mudou = true }
+      // texto centrado no eixo cruzado de uma fila: altura fixa (o navegador não a muda ao medir de novo), no meio
+      const lay = layoutDe(typeof b.parentId === 'string' && !b.absolute ? mapaR.get(b.parentId) : undefined)
+      if (lay && !lay.gapAuto && lay.direction === 'horizontal' && lay.alignY === 'center' && b.sizingH === 'hug') { l.sizingH = 'fixed'; l.valign = 'middle'; mudou = true }
+    }
+    // centralizado pelo pai: a distância até as bordas do pai fecha em 8
+    for (const f of R) {
+      const lf = mapa.get(f.id)!
+      const lay = layoutDe(lf)
+      if (!lay || lay.gapAuto || lay.direction === 'wrap' || exatas.has(f.id)) continue
+      const fs = R.filter((c) => c.parentId === f.id && !c.absolute && !c.hidden)
+      // (faixas e trilhos: o traço ou a barra de dados dentro deles fica como está)
+      if (!fs.length || fs.some((c) => ehTraco(c) || dados.has(c.id) || exatas.has(c.id))) continue
+      const horizontal = lay.direction === 'horizontal'
+      const pad = lay.padding
+      const internoW = f.width - pad.left - pad.right
+      const internoH = f.height - pad.top - pad.bottom
+      // um texto só, centrado (marcador, avatar, selo): a caixa ocupa a área toda, com o texto no meio
+      const unico = fs.length === 1 && fs[0]!.type === 'text' && !exatas.has(fs[0]!.id) ? mapa.get(fs[0]!.id)! : null
+      if (unico && fs[0]!.sizingH !== 'fill' && lay.alignY === 'center' && f.sizingH !== 'hug' && Math.abs(fs[0]!.height - internoH) > 1e-6 && internoH >= fs[0]!.height) {
+        Object.assign(unico, { height: internoH, sizingH: 'fixed', valign: 'middle' })
+        // (centrado também na largura: a caixa ocupa a largura toda, com o texto centrado nela)
+        if (lay.alignX === 'center' && fs[0]!.align === 'center' && fs[0]!.sizingW !== 'fill' && f.sizingW !== 'hug') unico.width = internoW
+        mudou = true
+        continue
+      }
+      // eixo principal: conteúdo centrado (ou no fim) num frame de tamanho fixo
+      const alinP = horizontal ? lay.alignX : lay.alignY
+      if (alinP !== 'start' && (horizontal ? f.sizingW : f.sizingH) !== 'hug') {
+        const conteudo = fs.reduce((soma, c) => soma + (horizontal ? c.width : c.height), 0) + lay.gap * (fs.length - 1)
+        const livre = (horizontal ? internoW : internoH) - conteudo
+        // conteúdo que o navegador mede de novo (texto ou grupo de altura automática): começa no padding, para a
+        // distância não ir para meio passo quando a altura muda
+        const vivo = !horizontal && fs.some((c) => c.sizingH === 'hug')
+        if (vivo && livre >= GRADE) {
+          pad[horizontal ? 'left' : 'top'] += alinP === 'center' ? Math.floor(livre / 2 / GRADE) * GRADE : Math.floor(livre / GRADE) * GRADE
+          if (horizontal) lay.alignX = 'start'
+          else lay.alignY = 'start'
+          mudou = true
+        } else if (alinP === 'center' && fora(livre / 2)) {
+          pad[horizontal ? 'right' : 'bottom'] += GRADE
+          mudou = true
+        }
+      }
+      // eixo cruzado: cada filho centrado
+      if ((horizontal ? lay.alignY : lay.alignX) !== 'center') continue
+      const [e, tam, dim] = horizontal ? (['y', 'height', 'sizingH'] as const) : (['x', 'width', 'sizingW'] as const)
+      const internoC = horizontal ? internoH : internoW
+      const inicioC = horizontal ? f.y + pad.top : f.x + pad.left
+      for (const c of fs) {
+        if (c[dim] === 'fill' || exatas.has(c.id) || dados.has(c.id) || ehTraco(c) || !fora(c[e] - inicioC)) continue
+        const lc = mapa.get(c.id)!
+        const lc0 = layoutDe(lc)
+        if (c[dim] === 'hug' && lc0) {
+          // grupo de tamanho automático: 8 px a mais no fim (o conteúdo continua onde estava)
+          lc0.padding[horizontal ? 'bottom' : 'right'] += GRADE
+        } else if (c.type === 'text') {
+          if (c[tam] + GRADE > internoC) continue
+          lc[tam] = c[tam] + GRADE
+          if (e === 'y') { lc.sizingH = 'fixed'; lc.valign = 'middle' }
+        } else {
+          // forma, imagem, marcador: 8 px maior (ou menor, se não couber). Um quadrado muda os dois lados: só quando
+          // o outro eixo também está em meio passo (senão vai para o pai: ver a coluna do marcador na montagem)
+          const novo = c[tam] + GRADE <= internoC ? c[tam] + GRADE : c[tam] - GRADE
+          if (novo < GRADE) continue
+          if (Math.abs(c.width - c.height) < 0.5) {
+            // (no eixo principal, crescer 8 px empurra os irmãos 8 px — ainda na grade —, mas desloca 4 px um
+            // conteúdo centrado: aí só quando ele também está em meio passo e é o único filho)
+            const outroFora = fora((horizontal ? c.x - f.x - pad.left : c.y - f.y - pad.top))
+            const alinPEf = (horizontal ? f.sizingW : f.sizingH) === 'hug' ? 'start' : alinP
+            if (alinPEf !== 'start' && !(alinPEf === 'center' && fs.length === 1 && outroFora)) continue
+            lc.width = lc.height = novo
+            const raio = typeof c.radius === 'number' ? c.radius : 0
+            if (raio > 0 && raio < 999 && raio >= c.width / 2 - 0.5) lc.radius = novo / 2
+          } else lc[tam] = novo
+        }
+        mudou = true
+      }
     }
     // frame de altura fixa (cartões igualados, linhas de tabela) cujo conteúdo cresceu na grade: cresce junto com os
     // irmãos da mesma altura (continuam iguais)
@@ -285,5 +402,65 @@ export function alinharNaGrade(camadas: readonly Camada[], o: OpcoesGrade): Cama
     }
     if (!mudou) break
   }
+
+  // 6. o valor que acompanha a ponta de uma barra: a um vão fixo da ponta, no eixo da barra (fora do fluxo)
+  if (o.seguir?.size) {
+    const mapaR = new Map(resolver(L).map((l) => [l.id, l]))
+    const mapa = porId()
+    const feitos = new Map<string, Camada>()
+    for (const [id, s] of o.seguir) {
+      const l = mapa.get(id)
+      const alvo = feitos.get(s.de) ?? mapaR.get(s.de)
+      if (!l || !alvo || layoutDe(typeof l.parentId === 'string' && !l.absolute ? mapa.get(l.parentId) : undefined)) continue
+      const [p, t] = s.eixo === 'x' ? (['x', 'width'] as const) : (['y', 'height'] as const)
+      l[p] = s.lado === 'depois' ? alvo[p] + alvo[t] + s.gap : alvo[p] - s.gap - l[t]
+      feitos.set(id, l)
+    }
+  }
   return resolver(L)
+}
+
+/**
+ * "Ajustar espaçamento (8 px)" do editor: a mesma regra para uma tela que já existe (gerada antes dela ou editada à
+ * mão). Descobre pelas camadas o que não vai para a grade — barras de dados (ids "barra-"; o eixo e a âncora pelas
+ * barras irmãs), o valor que acompanha a ponta (a menos de 32 px dela, com o vão levado para a escala), os
+ * marcadores sobre os pontos do gráfico de linha e as camadas travadas — e passa tudo por `alinharNaGrade`. As
+ * camadas saem na mesma ordem (as faixas novas em volta de fios e barras no fluxo entram logo antes do conteúdo).
+ */
+export function ajustarEspacamento(camadas: readonly Camada[], o: Pick<OpcoesGrade, 'uid' | 'alturaTexto'>): Camada[] {
+  const dados = new Map<string, MedidaDado>()
+  const seguir = new Map<string, Seguidor>()
+  const linha = camadas.some((l) => /^area-/.test(l.id))
+  const exatas = new Set(camadas.filter((l) => l.locked || /^gap-/.test(l.id) || (linha && /^marcador-/.test(l.id))).map((l) => l.id))
+  const perto = (a: number, b: number) => Math.abs(a - b) < 0.5
+  const barras = camadas.filter((l) => /^barra-/.test(l.id) && !exatas.has(l.id))
+  for (const b of barras) {
+    const irmas = barras.filter((x) => x.parentId === b.parentId && x !== b)
+    const pai = camadas.find((p) => p.id === b.parentId)
+    const todas = (f: (x: Camada) => number) => irmas.length > 0 && irmas.every((x) => perto(f(x), f(b)))
+    let m: MedidaDado
+    if (todas((x) => x.x)) m = { eixo: 'x', ancora: 'inicio' }
+    else if (todas((x) => x.x + x.width)) m = { eixo: 'x', ancora: 'fim' }
+    else if (todas((x) => x.y + x.height)) m = { eixo: 'y', ancora: 'fim' }
+    else if (todas((x) => x.y)) m = { eixo: 'y', ancora: 'inicio' }
+    else if (todas((x) => x.x + x.width / 2)) m = { eixo: 'x', ancora: 'centro' }
+    else if (pai && perto(pai.x + pai.width, b.x + b.width) && !perto(pai.x, b.x)) m = { eixo: 'x', ancora: 'fim' }
+    else m = b.width >= b.height ? { eixo: 'x', ancora: 'inicio' } : { eixo: 'y', ancora: 'fim' }
+    dados.set(b.id, m)
+  }
+  // o valor que acompanha a ponta (e o que vem colado nele, como a porcentagem depois do valor)
+  const soltos = camadas.filter((l) => l.type === 'text' && !exatas.has(l.id) && !layoutDe(camadas.find((p) => p.id === l.parentId)))
+  const acompanhar = (alvo: Camada, m: MedidaDado, longe: number) => {
+    const sobre = (a: Camada, b: Camada) => (m.eixo === 'x' ? Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y) : Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) > 0.5
+    for (const t of soltos) {
+      if (seguir.has(t.id) || t === alvo || t.parentId !== alvo.parentId || !sobre(t, alvo)) continue
+      const depois = m.eixo === 'x' ? t.x - (alvo.x + alvo.width) : t.y - (alvo.y + alvo.height)
+      const antes = m.eixo === 'x' ? alvo.x - (t.x + t.width) : alvo.y - (t.y + t.height)
+      if (m.ancora !== 'fim' && depois > -0.5 && depois < longe) seguir.set(t.id, { de: alvo.id, eixo: m.eixo, lado: 'depois', gap: espacoNaGrade(depois) })
+      else if (m.ancora === 'fim' && antes > -0.5 && antes < longe) seguir.set(t.id, { de: alvo.id, eixo: m.eixo, lado: 'antes', gap: espacoNaGrade(antes) })
+    }
+  }
+  for (const b of barras) acompanhar(b, dados.get(b.id)!, 32)
+  for (const [id, s] of [...seguir]) acompanhar(camadas.find((l) => l.id === id)!, { eixo: s.eixo, ancora: s.lado === 'depois' ? 'inicio' : 'fim' }, GRADE)
+  return alinharNaGrade(camadas, { ...o, dados, seguir, exatas })
 }

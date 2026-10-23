@@ -346,7 +346,7 @@ const LayerView = memo(function LayerView({ camada: c, props, origemMorph, heran
         : {}
 
   return (
-    <div key={chaveAnim} ref={refLoop} data-layer-id={c.id} className={classes || undefined} style={base} onAnimationEnd={plano.soltavel ? (ev) => { if (ev.target === ev.currentTarget && !ev.animationName.startsWith('loop-')) setConcluida(chaveAnim) } : undefined} {...eventos}>
+    <div key={chaveAnim} ref={refLoop} data-layer-id={c.id} data-layer-type={c.type} data-parent-id={c.parentId} className={classes || undefined} style={base} onAnimationEnd={plano.soltavel ? (ev) => { if (ev.target === ev.currentTarget && !ev.animationName.startsWith('loop-')) setConcluida(chaveAnim) } : undefined} {...eventos}>
       {c.isMask ? (
         // máscara não é desenhada; o texto-máscara fica invisível no lugar (o clique duplo põe o cursor onde clicou)
         c.type === 'text' ? <div style={{ visibility: 'hidden', width: '100%', height: '100%' }}><Conteudo camada={c} props={props} morphDuracao={morphDuracao} morphEasing={morphEasing} /></div> : null
