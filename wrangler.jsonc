@@ -7,6 +7,17 @@
   "compatibility_flags": ["nodejs_compat"],
   // worker/index.ts delega ao vinext e exporta a classe do Durable Object da sala de colaboração
   "main": "./worker/index.ts",
+  // Origem pública do site (lib/site.ts). As NEXT_PUBLIC_* são inlinadas no build; esta fica aqui também para o
+  // código do servidor que lê process.env em tempo de execução. Local e workers.dev continuam funcionando
+  // (lib/site.ts usa a origem do pedido nesses hosts).
+  "vars": { "NEXT_PUBLIC_SITE_URL": "https://mostra.page" },
+  // Domínio próprio: Custom Domains do Worker (criam o DNS e o certificado sozinhos). Só funcionam com a zona
+  // mostra.page ATIVA na conta; enquanto ela não existir, o `wrangler deploy` falha com as rotas ligadas, por isso
+  // ficam comentadas. Passo a passo e ordem de ativação em docs/dominio.md.
+  // "routes": [
+  //   { "pattern": "mostra.page", "custom_domain": true },
+  //   { "pattern": "www.mostra.page", "custom_domain": true }
+  // ],
   "assets": {
     "directory": "dist/client",
     "html_handling": "none",

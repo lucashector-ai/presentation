@@ -7,6 +7,7 @@ import type { Contexto } from './servidor'
 import { ErroHttp, iso } from './servidor'
 import type { Convite, Membro, Papel } from './contratos'
 import { sql } from '@/lib/db/neon'
+import { origemCanonica } from '@/lib/site'
 
 /** "Meu espaço" de outra pessoa aparece como "Espaço de Ana" para quem foi convidado. */
 export function nomeDoWorkspace(nome: string, dono: string, proprio: boolean): string {
@@ -18,12 +19,9 @@ export function exigirDono(ctx: Contexto) {
   if (ctx.papel !== 'owner') throw new ErroHttp('sem_permissao', 'Só quem administra este espaço pode gerenciar a equipe.')
 }
 
+/** Link do convite no domínio do site (lib/site.ts); em localhost e no workers.dev, na origem do pedido. */
 export function urlDoConvite(req: Request, token: string): string {
-  let base = new URL(req.url).origin
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    try { base = new URL(process.env.NEXT_PUBLIC_APP_URL).origin } catch { /* usa a origem do pedido */ }
-  }
-  return `${base}/app/convite/${token}`
+  return `${origemCanonica(req)}/app/convite/${token}`
 }
 
 interface LinhaMembro { user_id: string; nome: string; email: string; role: Papel; created_at: Date }

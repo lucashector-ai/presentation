@@ -21,4 +21,4 @@ jobs:
       - run: npm run build
         env:
           NEXT_PUBLIC_DEMO: '1'
-          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          NEXT_PUBLIC_SITE_URL: https://mostra.page
