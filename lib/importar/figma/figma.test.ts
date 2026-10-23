@@ -85,6 +85,19 @@ describe('conversão de cópias reais', () => {
     for (const c of cs) expect(() => parseCamada(c)).not.toThrow()
   })
 
+  it('frame com auto layout vira UM frame da Mostra com layout e os filhos dentro (parentId)', () => {
+    const cs = camadas(fixture('sds-texto-vetor-instancia.clipboard.html'))
+    const frames = cs.filter((c) => c.type === 'frame' && c.layout)
+    expect(frames.length).toBeGreaterThan(0)
+    const f = frames.find((c) => (c.layout as { gap: number }).gap === 12)!
+    expect(f.layout).toMatchObject({ direction: 'horizontal', gap: 12, alignY: 'center' })
+    const filhos = cs.filter((c) => c.parentId === f.id)
+    expect(filhos.length).toBeGreaterThan(0)
+    // nenhum retângulo de fundo solto duplicando o frame
+    expect(cs.filter((c) => c.type === 'shape' && c.x === f.x && c.y === f.y && c.width === f.width && c.height === f.height)).toHaveLength(0)
+    for (const c of cs) expect(() => parseCamada(c)).not.toThrow()
+  })
+
   it('grupo do Figma (FRAME resizeToFit) mantém posições relativas', () => {
     const cs = camadas(fixture('group-with-r-g-b-rect.clipboard.html'))
     expect(cs.map((c) => (c.x as number) - (cs[0]!.x as number))).toEqual([0, 110, 220])
@@ -92,12 +105,12 @@ describe('conversão de cópias reais', () => {
 
   it('frame com contorno, elipse e override de instância', () => {
     const [frame] = camadas(fixture('frame-with-stroke.clipboard.html'))
-    expect(frame).toMatchObject({ type: 'shape', shape: 'rect', stroke: '#000000', strokeWidth: 1 })
+    expect(frame).toMatchObject({ type: 'frame', stroke: '#000000', strokeWidth: 1 })
     const [elipse] = camadas(fixture('ellipse-circle-100x100-black.clipboard.html'))
     expect(elipse).toMatchObject({ type: 'shape', shape: 'ellipse', fill: '#000000', width: 100, height: 100 })
     const [inst] = camadas(fixture('component-component-instance-blue-with-overrides.clipboard.html'))
     // override da instância: azul com 50% e contorno preto
-    expect(inst).toMatchObject({ type: 'shape', fill: '#0000ff80', stroke: '#000000' })
+    expect(inst).toMatchObject({ type: 'frame', fill: '#0000ff80', stroke: '#000000' })
   })
 
   it('estrela vira forma editável (5 pontas, 40%) ocupando a mesma área do Figma', () => {
@@ -129,7 +142,7 @@ describe('conversão de cópias reais', () => {
     expect(r.fontesAusentes).toContain('Roboto Mono')
     // botão (instância) com o texto da propriedade e o fundo do componente
     expect(textos.some((t) => t.text === 'Register' && t.fontWeight === 700)).toBe(true)
-    expect(cs.some((c) => c.type === 'shape' && c.name === 'Button' && c.radius === 8)).toBe(true)
+    expect(cs.some((c) => c.type === 'frame' && c.name === 'Button' && c.radius === 8)).toBe(true)
     // vetores com geometria real
     expect(cs.filter((c) => c.type === 'svg').length).toBeGreaterThan(0)
     // cada raiz colada é um grupo

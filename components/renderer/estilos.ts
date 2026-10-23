@@ -29,8 +29,10 @@ export function raioCss(c: { radius?: number; radii?: readonly [number, number, 
   return c.radius
 }
 
-export function transformCss(c: Pick<Camada, 'rotation' | 'flipX' | 'flipY'>): string | undefined {
+export function transformCss(c: Pick<Camada, 'rotation' | 'flipX' | 'flipY'> & Partial<Pick<Camada, 'rotateX' | 'rotateY' | 'perspective'>>): string | undefined {
   const p: string[] = []
+  // inclinação 3D antes da rotação plana (perspectiva própria da camada, como um cartão virado)
+  if (c.rotateX || c.rotateY) p.push(`perspective(${c.perspective ?? 1200}px)`, `rotateX(${c.rotateX ?? 0}deg)`, `rotateY(${c.rotateY ?? 0}deg)`)
   if (c.rotation) p.push(`rotate(${c.rotation}deg)`)
   if (c.flipX) p.push('scaleX(-1)')
   if (c.flipY) p.push('scaleY(-1)')

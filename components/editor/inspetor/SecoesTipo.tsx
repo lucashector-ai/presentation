@@ -48,8 +48,17 @@ export function SecoesDoTipo({ editor, assets = [] }: PropsSecao) {
     case 'embed':
       return (
         <Secao titulo="Incorporado">
-          <CampoTexto rotulo="URL incorporada" prefixo={<Link2 className="h-3.5 w-3.5" />} valor={l.url} aoConfirmar={(v) => { try { if (new URL(v).protocol === 'https:') set({ url: v } as Partial<Camada>) } catch { /* inválida */ } }} />
-          <p className="text-[11px] leading-relaxed text-texto2">YouTube, Vimeo, Figma, Loom, Spline, Sketchfab ou Spotify. Roda isolado (sandbox) na apresentação.</p>
+          {l.html != null ? (
+            <>
+              <textarea aria-label="HTML incorporado" defaultValue={l.html} spellCheck={false} onBlur={(ev) => { const v = ev.target.value; if (v.trim() && v !== l.html) set({ html: v } as Partial<Camada>) }} className="mono min-h-[160px] w-full resize-y rounded-lg border border-borda bg-superficie px-2.5 py-2 text-[12px] leading-5 text-texto outline-none focus:border-acento" />
+              <p className="text-[11px] leading-relaxed text-texto2">HTML próprio. Roda num iframe isolado: sem cookies, sem acesso à página. Salva ao sair do campo.</p>
+            </>
+          ) : (
+            <>
+              <CampoTexto rotulo="URL incorporada" prefixo={<Link2 className="h-3.5 w-3.5" />} valor={l.url ?? ''} aoConfirmar={(v) => { try { if (new URL(v).protocol === 'https:') set({ url: v } as Partial<Camada>) } catch { /* inválida */ } }} />
+              <p className="text-[11px] leading-relaxed text-texto2">YouTube, Vimeo, Figma, Loom, Spline, Sketchfab ou Spotify. Roda isolado (sandbox) na apresentação.</p>
+            </>
+          )}
         </Secao>
       )
     case 'hotspot':

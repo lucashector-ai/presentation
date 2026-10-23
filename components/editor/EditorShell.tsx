@@ -33,6 +33,7 @@ import { EsqueletoEditor } from './EsqueletoEditor'
 import { alternarGuias, ehAtalhoGuias } from './guias/estado'
 import { Atrasado, Botao, BotaoIcone, Carregando, Modal, Simbolo, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
+import { MAX_HTML_EMBED } from '@/lib/scene/schema'
 
 /**
  * Painéis e botões que recebem o editor inteiro só re-renderizam quando algo além do zoom/pan muda; durante um
@@ -217,6 +218,26 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
         return
       }
       case 'embed': return setEmbed({ ponto })
+      case 'bento': {
+        // mosaico 3×2 na grade de 8: um cartão grande (2 colunas), dois médios e um alto
+        const gap = 24
+        const larg = Math.round((W * 0.72) / 8) * 8
+        const alt = Math.round((H * 0.6) / 8) * 8
+        const col = Math.round((larg - gap * 2) / 3 / 8) * 8
+        const lin = Math.round((alt - gap) / 2 / 8) * 8
+        const x0 = Math.round(((ponto?.x ?? W / 2) - larg / 2) / 8) * 8
+        const y0 = Math.round(((ponto?.y ?? H / 2) - alt / 2) / 8) * 8
+        const cartoes = [
+          { x: 0, y: 0, w: col * 2 + gap, h: lin, fill: '#171717' },
+          { x: col * 2 + gap * 2, y: 0, w: col, h: lin * 2 + gap, fill: '#D7F25C' },
+          { x: 0, y: lin + gap, w: col, h: lin, fill: '#F2F1EF' },
+          { x: col + gap, y: lin + gap, w: col, h: lin, fill: '#5965F2' },
+        ]
+        const ids = cartoes.map((k, i) => acoes.criarCamada({ type: 'shape', fill: k.fill, radius: 24, name: `bento-${i + 1}` }, { x: x0 + k.x, y: y0 + k.y, width: k.w, height: k.h })?.id).filter((x): x is string => !!x)
+        setTimeout(() => { acoes.agrupar(ids); acoes.selecionar(ids) }, 0)
+        avisar('Bento grid criado. Arraste imagens ou textos para dentro dos cartões.', 'info')
+        return
+      }
       case 'imagem': case 'video': case 'modelo3d': case 'lottie': case 'vetor':
         pontoArquivo.current = ponto
         if (arquivoRef.current) {
@@ -463,7 +484,17 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
         </dl>
       </Modal>
 
-      <ModalEmbed aberto={!!embed} aoFechar={() => setEmbed(null)} aoConfirmar={(url) => { const p = embed?.ponto; setEmbed(null); void importarConteudo(editor, { arquivos: [], html: '', texto: url }, { avisar, ponto: p }) }} />
+      <ModalEmbed aberto={!!embed} aoFechar={() => setEmbed(null)} aoConfirmar={(v) => {
+        const p = embed?.ponto
+        setEmbed(null)
+        if (v.html && cena) {
+          const w = Math.round(cena.size.width * 0.6)
+          const h = Math.round((w * 9) / 16)
+          acoes.criarCamada({ type: 'embed', html: v.html, ariaLabel: 'HTML incorporado' }, p ? { x: p.x - w / 2, y: p.y - h / 2, width: w, height: h } : { x: (cena.size.width - w) / 2, y: (cena.size.height - h) / 2, width: w, height: h })
+          return
+        }
+        void importarConteudo(editor, { arquivos: [], html: '', texto: v.url ?? '' }, { avisar, ponto: p })
+      }} />
     </div>
   )
 }
@@ -566,11 +597,26 @@ const Rodape = comEditor(function Rodape({ editor, escala, interagir3d, aoIntera
   )
 })
 
-function ModalEmbed({ aberto, aoFechar, aoConfirmar }: { aberto: boolean; aoFechar: () => void; aoConfirmar: (url: string) => void }) {
+/** Blocos → Embed: um link de serviço conhecido ou HTML próprio (iframe isolado, sem origem nem cookies). */
+function ModalEmbed({ aberto, aoFechar, aoConfirmar }: { aberto: boolean; aoFechar: () => void; aoConfirmar: (v: { url?: string; html?: string }) => void }) {
+  const [aba, setAba] = useState<'link' | 'html'>('link')
   const [url, setUrl] = useState('')
+  const [html, setHtml] = useState('')
+  const pronto = aba === 'link' ? /^https:\/\//.test(url) : html.trim().length > 0 && html.length <= MAX_HTML_EMBED
+  const confirmar = () => { aoConfirmar(aba === 'link' ? { url } : { html }); setUrl(''); setHtml('') }
   return (
-    <Modal aberto={aberto} aoFechar={aoFechar} titulo="Incorporar conteúdo" descricao="Cole um link do YouTube, Vimeo, Figma, Loom, Spline, Sketchfab ou Spotify." largura="md" rodape={<><Botao variante="secundario" onClick={aoFechar}>Cancelar</Botao><Botao onClick={() => { aoConfirmar(url); setUrl('') }} disabled={!/^https:\/\//.test(url)}>Incorporar</Botao></>}>
-      <input aria-label="Link para incorporar" autoFocus value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://www.youtube.com/watch?v=…" className="h-11 w-full rounded-lg border border-bordaForte bg-superficie px-3.5 text-sm text-texto outline-none focus:border-acento" />
+    <Modal aberto={aberto} aoFechar={aoFechar} titulo="Incorporar conteúdo" descricao={aba === 'link' ? 'Cole um link do YouTube, Vimeo, Figma, Loom, Spline, Sketchfab ou Spotify.' : 'Cole HTML, CSS e JavaScript. Roda isolado: sem acesso à sua conta, aos cookies nem ao resto da página.'} largura={aba === 'html' ? 'lg' : 'md'} rodape={<><Botao variante="secundario" onClick={aoFechar}>Cancelar</Botao><Botao onClick={confirmar} disabled={!pronto}>Incorporar</Botao></>}>
+      <div role="tablist" aria-label="Tipo de incorporação" className="mb-3 inline-flex h-9 items-center gap-1 rounded-lg bg-hover p-1 text-[13px]">
+        {(['link', 'html'] as const).map((t) => <button key={t} type="button" role="tab" aria-selected={aba === t} onClick={() => setAba(t)} className={cx('h-7 rounded-md px-3', aba === t ? 'bg-superficie shadow-sm' : 'text-texto2')}>{t === 'link' ? 'Link' : 'HTML'}</button>)}
+      </div>
+      {aba === 'link' ? (
+        <input aria-label="Link para incorporar" autoFocus value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://www.youtube.com/watch?v=…" className="h-11 w-full rounded-lg border border-bordaForte bg-superficie px-3.5 text-sm text-texto outline-none focus:border-acento" />
+      ) : (
+        <>
+          <textarea aria-label="HTML para incorporar" autoFocus value={html} onChange={(e) => setHtml(e.target.value)} spellCheck={false} placeholder={'<style>body{margin:0;font-family:sans-serif}</style>\n<div>Olá</div>\n<script>/* seu código */</script>'} className="mono min-h-[320px] w-full resize-y rounded-lg border border-bordaForte bg-superficie px-3.5 py-3 text-[13px] leading-5 text-texto outline-none focus:border-acento" />
+          <div className="mt-2 flex justify-between text-[12px] text-texto3"><span>Imagens e fontes externas precisam de https.</span><span className="mono">{html.length.toLocaleString('pt-BR')} / {MAX_HTML_EMBED.toLocaleString('pt-BR')}</span></div>
+        </>
+      )}
     </Modal>
   )
 }

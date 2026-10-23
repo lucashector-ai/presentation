@@ -180,6 +180,13 @@ function herancaDeFrames(camadas: readonly Camada[]): Map<string, Heranca> {
   return r
 }
 
+/** Grão: ruído em SVG (feTurbulence) por cima da camada, com a opacidade do efeito; `overlay` preserva as cores. */
+const GRAO: CSSProperties = {
+  position: 'absolute', inset: 0, pointerEvents: 'none', mixBlendMode: 'overlay',
+  backgroundImage: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")",
+  backgroundSize: '160px 160px',
+}
+
 function geometria(c: Camada): CSSProperties {
   return { left: c.x, top: c.y, width: c.width, height: c.height, opacity: c.opacity, transform: transformCss(c) }
 }
@@ -356,11 +363,13 @@ const LayerView = memo(function LayerView({ camada: c, props, origemMorph, heran
         <CamadaReativa efeitos={c.interactiveEffects} modo={props.animar === false ? 'miniatura' : modo} reduzir={reduzirMovimento} semHover={semHover} rolagem={!!props.rolagem} largura={c.width} altura={c.height} raio={'radius' in c ? raioCss(c) : undefined} simular={previaAqui && previa?.interativo ? previa.nonce : undefined}>
           <Conteudo camada={c} props={props} origemMorph={morphFim ? undefined : origemMorph} morphDuracao={morphDuracao} morphEasing={morphEasing} animTexto={plano.texto} rolagemTexto={plano.rolagem} desenhar={plano.desenho} />
           {c.strokes && <Tracos camada={c} />}
+          {(e?.noise ?? 0) > 0 && <span aria-hidden style={{ ...GRAO, opacity: e!.noise, borderRadius: 'radius' in c ? raioCss(c) : undefined }} />}
         </CamadaReativa>
       ) : (
         <>
           <Conteudo camada={c} props={props} origemMorph={morphFim ? undefined : origemMorph} morphDuracao={morphDuracao} morphEasing={morphEasing} animTexto={plano.texto} rolagemTexto={plano.rolagem} desenhar={plano.desenho} />
           {c.strokes && <Tracos camada={c} />}
+          {(e?.noise ?? 0) > 0 && <span aria-hidden style={{ ...GRAO, opacity: e!.noise, borderRadius: 'radius' in c ? raioCss(c) : undefined }} />}
         </>
       )}
     </div>
@@ -459,9 +468,22 @@ function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, an
       if (modo !== 'viewer' && !interativo) {
         return (
           <div style={{ width: '100%', height: '100%', borderRadius: raioCss(c), background: '#171717', color: '#A3A3A3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, fontFamily: 'var(--font-geist-mono), monospace', fontSize: Math.max(14, c.width * 0.025), textAlign: 'center', padding: 24 }}>
-            <span style={{ color: '#FAFAF9', fontSize: '1.4em' }}>▶ Incorporado</span>
-            <span style={{ wordBreak: 'break-all' }}>{new URL(c.url).hostname}</span>
+            <span style={{ color: '#FAFAF9', fontSize: '1.4em' }}>{c.html ? '</> HTML' : '▶ Incorporado'}</span>
+            <span style={{ wordBreak: 'break-all' }}>{c.html ? `${c.html.length.toLocaleString('pt-BR')} caracteres` : c.url ? new URL(c.url).hostname : ''}</span>
           </div>
+        )
+      }
+      // HTML próprio: iframe isolado (sem allow-same-origin: outra origem, sem cookies nem acesso à página)
+      if (c.html) {
+        return (
+          <iframe
+            srcDoc={c.html}
+            title={c.ariaLabel || 'HTML incorporado'}
+            loading="lazy"
+            sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+            referrerPolicy="no-referrer"
+            style={{ width: '100%', height: '100%', border: 0, borderRadius: raioCss(c), background: '#fff', pointerEvents: interativo ? 'auto' : 'none' }}
+          />
         )
       }
       return (

@@ -109,6 +109,17 @@ export interface ValorPropriedade {
 }
 export interface NodeChange {
   guid?: GUID
+  /** Auto layout do Figma ("stack"): direção, espaço, respiro e alinhamentos. */
+  stackMode?: 'NONE' | 'HORIZONTAL' | 'VERTICAL'
+  stackWrap?: 'NO_WRAP' | 'WRAP'
+  stackSpacing?: number
+  stackCounterSpacing?: number
+  stackHorizontalPadding?: number
+  stackVerticalPadding?: number
+  stackPaddingRight?: number
+  stackPaddingBottom?: number
+  stackPrimaryAlignItems?: 'MIN' | 'CENTER' | 'MAX' | 'SPACE_EVENLY'
+  stackCounterAlignItems?: 'MIN' | 'CENTER' | 'MAX' | 'BASELINE'
   guidPath?: { guids?: GUID[] }
   overrideKey?: GUID
   parentIndex?: { guid?: GUID; position?: string }

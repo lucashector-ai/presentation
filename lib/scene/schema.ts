@@ -337,6 +337,8 @@ export const EfeitosSchema = z.object({
   blurHidden: z.boolean().optional(),
   backdropBlurHidden: z.boolean().optional(),
   blend: z.enum(MODOS_MESCLAGEM).default('normal'),
+  /** Grão (ruído) por cima da camada, 0–1. Aditivo. */
+  noise: z.number().min(0).max(1).optional(),
 })
 export type Efeitos = z.infer<typeof EfeitosSchema>
 
@@ -471,6 +473,11 @@ const CamadaBase = z.object({
   width: z.number().min(1),
   height: z.number().min(1),
   rotation: z.number().min(-360).max(360).default(0),
+  /** Inclinação 3D (perspectiva CSS): isométrico, cartões em ângulo. Aditivo; ausente = plano. */
+  rotateX: z.number().min(-180).max(180).optional(),
+  rotateY: z.number().min(-180).max(180).optional(),
+  /** Distância da câmera em px (quanto menor, mais perspectiva). */
+  perspective: z.number().min(100).max(5000).optional(),
   opacity: z.number().min(0).max(1).default(1),
   z: z.number().int().default(0),
   locked: z.boolean().default(false),
@@ -754,6 +761,7 @@ export const CamadaLottieSchema = CamadaBase.extend({
 
 /** Conteúdo incorporado de serviços confiáveis (YouTube, Vimeo, Figma, Loom, Spline, Sketchfab). */
 export const HOSTS_EMBED = ['www.youtube.com', 'youtube.com', 'youtu.be', 'player.vimeo.com', 'vimeo.com', 'www.figma.com', 'figma.com', 'embed.figma.com', 'www.loom.com', 'my.spline.design', 'sketchfab.com', 'open.spotify.com'] as const
+export const MAX_HTML_EMBED = 60_000
 export const CamadaEmbedSchema = CamadaBase.extend({
   type: z.literal('embed'),
   url: UrlExternaSchema.refine((v) => {
@@ -763,10 +771,12 @@ export const CamadaEmbedSchema = CamadaBase.extend({
     } catch {
       return false
     }
-  }, 'Incorporação permitida só de YouTube, Vimeo, Figma, Loom, Spline, Sketchfab e Spotify (https)'),
+  }, 'Incorporação permitida só de YouTube, Vimeo, Figma, Loom, Spline, Sketchfab e Spotify (https)').optional(),
+  /** HTML próprio (Blocos → Embed → HTML): roda num iframe isolado (sandbox só com scripts, sem origem nem cookies). */
+  html: z.string().max(MAX_HTML_EMBED).optional(),
   radius: z.number().min(0).max(999).default(0),
   radii: RaiosSchema.optional(),
-})
+}).refine((c) => !!c.url || !!c.html, 'Incorporação precisa de um link ou de HTML')
 
 /** Frame: contêiner (com ou sem auto layout). Filhos apontam para ele via `parentId`. */
 export const CamadaFrameSchema = CamadaBase.extend({

@@ -12,7 +12,8 @@
  *    - imagem → `image` (se a cópia trouxer os bytes) ou um marcador listrado do mesmo tamanho.
  *    - vetores, booleanas, estrelas, polígonos, linhas, ícones (frames/grupos só com vetores) e formas que a
  *      `shape` não representa → `svg` desenhado a partir da geometria.
- *    - frames/grupos → fundo (se tiver) + filhos, agrupados por `groupId` na raiz colada.
+ *    - frames com fundo ou auto layout → um frame da Mostra (fill/contorno/raio + `layout`) com os filhos dentro
+ *      (`parentId`); grupos e frames sem nada → só os filhos, agrupados por `groupId` na raiz colada.
  * 3. Centraliza a seleção no ponto de colagem (ou no centro da tela) mantendo o tamanho; só reduz se não couber.
  *
  * Puro: devolve objetos de camada ainda sem validação; o editor sanitiza SVG, envia imagens e valida.
@@ -217,6 +218,27 @@ interface Interna extends Geom {
   imagemFaltando?: boolean
   /** Índice (em `saida`) da camada-máscara que recorta esta camada. */
   mascara?: number
+  /** Índice (em `saida`) do frame que contém esta camada. */
+  pai?: number
+}
+
+/** Auto layout do Figma → `layout` do frame da Mostra (alinhamento em eixos absolutos, como a grade 3×3 do Figma). */
+function autoLayoutDe(nc: NodeChange): Record<string, unknown> | null {
+  const modo = nc.stackMode
+  if (modo !== 'HORIZONTAL' && modo !== 'VERTICAL') return null
+  const al = (v: string | undefined) => (v === 'CENTER' ? 'center' : v === 'MAX' ? 'end' : 'start')
+  const primario = al(nc.stackPrimaryAlignItems)
+  const contra = al(nc.stackCounterAlignItems)
+  const horizontal = modo === 'HORIZONTAL'
+  return {
+    direction: nc.stackWrap === 'WRAP' ? 'wrap' : horizontal ? 'horizontal' : 'vertical',
+    gap: Math.round(nc.stackSpacing ?? 0),
+    gapAuto: nc.stackPrimaryAlignItems === 'SPACE_EVENLY',
+    ...(nc.stackWrap === 'WRAP' && nc.stackCounterSpacing != null ? { rowGap: Math.round(nc.stackCounterSpacing) } : {}),
+    padding: { top: Math.round(nc.stackVerticalPadding ?? 0), right: Math.round(nc.stackPaddingRight ?? nc.stackHorizontalPadding ?? 0), bottom: Math.round(nc.stackPaddingBottom ?? nc.stackVerticalPadding ?? 0), left: Math.round(nc.stackHorizontalPadding ?? 0) },
+    alignX: horizontal ? primario : contra,
+    alignY: horizontal ? contra : primario,
+  }
 }
 
 interface Estado {
@@ -898,10 +920,24 @@ class Conversor {
     if (ehContainer(no)) {
       const a = analisar(no)
       if (!a.texto && (this.compacto || (!a.imagem && (a.vetorial || a.mascara)))) return this.svg(no, est, W)
-      // fundo do frame
+      // frame com fundo ou auto layout vira um frame da Mostra com os filhos dentro; sem nada, só os filhos
       const temFundo = pinturasVisiveis(nc.fillPaints).length || pinturasVisiveis(nc.strokePaints).length || efeitosVisiveis(nc.effects).length
-      if (temFundo) this.forma({ nc: { ...nc, opacity: 1 }, filhos: [] }, { ...est, opacidade: est.opacidade * (nc.opacity ?? 1) }, W, 'rect')
+      const layout = autoLayoutDe(nc)
       const { w, h } = tamanho(nc)
+      let pai: number | undefined
+      if (temFundo || layout) {
+        const temImagem = pinturasVisiveis(nc.fillPaints).some((p) => p.type === 'IMAGE')
+        const props = temImagem ? null : temFundo ? formaSimples({ ...nc, opacity: 1 }, 'rect', this.ctx) : { type: 'shape', shape: 'rect', fill: '#00000000' }
+        const g = props ? colocar(W, { x: 0, y: 0, w, h }) : null
+        if (props && g && w >= 0.5 && h >= 0.5) {
+          const { shape: _forma, ...resto } = props
+          const frame: Interna['props'] = { ...resto, type: 'frame', clip: recorta(nc), ...(layout ? { layout } : {}) }
+          if (frame.fill === '#00000000' && !frame.gradient) delete frame.fill
+          const antes = this.saida.length
+          this.empurrar(this.interna(frame, { ...g, w: Math.max(1, g.w), h: Math.max(1, g.h) }, { ...est, opacidade: est.opacidade * (nc.opacity ?? 1) }), est, nc)
+          if (this.saida.length > antes) pai = antes
+        } else if (temFundo) this.forma({ nc: { ...nc, opacity: 1 }, filhos: [] }, { ...est, opacidade: est.opacidade * (nc.opacity ?? 1) }, W, 'rect')
+      }
       let recorte = est.recorte
       if (recorta(nc)) {
         const d = decompor(W)
@@ -912,7 +948,9 @@ class Conversor {
       }
       const estFilhos: Estado = { W, opacidade: est.opacidade * (nc.opacity ?? 1), recorte, raiz: est.raiz }
       // contorno do frame fica por cima dos filhos no Figma; aqui o fundo leva o contorno (aproximação)
+      const antesFilhos = this.saida.length
       this.filhosComMascaras(no.filhos, estFilhos)
+      if (pai !== undefined) for (const i of this.saida.slice(antesFilhos)) i.pai ??= pai
       return
     }
     if (tipo === 'RECTANGLE' || tipo === 'ROUNDED_RECTANGLE') return this.forma(no, est, W, 'rect')
@@ -941,6 +979,12 @@ function escalarProps(p: Record<string, unknown>, s: number) {
   if (s === 1) return
   for (const k of ['fontSize', 'letterSpacing', 'padding', 'radius', 'strokeWidth', 'dash']) if (typeof p[k] === 'number') p[k] = (p[k] as number) * s
   if (Array.isArray(p.radii)) p.radii = (p.radii as number[]).map((r) => Math.min(999, r * s))
+  const lay = p.layout as Record<string, unknown> | undefined
+  if (lay) {
+    for (const k of ['gap', 'rowGap']) if (typeof lay[k] === 'number') lay[k] = Math.round((lay[k] as number) * s)
+    const pad = lay.padding as Record<string, number> | undefined
+    if (pad) lay.padding = Object.fromEntries(Object.entries(pad).map(([k, v]) => [k, Math.round(v * s)]))
+  }
   const ef = p.effects as Record<string, unknown> | undefined
   if (ef) {
     for (const k of ['blur', 'backdropBlur']) if (typeof ef[k] === 'number') ef[k] = (ef[k] as number) * s
@@ -1012,6 +1056,7 @@ export function converterMensagem(msg: MensagemFigma, opcoes: OpcoesConversao): 
       ...(i.espelhoX ? { flipX: true } : {}),
       ...((porRaiz.get(i.raiz) ?? 0) > 1 ? { groupId: `figmagrupo-${i.raiz + 1}` } : {}),
       ...(i.mascara !== undefined ? { maskId: `figma-${i.mascara + 1}` } : {}),
+      ...(i.pai !== undefined ? { parentId: `figma-${i.pai + 1}` } : {}),
     }
     if (camada.type === 'text') camada.fontSize = limitar(Math.round((camada.fontSize as number) * 100) / 100, 6, 800)
     return { camada, ...(i.imagem ? { imagem: i.imagem } : {}), ...(i.imagemFaltando ? { imagemFaltando: true } : {}) }

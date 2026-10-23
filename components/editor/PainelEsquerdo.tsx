@@ -1,7 +1,7 @@
 'use client'
 import { useMemo, useRef, useState, type JSX } from 'react'
 import { createPortal } from 'react-dom'
-import { Box, ChevronDown, ChevronRight, Code2, Copy, Crosshair, Eye, EyeOff, Film, GalleryHorizontal, Image as ImageIcon, Lock, LockOpen, MousePointerClick, PenTool, Quote, Sparkles, Square, Tag, Trash2, Type, Upload, Video, ArrowRight } from 'lucide-react'
+import { Box, ChevronDown, ChevronRight, Code2, Copy, Crosshair, Eye, EyeOff, Film, GalleryHorizontal, Group, Image as ImageIcon, LayoutGrid, Lock, LockOpen, MousePointerClick, PenTool, Quote, Sparkles, Square, Tag, Trash2, Type, Upload, Video, ArrowRight } from 'lucide-react'
 import { IconeAutoLayout, IconeMascara } from './inspetor/icones'
 import { NOMES_TIPO_MASCARA, ehMascara, tipoMascara } from '@/lib/scene/mascara'
 import type { Camada } from '@/lib/scene/schema'
@@ -196,14 +196,53 @@ function Camadas({ editor }: { editor: Editor }) {
           <button type="button" aria-label={l.locked ? 'Destravar' : 'Travar'} onClick={(e) => { e.stopPropagation(); acoes.atualizarCamadas([l.id], { locked: !l.locked }) }} className={cx('shrink-0 text-texto3 hover:text-texto', !l.locked && 'opacity-0 group-hover:opacity-100')}>{l.locked ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}</button>
           <button type="button" aria-label={mascara ? (l.hidden ? 'Ligar máscara' : 'Desligar máscara') : l.hidden ? 'Mostrar' : 'Ocultar'} onClick={(e) => { e.stopPropagation(); acoes.atualizarCamadas([l.id], { hidden: !l.hidden }) }} className={cx('shrink-0 text-texto3 hover:text-texto', !l.hidden && 'opacity-0 group-hover:opacity-100')}>{l.hidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}</button>
         </div>
-        {aberto && sub.length > 0 && <ul role="group">{sub.map((f) => linha(f, nivel + 1, vistos))}</ul>}
+        {aberto && sub.length > 0 && <ul role="group">{linhas(sub, nivel + 1, vistos)}</ul>}
       </li>
     )
+  }
+  /**
+   * Irmãos com o mesmo groupId viram um nó "Grupo" expansível (como no Figma), com os membros recuados dentro.
+   * Clicar no grupo seleciona todos os membros; o olho e o cadeado valem para o grupo inteiro.
+   */
+  const linhas = (lista: Camada[], nivel: number, vistos: Set<string>): JSX.Element[] => {
+    const saida: JSX.Element[] = []
+    const grupos = new Map<string, Camada[]>()
+    for (const l of lista) if (l.groupId) grupos.set(l.groupId, [...(grupos.get(l.groupId) ?? []), l])
+    const feitos = new Set<string>()
+    for (const l of lista) {
+      const g = l.groupId && (grupos.get(l.groupId)?.length ?? 0) > 1 ? l.groupId : undefined
+      if (!g) { const el = linha(l, nivel, vistos); if (el) saida.push(el); continue }
+      if (feitos.has(g)) continue
+      feitos.add(g)
+      const membros = grupos.get(g)!
+      const ids = membros.map((m) => m.id)
+      const chave = `g:${g}`
+      const abertoG = !fechados.has(chave)
+      const selG = ids.every((id) => estado.selecao.includes(id))
+      const ocultoG = membros.every((m) => m.hidden)
+      const travadoG = membros.every((m) => m.locked)
+      const recuo = 8 + nivel * 14
+      saida.push(
+        <li key={chave} role="treeitem" aria-label={`Grupo (${membros.length})`} aria-selected={selG} aria-level={nivel + 1} aria-expanded={abertoG}>
+          <div onClick={(e) => (e.shiftKey ? acoes.selecionarExato([...new Set([...estado.selecao, ...ids])]) : acoes.selecionarExato(ids))} style={{ paddingLeft: recuo }} className={cx('group relative flex h-8 cursor-default items-center gap-1.5 rounded-md pr-2 text-[13px]', selG ? 'bg-acentoSuave text-texto' : 'hover:bg-hover', ocultoG && 'opacity-50')}>
+            <button type="button" aria-label={abertoG ? 'Recolher grupo' : 'Expandir grupo'} onClick={(e) => { e.stopPropagation(); alternar(chave) }} className="-ml-1 flex h-4 w-4 shrink-0 items-center justify-center text-texto3 hover:text-texto">
+              <ChevronRight className={cx('h-3 w-3 transition-transform', abertoG && 'rotate-90')} />
+            </button>
+            <Group className={cx('h-3.5 w-3.5 shrink-0', selG ? 'text-acento' : 'text-texto3')} strokeWidth={1.75} />
+            <span className="min-w-0 flex-1 truncate">Grupo <span className="text-texto3">· {membros.length}</span></span>
+            <button type="button" aria-label={travadoG ? 'Destravar grupo' : 'Travar grupo'} onClick={(e) => { e.stopPropagation(); acoes.atualizarCamadas(ids, { locked: !travadoG }) }} className={cx('shrink-0 text-texto3 hover:text-texto', !travadoG && 'opacity-0 group-hover:opacity-100')}>{travadoG ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}</button>
+            <button type="button" aria-label={ocultoG ? 'Mostrar grupo' : 'Ocultar grupo'} onClick={(e) => { e.stopPropagation(); acoes.atualizarCamadas(ids, { hidden: !ocultoG }) }} className={cx('shrink-0 text-texto3 hover:text-texto', !ocultoG && 'opacity-0 group-hover:opacity-100')}>{ocultoG ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}</button>
+          </div>
+          {abertoG && <ul role="group">{membros.map((m) => linha(m, nivel + 1, vistos)).filter((x): x is JSX.Element => !!x)}</ul>}
+        </li>
+      )
+    }
+    return saida
   }
   const vistos = new Set<string>()
   return (
     <ul role="tree" aria-label="Camadas da tela" className="p-2" onDragLeave={(e) => { if (e.currentTarget === e.target) setDestino(null) }}>
-      {(filhos.get(undefined) ?? []).map((l) => linha(l, 0, vistos))}
+      {linhas(filhos.get(undefined) ?? [], 0, vistos)}
     </ul>
   )
 }
@@ -301,6 +340,7 @@ export const BLOCOS = [
   { id: 'forma', rotulo: 'Forma', icone: Square },
   { id: 'hotspot', rotulo: 'Hotspot', icone: Crosshair },
   { id: 'galeria', rotulo: 'Galeria', icone: GalleryHorizontal },
+  { id: 'bento', rotulo: 'Bento grid', icone: LayoutGrid },
   { id: 'embed', rotulo: 'Embed', icone: Code2 },
   { id: 'modelo3d', rotulo: 'Modelo 3D', icone: Box },
   { id: 'lottie', rotulo: 'Lottie', icone: Sparkles },

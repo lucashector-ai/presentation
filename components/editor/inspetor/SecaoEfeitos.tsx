@@ -133,6 +133,18 @@ export function SecaoEfeitos({ editor }: PropsSecao) {
       ) : undefined}
     >
       {misto && <p className="text-[11px] text-texto2">Efeitos diferentes na seleção. Clique em + para usar os da primeira camada em todas.</p>}
+      {/* predefinições: efeitos "difíceis" em um clique (ajustáveis depois nas linhas) */}
+      {!misto && (
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Predefinições de efeito">
+          {([
+            ['Vidro fosco', () => comSombras({ ...ef0(e), backdropBlur: 24, backdropBlurHidden: undefined }, [{ x: 0, y: 1, blur: 0, spread: 0, color: '#FFFFFF80', inner: true }, { x: 0, y: 24, blur: 48, spread: -16, color: '#00000040' }])],
+            ['Brilho', () => comSombras(ef0(e), [{ x: 0, y: 0, blur: 56, spread: 6, color: '#5965F2A6' }, ...sombrasDe(e).filter((s) => s.inner)])],
+            ['Grão', () => ({ ...ef0(e), noise: (e?.noise ?? 0) > 0 ? undefined : 0.22 })],
+          ] as const).map(([nome, fn]) => (
+            <button key={nome} type="button" onClick={() => ef(() => fn())} className={cx('h-7 rounded-full border px-2.5 text-[11px]', nome === 'Grão' && (e?.noise ?? 0) > 0 ? 'border-acento text-acento' : 'border-borda text-textoCorpo hover:border-bordaHover')}>{nome}</button>
+          ))}
+        </div>
+      )}
       {!misto && linhas.map((linha) => {
         const k = chaveLinha(linha)
         const Icone = ICONES[linha.tipo]

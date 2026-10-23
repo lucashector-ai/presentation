@@ -71,6 +71,16 @@ export function SecaoPosicao({ editor }: PropsSecao) {
           <BotaoCampo rotulo="Espelhar na vertical" ativo={comum(sel, (c) => c.flipY) === true} onClick={() => acoes.inverter(ids, 'y')}><FlipVertical2 className="h-3.5 w-3.5" /></BotaoCampo>
         </div>
       </div>
+      {/* 3D: inclinação com perspectiva (isométrico, cartões em ângulo); presets como os do plugin Isometric do Figma */}
+      <div className="grid grid-cols-[1fr_1fr_32px] gap-2">
+        <CampoNum prefixo="3D X" rotulo="Inclinação 3D no eixo X" valor={comum(sel, (c) => c.rotateX ?? 0)} min={-180} max={180} sufixo="°" aoMudar={(v) => set({ rotateX: v || undefined })} aoDelta={(d) => setFn((c) => ({ ...c, rotateX: ((c.rotateX ?? 0) + d) || undefined }))} />
+        <CampoNum prefixo="3D Y" rotulo="Inclinação 3D no eixo Y" valor={comum(sel, (c) => c.rotateY ?? 0)} min={-180} max={180} sufixo="°" aoMudar={(v) => set({ rotateY: v || undefined })} aoDelta={(d) => setFn((c) => ({ ...c, rotateY: ((c.rotateY ?? 0) + d) || undefined }))} />
+      </div>
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Predefinições 3D">
+        {([['Plano', 0, 0], ['Esquerda', 0, -35], ['Direita', 0, 35], ['Sup. esquerda', 30, -35], ['Sup. direita', 30, 35], ['Isométrico', 45, -30]] as const).map(([nome, rx, ry]) => (
+          <button key={nome} type="button" onClick={() => set({ rotateX: rx || undefined, rotateY: ry || undefined })} className="h-7 rounded-full border border-borda px-2.5 text-[11px] text-textoCorpo hover:border-bordaHover">{nome}</button>
+        ))}
+      </div>
     </Secao>
   )
 }
