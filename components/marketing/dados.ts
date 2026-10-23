@@ -2,8 +2,8 @@
  * Conteúdo da landing (Claude Design, "Landing v2"). Dados puros — sem JSX — para poder ser
  * reutilizado em outras telas (página de preços, painel de créditos, central de ajuda...).
  */
-import { ACOES_IA, CUSTO_CREDITOS, DESCONTO_ANUAL as DESCONTO, PACOTES_AVULSOS, PLANOS, TELAS_REFERENCIA, apresentacoesCom, custoApresentacao } from '@/lib/planos'
-import { exemploApresentacoes, telasCom, textoTelas } from '@/lib/telasIa'
+import { ACOES_IA, ACUMULO_MAXIMO, CUSTO_CREDITOS, DESCONTO_ANUAL as DESCONTO, PACOTES_AVULSOS, PLANOS, TELAS_REFERENCIA, apresentacoesCom, custoApresentacao } from '@/lib/planos'
+import { MAX_TELAS_IA, MIN_TELAS_IA, exemploApresentacoes, telasCom, textoTelas } from '@/lib/telasIa'
 
 export const ROTAS = {
   entrar: '/login',
@@ -22,13 +22,14 @@ export interface ItemNav {
   ponto?: boolean
 }
 
+/** Âncoras com "/" na frente: o cabeçalho também aparece em /precos e /apresentacao-com-ia; na landing, viram rolagem. */
 export const NAV: ItemNav[] = [
-  { href: '#como', rotulo: 'Como funciona' },
-  { href: '#ia', rotulo: 'Criar com IA', ponto: true },
-  { href: '#formatos', rotulo: 'Formatos' },
-  { href: '#recursos', rotulo: 'Recursos' },
-  { href: '#precos', rotulo: 'Preços' },
-  { href: '#faq', rotulo: 'FAQ' },
+  { href: '/#como', rotulo: 'Como funciona' },
+  { href: '/#ia', rotulo: 'Criar com IA', ponto: true },
+  { href: '/#formatos', rotulo: 'Formatos' },
+  { href: '/#recursos', rotulo: 'Recursos' },
+  { href: '/precos', rotulo: 'Preços' },
+  { href: '/#faq', rotulo: 'FAQ' },
 ]
 
 export const FAIXA: { rotulo: string; forma: TipoForma; cor: string }[] = [
@@ -43,7 +44,7 @@ export const FAIXA: { rotulo: string; forma: TipoForma; cor: string }[] = [
 ]
 
 export const PASSOS = [
-  { n: 1, titulo: 'Crie', texto: 'Importe imagens, vídeos e textos para um canvas livre, com guias, grids e componentes. Precisão de editor de design, simplicidade de slide.' },
+  { n: 1, titulo: 'Crie', texto: 'Descreva o briefing para a IA ou importe imagens, vídeos e textos para um canvas livre, com guias, grids e componentes. Precisão de editor de design, simplicidade de slide.' },
   { n: 2, titulo: 'Apresente', texto: 'Tela cheia, transições cinematográficas e navegação por clique, teclado ou scroll. O projeto ocupa todo o espaço — sem barras, sem distrações.' },
   { n: 3, titulo: 'Compartilhe', texto: 'Links privados com senha, expiração e métricas de visualização. Atualize o projeto e o cliente vê a nova versão — sem reenviar nada.' },
 ] as const
@@ -215,19 +216,57 @@ export const CUSTOS_CREDITOS: { id: string; rotulo: string; detalhe: string; cre
 export const PACOTES_CREDITOS = PACOTES_AVULSOS.map((p) => ({ creditos: p.creditos, preco: p.precoBRL, apresentacoes: apresentacoesCom(p.creditos), telas: telasCom(p.creditos), exemplo: exemploApresentacoes(p.creditos) }))
 
 // ---------- FAQ ----------
+// Perguntas como as pessoas fazem a buscadores e a assistentes de IA; respostas factuais, com os números de lib/planos.ts
+// (entram também no JSON-LD FAQPage da landing). Mudou um recurso? Mude aqui, e o resto acompanha.
+const F = PLANOS.free, PL = PLANOS.plus, PR = PLANOS.pro, ST = PLANOS.studio
+const reais = (n: number) => `R$${n.toLocaleString('pt-BR')}`
+
 export const FAQ = [
-  { pergunta: 'Preciso saber programar?', resposta: 'Não. Tudo é visual: arraste elementos, escolha gatilhos e ações em listas e veja a prévia na hora.' },
-  { pergunta: 'O cliente precisa criar conta para ver?', resposta: 'Não. Ele abre o link no navegador, no computador ou no celular. Se você ativar senha, só quem tiver a senha entra.' },
-  { pergunta: 'Como funcionam os créditos?', resposta: `Créditos pagam a IA que escreve suas apresentações: cada apresentação gerada custa ${CUSTO_CREDITOS.roteiro} créditos pelo roteiro + ${CUSTO_CREDITOS.tela} por tela (10 telas = ${custoApresentacao(10)}, 20 telas = ${custoApresentacao(20)}). O Free vem com ${PLANOS.free.creditos.quantidade} créditos (${textoTelas(PLANOS.free.creditos.quantidade)}: ${exemploApresentacoes(PLANOS.free.creditos.quantidade)}) e o Plus renova ${PLANOS.plus.creditos.quantidade.toLocaleString('pt-BR')} por mês (${textoTelas(PLANOS.plus.creditos.quantidade)}). Logo, cores, estilo e trocar o estilo depois são grátis; editar, apresentar e compartilhar também.` },
-  { pergunta: 'Posso importar meus arquivos do Figma ou do Illustrator?', resposta: 'Sim. Copie no Figma ou no Illustrator e cole no editor (⌘V): vetores viram camadas editáveis. Também dá para soltar PNG, JPG, SVG, vídeo, GIF, Lottie e modelos 3D do Blender (GLB); cada imagem pode virar uma tela.' },
-  { pergunta: 'Posso cancelar quando quiser?', resposta: 'Sim. Seus projetos continuam acessíveis e voltam para o limite do plano Free.' },
-] as const
+  { pergunta: 'Como fazer uma apresentação com IA no Mostra?', resposta: `Descreva o que você precisa (ou cole um briefing, um texto ou um PDF), escolha a marca e o estilo e a IA escreve o roteiro, tela por tela. Você revisa, pede outro roteiro se quiser e manda desenhar: cada tela sai montada no seu kit de marca, com texto, layout e formas editáveis no editor. Uma apresentação vai de ${MIN_TELAS_IA} a ${MAX_TELAS_IA} telas e o roteiro é grátis; só o desenho consome créditos.` },
+  { pergunta: 'Quanto custa o Mostra?', resposta: `O plano Free é grátis para sempre: ${F.creditos.quantidade} créditos no cadastro e ${F.limites.projetos} projetos. O Plus custa ${reais(PL.precoMensalBRL)} por mês (${PL.creditos.quantidade} créditos mensais), o Pro ${reais(PR.precoMensalBRL)} por mês (${PR.creditos.quantidade} créditos) e o Studio ${reais(ST.precoMensalBRL)} por membro por mês (${ST.creditos.quantidade} créditos por membro, compartilhados). No anual, Plus ${reais(PL.precoAnualBRL)}, Pro ${reais(PR.precoAnualBRL)} e Studio ${reais(ST.precoAnualBRL)} por mês. Pacotes avulsos: ${PACOTES_AVULSOS.map((p) => `${p.creditos} créditos por ${reais(p.precoBRL)}`).join(', ')}; eles não expiram. Preços em reais, sem conversão de dólar.` },
+  { pergunta: 'Como funcionam os créditos?', resposta: `1 crédito = 1 tela criada pela IA. Uma apresentação de 10 telas custa ${custoApresentacao(10)} créditos e uma de 20 custa ${custoApresentacao(20)}, cobrados quando a IA desenha as telas. O Free vem com ${F.creditos.quantidade} créditos (${textoTelas(F.creditos.quantidade)}: ${exemploApresentacoes(F.creditos.quantidade)}) e o Plus renova ${PL.creditos.quantidade.toLocaleString('pt-BR')} por mês (${textoTelas(PL.creditos.quantidade)}). Roteiro, logo, cores, estilo e trocar o estilo depois são grátis; editar, apresentar e compartilhar também.` },
+  { pergunta: 'Funciona com Figma e Illustrator?', resposta: 'Sim. Copie no Figma ou no Illustrator e cole no editor (⌘V): vetores viram camadas editáveis, com grupos, textos e cores preservados. Também dá para soltar PNG, JPG, SVG, vídeo, GIF, Lottie e modelos 3D do Blender (GLB); cada imagem pode virar uma tela.' },
+  { pergunta: 'Exporta PDF ou PPTX?', resposta: 'PDF, sim: uma página por tela, com as fontes embutidas, direto do editor. PPTX não é exportado — o Mostra lê o tema de um .pptx antigo para montar o kit de marca, mas a apresentação vive no link, com animações e interações que um arquivo não carrega. Para quem precisa de um arquivo, o PDF resolve.' },
+  { pergunta: 'Tem animação e transições?', resposta: 'Sim. Transições entre telas (fade, slide, scale e morph) com duração e easing ajustáveis, animações ligadas ao scroll no formato Story e interações sem código: clique, hover, hotspots, modais e estados. Tudo configurado em listas, com prévia na hora; não precisa programar.' },
+  { pergunta: 'O Mostra é uma alternativa ao Gamma, ao Pitch ou ao Canva?', resposta: `Para quem apresenta em português e paga em reais, sim. Como o Gamma, gera a apresentação com IA a partir de um briefing; a diferença está no editor de canvas livre (camadas, grupos, guias e auto layout, como no Figma), na colagem direta do Figma e do Illustrator, nos três formatos (Slides, Story e Explorar) e nos links privados com senha e visualizações. Planos a partir de ${reais(PL.precoMensalBRL)} por mês, sem conversão de dólar.` },
+  { pergunta: 'O cliente precisa criar conta para ver?', resposta: 'Não. Ele abre o link no navegador, no computador ou no celular. Se você ativar senha, só quem tiver a senha entra; você vê quantas vezes o link foi aberto e pode revogar quando quiser.' },
+] as const satisfies readonly { pergunta: string; resposta: string }[]
+
+/** Perguntas da página /precos (créditos, pacotes, cancelamento). */
+export const FAQ_PRECOS = [
+  { pergunta: 'O que é um crédito?', resposta: 'Um crédito é uma tela criada pela IA (roteiro e design juntos). Refazer uma tela ou adicionar uma nova com IA também custa 1 crédito. Reescrever ou traduzir o texto, trocar o estilo, as cores, o logo e reordenar são grátis. Editar, apresentar e compartilhar nunca consomem créditos.' },
+  { pergunta: 'Os créditos expiram?', resposta: `Os créditos dos pacotes avulsos não expiram e valem em qualquer plano. Os créditos mensais do plano renovam todo mês; o que sobrar acumula até ${ACUMULO_MAXIMO}× a cota mensal.` },
+  { pergunta: 'Posso trocar de plano ou cancelar quando quiser?', resposta: `Sim. Ao cancelar, seus projetos continuam acessíveis e a conta volta para os limites do plano Free (${F.limites.projetos} projetos). Nada é apagado.` },
+  { pergunta: 'O plano anual tem desconto?', resposta: `Sim: ${Math.round(DESCONTO * 100)}% sobre o mensal. Plus ${reais(PL.precoAnualBRL)}, Pro ${reais(PR.precoAnualBRL)} e Studio ${reais(ST.precoAnualBRL)} por membro, por mês, cobrados uma vez ao ano.` },
+  { pergunta: 'Preciso de cartão de crédito para começar?', resposta: `Não. O Free não pede cartão: ${F.creditos.quantidade} créditos no cadastro (${textoTelas(F.creditos.quantidade)}) e ${F.limites.projetos} projetos, para sempre.` },
+] as const satisfies readonly { pergunta: string; resposta: string }[]
+
+// ---------- Mostra × Gamma × Pitch × Canva ----------
+/**
+ * Comparação factual (buscadores e IAs citam tabelas): só o que é público e óbvio sobre os outros produtos
+ * (sites oficiais, outubro de 2026). O que não dá para afirmar sai como `A_CONFIRMAR`, que a tabela mostra com
+ * asterisco, em vez de inventar. Gamma, Pitch e Canva são marcas dos respectivos donos.
+ */
+export const A_CONFIRMAR = 'a confirmar'
+export const CONCORRENTES = ['Mostra', 'Gamma', 'Pitch', 'Canva'] as const
+export const COMPARATIVO: { rotulo: string; valores: [string, string, string, string] }[] = [
+  { rotulo: 'Feito no Brasil, em português, com preços em reais', valores: ['Sim', 'Preços em dólar', 'Preços em dólar', 'Interface em português'] },
+  { rotulo: 'Gera a apresentação com IA a partir de um briefing', valores: ['Sim', 'Sim', 'Sim', 'Sim'] },
+  { rotulo: 'Editor de canvas livre: camadas, grupos, guias e auto layout', valores: ['Sim', 'Não (editor por blocos)', 'Sim', 'Sim'] },
+  { rotulo: 'Cola do Figma e do Illustrator como camadas editáveis', valores: ['Sim', A_CONFIRMAR, A_CONFIRMAR, A_CONFIRMAR] },
+  { rotulo: 'Formatos', valores: ['Slides, Story e Explorar', 'Apresentação, documento e página', 'Slides', 'Slides, documentos e sites'] },
+  { rotulo: 'Animações entre telas com duração e easing ajustáveis', valores: ['Sim, inclusive morph', 'Transições prontas', 'Sim', 'Sim'] },
+  { rotulo: 'Modelos 3D (GLB) e Lottie dentro da apresentação', valores: ['Sim', A_CONFIRMAR, A_CONFIRMAR, A_CONFIRMAR] },
+  { rotulo: 'Link privado com senha, validade e visualizações', valores: ['Sim (senha a partir do Pro)', 'Link e analytics', 'Link e analytics', 'Link (senha: a confirmar)'] },
+  { rotulo: 'Como a IA é cobrada', valores: ['1 crédito = 1 tela; pacotes não expiram', 'Créditos de IA', A_CONFIRMAR, 'Créditos de IA'] },
+  { rotulo: 'Plano grátis', valores: [`Sim: ${F.creditos.quantidade} créditos e ${F.limites.projetos} projetos`, 'Sim', 'Sim', 'Sim'] },
+]
 
 // ---------- Rodapé ----------
-/** `href: null` = página ainda não existe; o item aparece como texto. */
+/** `href: null` = página ainda não existe; o item aparece como texto. O rodapé também aparece fora da landing, por isso as âncoras levam "/". */
 export const RODAPE: { titulo: string; links: { rotulo: string; href: string | null }[] }[] = [
-  { titulo: 'Produto', links: [{ rotulo: 'Como funciona', href: '#como' }, { rotulo: 'Formatos', href: '#formatos' }, { rotulo: 'Recursos', href: '#recursos' }, { rotulo: 'Planos e preços', href: '#precos' }] },
-  { titulo: 'Recursos', links: [{ rotulo: 'Templates', href: null }, { rotulo: 'Central de ajuda', href: null }, { rotulo: 'Blog', href: null }, { rotulo: 'FAQ', href: '#faq' }] },
+  { titulo: 'Produto', links: [{ rotulo: 'Como funciona', href: '/#como' }, { rotulo: 'Formatos', href: '/#formatos' }, { rotulo: 'Recursos', href: '/#recursos' }, { rotulo: 'Planos e preços', href: '/precos' }] },
+  { titulo: 'Guias', links: [{ rotulo: 'Apresentação com IA', href: '/apresentacao-com-ia' }, { rotulo: 'Alternativa ao Gamma', href: '/apresentacao-com-ia#gamma' }, { rotulo: 'Mostra × Gamma × Pitch × Canva', href: '/#comparativo' }, { rotulo: 'FAQ', href: '/#faq' }] },
   { titulo: 'Empresa', links: [{ rotulo: 'Sobre', href: null }, { rotulo: 'Contato', href: null }, { rotulo: 'Termos', href: null }, { rotulo: 'Privacidade', href: null }] },
 ]
 

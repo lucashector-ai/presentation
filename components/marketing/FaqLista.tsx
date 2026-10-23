@@ -2,13 +2,18 @@
 import { useId, useState } from 'react'
 import { FAQ } from './dados'
 
-/** Acordeão: um item aberto por vez (o primeiro começa aberto, como no design). */
-export function FaqLista() {
+export type ItemFaq = { pergunta: string; resposta: string }
+
+/**
+ * Acordeão: um item aberto por vez (o primeiro começa aberto, como no design). Todas as respostas vão no HTML
+ * (hidden, não desmontadas) para buscadores e IAs lerem o texto inteiro, igual ao JSON-LD FAQPage.
+ */
+export function FaqLista({ itens = FAQ }: { itens?: readonly ItemFaq[] }) {
   const [aberto, setAberto] = useState(0)
   const base = useId()
   return (
     <div className="flex flex-col gap-3">
-      {FAQ.map((q, i) => {
+      {itens.map((q, i) => {
         const estaAberto = aberto === i
         const idBotao = `${base}-q${i}`
         const idResposta = `${base}-r${i}`
@@ -19,7 +24,7 @@ export function FaqLista() {
                 type="button"
                 id={idBotao}
                 aria-expanded={estaAberto}
-                aria-controls={estaAberto ? idResposta : undefined}
+                aria-controls={idResposta}
                 onClick={() => setAberto(estaAberto ? -1 : i)}
                 className="flex w-full items-center justify-between gap-4 bg-transparent px-[22px] py-5 text-left text-[17px] font-semibold tracking-[-0.02em] text-musgo sm:text-[18px]"
               >
@@ -32,11 +37,9 @@ export function FaqLista() {
                 </span>
               </button>
             </h3>
-            {estaAberto && (
-              <div id={idResposta} role="region" aria-labelledby={idBotao}>
-                <p className="m-0 px-[22px] pb-[22px] text-[16px] leading-[1.6] text-[#3F4A3D]">{q.resposta}</p>
-              </div>
-            )}
+            <div id={idResposta} role="region" aria-labelledby={idBotao} hidden={!estaAberto}>
+              <p className="m-0 px-[22px] pb-[22px] text-[16px] leading-[1.6] text-[#3F4A3D]">{q.resposta}</p>
+            </div>
           </div>
         )
       })}
