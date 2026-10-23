@@ -7,8 +7,10 @@ import { PLANOS } from '@/lib/planos'
 import { estadoDoLink, senhaDeLinkValida, urlDoLink } from '@/lib/share/token'
 import { Alternador, Botao, Campo, Carregando, Entrada, EstadoErro, ModalConfirmar, Selecao, Selo } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
+import { origemNoNavegador } from '@/lib/site'
 
-const BASE = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '')
+/** Base dos links: o domínio do site (lib/site.ts); em localhost e no workers.dev, a origem da página. */
+const BASE = origemNoNavegador()
 
 const plural = (n: number, um: string, varios: string) => `${n.toLocaleString('pt-BR')} ${n === 1 ? um : varios}`
 

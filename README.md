@@ -100,6 +100,7 @@ Novas mudanças de schema: arquivo `000N_descricao.sql` sequencial; nunca editar
 ## Como publicar e reverter
 
 - **Cloudflare Workers** (Worker `mostra`, config em `wrangler.jsonc`, bucket R2 `mostra-midias` no binding `MIDIAS`): `npx wrangler login` uma vez, segredos com `npx wrangler secret put DATABASE_URL` (e os demais do servidor), depois `npm run deploy` (build + `wrangler deploy`). Variáveis `NEXT_PUBLIC_*` entram no build, então precisam estar no ambiente de quem roda o deploy. Reverter = `npx wrangler rollback` (versão anterior, instantâneo) ou `git revert` + deploy.
+- **Domínio** `https://mostra.page` (www redireciona para o apex; `mostra.oobo-site.workers.dev` segue no ar durante a transição). A origem pública fica em `lib/site.ts` (`NEXT_PUBLIC_SITE_URL`); DNS, Custom Domains do Worker e Neon Auth no domínio novo em `docs/dominio.md`.
 - Bindings do Cloudflare só por `lib/cf/ambiente.ts` (fora do Worker, como no Vitest, devolve null). Exceção: o Durable Object da sala de colaboração (`SALAS` → classe `SalaProjeto`), que o Worker (`worker/index.ts`, o `main` do wrangler) recebe no `env` e exporta junto do vinext.
 - Migrations são aditivas; para reverter uma, escreva a migration inversa (não apague a anterior).
 

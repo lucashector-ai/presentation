@@ -7,8 +7,29 @@
 import handler from 'vinext/server/fetch-handler'
 import { entrarNaSala, ROTA_SALA, type NamespaceSalas } from '@/lib/colab/entrada'
 import { atenderFontes, ehRotaFontes } from '@/lib/fontes/proxy'
+import { destinoCanonico, HOST_SITE } from '@/lib/site'
 
 export { SalaProjeto } from '@/lib/colab/sala'
+
+/**
+ * Domínio próprio (lib/site.ts): www.mostra.page → 301 para mostra.page, com caminho e consulta. Em mostra.page,
+ * HSTS (o TLD .page já está na lista de pré-carregamento dos navegadores, então só HTTPS chega aqui; o cabeçalho
+ * fixa isso também para quem digitou o endereço). O workers.dev continua atendendo normalmente durante a
+ * transição; o redirecionamento dele fica para depois de o DNS apontar para o Cloudflare (docs/dominio.md).
+ */
+const HSTS = 'max-age=31536000; includeSubDomains'
+
+function comCabecalhosCanonicos(resposta: Response): Response {
+  if (resposta.status === 101 || resposta.headers.has('strict-transport-security')) return resposta
+  try {
+    resposta.headers.set('strict-transport-security', HSTS)
+    return resposta
+  } catch {
+    const copia = new Response(resposta.body, resposta)
+    copia.headers.set('strict-transport-security', HSTS)
+    return copia
+  }
+}
 
 interface AmbienteWorker {
   ASSETS?: { fetch(request: Request): Promise<Response> | Response }
@@ -20,7 +41,10 @@ type ContextoExecucao = Parameters<typeof handler.fetch>[2]
 
 const worker = {
   async fetch(request: Request, env: AmbienteWorker, ctx: ContextoExecucao): Promise<Response> {
-    const caminho = new URL(request.url).pathname
+    const url = new URL(request.url)
+    const destino = destinoCanonico(url)
+    if (destino) return Response.redirect(destino, 301)
+    const caminho = url.pathname
     // fontes do Google pela mesma origem (lib/fontes/proxy.ts: privacidade, exportação e cache da borda)
     if (ehRotaFontes(caminho)) return (await atenderFontes(request, ctx))!
     const m = caminho.match(ROTA_SALA)
@@ -32,7 +56,8 @@ const worker = {
         return new Response('Não foi possível entrar na sala agora', { status: 500 })
       }
     }
-    return handler.fetch(request, env, ctx)
+    const resposta = await handler.fetch(request, env, ctx)
+    return url.hostname === HOST_SITE ? comCabecalhosCanonicos(resposta) : resposta
   },
 }
 
