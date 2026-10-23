@@ -119,7 +119,7 @@ export function AnimacaoTela({ editor }: { editor: Editor }) {
         <Chips rotulo="Estilo" valor={estilo} opcoes={ESTILOS_TELA.map((e) => ({ id: e.id, rotulo: e.rotulo }))} aoMudar={setEstilo} />
         <p className="text-[11px] text-texto3">{def.descricao} · intervalo de {def.intervalo} ms</p>
         <SeletorLista rotulo="Ordem da sequência" valor={ordem} aoMudar={(v) => setOrdem(v as OrdemTela)} opcoes={ORDENS_TELA} />
-        <button type="button" onClick={animarTudo} disabled={!cena.layers.length} className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-acento text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40">
+        <button type="button" onClick={animarTudo} disabled={!cena.layers.length} className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-acento text-[13px] font-medium text-acentoTexto transition-opacity hover:opacity-90 disabled:opacity-40">
           <Sparkles className="h-3.5 w-3.5" /> Animar tela inteira
         </button>
       </Secao>

@@ -48,8 +48,8 @@ export function AbaInteracoes({ editor, assets }: { editor: Editor; assets: Asse
       <Secao titulo="Hotspots nesta tela" acao={<button type="button" onClick={() => acoes.ui({ mostrarHotspots: !estado.mostrarHotspots })} className="flex items-center gap-1 text-[12px] text-acento hover:underline">{estado.mostrarHotspots ? <><EyeOff className="h-3 w-3" /> Ocultar no canvas</> : <><Eye className="h-3 w-3" /> Mostrar no canvas</>}</button>}>
         {lista.length === 0 && <p className="text-[12px] text-texto2">Nenhum elemento interativo. Selecione algo na tela e escolha um gatilho abaixo.</p>}
         {lista.map((c, i) => (
-          <button key={c.id} type="button" onClick={() => acoes.selecionarExato([c.id])} className={cx('flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left', l?.id === c.id ? 'border-acento bg-acentoSuave/60' : 'border-borda hover:border-[#D4D4D4]')}>
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-acento text-[11px] font-medium text-white">{i + 1}</span>
+          <button key={c.id} type="button" onClick={() => acoes.selecionarExato([c.id])} className={cx('flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left', l?.id === c.id ? 'border-acento bg-acentoSuave/60' : 'border-borda hover:border-bordaHover')}>
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-acento text-[11px] font-medium text-acentoTexto">{i + 1}</span>
             <span className="min-w-0">
               <span className="block truncate text-[13px]">{NOME_TIPO[c.type]} · {c.name || c.id}</span>
               <span className="block truncate text-[11px] text-texto2">{c.interactions.map((it) => `${GATILHOS.find((g) => g.id === it.trigger)?.rotulo} → ${ACOES.find((a) => a.id === idAcao(it.do))?.rotulo}`).join(' · ')}</span>
@@ -88,7 +88,7 @@ function EditorInteracoes({ camada, editor, assets }: { camada: Camada; editor: 
     return (
       <Secao titulo="Interação">
         <p className="text-[12px] text-texto2">Um evento, uma ação. Ex.: clique no botão → vai para a tela 05 com morph.</p>
-        <button type="button" onClick={adicionar} className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-acento text-[13px] font-medium text-white hover:bg-[#4A55E0]"><Plus className="h-4 w-4" /> Adicionar interação</button>
+        <button type="button" onClick={adicionar} className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-acento text-[13px] font-medium text-acentoTexto hover:bg-acentoHover"><Plus className="h-4 w-4" /> Adicionar interação</button>
       </Secao>
     )
   }
@@ -120,8 +120,8 @@ function EditorInteracoes({ camada, editor, assets }: { camada: Camada; editor: 
                 {permitidas.map((a) => {
                   const ativo = idAcao(it.do) === a.id
                   return (
-                    <button key={a.id} type="button" role="radio" aria-checked={ativo} onClick={() => setAcao(acaoPadrao(a.id))} className={cx('flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-[13px]', ativo ? 'bg-acentoSuave/70 text-texto' : 'text-[#525252] hover:bg-hover')}>
-                      <span className={cx('flex h-3.5 w-3.5 items-center justify-center rounded-full border', ativo ? 'border-acento' : 'border-[#D4D4D4]')}>{ativo && <span className="h-2 w-2 rounded-full bg-acento" />}</span>
+                    <button key={a.id} type="button" role="radio" aria-checked={ativo} onClick={() => setAcao(acaoPadrao(a.id))} className={cx('flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-[13px]', ativo ? 'bg-acentoSuave/70 text-texto' : 'text-textoCorpo hover:bg-hover')}>
+                      <span className={cx('flex h-3.5 w-3.5 items-center justify-center rounded-full border', ativo ? 'border-acento' : 'border-bordaHover')}>{ativo && <span className="h-2 w-2 rounded-full bg-acento" />}</span>
                       {a.rotulo}
                     </button>
                   )
@@ -179,7 +179,7 @@ function EditorInteracoes({ camada, editor, assets }: { camada: Camada; editor: 
         )
       })}
       <div className="flex gap-2 px-4 py-4">
-        <button type="button" onClick={adicionar} className="flex h-8 flex-1 items-center justify-center gap-1 rounded-md border border-borda text-[13px] hover:border-[#D4D4D4]"><Plus className="h-3.5 w-3.5" /> Outra interação</button>
+        <button type="button" onClick={adicionar} className="flex h-8 flex-1 items-center justify-center gap-1 rounded-md border border-borda text-[13px] hover:border-bordaHover"><Plus className="h-3.5 w-3.5" /> Outra interação</button>
         <button type="button" onClick={() => salvar([])} className="h-8 rounded-md px-3 text-[13px] text-texto2 hover:text-perigo">Remover</button>
       </div>
     </>

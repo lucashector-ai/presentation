@@ -24,7 +24,7 @@ type Status = { rotulo: 'Rascunho' | 'Publicado' | 'Enviado' | 'Arquivado'; cor:
 export function statusExibido(p: Projeto, linksAtivos: Set<string>): Status {
   if (p.status === 'archived') return { rotulo: 'Arquivado', cor: '#A3A3A3', dica: 'Fora da lista principal; links continuam funcionando.' }
   if (p.status === 'draft' || p.revisaoPublicada == null) return { rotulo: 'Rascunho', cor: '#A3A3A3', dica: 'Ainda não publicado: ninguém além de você vê.' }
-  return linksAtivos.has(p.id) ? { rotulo: 'Enviado', cor: '#22A06B', dica: 'Há um link ativo com o cliente.' } : { rotulo: 'Publicado', cor: '#5965F2', dica: 'Publicado, mas sem link ativo. Gere um link em Compartilhar.' }
+  return linksAtivos.has(p.id) ? { rotulo: 'Enviado', cor: 'rgb(var(--cor-sucesso))', dica: 'Há um link ativo com o cliente.' } : { rotulo: 'Publicado', cor: 'rgb(var(--cor-acento))', dica: 'Publicado, mas sem link ativo. Gere um link em Compartilhar.' }
 }
 
 export function formatarRelativo(iso: string) {
@@ -143,11 +143,11 @@ export function Dashboard() {
         titulo="Projetos"
         acao={
           <div className="flex w-full items-center gap-2 sm:w-auto">
-            <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-controle border border-[#E7E5E4] bg-superficie px-4 focus-within:border-acento sm:w-64 sm:flex-none">
+            <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-controle border border-bordaForte bg-superficie px-4 focus-within:border-acento sm:w-64 sm:flex-none">
               <Search className="h-4 w-4 shrink-0 text-texto3" strokeWidth={1.75} />
               <input aria-label="Buscar projetos" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Filtrar por nome ou cliente" className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-texto3 focus-visible:outline-none" />
             </label>
-            <select aria-label="Ordenar projetos" value={ordem} onChange={(e) => setOrdem(e.target.value as 'recentes' | 'nome')} className="h-10 shrink-0 rounded-controle border border-[#E7E5E4] bg-superficie px-2 text-[13px] text-texto2 outline-none">
+            <select aria-label="Ordenar projetos" value={ordem} onChange={(e) => setOrdem(e.target.value as 'recentes' | 'nome')} className="h-10 shrink-0 rounded-controle border border-bordaForte bg-superficie px-2 text-[13px] text-texto2 outline-none">
               <option value="recentes">Mais recentes</option>
               <option value="nome">Nome (A–Z)</option>
             </select>
@@ -200,7 +200,7 @@ export function Dashboard() {
                         <span>{telas} {telas === 1 ? 'tela' : 'telas'}</span>
                         <span>·</span>
                         <span>{formatarRelativo(p.atualizadoEm)}</span>
-                        {temAlteracoes(p) && <span className="text-[#B7791F]" title="O link mostra a última revisão publicada">· alterações não publicadas</span>}
+                        {temAlteracoes(p) && <span className="text-avisoTexto" title="O link mostra a última revisão publicada">· alterações não publicadas</span>}
                       </p>
                     </div>
                   </Link>
@@ -248,7 +248,7 @@ export function Dashboard() {
 /** Atalho de criação (em branco, template, importar): sempre na horizontal, com descrição, em todos os tamanhos. */
 function Atalho({ href, icone, titulo, texto }: { href: string; icone: React.ReactNode; titulo: string; texto: string }) {
   return (
-    <Link href={href} className="group flex min-h-[72px] min-w-0 items-center gap-4 rounded-cartao border border-borda bg-superficie p-4 transition-colors hover:border-grafite">
+    <Link href={href} className="group flex min-h-[72px] min-w-0 items-center gap-4 rounded-cartao border border-borda bg-superficie p-4 transition-colors hover:border-tinta">
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-controle bg-hover text-texto [&>svg]:h-4 [&>svg]:w-4">{icone}</span>
       <span className="min-w-0 flex-1">
         <span className="block text-[14px] font-medium leading-tight">{titulo}</span>
@@ -278,7 +278,7 @@ function CriarComIARapido({ className }: { className?: string }) {
     router.push(t ? `/app/criar?${new URLSearchParams({ prompt: t })}` : '/app/criar')
   }
   return (
-    <form onSubmit={(e) => { e.preventDefault(); abrir() }} aria-labelledby="titulo-criar-ia" className={cx('flex h-full min-w-0 flex-col justify-between gap-6 rounded-cartao border-[1.5px] border-grafite bg-superficie p-4 shadow-[4px_4px_0_#5965F2] sm:p-6', className)}>
+    <form onSubmit={(e) => { e.preventDefault(); abrir() }} aria-labelledby="titulo-criar-ia" className={cx('flex h-full min-w-0 flex-col justify-between gap-6 rounded-cartao border-[1.5px] border-tinta bg-superficie p-4 shadow-[4px_4px_0_#5965F2] sm:p-6', className)}>
       {/* a sombra carimbo (4 px) cabe na calha; o alinhamento com o grid é pela borda do cartão */}
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-4 gap-y-1">
         <div className="min-w-0 flex-1">
@@ -301,9 +301,9 @@ function CriarComIARapido({ className }: { className?: string }) {
             if (colado.length > 200 || colado.includes('\n')) { e.preventDefault(); abrir(`${ideia}${colado}`) }
           }}
           placeholder="Ideia em uma linha (opcional)"
-          className="h-12 w-full min-w-0 shrink-0 rounded-full border-[1.5px] border-borda bg-white px-4 text-[15px] outline-none placeholder:text-texto3 focus:border-grafite sm:w-auto sm:flex-1"
+          className="h-12 w-full min-w-0 shrink-0 rounded-full border-[1.5px] border-borda bg-superficie px-4 text-[15px] outline-none placeholder:text-texto3 focus:border-tinta sm:w-auto sm:flex-1"
         />
-        <button type="submit" className="flex h-12 shrink-0 items-center justify-center gap-2 rounded-full border-2 border-grafite bg-violeta px-6 text-[14px] font-semibold text-white hover:bg-[#4A55E0]">
+        <button type="submit" className="flex h-12 shrink-0 items-center justify-center gap-2 rounded-full border-2 border-tinta bg-violeta px-6 text-[14px] font-semibold text-white hover:bg-acentoHover">
           <Sparkles className="h-4 w-4" />Criar com IA<ArrowRight className="h-4 w-4" />
         </button>
       </div>
@@ -322,8 +322,8 @@ function Continuar({ projeto, assets, carregando, erro, aoTentar, arquivados, ao
       idTitulo="titulo-continuar"
       rodape={projeto && (
         <>
-          <Link href={`/app/projects/${projeto.id}/edit`} className="inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-controle bg-grafite px-4 text-[13px] font-medium text-fundo hover:bg-[#2a2a2a]"><Pencil className="h-4 w-4" />Abrir no editor</Link>
-          <button type="button" onClick={() => abrirApresentacao(router, projeto.id)} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-controle border-[1.5px] border-bordaForte px-4 text-[13px] font-medium hover:border-[#D4D4D4]"><Play className="h-4 w-4" />Apresentar</button>
+          <Link href={`/app/projects/${projeto.id}/edit`} className="inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-controle bg-acao px-4 text-[13px] font-medium text-acaoTexto hover:bg-acaoHover"><Pencil className="h-4 w-4" />Abrir no editor</Link>
+          <button type="button" onClick={() => abrirApresentacao(router, projeto.id)} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-controle border-[1.5px] border-bordaForte px-4 text-[13px] font-medium hover:border-bordaHover"><Play className="h-4 w-4" />Apresentar</button>
         </>
       )}
     >
@@ -384,7 +384,7 @@ function ResumoEnviados({ carregando, erro, aoTentar, className }: { carregando:
               <li key={p.id}>
                 <Link href={`/app/projects/${p.id}/share`} className="flex items-center gap-2 py-2 hover:text-acento">
                   <span className="min-w-0 flex-1 truncate">{p.nome}</span>
-                  {temAlteracoes(p) && <span className="shrink-0 text-[11px] text-[#B7791F]">não publicado</span>}
+                  {temAlteracoes(p) && <span className="shrink-0 text-[11px] text-avisoTexto">não publicado</span>}
                   <span className="flex shrink-0 items-center gap-1 text-[12px] text-texto3"><Eye className="h-3 w-3" />{views}</span>
                 </Link>
               </li>
@@ -429,8 +429,8 @@ function PrimeirosPassos({ compacto, className }: { compacto?: boolean; classNam
       <ol className={cx('grid grid-cols-1 gap-4 sm:grid-cols-2', compacto && 'xl:grid-cols-4')}>
         {passos.map((p, i) => (
           <li key={p.titulo} className="min-w-0">
-            <Link href={p.href} className={cx('flex h-full items-start gap-2 rounded-controle border p-4 transition-colors', i === proximo ? 'border-grafite' : 'border-borda hover:border-bordaForte', p.feito && 'opacity-60')}>
-              <span className={cx('flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-[1.5px] text-[11px] font-semibold', p.feito ? 'border-sucesso bg-sucesso text-white' : i === proximo ? 'border-grafite' : 'border-[#D4D4D4] text-texto3')}>{p.feito ? <Check className="h-3 w-3" /> : i + 1}</span>
+            <Link href={p.href} className={cx('flex h-full items-start gap-2 rounded-controle border p-4 transition-colors', i === proximo ? 'border-tinta' : 'border-borda hover:border-bordaForte', p.feito && 'opacity-60')}>
+              <span className={cx('flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-[1.5px] text-[11px] font-semibold', p.feito ? 'border-sucesso bg-sucesso text-white' : i === proximo ? 'border-tinta' : 'border-bordaHover text-texto3')}>{p.feito ? <Check className="h-3 w-3" /> : i + 1}</span>
               <span className="min-w-0"><span className={cx('block text-[14px] font-medium leading-6', p.feito && 'line-through')}>{p.titulo}</span><span className="mt-1 block text-[12px] leading-snug text-texto2">{p.texto}</span></span>
               {i === proximo && <Send className="ml-auto mt-1 h-4 w-4 shrink-0 text-texto3" />}
             </Link>

@@ -35,7 +35,7 @@ export function DetalheProjeto({ id }: { id: string }) {
 
   if (carregando) return <CarregandoBloco texto="Abrindo o projeto…" />
   if (erro) return <EstadoErro titulo="Não foi possível abrir o projeto" mensagem={erro} aoTentar={tentarDeNovo} />
-  if (ausente || !projeto) return <EstadoVazio titulo="Projeto não encontrado" descricao="Ele pode ter sido movido para a lixeira ou excluído." acao={<div className="flex gap-2"><Link href="/app" className="inline-flex h-10 items-center rounded-controle bg-grafite px-4 text-[14px] font-medium text-fundo">Voltar ao início</Link><Link href="/app/lixeira" className="inline-flex h-10 items-center rounded-controle border-[1.5px] border-bordaForte px-4 text-[14px] font-medium">Abrir a lixeira</Link></div>} />
+  if (ausente || !projeto) return <EstadoVazio titulo="Projeto não encontrado" descricao="Ele pode ter sido movido para a lixeira ou excluído." acao={<div className="flex gap-2"><Link href="/app" className="inline-flex h-10 items-center rounded-controle bg-acao px-4 text-[14px] font-medium text-acaoTexto">Voltar ao início</Link><Link href="/app/lixeira" className="inline-flex h-10 items-center rounded-controle border-[1.5px] border-bordaForte px-4 text-[14px] font-medium">Abrir a lixeira</Link></div>} />
   const ativos = links.filter((l) => estadoDoLink({ expiresAt: l.expiraEm, revokedAt: l.revogadoEm }) === 'ativo')
   const st = statusExibido(projeto, new Set(ativos.length ? [projeto.id] : []))
   const midias = new Set(projeto.documento.scenes.flatMap((s) => [...s.layers.flatMap(assetsDaCamada), ...(s.backgroundAssetId ? [s.backgroundAssetId] : [])]))
@@ -47,7 +47,7 @@ export function DetalheProjeto({ id }: { id: string }) {
     <PaginaPainel>
       <Grade>
         <div className={cx(SPAN.doisTercos, 'min-w-0')}>
-          <nav aria-label="Trilha" className="mb-4 flex items-center gap-2 text-[13px] text-texto2"><Link href="/app" className="hover:text-texto">Início</Link><span className="text-[#D4D4D4]">/</span><span className="truncate text-texto">{projeto.nome}</span></nav>
+          <nav aria-label="Trilha" className="mb-4 flex items-center gap-2 text-[13px] text-texto2"><Link href="/app" className="hover:text-texto">Início</Link><span className="text-bordaHover">/</span><span className="truncate text-texto">{projeto.nome}</span></nav>
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <div className="rotulo-mono">{projeto.categoria ?? projeto.modo}{projeto.cliente ? ` · ${projeto.cliente}` : ''}</div>
@@ -55,10 +55,10 @@ export function DetalheProjeto({ id }: { id: string }) {
               <p className="mt-2 flex items-center gap-2 text-[13px] text-texto3"><span className="h-2 w-2 rounded-full" style={{ background: st.cor }} /> <span style={{ color: st.cor }}>{st.rotulo}</span> · {formatarRelativo(projeto.atualizadoEm)}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => router.push(`/app/projects/${id}/edit`)} className="flex h-10 items-center gap-2 rounded-controle bg-grafite px-4 text-[14px] font-medium text-fundo hover:bg-[#2a2a2a]"><Pencil className="h-4 w-4" /> Editar</button>
-              <button onClick={() => abrirApresentacao(router, id)} className="flex h-10 items-center gap-2 rounded-controle border-[1.5px] border-bordaForte bg-superficie px-4 text-[14px] font-medium hover:border-[#D4D4D4]"><Play className="h-4 w-4" /> Apresentar</button>
-              <button onClick={() => abrirApresentacao(router, id, { apresentador: true })} className="flex h-10 items-center gap-2 rounded-controle border-[1.5px] border-bordaForte bg-superficie px-4 text-[14px] font-medium hover:border-[#D4D4D4]"><MonitorPlay className="h-4 w-4" /> Apresentador</button>
-              <button onClick={() => router.push(`/app/projects/${id}/share`)} className="flex h-10 items-center gap-2 rounded-controle bg-acento px-4 text-[14px] font-medium text-white hover:bg-[#4A55E0]"><Share2 className="h-4 w-4" /> Compartilhar</button>
+              <button onClick={() => router.push(`/app/projects/${id}/edit`)} className="flex h-10 items-center gap-2 rounded-controle bg-acao px-4 text-[14px] font-medium text-acaoTexto hover:bg-acaoHover"><Pencil className="h-4 w-4" /> Editar</button>
+              <button onClick={() => abrirApresentacao(router, id)} className="flex h-10 items-center gap-2 rounded-controle border-[1.5px] border-bordaForte bg-superficie px-4 text-[14px] font-medium hover:border-bordaHover"><Play className="h-4 w-4" /> Apresentar</button>
+              <button onClick={() => abrirApresentacao(router, id, { apresentador: true })} className="flex h-10 items-center gap-2 rounded-controle border-[1.5px] border-bordaForte bg-superficie px-4 text-[14px] font-medium hover:border-bordaHover"><MonitorPlay className="h-4 w-4" /> Apresentador</button>
+              <button onClick={() => router.push(`/app/projects/${id}/share`)} className="flex h-10 items-center gap-2 rounded-controle bg-acento px-4 text-[14px] font-medium text-acentoTexto hover:bg-acentoHover"><Share2 className="h-4 w-4" /> Compartilhar</button>
             </div>
           </div>
           <BarraPublicacao projetoId={id} className="mt-6" />
@@ -77,7 +77,7 @@ export function DetalheProjeto({ id }: { id: string }) {
           </Grade>
           <div className="mt-12">
             <label className="block"><span className="mb-2 block text-[13px] font-medium">Descrição</span>
-              <textarea rows={3} defaultValue={projeto.descricao} placeholder="Contexto do projeto, cliente, objetivo…" onBlur={(e) => { if (e.target.value !== projeto.descricao) void agir(() => dados.atualizarProjeto(id, { descricao: e.target.value }), 'Descrição salva.') }} className="w-full rounded-controle border border-[#E7E5E4] bg-superficie px-4 py-2 text-[14px] leading-6 outline-none focus:border-acento" />
+              <textarea rows={3} defaultValue={projeto.descricao} placeholder="Contexto do projeto, cliente, objetivo…" onBlur={(e) => { if (e.target.value !== projeto.descricao) void agir(() => dados.atualizarProjeto(id, { descricao: e.target.value }), 'Descrição salva.') }} className="w-full rounded-controle border border-bordaForte bg-superficie px-4 py-2 text-[14px] leading-6 outline-none focus:border-acento" />
             </label>
           </div>
         </div>
@@ -109,7 +109,7 @@ export function DetalheProjeto({ id }: { id: string }) {
             </div>
           )}
           <div className="flex gap-2">
-            <button onClick={() => void agir(() => dados.atualizarProjeto(id, { status: projeto.status === 'archived' ? (projeto.revisaoPublicada ? 'published' : 'draft') : 'archived' }), projeto.status === 'archived' ? 'Projeto restaurado.' : 'Projeto arquivado.')} className="flex h-10 flex-1 items-center justify-center gap-2 rounded-controle border border-bordaForte text-[13px] hover:border-[#D4D4D4]"><Archive className="h-3.5 w-3.5" /> {projeto.status === 'archived' ? 'Restaurar' : 'Arquivar'}</button>
+            <button onClick={() => void agir(() => dados.atualizarProjeto(id, { status: projeto.status === 'archived' ? (projeto.revisaoPublicada ? 'published' : 'draft') : 'archived' }), projeto.status === 'archived' ? 'Projeto restaurado.' : 'Projeto arquivado.')} className="flex h-10 flex-1 items-center justify-center gap-2 rounded-controle border border-bordaForte text-[13px] hover:border-bordaHover"><Archive className="h-3.5 w-3.5" /> {projeto.status === 'archived' ? 'Restaurar' : 'Arquivar'}</button>
             <button onClick={() => setExcluir(true)} className="flex h-10 flex-1 items-center justify-center gap-2 rounded-controle border border-bordaForte text-[13px] text-perigo hover:bg-perigo/5"><Trash2 className="h-3.5 w-3.5" /> Lixeira</button>
           </div>
         </aside>

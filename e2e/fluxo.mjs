@@ -388,6 +388,77 @@ await passo('Detalhes, compartilhamento e configurações renderizam', async () 
   await page.screenshot({ path: `${SHOTS}/11-settings.png`, fullPage: true })
 })
 
+/** Contraste WCAG entre duas cores "rgb(r, g, b)" (ou rgba) do getComputedStyle. */
+const contraste = (a, b) => {
+  const canal = (s) => (s.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number)
+  const lum = ([r, g, b]) => { const f = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b) }
+  const [l1, l2] = [lum(canal(a)), lum(canal(b))].sort((x, y) => y - x)
+  return (l1 + 0.05) / (l2 + 0.05)
+}
+const temaDoc = () => page.evaluate(() => ({ tema: document.documentElement.dataset.tema, pref: document.documentElement.dataset.temaPref, fundo: getComputedStyle(document.body).backgroundColor, cookie: document.cookie, salvo: localStorage.getItem('tema'), esquema: document.querySelector('meta[name="color-scheme"]')?.getAttribute('content') }))
+
+await passo('Tema escuro: Plano e conta → Preferências, campos legíveis, canvas e exportação inalterados, persiste, automático segue o sistema', async () => {
+  // Plano e conta: escolher Escuro
+  await page.getByRole('radiogroup', { name: 'Tema' }).getByRole('radio', { name: 'Escuro' }).click()
+  let t = await temaDoc()
+  if (t.tema !== 'escuro' || t.pref !== 'escuro') throw new Error(`data-tema=${t.tema} pref=${t.pref}`)
+  if (t.fundo !== 'rgb(18, 17, 16)') throw new Error(`fundo do body no escuro: ${t.fundo}`)
+  if (t.salvo !== 'escuro' || !/(^|; )tema=escuro/.test(t.cookie) || t.esquema !== 'dark') throw new Error(`persistência: localStorage=${t.salvo} cookie=${t.cookie} meta=${t.esquema}`)
+  await page.screenshot({ path: `${SHOTS}/11b-settings-escuro.png` })
+  // Criar com IA: o campo "Para quem" tem fundo próprio (nunca transparente) e placeholder legível
+  await page.goto(`${BASE}/app/criar`)
+  const campo = page.getByPlaceholder('ex.: diretoria, alunos, clientes')
+  await campo.waitFor()
+  const cores = await campo.evaluate((el) => ({ fundo: getComputedStyle(el).backgroundColor, texto: getComputedStyle(el).color, placeholder: getComputedStyle(el, '::placeholder').color }))
+  if (/rgba\(.*, 0\)$/.test(cores.fundo) || cores.fundo === 'transparent') throw new Error(`campo sem fundo: ${cores.fundo}`)
+  const cTexto = contraste(cores.texto, cores.fundo)
+  const cPlaceholder = contraste(cores.placeholder, cores.fundo)
+  if (cTexto < 4.5 || cPlaceholder < 3) throw new Error(`contraste no escuro: texto ${cTexto.toFixed(2)}, placeholder ${cPlaceholder.toFixed(2)} (fundo ${cores.fundo})`)
+  await page.screenshot({ path: `${SHOTS}/12b-criar-ia-escuro.png` })
+  // Editor: a moldura escurece, a tela do documento não
+  await page.goto(`${BASE}/app/projects/pr-atlas/edit`)
+  await page.getByRole('button', { name: 'Compartilhar' }).waitFor()
+  const cena = page.locator('[data-testid="canvas"] > div > div').first()
+  const fundoCena = await cena.evaluate((el) => getComputedStyle(el).backgroundColor)
+  if (fundoCena !== 'rgb(238, 231, 219)') throw new Error(`a tela mudou de cor no escuro: ${fundoCena} (documento: #EEE7DB)`)
+  const fundoCanvas = await page.locator('[data-testid="canvas-area"]').evaluate((el) => getComputedStyle(el).backgroundColor)
+  if (fundoCanvas !== 'rgb(14, 13, 12)') throw new Error(`moldura do canvas no escuro: ${fundoCanvas}`)
+  await page.screenshot({ path: `${SHOTS}/13b-editor-escuro.png` })
+  // exportação PNG: a cor de fundo da tela é a do documento (não a do tema)
+  await page.getByRole('button', { name: 'Mais opções', exact: true }).click()
+  await page.getByRole('radiogroup', { name: 'Escala' }).getByRole('radio', { name: '1×' }).click()
+  const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 30000 }), page.getByRole('menuitem', { name: 'Exportar tela atual' }).click()])
+  const png = await loadImage(fs.readFileSync(await dl.path()))
+  const cv = createCanvas(png.width, png.height)
+  cv.getContext('2d').drawImage(png, 0, 0)
+  const pixel = [...cv.getContext('2d').getImageData(40, 40, 1, 1).data.slice(0, 3)]
+  if (png.width !== 1920 || pixel.some((c, i) => Math.abs(c - [238, 231, 219][i]) > 2)) throw new Error(`PNG no escuro: canto ${pixel} (${png.width}px), esperado 238,231,219`)
+  await page.keyboard.press('Escape')
+  // persiste ao recarregar (sem piscar: o cookie manda o data-tema do servidor e o script do <head> confirma)
+  await page.reload()
+  await page.getByRole('button', { name: 'Compartilhar' }).waitFor()
+  t = await temaDoc()
+  if (t.tema !== 'escuro' || t.fundo !== 'rgb(18, 17, 16)') throw new Error(`não persistiu: data-tema=${t.tema} fundo=${t.fundo}`)
+  // Automático: segue prefers-color-scheme
+  await page.goto(`${BASE}/app/settings`)
+  await page.getByRole('radiogroup', { name: 'Tema' }).getByRole('radio', { name: 'Automático' }).click()
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await page.waitForTimeout(100)
+  t = await temaDoc()
+  if (t.pref !== 'auto' || t.tema !== 'escuro' || t.fundo !== 'rgb(18, 17, 16)' || t.esquema !== 'light dark') throw new Error(`automático com sistema escuro: ${JSON.stringify(t)}`)
+  await page.emulateMedia({ colorScheme: 'light' })
+  await page.waitForTimeout(100)
+  t = await temaDoc()
+  if (t.tema !== 'claro' || t.fundo !== 'rgb(250, 250, 249)') throw new Error(`automático com sistema claro: ${JSON.stringify(t)}`)
+  // Claro explícito: color-scheme "only light" (o Chrome não força escuro)
+  await page.getByRole('radiogroup', { name: 'Tema' }).getByRole('radio', { name: 'Claro' }).click()
+  const esquemaCss = await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)
+  if (!/only/.test(esquemaCss)) throw new Error(`color-scheme no claro: ${esquemaCss}`)
+  // volta ao padrão (Automático, sistema claro) para os passos seguintes
+  await page.getByRole('radiogroup', { name: 'Tema' }).getByRole('radio', { name: 'Automático' }).click()
+  await page.emulateMedia({ colorScheme: null })
+})
+
 const nav = () => page.getByRole('navigation', { name: 'Passos' })
 /** Saldo de créditos mostrado no cabeçalho do Criar com IA. */
 const saldoNoCabecalho = async () => Number((await page.locator('button[title^="Comprar créditos"] .mono').first().innerText()).replace(/\D/g, ''))

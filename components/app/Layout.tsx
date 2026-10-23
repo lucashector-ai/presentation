@@ -100,7 +100,7 @@ export function FiltroFichas<T extends string>({ opcoes, valor, aoMudar, rotulo,
       {opcoes.map((o) => {
         const ativo = valor === o.id
         return (
-          <button key={o.id} type="button" role={abas ? 'tab' : undefined} aria-selected={abas ? ativo : undefined} aria-pressed={abas ? undefined : ativo} onClick={() => aoMudar(o.id)} className={cx('flex h-8 shrink-0 items-center gap-2 rounded-full px-4 transition-colors', ativo ? 'bg-grafite text-fundo' : 'text-texto2 hover:bg-hover hover:text-texto')}>
+          <button key={o.id} type="button" role={abas ? 'tab' : undefined} aria-selected={abas ? ativo : undefined} aria-pressed={abas ? undefined : ativo} onClick={() => aoMudar(o.id)} className={cx('flex h-8 shrink-0 items-center gap-2 rounded-full px-4 transition-colors', ativo ? 'bg-acao text-acaoTexto' : 'text-texto2 hover:bg-hover hover:text-texto')}>
             {o.rotulo}
             {o.contagem !== undefined && <span className={cx('text-[12px]', ativo ? 'text-fundo/60' : 'text-texto3')}>{o.contagem}</span>}
           </button>

@@ -92,7 +92,7 @@ function Telas({ editor, assets }: { editor: Editor; assets: AssetDemo[] }) {
           )
         })}
       </ol>
-      <button type="button" onClick={() => acoes.adicionarCena(editor.indiceCena)} className="mt-4 h-9 w-full rounded-lg border border-dashed border-[#D4D4D4] text-[13px] text-texto2 hover:border-acento hover:text-acento">+ Nova tela</button>
+      <button type="button" onClick={() => acoes.adicionarCena(editor.indiceCena)} className="mt-4 h-9 w-full rounded-lg border border-dashed border-bordaHover text-[13px] text-texto2 hover:border-acento hover:text-acento">+ Nova tela</button>
     </div>
   )
 }
@@ -244,7 +244,7 @@ function Arquivos({ editor, assets, avisar }: { editor: Editor; assets: AssetDem
   return (
     <div className="p-3" onDragOver={(e) => { e.preventDefault(); setArrastando(true) }} onDragLeave={() => setArrastando(false)} onDrop={(e) => { e.preventDefault(); setArrastando(false); if (e.dataTransfer.files.length) void enviar(Array.from(e.dataTransfer.files)) }}>
       <input ref={entrada} type="file" multiple accept={EXTENSOES_ACEITAS} className="hidden" onChange={(e) => { void enviar(Array.from(e.target.files ?? [])); e.target.value = '' }} />
-      <button type="button" onClick={() => entrada.current?.click()} className={cx('flex w-full flex-col items-center gap-1 rounded-lg border border-dashed px-3 py-4 text-center text-[12px] text-texto2 hover:border-acento hover:text-acento', arrastando ? 'border-acento bg-acentoSuave text-acento' : 'border-[#D4D4D4]')}>
+      <button type="button" onClick={() => entrada.current?.click()} className={cx('flex w-full flex-col items-center gap-1 rounded-lg border border-dashed px-3 py-4 text-center text-[12px] text-texto2 hover:border-acento hover:text-acento', arrastando ? 'border-acento bg-acentoSuave text-acento' : 'border-bordaHover')}>
         <Upload className="h-4 w-4" />
         <span className="font-medium">Enviar ou soltar arquivos</span>
         <span className="text-[11px] text-texto3">PNG, JPG, SVG, MP4, GLB (Blender), Lottie</span>
@@ -256,7 +256,7 @@ function Arquivos({ editor, assets, avisar }: { editor: Editor; assets: AssetDem
         </div>
       ))}
       <div className="mt-3 flex flex-wrap gap-1">
-        {filtros.map((f) => <button key={f.id} type="button" aria-pressed={filtro === f.id} onClick={() => setFiltro(f.id)} className={cx('rounded-full px-2.5 py-1 text-[11px]', filtro === f.id ? 'bg-grafite text-white' : 'bg-superficie2 text-texto2 hover:text-texto')}>{f.rotulo}</button>)}
+        {filtros.map((f) => <button key={f.id} type="button" aria-pressed={filtro === f.id} onClick={() => setFiltro(f.id)} className={cx('rounded-full px-2.5 py-1 text-[11px]', filtro === f.id ? 'bg-acao text-acaoTexto' : 'bg-superficie2 text-texto2 hover:text-texto')}>{f.rotulo}</button>)}
       </div>
       <ul className="mt-3 grid grid-cols-2 gap-2">
         {lista.map((a) => (
@@ -274,7 +274,7 @@ function Arquivos({ editor, assets, avisar }: { editor: Editor; assets: AssetDem
       </ul>
       {!lista.length && <p className="mt-4 text-center text-[12px] text-texto2">Nada aqui ainda.</p>}
       {assets.length > 1 && filtro !== 'model3d' && filtro !== 'lottie' && (
-        <button type="button" onClick={() => editor.acoes.cenasDeAssets(lista.filter((a) => a.tipo === 'image' || a.tipo === 'svg').slice(0, 30))} className="mt-4 h-8 w-full rounded-md border border-borda text-[12px] hover:border-[#D4D4D4]">Uma tela por imagem ({lista.filter((a) => a.tipo === 'image' || a.tipo === 'svg').length})</button>
+        <button type="button" onClick={() => editor.acoes.cenasDeAssets(lista.filter((a) => a.tipo === 'image' || a.tipo === 'svg').slice(0, 30))} className="mt-4 h-8 w-full rounded-md border border-borda text-[12px] hover:border-bordaHover">Uma tela por imagem ({lista.filter((a) => a.tipo === 'image' || a.tipo === 'svg').length})</button>
       )}
       {/* no <body>: o painel é uma camada própria (will-change), que prenderia o diálogo fixo dentro dele */}
       {excluindo && createPortal(
@@ -316,7 +316,7 @@ function Blocos({ aoBloco }: { aoBloco: (id: string) => void }) {
       <ul className="grid grid-cols-3 gap-2">
         {BLOCOS.map((b) => (
           <li key={b.id}>
-            <button type="button" draggable onDragStart={(e) => { e.dataTransfer.setData('application/x-mostra-bloco', b.id); e.dataTransfer.effectAllowed = 'copy' }} onClick={() => aoBloco(b.id)} className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-lg border border-borda text-[12px] text-[#525252] hover:border-acento hover:text-acento">
+            <button type="button" draggable onDragStart={(e) => { e.dataTransfer.setData('application/x-mostra-bloco', b.id); e.dataTransfer.effectAllowed = 'copy' }} onClick={() => aoBloco(b.id)} className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-lg border border-borda text-[12px] text-textoCorpo hover:border-acento hover:text-acento">
               <b.icone className="h-4 w-4" strokeWidth={1.6} />
               {b.rotulo}
             </button>

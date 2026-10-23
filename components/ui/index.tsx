@@ -17,12 +17,12 @@ export interface BotaoProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   icone?: ReactNode
 }
 const variantes: Record<Variante, string> = {
-  primario: 'bg-acao text-acaoTexto hover:bg-[#2a2a2a] border-transparent',
-  secundario: 'bg-superficie text-texto border-bordaForte hover:border-[#D4D4D4]',
+  primario: 'bg-acao text-acaoTexto hover:bg-acaoHover border-transparent',
+  secundario: 'bg-superficie text-texto border-bordaForte hover:border-bordaHover',
   fantasma: 'bg-transparent text-texto border-transparent hover:bg-hover',
   perigo: 'bg-transparent text-perigo border-bordaForte hover:bg-perigo/10',
-  destaque: 'bg-lima text-grafite border-transparent hover:brightness-95',
-  acento: 'bg-acento text-white border-transparent hover:bg-[#4A55E0]',
+  destaque: 'bg-lima text-texto border-transparent hover:brightness-95',
+  acento: 'bg-acento text-acentoTexto border-transparent hover:bg-acentoHover',
 }
 // alturas 32/40/48 (T.controle) e raio de controle 8. O sm segue com padding de 12: a barra do editor não tem folga a 1024 px
 const tamanhos: Record<TamanhoBotao, string> = { sm: 'h-8 px-3 text-[13px] gap-1.5 rounded-controle', md: 'h-10 px-4 text-sm gap-2 rounded-controle', lg: 'h-12 px-6 text-[15px] gap-2 rounded-controle' }
@@ -38,7 +38,7 @@ export const Botao = forwardRef<HTMLButtonElement, BotaoProps>(function Botao({ 
 
 export function BotaoIcone({ rotulo, className, children, ativo, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { rotulo: string; ativo?: boolean }) {
   return (
-    <button aria-label={rotulo} title={rotulo} aria-pressed={ativo} className={cx('inline-flex h-8 w-8 items-center justify-center rounded-md text-[#525252] transition-colors hover:bg-hover hover:text-texto disabled:opacity-40', ativo && 'bg-grafite text-white hover:bg-grafite hover:text-white', className)} {...rest}>
+    <button aria-label={rotulo} title={rotulo} aria-pressed={ativo} className={cx('inline-flex h-8 w-8 items-center justify-center rounded-md text-textoCorpo transition-colors hover:bg-hover hover:text-texto disabled:opacity-40', ativo && 'bg-acao text-acaoTexto hover:bg-acao hover:text-acaoTexto', className)} {...rest}>
       {children}
     </button>
   )
@@ -46,16 +46,16 @@ export function BotaoIcone({ rotulo, className, children, ativo, ...rest }: Butt
 
 // ---------- Campos ----------
 export const Entrada = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Entrada({ className, ...rest }, ref) {
-  return <input ref={ref} className={cx('h-10 w-full rounded-controle border border-[#E7E5E4] bg-superficie px-4 text-sm text-texto placeholder:text-texto3 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15 disabled:opacity-50', className)} {...rest} />
+  return <input ref={ref} className={cx('h-10 w-full rounded-controle border border-bordaForte bg-superficie px-4 text-sm text-texto placeholder:text-texto3 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15 disabled:opacity-50', className)} {...rest} />
 })
 
 export const AreaTexto = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function AreaTexto({ className, ...rest }, ref) {
-  return <textarea ref={ref} className={cx('w-full rounded-lg border border-[#E7E5E4] bg-superficie px-3.5 py-2.5 text-sm text-texto placeholder:text-texto3 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15', className)} {...rest} />
+  return <textarea ref={ref} className={cx('w-full rounded-lg border border-bordaForte bg-superficie px-3.5 py-2.5 text-sm text-texto placeholder:text-texto3 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15', className)} {...rest} />
 })
 
 export function Selecao({ className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select className={cx('h-10 w-full rounded-controle border border-[#E7E5E4] bg-superficie px-3 text-sm text-texto outline-none focus:border-acento', className)} {...rest}>
+    <select className={cx('h-10 w-full rounded-controle border border-bordaForte bg-superficie px-3 text-sm text-texto outline-none focus:border-acento', className)} {...rest}>
       {children}
     </select>
   )
@@ -107,8 +107,8 @@ export function EntradaNumero({ value, onChange, min, max, step = 1, sufixo, rot
 
 export function Alternador({ ativo, onChange, rotulo }: { ativo: boolean; onChange: (v: boolean) => void; rotulo: string }) {
   return (
-    <button role="switch" aria-checked={ativo} aria-label={rotulo} onClick={() => onChange(!ativo)} className={cx('relative h-[18px] w-[30px] shrink-0 rounded-full transition-colors', ativo ? 'bg-grafite' : 'bg-[#D4D4D4]')}>
-      <span className={cx('absolute top-[2px] h-[14px] w-[14px] rounded-full bg-white shadow transition-transform', ativo ? 'translate-x-[14px]' : 'translate-x-[2px]')} />
+    <button role="switch" aria-checked={ativo} aria-label={rotulo} onClick={() => onChange(!ativo)} className={cx('relative h-[18px] w-[30px] shrink-0 rounded-full transition-colors', ativo ? 'bg-acao' : 'bg-bordaHover')}>
+      <span className={cx('absolute top-[2px] h-[14px] w-[14px] rounded-full bg-superficie shadow transition-transform', ativo ? 'translate-x-[14px]' : 'translate-x-[2px]')} />
     </button>
   )
 }
@@ -126,7 +126,7 @@ export function Selo({ tom = 'neutro', children }: { tom?: 'neutro' | 'sucesso' 
   const tons = {
     neutro: 'bg-superficie2 text-texto2',
     sucesso: 'bg-sucesso/12 text-sucesso',
-    aviso: 'bg-aviso/25 text-[#7a5a12]',
+    aviso: 'bg-aviso/25 text-avisoTexto',
     perigo: 'bg-perigo/12 text-perigo',
     destaque: 'bg-acentoSuave text-acento',
   }

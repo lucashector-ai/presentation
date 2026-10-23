@@ -54,7 +54,7 @@ export function ComoFunciona() {
         {PASSOS.map((p, i) => {
           const e = ESTILOS[i % ESTILOS.length] ?? ESTILOS[0]
           return (
-          <li key={p.n} className={`overflow-hidden rounded-2xl border-2 border-grafite ${e.cartao}`}>
+          <li key={p.n} className={`overflow-hidden rounded-2xl border-2 border-tinta ${e.cartao}`}>
             <div aria-hidden className={`relative h-[240px] border-b-2 border-grafite ${i === 2 ? 'flex items-center justify-center' : ''}`}>
               {ILUSTRACOES[i]}
             </div>

@@ -52,9 +52,9 @@ export function EditorPedido({ valor, aoMudar, aoExcedente, aoEnviar, rodape, pl
         rows={5}
         spellCheck
         placeholder={placeholder}
-        className="block max-h-[min(60vh,640px)] min-h-[148px] w-full resize-y overflow-y-auto bg-transparent px-5 pb-3 pt-5 text-[17px] leading-relaxed outline-none placeholder:text-[#A3A3A3] sm:px-6 sm:pt-6 sm:text-[18px]"
+        className="block max-h-[min(60vh,640px)] min-h-[148px] w-full resize-y overflow-y-auto bg-transparent px-5 pb-3 pt-5 text-[17px] leading-relaxed outline-none placeholder:text-texto3 sm:px-6 sm:pt-6 sm:text-[18px]"
       />
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-[#F0EFED] px-5 py-2 text-[12px] text-texto3">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-borda px-5 py-2 text-[12px] text-texto3">
         <span className="min-w-0">{n > 1500 ? 'O pedido inteiro vai para a IA: estrutura, dados e regras.' : 'Cole o briefing inteiro: estrutura de telas, dados, cores e regras.'}</span>
         <span className={cx('mono shrink-0', perto && 'text-perigo')} aria-live="polite">{n.toLocaleString('pt-BR')} / {MAX_PROMPT.toLocaleString('pt-BR')} caracteres</span>
       </div>

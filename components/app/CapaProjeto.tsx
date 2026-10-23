@@ -14,7 +14,7 @@ export function CapaProjeto({ cena, assets, proporcao = 4 / 3, className }: { ce
   const vertical = cena.size.height > cena.size.width && proporcao > 1
   const escala = !tamanho.width ? 0 : vertical ? (altura * 0.86) / cena.size.height : Math.max(tamanho.width / cena.size.width, altura / cena.size.height)
   return (
-    <div ref={ref} className={`relative w-full overflow-hidden ${className ?? ''}`} style={{ aspectRatio: String(proporcao), background: vertical ? '#EFEEEC' : cena.background }} aria-hidden>
+    <div ref={ref} className={`relative w-full overflow-hidden ${className ?? ''}`} style={{ aspectRatio: String(proporcao), background: vertical ? 'rgb(var(--cor-canvas))' : cena.background }} aria-hidden>
       {escala > 0 && (
         <div style={{ position: 'absolute', left: (tamanho.width - cena.size.width * escala) / 2, top: (altura - cena.size.height * escala) / 2, background: cena.background, borderRadius: vertical ? 4 : 0, overflow: 'hidden', boxShadow: vertical ? '0 6px 18px -8px rgba(0,0,0,.25)' : undefined }}>
           <SceneRenderer cena={cena} assets={assets} escala={escala} modo="miniatura" />

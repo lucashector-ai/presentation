@@ -21,8 +21,8 @@ export function Marca({ className, titulo = 'Mostra' }: { className?: string; ti
   )
 }
 
-/** Só o símbolo "m" dentro de um quadrado (avatar do app, barra do editor). O favicon é public/favicon.svg. */
-export function Simbolo({ tamanho = 28, fundo = '#171717', tinta = '#FAFAF9', className }: { tamanho?: number; fundo?: string; tinta?: string; className?: string }) {
+/** Só o símbolo "m" dentro de um quadrado (avatar do app, barra do editor). Por padrão segue o tema (tinta sobre fundo). O favicon é public/favicon.svg. */
+export function Simbolo({ tamanho = 28, fundo = 'rgb(var(--cor-tinta))', tinta = 'rgb(var(--cor-fundo))', className }: { tamanho?: number; fundo?: string; tinta?: string; className?: string }) {
   return (
     <span className={`inline-flex items-center justify-center ${className ?? ''}`} style={{ width: tamanho, height: tamanho, borderRadius: tamanho * 0.25, background: fundo, color: tinta }} aria-hidden>
       <svg viewBox="-4 -10 160 120" style={{ width: '62%', height: '62%', fill: 'none', overflow: 'visible' }}>

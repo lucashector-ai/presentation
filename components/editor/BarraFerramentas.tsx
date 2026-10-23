@@ -39,7 +39,7 @@ export function BarraFerramentas({ ferramenta, aoFerramenta, aoMidia, className,
       <BotaoIcone rotulo="Frame (F)" ativo={ferramenta === 'frame'} onClick={() => aoFerramenta('frame')}><Frame className="h-4 w-4" /></BotaoIcone>
       <div ref={ref} className="relative flex">
         <BotaoIcone rotulo={forma.tecla ? `${forma.rotulo} (${forma.tecla})` : forma.rotulo} ativo={formaAtiva} className="rounded-r-none" onClick={() => aoFerramenta(forma.id)}>{forma.icone}</BotaoIcone>
-        <button type="button" aria-label="Mais formas" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((v) => !v)} className={cx('inline-flex h-8 w-4 items-center justify-center rounded-r-md text-texto2 hover:bg-hover hover:text-texto', formaAtiva && 'bg-grafite/90 text-white hover:bg-grafite hover:text-white')}>
+        <button type="button" aria-label="Mais formas" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((v) => !v)} className={cx('inline-flex h-8 w-4 items-center justify-center rounded-r-md text-texto2 hover:bg-hover hover:text-texto', formaAtiva && 'bg-acao/90 text-acaoTexto hover:bg-acao hover:text-acaoTexto')}>
           <ChevronDown className="h-3 w-3" />
         </button>
         {menu && (

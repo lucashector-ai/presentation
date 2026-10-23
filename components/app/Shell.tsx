@@ -2,8 +2,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { ArrowLeftRight, Home, Library, LogOut, Menu, Moon, Search, Send, Settings2, Sparkles, Trash2, X } from 'lucide-react'
-import { alternarTema, MODO_DEMO, sessaoAtiva, verificarSessao } from '@/lib/sessao'
+import { ArrowLeftRight, Home, Library, LogOut, Menu, Search, Send, Settings2, Sparkles, Trash2, X } from 'lucide-react'
+import { MODO_DEMO, sessaoAtiva, verificarSessao } from '@/lib/sessao'
 import { dados, mensagemDeErro, useCarregar, useDados, type EspacoDeTrabalho } from '@/lib/dados'
 import { PLANOS, formatarBytes, percentualUso } from '@/lib/planos'
 import { exemploApresentacoes, textoTelas } from '@/lib/telasIa'
@@ -13,6 +13,7 @@ import { TAMANHO_MARCA } from '@/components/ui/Logo'
 import { CreditosProvider, useCreditos } from './Creditos'
 import { BuscaRapida } from './BuscaRapida'
 import { ProgressoNavegacao } from './ProgressoNavegacao'
+import { SeletorTema } from './SeletorTema'
 
 /** Rotas de tela cheia (sem barra lateral): editor, apresentação e o assistente de novo projeto. */
 const SEM_CHROME = /\/edit$|\/apresentar$|\/apresentador$|\/app\/novo$/
@@ -51,7 +52,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-fundo p-6 text-center" role="alert">
         <Marca />
         <p className="max-w-sm text-[15px] text-texto2">{falha}</p>
-        <button type="button" onClick={() => setTentativa((n) => n + 1)} className="h-10 rounded-controle bg-grafite px-4 text-[14px] font-medium text-fundo">Tentar de novo</button>
+        <button type="button" onClick={() => setTentativa((n) => n + 1)} className="h-10 rounded-controle bg-acao px-4 text-[14px] font-medium text-acaoTexto">Tentar de novo</button>
       </div>
     )
   }
@@ -103,18 +104,18 @@ function Moldura({ caminho, children }: { caminho: string; children: React.React
     // barra de 232: padding 16 e filhos com px-2, então logo, ícones e textos começam todos a 24 px da borda
     <aside className="flex h-full flex-col gap-6 px-4 py-6">
       <Link href="/app" className={cx('flex h-10 items-center px-2 text-texto', TAMANHO_MARCA)} aria-label="Mostra — início"><Marca /></Link>
-      <Link href="/app/settings#plano" className="flex items-center gap-2 rounded-controle border border-borda bg-superficie p-2 text-left hover:border-[#D4D4D4]">
+      <Link href="/app/settings#plano" className="flex items-center gap-2 rounded-controle border border-borda bg-superficie p-2 text-left hover:border-bordaHover">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-controle bg-carvao text-[12px] font-semibold text-argila">{ws.nome[0] ?? 'M'}</span>
         <span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-medium">{ws.nome}</span><span className="block text-[11px] text-texto3">Plano {plano.nome} · {ws.membros} {ws.membros === 1 ? 'membro' : 'membros'}{ws.papel === 'viewer' ? ' · só ver' : ''}</span></span>
       </Link>
       <SeletorEspaco />
-      <button type="button" onClick={() => { setMenuMovel(false); setBusca(true) }} className="flex h-10 items-center gap-2 rounded-controle border border-borda bg-superficie px-2 text-[13px] text-texto3 hover:border-[#D4D4D4] hover:text-texto2">
+      <button type="button" onClick={() => { setMenuMovel(false); setBusca(true) }} className="flex h-10 items-center gap-2 rounded-controle border border-borda bg-superficie px-2 text-[13px] text-texto3 hover:border-bordaHover hover:text-texto2">
         <Search className="h-4 w-4" strokeWidth={1.75} />Buscar
         <kbd className="mono ml-auto rounded border border-borda px-1 text-[10px]">⌘K</kbd>
       </button>
       <nav aria-label="Navegação principal" className="flex flex-col gap-1 text-[14px]">
         {nav.map((n) => (
-          <Link key={n.rotulo} href={n.href} aria-current={n.ativo ? 'page' : undefined} className={cx('flex h-10 items-center gap-2 rounded-controle px-2 transition-colors hover:bg-hover hover:text-texto', n.ativo ? 'bg-hover font-medium text-texto' : 'text-[#525252]')}>
+          <Link key={n.rotulo} href={n.href} aria-current={n.ativo ? 'page' : undefined} className={cx('flex h-10 items-center gap-2 rounded-controle px-2 transition-colors hover:bg-hover hover:text-texto', n.ativo ? 'bg-hover font-medium text-texto' : 'text-textoCorpo')}>
             <n.icone className="h-4 w-4 opacity-85" strokeWidth={1.75} />
             {n.rotulo}
             {n.ponto && <span aria-hidden className="h-2 w-2 rounded-full bg-acento" />}
@@ -132,7 +133,7 @@ function Moldura({ caminho, children }: { caminho: string; children: React.React
         </div>
         <div className="flex flex-col gap-2 px-2">
           <div className="flex justify-between text-[12px] text-texto2"><span>Armazenamento</span><span>{formatarBytes(contagem.armazenamento)} / {formatarBytes(plano.limites.armazenamentoBytes)}</span></div>
-          <div className="h-[3px] rounded-sm bg-borda"><div className="h-[3px] rounded-sm bg-grafite" style={{ width: `${Math.max(2, percentualUso(contagem.armazenamento, plano.limites.armazenamentoBytes))}%` }} /></div>
+          <div className="h-[3px] rounded-sm bg-borda"><div className="h-[3px] rounded-sm bg-acao" style={{ width: `${Math.max(2, percentualUso(contagem.armazenamento, plano.limites.armazenamentoBytes))}%` }} /></div>
         </div>
         <div className="relative border-t border-borda pt-4">
           <button type="button" aria-label="Menu do usuário" aria-expanded={menuUsuario} onClick={() => setMenuUsuario((v) => !v)} className="flex h-10 w-full items-center gap-2 rounded-controle px-2 text-left hover:bg-hover">
@@ -143,7 +144,8 @@ function Moldura({ caminho, children }: { caminho: string; children: React.React
             <div role="menu" className="absolute bottom-12 left-0 right-0 rounded-controle border border-borda bg-superficie p-1 shadow-painel" onMouseLeave={() => setMenuUsuario(false)}>
               <div className="truncate px-2 py-2 text-[12px] text-texto2">{usuario.email}</div>
               <button role="menuitem" onClick={() => router.push('/app/settings')} className="flex h-8 w-full items-center gap-2 rounded-controle px-2 text-[13px] hover:bg-hover"><Settings2 className="h-4 w-4" /> Plano e conta</button>
-              <button role="menuitem" onClick={() => alternarTema()} className="flex h-8 w-full items-center gap-2 rounded-controle px-2 text-[13px] hover:bg-hover"><Moon className="h-4 w-4" /> Alternar tema</button>
+              {/* tema (auto / claro / escuro): a mesma escolha de Plano e conta → Preferências */}
+              <div className="flex h-10 items-center justify-between gap-2 px-2 text-[13px]"><span>Tema</span><SeletorTema compacto /></div>
               <button role="menuitem" onClick={async () => { await dados.sair(); router.push('/login') }} className="flex h-8 w-full items-center gap-2 rounded-controle px-2 text-[13px] hover:bg-hover"><LogOut className="h-4 w-4" /> Sair</button>
             </div>
           )}

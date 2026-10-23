@@ -53,9 +53,3 @@ export async function sair() {
   try { localStorage.removeItem(CHAVE) } catch { /* ignorar */ }
   if (!MODO_DEMO) await (await carregarAuth()).signOut().catch(() => {})
 }
-export function alternarTema() {
-  const atual = document.documentElement.dataset.tema === 'escuro' ? 'claro' : 'escuro'
-  document.documentElement.dataset.tema = atual
-  try { localStorage.setItem('tema', atual) } catch { /* ignorar */ }
-  return atual
-}

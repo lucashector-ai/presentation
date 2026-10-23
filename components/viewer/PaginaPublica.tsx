@@ -73,8 +73,8 @@ export function PaginaPublica({ token }: { token: string }) {
     return (
       <main className="relative flex h-dvh items-center justify-center overflow-hidden bg-fundo p-5">
         <Formas />
-        <form onSubmit={enviar} className="relative w-full max-w-sm rounded-[18px] border-2 border-grafite bg-superficie p-6 shadow-[8px_8px_0_#171717] sm:p-8">
-          <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-acento text-white"><Lock className="h-[18px] w-[18px]" /></div>
+        <form onSubmit={enviar} className="relative w-full max-w-sm rounded-[18px] border-2 border-tinta bg-superficie p-6 shadow-carimbo-lg sm:p-8">
+          <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-acento text-acentoTexto"><Lock className="h-[18px] w-[18px]" /></div>
           <div className="rotulo-mono mb-1">Apresentação protegida</div>
           <h1 className="text-[24px] font-semibold tracking-[-0.03em]">{res.projectName}</h1>
           <p className="mb-4 mt-1 text-sm text-texto2">Digite a senha que você recebeu de quem compartilhou.</p>

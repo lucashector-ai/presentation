@@ -918,7 +918,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
 
       {arrastandoArquivo && (
         <div className="pointer-events-none absolute inset-x-0 top-4 flex justify-center">
-          <span className="rounded-full bg-acento px-4 py-2 text-sm font-medium text-white shadow-suave">Solte para importar: imagens, SVG, vídeo, GLB do Blender, Lottie</span>
+          <span className="rounded-full bg-acento px-4 py-2 text-sm font-medium text-acentoTexto shadow-suave">Solte para importar: imagens, SVG, vídeo, GLB do Blender, Lottie</span>
         </div>
       )}
     </div>

@@ -100,7 +100,7 @@ export function FormAuth({ modo }: { modo: 'login' | 'signup' }) {
             {recuperar ? ', enviamos um link para redefinir a senha. Ele expira em 30 minutos.' : '.'}
           </p>
         </div>
-        <p className="m-0 rounded-lg bg-acentoSuave px-3.5 py-3 text-[13px] leading-normal text-[#525252]">
+        <p className="m-0 rounded-lg bg-acentoSuave px-3.5 py-3 text-[13px] leading-normal text-textoCorpo">
           Modo demonstração: nenhum e-mail é enviado. Clique abaixo para continuar como se tivesse confirmado.
         </p>
         <Botao className="h-[46px] w-full" onClick={() => { entrar(email); if (!recuperar) void dados.atualizarPerfil({ nome, email }); router.push(destino) }}>Continuar para o painel</Botao>
@@ -123,9 +123,9 @@ export function FormAuth({ modo }: { modo: 'login' | 'signup' }) {
             {MODO_DEMO && <BotaoSocial rotulo="Apple" onClick={entrarSocial} icone={<span className="block h-[13px] w-[11px] rounded-[5px_5px_6px_6px] bg-current" />} />}
           </div>
           <div className="flex items-center gap-3 text-[12px] text-texto3">
-            <span aria-hidden className="h-px flex-1 bg-[#E7E5E4]" />
+            <span aria-hidden className="h-px flex-1 bg-bordaForte" />
             ou com email
-            <span aria-hidden className="h-px flex-1 bg-[#E7E5E4]" />
+            <span aria-hidden className="h-px flex-1 bg-bordaForte" />
           </div>
         </>
       )}
@@ -332,7 +332,7 @@ export function LayoutAuth({ children }: { children: ReactNode }) {
 function PainelAuth() {
   return (
     <aside aria-label="Exemplo feito com Mostra" className="relative hidden min-h-[560px] items-center justify-center overflow-hidden bg-grafite p-12 lg:flex">
-      <p className="absolute left-12 top-10 m-0 font-mono text-[11px] uppercase tracking-[0.06em] text-[#737373]">Feito com Mostra</p>
+      <p className="absolute left-12 top-10 m-0 font-mono text-[11px] uppercase tracking-[0.06em] text-texto2">Feito com Mostra</p>
       <div aria-hidden className="relative w-full max-w-[620px]">
         <div className="absolute inset-0 translate-x-7 -translate-y-7 rounded-md bg-mare opacity-60" />
         <div className="absolute inset-0 translate-x-3.5 -translate-y-3.5 rounded-md bg-carvao opacity-85" />
@@ -355,7 +355,7 @@ function PainelAuth() {
       </div>
       <div className="absolute bottom-10 left-12 right-12 flex flex-wrap justify-between gap-4 text-[13px] text-texto3">
         <span className="text-[#FAFAF9]">Atlas Cerâmica</span>
-        <span className="text-[#A3A3A3]">Estúdio Norte · São Paulo</span>
+        <span className="text-texto3">Estúdio Norte · São Paulo</span>
       </div>
     </aside>
   )

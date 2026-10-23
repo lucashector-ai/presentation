@@ -592,18 +592,18 @@ export function EditorVetor({ editor, camadaId, vp, ferramentaInicial = 'mover',
         <div role="toolbar" aria-label="Editar vetor" data-testid="barra-vetor" className="pointer-events-auto flex items-center gap-0.5 rounded-xl border border-borda bg-superficie p-1 shadow-painel" onPointerDown={(e) => e.stopPropagation()}>
           <span className="rotulo-mono hidden px-2 !text-[10px] sm:inline">Editar vetor</span>
           {FERRAMENTAS.map((f) => (
-            <button key={f.id} type="button" aria-label={f.rotulo} aria-pressed={ferramenta === f.id} title={`${f.rotulo} (${f.tecla}) — ${f.dica}`} onClick={() => setFerramenta(f.id)} className={cx('inline-flex h-8 w-8 items-center justify-center rounded-md text-texto2 hover:bg-hover hover:text-texto', ferramenta === f.id && 'bg-grafite/90 text-white hover:bg-grafite hover:text-white')}>
+            <button key={f.id} type="button" aria-label={f.rotulo} aria-pressed={ferramenta === f.id} title={`${f.rotulo} (${f.tecla}) — ${f.dica}`} onClick={() => setFerramenta(f.id)} className={cx('inline-flex h-8 w-8 items-center justify-center rounded-md text-texto2 hover:bg-hover hover:text-texto', ferramenta === f.id && 'bg-acao/90 text-acaoTexto hover:bg-acao hover:text-acaoTexto')}>
               {f.icone}
             </button>
           ))}
           <span className="mx-1 h-5 w-px bg-borda" />
-          <button type="button" aria-label="Concluir edição do vetor" title="Concluir (Esc ou Enter)" onClick={() => aoSair(camadaId)} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-acento px-2.5 text-[12px] font-medium text-white hover:bg-acento/90">
+          <button type="button" aria-label="Concluir edição do vetor" title="Concluir (Esc ou Enter)" onClick={() => aoSair(camadaId)} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-acento px-2.5 text-[12px] font-medium text-acentoTexto hover:bg-acento/90">
             <Check className="h-3.5 w-3.5" /> Concluir
           </button>
         </div>
       </div>
       <div className="pointer-events-none absolute inset-x-0 bottom-[6.5rem] hidden justify-center lg:bottom-16 lg:flex">
-        <span className="rounded-md bg-grafite/85 px-2 py-1 text-[11px] text-white">{ativa.rotulo}: {ativa.dica}</span>
+        <span className="rounded-md bg-acao/85 px-2 py-1 text-[11px] text-acaoTexto">{ativa.rotulo}: {ativa.dica}</span>
       </div>
     </div>
   )

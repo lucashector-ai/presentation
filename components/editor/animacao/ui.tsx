@@ -48,7 +48,7 @@ export function BotaoPrevia({ aoClicar, tocando, rotulo = 'Prévia', aoParar }: 
     <button
       type="button"
       onClick={tocando && aoParar ? aoParar : aoClicar}
-      className="flex h-6 items-center gap-1 rounded-full bg-acentoSuave px-2.5 text-[12px] font-medium text-acento transition-colors hover:bg-acento hover:text-white"
+      className="flex h-6 items-center gap-1 rounded-full bg-acentoSuave px-2.5 text-[12px] font-medium text-acento transition-colors hover:bg-acento hover:text-acentoTexto"
     >
       {tocando && aoParar ? <Square className="h-2.5 w-2.5 fill-current" /> : <Play className="h-2.5 w-2.5 fill-current" />}
       {tocando && aoParar ? 'Parar' : rotulo}

@@ -102,7 +102,7 @@ function ModalComprarCreditos({ aberto, aoFechar, motivo }: { aberto: boolean; a
     >
       <div role="radiogroup" aria-label="Pacotes de créditos" className="grid gap-4 sm:grid-cols-3">
         {PACOTES_AVULSOS.map((p, i) => (
-          <button key={p.creditos} type="button" role="radio" aria-checked={sel === i} onClick={() => setSel(i)} className={cx('relative flex flex-col rounded-cartao border-[1.5px] p-4 text-left transition-colors', sel === i ? 'border-grafite bg-lima/60' : 'border-borda hover:border-bordaForte')}>
+          <button key={p.creditos} type="button" role="radio" aria-checked={sel === i} onClick={() => setSel(i)} className={cx('relative flex flex-col rounded-cartao border-[1.5px] p-4 text-left transition-colors', sel === i ? 'border-tinta bg-lima/60' : 'border-borda hover:border-bordaForte')}>
             {'destaque' in p && <span className="mono absolute right-2 top-2 text-[9px] text-texto2">POPULAR</span>}
             <span className="text-[20px] font-medium tracking-[-0.03em]">{fmt(p.creditos)}</span>
             <span className="text-[12px] text-texto2">créditos</span>

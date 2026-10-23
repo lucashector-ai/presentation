@@ -74,7 +74,7 @@ export function PassoMarca({ marca, aoMudar, prompt, kits, aoSalvarKit, aoExclui
   const Paleta = ({ p, rotulo }: { p: PaletaSugerida; rotulo?: string }) => {
     const ativa = iguais(marca.cores, p.cores)
     return (
-      <button type="button" aria-pressed={ativa} onClick={() => usarPaleta(p)} className={cx('flex min-w-0 items-center gap-2.5 rounded-[10px] border-[1.5px] bg-white px-3 py-2 text-left text-[13px] transition-colors', ativa ? 'border-violeta bg-[#F4F5FE]' : 'border-[#E7E5E4] hover:border-grafite')}>
+      <button type="button" aria-pressed={ativa} onClick={() => usarPaleta(p)} className={cx('flex min-w-0 items-center gap-2.5 rounded-[10px] border-[1.5px] bg-superficie px-3 py-2 text-left text-[13px] transition-colors', ativa ? 'border-violeta bg-acentoSuave' : 'border-bordaForte hover:border-tinta')}>
         <Amostras cores={p.cores} />
         <span className="truncate">{rotulo ?? p.nome}</span>
       </button>
@@ -90,13 +90,13 @@ export function PassoMarca({ marca, aoMudar, prompt, kits, aoSalvarKit, aoExclui
         <Secao titulo="Kits de marca salvos" dica="Logo, cores, fontes e manual de antes, com um clique." selo={<SeloCusto />} id="titulo-kits">
           <div className="flex flex-wrap gap-2">
             {kits.map((k) => (
-              <span key={k.id} className={cx('flex items-center gap-1 rounded-full border-[1.5px] bg-white py-1 pl-1.5 pr-1 text-[13px]', marca.kitId === k.id ? 'border-violeta' : 'border-[#E7E5E4]')}>
+              <span key={k.id} className={cx('flex items-center gap-1 rounded-full border-[1.5px] bg-superficie py-1 pl-1.5 pr-1 text-[13px]', marca.kitId === k.id ? 'border-violeta' : 'border-bordaForte')}>
                 <button type="button" onClick={() => aplicarKit(k)} className="flex items-center gap-2 rounded-full px-1.5 py-0.5 font-medium hover:text-acento" aria-label={`Usar o kit ${k.nome}`}>
                   {k.cores.length ? <Amostras cores={k.cores} tamanho={16} /> : <Bookmark className="h-3.5 w-3.5" />}
                   {k.nome}
-                  {k.perfil && <span className="mono rounded-full bg-[#EEF5EC] px-1.5 py-px text-[10px] uppercase tracking-[0.04em] text-[#2F6B45]" title="Kit com o manual da marca">manual</span>}
+                  {k.perfil && <span className="mono rounded-full bg-sucessoFundo px-1.5 py-px text-[10px] uppercase tracking-[0.04em] text-sucessoTexto" title="Kit com o manual da marca">manual</span>}
                 </button>
-                <button type="button" onClick={() => void aoExcluirKit(k)} aria-label={`Apagar o kit ${k.nome}`} className="flex h-6 w-6 items-center justify-center rounded-full text-texto3 hover:bg-[#FBF0EE] hover:text-[#C0392B]"><X className="h-3 w-3" /></button>
+                <button type="button" onClick={() => void aoExcluirKit(k)} aria-label={`Apagar o kit ${k.nome}`} className="flex h-6 w-6 items-center justify-center rounded-full text-texto3 hover:bg-perigo/10 hover:text-perigo"><X className="h-3 w-3" /></button>
               </span>
             ))}
           </div>
@@ -118,8 +118,8 @@ export function PassoMarca({ marca, aoMudar, prompt, kits, aoSalvarKit, aoExclui
                     <span className="block truncate font-medium">{marca.logo.nome}</span>
                     <span className="text-texto3">{marca.logo.cores.length ? <span className="inline-flex items-center gap-1.5">cores lidas <Amostras cores={marca.logo.cores.slice(0, 5)} tamanho={14} /></span> : 'logo neutro (preto/branco)'}</span>
                   </span>
-                  <button type="button" onClick={() => entrada.current?.click()} className="h-9 rounded-full border-[1.5px] border-bordaForte px-3 text-[13px] font-medium hover:border-grafite">Trocar</button>
-                  <button type="button" onClick={() => aoMudar((m) => ({ ...m, logo: null, logoRodape: false }))} aria-label="Remover logo" className="flex h-9 w-9 items-center justify-center rounded-full text-texto3 hover:bg-[#FBF0EE] hover:text-[#C0392B]"><Trash2 className="h-4 w-4" /></button>
+                  <button type="button" onClick={() => entrada.current?.click()} className="h-9 rounded-full border-[1.5px] border-bordaForte px-3 text-[13px] font-medium hover:border-tinta">Trocar</button>
+                  <button type="button" onClick={() => aoMudar((m) => ({ ...m, logo: null, logoRodape: false }))} aria-label="Remover logo" className="flex h-9 w-9 items-center justify-center rounded-full text-texto3 hover:bg-perigo/10 hover:text-perigo"><Trash2 className="h-4 w-4" /></button>
                 </>
               ) : (
                 <button
@@ -128,9 +128,9 @@ export function PassoMarca({ marca, aoMudar, prompt, kits, aoSalvarKit, aoExclui
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => { e.preventDefault(); void enviarLogo(e.dataTransfer.files[0]) }}
                   disabled={enviando !== null}
-                  className="flex h-20 w-full items-center justify-center gap-2.5 rounded-[12px] border-[1.5px] border-dashed border-[#D6D4D0] text-[14px] text-texto2 hover:border-grafite hover:text-texto disabled:opacity-60"
+                  className="flex h-20 w-full items-center justify-center gap-2.5 rounded-[12px] border-[1.5px] border-dashed border-bordaHover text-[14px] text-texto2 hover:border-tinta hover:text-texto disabled:opacity-60"
                 >
-                  {enviando !== null ? <><span aria-hidden className="h-4 w-4 animate-spin rounded-full border-2 border-[#E7E5E4] border-t-violeta" />Enviando o logo… {Math.round(enviando)}%</> : <><ImagePlus className="h-4 w-4" />Enviar logo · PNG, SVG, JPG ou WebP</>}
+                  {enviando !== null ? <><span aria-hidden className="h-4 w-4 animate-spin rounded-full border-2 border-bordaForte border-t-violeta" />Enviando o logo… {Math.round(enviando)}%</> : <><ImagePlus className="h-4 w-4" />Enviar logo · PNG, SVG, JPG ou WebP</>}
                 </button>
               )}
               <input ref={entrada} type="file" accept={ACEITA_LOGO} aria-label="Arquivo do logo" className="hidden" onChange={(e) => { void enviarLogo(e.target.files?.[0]); e.target.value = '' }} />
@@ -146,13 +146,13 @@ export function PassoMarca({ marca, aoMudar, prompt, kits, aoSalvarKit, aoExclui
           <Secao titulo="Cores" dica={marca.cores.length ? 'A 1ª cor é o destaque; as outras entram em fundos e detalhes. Ajuste à vontade.' : 'Sem cores, a apresentação usa as do estilo. Escolha uma paleta ou crie a sua.'} selo={<SeloCusto />} id="titulo-cores">
             <div className="flex flex-wrap items-center gap-2">
               {marca.cores.map((c, k) => (
-                <span key={k} className="flex items-center gap-1.5 rounded-full border border-borda bg-white py-1 pl-1 pr-2">
+                <span key={k} className="flex items-center gap-1.5 rounded-full border border-borda bg-superficie py-1 pl-1 pr-2">
                   <input type="color" aria-label={`Cor da marca ${k + 1}`} value={RE_HEX.test(c) ? c : '#5965F2'} onChange={(e) => definirCor(k, e.target.value)} className="h-7 w-7 cursor-pointer rounded-full border-0 bg-transparent p-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-full [&::-webkit-color-swatch]:border-0" />
                   <input aria-label={`Código da cor ${k + 1}`} value={c} maxLength={7} onChange={(e) => definirCor(k, e.target.value.startsWith('#') ? e.target.value : `#${e.target.value}`)} className="mono w-[68px] bg-transparent text-[12px] uppercase outline-none" />
                   <button type="button" aria-label={`Remover cor ${k + 1}`} onClick={() => aoMudar((m) => ({ ...m, cores: m.cores.filter((_, j) => j !== k) }))} className="text-texto3 hover:text-texto"><X className="h-3 w-3" /></button>
                 </span>
               ))}
-              {marca.cores.length < 4 && <button type="button" onClick={() => aoMudar((m) => ({ ...m, cores: [...m.cores, (['#5965F2', '#171717', '#F2C14E', '#E4572E'] as const)[m.cores.length] ?? '#5965F2'] }))} className="flex h-9 items-center gap-1 rounded-full border border-dashed border-[#D6D4D0] px-3 text-[13px] text-texto2 hover:border-grafite hover:text-texto"><Plus className="h-3.5 w-3.5" />{marca.cores.length ? 'Cor' : 'Adicionar cor'}</button>}
+              {marca.cores.length < 4 && <button type="button" onClick={() => aoMudar((m) => ({ ...m, cores: [...m.cores, (['#5965F2', '#171717', '#F2C14E', '#E4572E'] as const)[m.cores.length] ?? '#5965F2'] }))} className="flex h-9 items-center gap-1 rounded-full border border-dashed border-bordaHover px-3 text-[13px] text-texto2 hover:border-tinta hover:text-texto"><Plus className="h-3.5 w-3.5" />{marca.cores.length ? 'Cor' : 'Adicionar cor'}</button>}
             </div>
             {marca.papeis && Object.keys(marca.papeis).length > 0 && (
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[12px] text-texto2" aria-label="Papéis de cor do pedido">
@@ -164,7 +164,7 @@ export function PassoMarca({ marca, aoMudar, prompt, kits, aoSalvarKit, aoExclui
               </div>
             )}
             {doPedido.length > 0 && !iguais(marca.cores, doPedido) && (
-              <div className="flex flex-wrap items-center gap-2 rounded-[10px] bg-[#F4F5FE] px-3 py-2 text-[13px]">
+              <div className="flex flex-wrap items-center gap-2 rounded-[10px] bg-acentoSuave px-3 py-2 text-[13px]">
                 <span className="text-texto2">Seu pedido cita cores:</span>
                 <Paleta p={{ id: 'pedido', nome: 'Usar as do pedido', cores: doPedido }} />
               </div>
@@ -191,14 +191,14 @@ export function PassoMarca({ marca, aoMudar, prompt, kits, aoSalvarKit, aoExclui
 
           <Secao titulo="Fontes" dica="Um par pronto ou qualquer fonte do Google para títulos e textos. Automático = o par do estilo." selo={<SeloCusto />} id="titulo-fontes">
             <div role="radiogroup" aria-label="Par de fontes" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <button type="button" role="radio" aria-checked={!marca.fontes} onClick={() => aoMudar((m) => ({ ...m, fontes: null }))} className={cx('rounded-[10px] border-[1.5px] px-3 py-2 text-left', !marca.fontes ? 'border-violeta bg-[#F4F5FE]' : 'border-[#E7E5E4] bg-white hover:border-grafite')}>
+              <button type="button" role="radio" aria-checked={!marca.fontes} onClick={() => aoMudar((m) => ({ ...m, fontes: null }))} className={cx('rounded-[10px] border-[1.5px] px-3 py-2 text-left', !marca.fontes ? 'border-violeta bg-acentoSuave' : 'border-bordaForte bg-superficie hover:border-tinta')}>
                 <span className="block text-[18px] leading-tight">Aa</span>
                 <span className="text-[12px] text-texto3">Do estilo (automático)</span>
               </button>
               {PARES_FONTES.map((p) => {
                 const ativo = marca.fontes?.titulo === p.titulo && marca.fontes?.texto === p.texto
                 return (
-                  <button key={p.id} type="button" role="radio" aria-checked={ativo} aria-label={p.nome} onClick={() => aoMudar((m) => ({ ...m, fontes: { titulo: p.titulo, texto: p.texto } }))} className={cx('min-w-0 rounded-[10px] border-[1.5px] px-3 py-2 text-left', ativo ? 'border-violeta bg-[#F4F5FE]' : 'border-[#E7E5E4] bg-white hover:border-grafite')}>
+                  <button key={p.id} type="button" role="radio" aria-checked={ativo} aria-label={p.nome} onClick={() => aoMudar((m) => ({ ...m, fontes: { titulo: p.titulo, texto: p.texto } }))} className={cx('min-w-0 rounded-[10px] border-[1.5px] px-3 py-2 text-left', ativo ? 'border-violeta bg-acentoSuave' : 'border-bordaForte bg-superficie hover:border-tinta')}>
                     <span className="block truncate text-[18px] leading-tight" style={{ fontFamily: pilhaFonte(p.titulo), fontWeight: p.pesoTitulo }}>Aa Título</span>
                     <span className="block truncate text-[12px] text-texto3" style={{ fontFamily: pilhaFonte(p.texto) }}>{p.nome}</span>
                   </button>
@@ -227,13 +227,13 @@ export function PassoMarca({ marca, aoMudar, prompt, kits, aoSalvarKit, aoExclui
         <aside className="flex flex-col gap-3 self-start lg:sticky lg:top-4">
           <label className="flex flex-col gap-1.5 text-[13px] text-texto2">
             Nome da marca ou do cliente
-            <input aria-label="Nome da marca" value={marca.nome} maxLength={60} onChange={(e) => aoMudar((m) => ({ ...m, nome: e.target.value }))} placeholder="Ex.: Café Aurora" className="h-10 rounded-[10px] border-[1.5px] border-[#E7E5E4] bg-white px-3 text-[14px] text-texto outline-none focus:border-grafite" />
+            <input aria-label="Nome da marca" value={marca.nome} maxLength={60} onChange={(e) => aoMudar((m) => ({ ...m, nome: e.target.value }))} placeholder="Ex.: Café Aurora" className="h-10 rounded-[10px] border-[1.5px] border-bordaForte bg-superficie px-3 text-[14px] text-texto outline-none focus:border-tinta" />
           </label>
-          <div className="overflow-hidden rounded-[12px] border border-borda bg-white">
+          <div className="overflow-hidden rounded-[12px] border border-borda bg-superficie">
             <div className="rotulo-mono px-3 pb-1.5 pt-2.5">Prévia da capa</div>
             <div className="px-2 pb-2">{previa}</div>
           </div>
-          <button type="button" disabled={!temAlgo || salvando} onClick={async () => { setSalvando(true); try { await aoSalvarKit() } finally { setSalvando(false) } }} className="flex h-10 items-center justify-center gap-2 rounded-full border-[1.5px] border-grafite bg-white text-[14px] font-medium hover:bg-[#F5F5F4] disabled:cursor-not-allowed disabled:opacity-40">
+          <button type="button" disabled={!temAlgo || salvando} onClick={async () => { setSalvando(true); try { await aoSalvarKit() } finally { setSalvando(false) } }} className="flex h-10 items-center justify-center gap-2 rounded-full border-[1.5px] border-tinta bg-superficie text-[14px] font-medium hover:bg-superficie2 disabled:cursor-not-allowed disabled:opacity-40">
             <Bookmark className="h-4 w-4" />{salvando ? 'Salvando…' : kitAtual ? `Atualizar o kit “${kitAtual.nome}”` : 'Salvar como kit de marca'}
           </button>
           <p className="text-center text-[12px] text-texto3">O kit fica no espaço para as próximas apresentações.</p>

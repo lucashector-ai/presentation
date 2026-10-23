@@ -9,9 +9,9 @@ const SELO_DEMO = true
 
 export function Cabecalho() {
   return (
-    <header className="sticky top-0 z-30 border-b-2 border-grafite bg-[rgba(250,250,249,0.9)] backdrop-blur-md">
+    <header className="sticky top-0 z-30 border-b-2 border-tinta bg-fundo/90 backdrop-blur-md">
       <div className="relative mx-auto flex h-[64px] max-w-[1360px] items-center gap-4 px-4 sm:h-[76px] sm:px-8 xl:gap-12">
-        <Link href="/" className="flex shrink-0 items-start text-grafite hover:text-grafite">
+        <Link href="/" className="flex shrink-0 items-start text-texto hover:text-texto">
           <Marca className={TAMANHO_MARCA} />
           {SELO_DEMO && (
             <span title="Versão de demonstração" className="-mt-1 ml-1 rounded-full bg-violeta px-1.5 py-px font-mono text-[10px] leading-[1.4] tracking-[0.06em] text-white">

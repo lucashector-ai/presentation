@@ -32,15 +32,15 @@ export function MenuMovel() {
         aria-controls={id}
         aria-label={aberto ? 'Fechar menu' : 'Abrir menu'}
         onClick={() => setAberto((v) => !v)}
-        className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-grafite bg-white text-grafite"
+        className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-tinta bg-superficie text-texto"
       >
         {aberto ? <X className="h-5 w-5" aria-hidden /> : <Menu className="h-5 w-5" aria-hidden />}
       </button>
-      <div id={id} hidden={!aberto} className="absolute inset-x-0 top-full border-b-2 border-grafite bg-[#FAFAF9] shadow-[0_12px_0_-6px_rgba(23,23,23,0.08)]">
+      <div id={id} hidden={!aberto} className="absolute inset-x-0 top-full border-b-2 border-tinta bg-fundo shadow-[0_12px_0_-6px_rgba(23,23,23,0.08)]">
         <nav aria-label="Menu" className="mx-auto max-w-[1360px] px-4 py-4 sm:px-8">
           <ul className="flex flex-col text-[20px] font-semibold tracking-[-0.02em]">
             {NAV.map((item) => (
-              <li key={item.href} className="border-b border-[#E7E5E4] last:border-b-0">
+              <li key={item.href} className="border-b border-bordaForte last:border-b-0">
                 <a href={item.href} onClick={fechar} className="flex items-center gap-2 py-3.5 hover:text-violeta">
                   {item.ponto && <span aria-hidden className="h-2 w-2 rounded-full bg-violeta" />}
                   {item.rotulo}
@@ -48,7 +48,7 @@ export function MenuMovel() {
               </li>
             ))}
           </ul>
-          <Link href={ROTAS.entrar} onClick={fechar} className="mt-3 flex h-12 items-center justify-center rounded-full border-2 border-grafite bg-white text-[16px] font-semibold">
+          <Link href={ROTAS.entrar} onClick={fechar} className="mt-3 flex h-12 items-center justify-center rounded-full border-2 border-tinta bg-superficie text-[16px] font-semibold">
             Entrar
           </Link>
         </nav>

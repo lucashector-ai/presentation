@@ -351,7 +351,7 @@ function PreviaResultado({ resultado, aoAplicar, aoDescartar }: { resultado: Res
             <li key={m.id} className="rounded-lg border border-borda p-2.5">
               <div className="mb-1 flex items-center gap-2">
                 <span className="rotulo-mono !text-[10px]">{m.papel}</span>
-                {m.naoCabe && <span className="flex items-center gap-1 text-[11px] text-[#9a6a00]"><TriangleAlert className="h-3 w-3" /> não cabe na caixa</span>}
+                {m.naoCabe && <span className="flex items-center gap-1 text-[11px] text-avisoTexto"><TriangleAlert className="h-3 w-3" /> não cabe na caixa</span>}
               </div>
               <p className="whitespace-pre-line text-[12px] leading-snug text-texto3 line-through decoration-texto3/40">{m.antes}</p>
               <p className="mt-1 flex gap-1.5 whitespace-pre-line text-[13px] leading-snug text-texto"><ArrowRight className="mt-0.5 h-3 w-3 shrink-0 text-acento" /><span>{m.depois}</span></p>

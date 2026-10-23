@@ -25,25 +25,35 @@ export const PALETA = [
 
 export type CorPaleta = (typeof PALETA)[number]
 
-export const T = {
-  cor: {
-    fundo: '#FAFAF9',
-    superficie: '#FFFFFF',
-    superficie2: '#F5F5F4',
-    hover: '#F3F2F0',
-    borda: '#EDECEA',
-    bordaForte: '#E2E1DE',
-    texto: '#171717',
-    texto2: '#737373',
-    texto3: '#A3A3A3',
-    acento: '#5965F2',
-    acentoSuave: '#F0F1FE',
-    sucesso: '#22A06B',
-    aviso: '#F2C14E',
-    perigo: '#E4572E',
-    guia: '#F25987',
-    canvas: '#F0EFED',
+/**
+ * Cores de interface por tema (espelho das CSS variables `--cor-*` de app/globals.css; lib/tema.test.ts confere).
+ * O escuro é um quase-preto quente (não cinza azulado), com duas superfícies, bordas sutis, off-white e o violeta
+ * clareado para contraste AA. O conteúdo das apresentações nunca usa estas cores.
+ */
+export const CORES_TEMA = {
+  claro: {
+    fundo: '#FAFAF9', superficie: '#FFFFFF', superficie2: '#F5F5F4', hover: '#F3F2F0',
+    borda: '#EDECEA', bordaForte: '#E2E1DE', bordaHover: '#D4D4D4',
+    texto: '#171717', textoCorpo: '#525252', texto2: '#737373', texto3: '#A3A3A3', tinta: '#171717',
+    acao: '#171717', acaoHover: '#2A2A2A', acaoTexto: '#FAFAF9',
+    acento: '#5965F2', acentoHover: '#4A55E0', acentoTexto: '#FFFFFF', acentoSuave: '#F0F1FE',
+    destaque: '#D7F25C', perigo: '#E4572E', sucesso: '#22A06B', sucessoTexto: '#2F6B45', sucessoFundo: '#EEF5EC',
+    aviso: '#F2C14E', avisoTexto: '#7A5A12', avisoFundo: '#FFF8E6', guia: '#F25987', selecao: '#0D99FF', canvas: '#F0EFED',
   },
+  escuro: {
+    fundo: '#121110', superficie: '#1A1918', superficie2: '#232120', hover: '#2A2826',
+    borda: '#2C2A28', bordaForte: '#3A3734', bordaHover: '#4A4642',
+    texto: '#F2EFEA', textoCorpo: '#C9C4BC', texto2: '#A39E96', texto3: '#8F8A82', tinta: '#F2EFEA',
+    acao: '#F2EFEA', acaoHover: '#FFFFFF', acaoTexto: '#121110',
+    acento: '#7F89FF', acentoHover: '#99A1FF', acentoTexto: '#121110', acentoSuave: '#23263F',
+    destaque: '#D7F25C', perigo: '#FF7A57', sucesso: '#4CC48F', sucessoTexto: '#6FD39E', sucessoFundo: '#16291F',
+    aviso: '#F2C14E', avisoTexto: '#F2C14E', avisoFundo: '#2E2612', guia: '#F25987', selecao: '#0D99FF', canvas: '#0E0D0C',
+  },
+} as const
+
+export const T = {
+  /** Tema claro (o padrão do design); o escuro está em CORES_TEMA.escuro. */
+  cor: CORES_TEMA.claro,
   // md 7 e lg 9 continuam por compatibilidade do editor; nas telas do painel use controle, cartao e bloco
   raio: { sm: 4, md: 7, lg: 9, xl: 12, controle: 8, cartao: 12, bloco: 16, pill: 99 },
   /** Alturas de controle: sm (ações em cartões e listas), md (padrão), lg (ação principal da tela). */
@@ -64,7 +74,7 @@ export const T = {
     cabecalho: 32,
     tituloSecao: 16,
   },
-  sombra: { suave: '0 1px 2px rgb(0 0 0 / 0.04), 0 12px 32px -16px rgb(0 0 0 / 0.18)', carimbo: '6px 6px 0 0 #171717' },
+  sombra: { suave: '0 1px 2px rgb(0 0 0 / 0.04), 0 12px 32px -16px rgb(0 0 0 / 0.18)', carimbo: '6px 6px 0 0 rgb(var(--cor-tinta))' },
   duracao: { rapida: 150, normal: 250, lenta: 450 },
   z: { canvas: 0, selecao: 10, painel: 20, barra: 30, modal: 50, toast: 60 },
 } as const

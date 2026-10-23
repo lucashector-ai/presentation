@@ -150,7 +150,7 @@ export function LinhaDoTempo({ editor }: { editor: Editor }) {
                           const d = (e.key === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 250 : PASSO)
                           acoes.atualizarCamadas([l.id], (c) => (c.enterAnimation ? ({ ...c, enterAnimation: { ...c.enterAnimation, delay: clamp(c.enterAnimation.delay + d, 0, 5000) } } as Camada) : c))
                         }}
-                        className={cx('absolute top-[3px] flex h-4 cursor-grab items-center overflow-hidden rounded-[4px] bg-acento text-white shadow-[0_1px_2px_rgba(89,101,242,.4)] active:cursor-grabbing', ativa && 'ring-2 ring-acento/30')}
+                        className={cx('absolute top-[3px] flex h-4 cursor-grab items-center overflow-hidden rounded-[4px] bg-acento text-acentoTexto shadow-[0_1px_2px_rgba(89,101,242,.4)] active:cursor-grabbing', ativa && 'ring-2 ring-acento/30')}
                         style={{ left: pct(l.inicio), width: `max(8px, ${pct(l.fim - l.inicio)})` }}
                       >
                         <span className="pointer-events-none truncate px-1.5 text-[9.5px] font-medium leading-none">{nomeAnimacao(l.tipo)}</span>

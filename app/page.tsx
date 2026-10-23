@@ -18,12 +18,12 @@ import { jsonLdFaq, jsonLdOrganizacao, jsonLdSoftware, jsonLdWebPage, jsonLdWebS
 
 export const metadata: Metadata = metadadosPagina('/')
 
-/** Landing da Mostra (Claude Design, "Landing v2"). Sempre no tema claro, como no design. */
+/** Landing da Mostra (Claude Design, "Landing v2"). O fundo e a tinta seguem o tema; as seções com cor de marca (grafite, ipê, sálvia, ameixa, violeta) ficam como no design. */
 export default function Marketing() {
   return (
-    <div className="min-h-dvh overflow-x-clip bg-[#FAFAF9] text-grafite">
+    <div className="min-h-dvh overflow-x-clip bg-fundo text-texto">
       <JsonLd nos={[jsonLdOrganizacao(), jsonLdWebSite(), jsonLdSoftware(), jsonLdWebPage('/'), jsonLdFaq(FAQ)]} />
-      <a href="#conteudo" className="sr-only rounded-full bg-grafite px-4 py-2 text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50">
+      <a href="#conteudo" className="sr-only rounded-full bg-acao px-4 py-2 text-acaoTexto focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50">
         Pular para o conteúdo
       </a>
       <Cabecalho />

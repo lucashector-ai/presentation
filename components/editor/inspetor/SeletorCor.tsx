@@ -256,7 +256,7 @@ export function SeletorCor({ ancora, valor, aoMudar, aoFechar, tipos = ['solido'
             salvando !== null ? (
               <form className="flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); const novo = estilos.criar(salvando, corAtiva); aoEstilo?.(novo); setSalvando(null) }}>
                 <input aria-label="Nome do novo estilo" autoFocus value={salvando} maxLength={60} onChange={(e) => setSalvando(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setSalvando(null) } }} className="h-7 min-w-0 flex-1 rounded-md bg-superficie2 px-2 text-[12px] outline-none focus:ring-1 focus:ring-acento" />
-                <button type="submit" className="h-7 rounded-md bg-acento px-2.5 text-[12px] font-medium text-white hover:opacity-90">Salvar</button>
+                <button type="submit" className="h-7 rounded-md bg-acento px-2.5 text-[12px] font-medium text-acentoTexto hover:opacity-90">Salvar</button>
               </form>
             ) : (
               <button type="button" onClick={() => setSalvando(proximoNome(estilos.lista))} className="flex h-7 w-full items-center justify-center gap-1.5 rounded-md text-[12px] text-texto2 hover:bg-hover hover:text-texto"><Plus className="h-3.5 w-3.5" /> Salvar como estilo</button>
