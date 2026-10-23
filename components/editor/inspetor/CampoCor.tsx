@@ -126,3 +126,21 @@ export function CampoCor({ valor, aoMudar, rotulo, permitirVazio }: { valor: str
     </div>
   )
 }
+
+/**
+ * Cor simples (só sólida) como amostra clicável que abre o SeletorCor: substitui o <input type="color"> nativo nos
+ * campos de animação, guias e afins, para toda cor do app usar o mesmo seletor (conta-gotas, hex/RGB, recentes).
+ */
+export function BotaoCor({ rotulo, cor, aoMudar, className }: { rotulo: string; cor: string; aoMudar: (cor: string) => void; className?: string }) {
+  const [aberto, setAberto] = useState(false)
+  const caixa = useRef<HTMLButtonElement>(null)
+  return (
+    <>
+      <button ref={caixa} type="button" aria-label={rotulo} title={rotulo} onClick={() => setAberto((a) => !a)} className={`relative h-7 w-10 shrink-0 overflow-hidden rounded border border-borda ${className ?? ''}`} style={{ backgroundImage: XADREZ, backgroundSize: '8px 8px' }}>
+        <span className="absolute inset-0" style={{ background: cor }} />
+      </button>
+      {aberto && <SeletorCor ancora={caixa.current} titulo={rotulo} valor={{ tipo: 'solido', cor }} aoMudar={(p) => { if (p.tipo === 'solido') aoMudar(p.cor) }} aoFechar={() => setAberto(false)} />}
+    </>
+  )
+}
+

@@ -14,6 +14,7 @@ import { TRECHO_ROLAGEM_PADRAO } from '@/components/renderer/plano'
 import { CampoNum, Deslizante, SeletorLista } from '@/components/editor/inspetor/controles'
 import { cx } from '@/components/ui'
 import { CartaoPreset, Chips, GradeCartoesPreset, MiniPrevia, Rotulo } from './ui'
+import { BotaoCor } from '../inspetor/CampoCor'
 
 // ---------- galeria ----------
 
@@ -281,7 +282,7 @@ export function PainelAjustes({ anim, camada, camadasDaTela, saida, aoMudar, aoP
             <>
               <div className="flex items-center justify-between pt-1">
                 <span className="text-[12px] text-texto2">Cor do indicador</span>
-                <input type="color" aria-label="Cor do indicador" value={(anim.progressColor ?? (camada.type === 'text' ? camada.color : '#5965F2')).slice(0, 7)} onChange={(e) => mudar({ progressColor: e.target.value })} className="h-7 w-10 cursor-pointer rounded border border-borda bg-transparent" />
+                <BotaoCor rotulo="Cor do indicador" cor={anim.progressColor ?? (camada.type === 'text' ? camada.color : '#5965F2')} aoMudar={(progressColor) => mudar({ progressColor })} />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
@@ -301,8 +302,7 @@ export function PainelAjustes({ anim, camada, camadasDaTela, saida, aoMudar, aoP
       {tem('color') && (
         <div className="flex items-center justify-between pt-1">
           <span className="text-[12px] text-texto2">{anim.type === 'highlight' ? 'Cor do marcador' : 'Cor da linha'}</span>
-          <input type="color" aria-label={anim.type === 'highlight' ? 'Cor do marcador' : 'Cor da linha'} value={(anim.color ?? (anim.type === 'highlight' ? '#FFD60A' : camada.type === 'text' ? camada.color : '#171717')).slice(0, 7)}
-            onChange={(e) => mudar({ color: anim.type === 'highlight' ? `${e.target.value}8C` : e.target.value })} className="h-7 w-10 cursor-pointer rounded border border-borda bg-transparent" />
+          <BotaoCor rotulo={anim.type === 'highlight' ? 'Cor do marcador' : 'Cor da linha'} cor={anim.color ?? (anim.type === 'highlight' ? '#FFD60A' : camada.type === 'text' ? camada.color : '#171717')} aoMudar={(color) => mudar({ color: anim.type === 'highlight' ? `${color}8C` : color })} />
         </div>
       )}
       {tem('range') && palavras.length > 1 && (

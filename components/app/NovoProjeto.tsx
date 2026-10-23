@@ -10,7 +10,7 @@ import { sanitizarSvgNavegador } from '@/lib/editor/importar'
 import { OCR } from '@/lib/pdf/ocr'
 import { documentoDePaginas } from '@/lib/pdf/paginas'
 import { PLANOS } from '@/lib/planos'
-import { FORMATOS, novaCena, parseCamada, SCHEMA_VERSION, type Cena, type ModoProjeto } from '@/lib/scene/schema'
+import { FORMATOS, FORMATOS_INFO, novaCena, parseCamada, SCHEMA_VERSION, type Cena, type Formato, type ModoProjeto } from '@/lib/scene/schema'
 import { avisoDoOcr, importarPaginasPdf, type ProgressoImportacao } from './importarPdf'
 import { enquadrarNaCena } from '@/lib/scene/transform'
 import { CapaProjeto } from './CapaProjeto'
@@ -63,6 +63,9 @@ export function NovoProjeto() {
   const [cliente, setCliente] = useState('')
   const [descricao, setDescricao] = useState('')
   const [modo, setModo] = useState<ModoProjeto>('slides')
+  // tamanho da tela (apresentação 16:9/4:3, PDF A4/A3/Carta, quadrado); story e explorar têm tamanho próprio
+  const [formato, setFormato] = useState<Formato>('slides169')
+  const tamanho: Formato = modo === 'story' ? 'story' : modo === 'explorar' ? 'slides169' : formato
   const [comeco, setComeco] = useState<'branco' | 'template'>(() => (params.get('comeco') === 'template' ? 'template' : 'branco'))
   const [template, setTemplate] = useState(TEMPLATES[0]!.id)
   const [arquivos, setArquivos] = useState<File[]>([])
@@ -111,7 +114,7 @@ export function NovoProjeto() {
         for (const f of midias) {
           try { prontos.push(await dados.enviarArquivo(f, () => undefined, { sanitizarSvg: sanitizarSvgNavegador })) } catch (e) { mostrar(mensagemDeErro(e, `Não foi possível importar ${f.name}`), 'erro') }
         }
-        const size = modo === 'story' ? FORMATOS.story : FORMATOS.slides169
+        const size = FORMATOS[tamanho]
         const telas = prontos.map((a, i) => {
           const tipo = a.tipo === 'video' ? 'video' : a.tipo === 'model3d' ? 'model3d' : a.tipo === 'lottie' ? 'lottie' : a.tipo === 'svg' ? 'svg' : 'image'
           const r = tipo === 'image' ? { x: 0, y: 0, width: size.width, height: size.height } : enquadrarNaCena({ width: a.width ?? size.width * 0.6, height: a.height ?? size.height * 0.6 }, size, size.height * 0.1)
@@ -120,7 +123,7 @@ export function NovoProjeto() {
         if (telas.length) documento = { schemaVersion: SCHEMA_VERSION, mode: modo, scenes: documento ? [...documento.scenes, ...telas] : telas }
       }
       const nomePdf = !nome.trim() && arquivos.length === 1 && ehPdf(arquivos[0]!) ? arquivos[0]!.name.replace(/\.pdf$/i, '').slice(0, 80) : ''
-      const p = await dados.criarProjeto({ nome: nomePdf || nome, modo, cliente, descricao, documento })
+      const p = await dados.criarProjeto({ nome: nomePdf || nome, modo, formato: tamanho, cliente, descricao, documento })
       router.push(`/app/projects/${p.id}/edit`)
     } catch (e) {
       setProgresso(null)
@@ -167,6 +170,23 @@ export function NovoProjeto() {
                     </button>
                   ))}
                 </div>
+                {modo === 'slides' && (
+                  <div className="mt-8">
+                    <div className="mb-3 text-[13px] font-medium">Tamanho</div>
+                    <div role="radiogroup" aria-label="Tamanho" className="flex flex-wrap gap-2">
+                      {(Object.keys(FORMATOS_INFO) as Formato[]).filter((f) => FORMATOS_INFO[f].grupo !== 'social' || f === 'quadrado').map((f) => {
+                        const t = FORMATOS[f]
+                        return (
+                          <button key={f} type="button" role="radio" aria-checked={formato === f} onClick={() => setFormato(f)} className={cx('flex h-10 items-center gap-2 rounded-controle border-[1.5px] bg-superficie px-3 text-[13px]', formato === f ? 'border-acento' : 'border-borda hover:border-[#D4D4D4]')}>
+                            <span aria-hidden className="block rounded-[2px] border-[1.5px] border-current" style={{ width: t.width >= t.height ? 18 : Math.round((18 * t.width) / t.height), height: t.width >= t.height ? Math.round((18 * t.height) / t.width) : 18 }} />
+                            {FORMATOS_INFO[f].nome}
+                            <span className="mono text-[10px] text-texto3">{t.width}×{t.height}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
                 <div className="mt-8 flex items-center justify-between">
                   <span className="text-[13px] font-medium">Começar</span>
                   <div className="inline-flex h-10 items-center gap-1 rounded-controle bg-[#EFEEEC] p-1 text-[13px]" role="radiogroup" aria-label="Começar">

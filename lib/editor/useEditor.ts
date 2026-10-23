@@ -618,10 +618,19 @@ export function useEditor(projetoId: string, abertura: AberturaEditor | null) {
           const z = new Map(idsDeCimaParaBaixo.map((id, i) => [id, n - 1 - i]))
           return { ...c, layers: c.layers.map((l) => ({ ...l, z: z.get(l.id) ?? l.z })) }
         }),
+      /**
+       * Alinhar: cada grupo (groupId) conta como UM objeto, como no Figma — um grupo sozinho vai para o centro da tela
+       * inteiro, mantendo as posições relativas dos filhos; vários objetos se alinham entre si.
+       */
       alinhar: (ids: string[], modo: Alinhamento) =>
         atualizarCenaAtual((c) => {
-          const novos = alinharRects(c.layers.filter((l) => ids.includes(l.id)), c.size, modo)
-          return { ...c, layers: c.layers.map((l) => novos.find((n) => n.id === l.id) ?? l) }
+          const sel = c.layers.filter((l) => ids.includes(l.id))
+          const unidades = new Map<string, Camada[]>()
+          for (const l of sel) { const k = l.groupId ?? l.id; unidades.set(k, [...(unidades.get(k) ?? []), l]) }
+          const caixas = [...unidades.entries()].map(([id, ls]) => ({ id, ...envolvente(ls) }))
+          const novas = alinharRects(caixas, c.size, modo)
+          const delta = new Map(novas.map((n) => { const o = caixas.find((x) => x.id === n.id)!; return [n.id, { dx: n.x - o.x, dy: n.y - o.y }] }))
+          return { ...c, layers: c.layers.map((l) => { const d = ids.includes(l.id) ? delta.get(l.groupId ?? l.id) : undefined; return d ? { ...l, x: Math.round(l.x + d.dx), y: Math.round(l.y + d.dy) } : l }) }
         }),
       distribuir: (ids: string[], eixo: 'h' | 'v') =>
         atualizarCenaAtual((c) => {

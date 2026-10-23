@@ -289,6 +289,8 @@ aside[aria-label="Propriedades"], aside[aria-label="Painel esquerdo"] { will-cha
 .hotspot-dica:hover, .hotspot-dica:focus-visible { box-shadow: inset 0 0 0 2px rgb(89 101 242 / .9); border-radius: 8px; }
 
 /* scrollbars discretas */
+/* o espaço da barra fica sempre reservado: os campos não mudam de lugar quando a rolagem aparece */
+.rolagem-fina { scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: rgb(var(--cor-texto) / .15) transparent; }
 .rolagem-fina::-webkit-scrollbar { width: 8px; height: 8px; }
 .rolagem-fina::-webkit-scrollbar-thumb { background: rgb(var(--cor-texto) / .15); border-radius: 8px; }
 

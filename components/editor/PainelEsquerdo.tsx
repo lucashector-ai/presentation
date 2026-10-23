@@ -72,7 +72,8 @@ function Telas({ editor, assets }: { editor: Editor; assets: AssetDemo[] }) {
               {sobre === i && arrastando !== null && arrastando !== i && <span className="absolute -top-2 left-6 right-0 h-0.5 rounded bg-acento" />}
               <span className="mono w-4 pt-1 text-[10px] text-texto3">{String(i + 1).padStart(2, '0')}</span>
               <div className="min-w-0 flex-1">
-                <div className={cx('relative overflow-hidden rounded-[7px] outline outline-[1.5px] outline-offset-2', ativa ? 'outline-acento' : 'outline-transparent group-hover:outline-borda')}>
+                {/* w-fit: o contorno abraça a miniatura (largura fixa), não a coluna inteira */}
+                <div className={cx('relative w-fit max-w-full overflow-hidden rounded-[7px] outline outline-[1.5px] outline-offset-2', ativa ? 'outline-acento' : 'outline-transparent group-hover:outline-borda')}>
                   {/* fora da área visível do painel, a miniatura não é pintada nem composta (content-visibility): numa
                       apresentação longa elas eram metade dos elementos da página, refeitos a cada quadro de animação */}
                   <MiniaturaCena cena={c} assets={mapa} largura={186} className="rounded-[6px] border-0 [content-visibility:auto]" />

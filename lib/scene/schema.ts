@@ -34,7 +34,27 @@ export const FORMATOS = {
   slides43: { width: 1600, height: 1200 },
   story: { width: 1080, height: 1920 },
   quadrado: { width: 1080, height: 1080 },
+  // documentos para PDF (150 dpi): A4, A3 e Carta, retrato e paisagem
+  a4Retrato: { width: 1240, height: 1754 },
+  a4Paisagem: { width: 1754, height: 1240 },
+  a3Retrato: { width: 1754, height: 2480 },
+  a3Paisagem: { width: 2480, height: 1754 },
+  cartaRetrato: { width: 1275, height: 1650 },
+  cartaPaisagem: { width: 1650, height: 1275 },
 } as const
+/** Nome e uso de cada formato (listas de escolha de formato). */
+export const FORMATOS_INFO: Record<keyof typeof FORMATOS, { nome: string; grupo: 'apresentacao' | 'pdf' | 'social' }> = {
+  slides169: { nome: 'Apresentação 16:9', grupo: 'apresentacao' },
+  slides43: { nome: 'Apresentação 4:3', grupo: 'apresentacao' },
+  a4Retrato: { nome: 'PDF A4 retrato', grupo: 'pdf' },
+  a4Paisagem: { nome: 'PDF A4 paisagem', grupo: 'pdf' },
+  a3Retrato: { nome: 'PDF A3 retrato', grupo: 'pdf' },
+  a3Paisagem: { nome: 'PDF A3 paisagem', grupo: 'pdf' },
+  cartaRetrato: { nome: 'PDF Carta retrato', grupo: 'pdf' },
+  cartaPaisagem: { nome: 'PDF Carta paisagem', grupo: 'pdf' },
+  story: { nome: 'Story 9:16', grupo: 'social' },
+  quadrado: { nome: 'Quadrado 1:1', grupo: 'social' },
+}
 export type Formato = keyof typeof FORMATOS
 
 /** Slides: uma tela por vez. Story: fluxo vertical. Explorar: mapa livre de telas conectadas por hotspots. */

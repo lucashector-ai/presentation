@@ -16,6 +16,7 @@ import { usePreferencias } from '@/components/renderer/useTamanho'
 import { Deslizante, SeletorLista } from '@/components/editor/inspetor/controles'
 import { cx } from '@/components/ui'
 import { BotaoPrevia, CartaoPreset, Chips, GradeCartoesPreset, Rotulo, useCiclo } from './ui'
+import { BotaoCor } from '../inspetor/CampoCor'
 
 type Cartao = 'parallax' | 'tilt' | 'luz' | 'lanterna'
 const CARTOES: { id: Cartao; rotulo: string; dica: string }[] = [
@@ -180,7 +181,7 @@ function AjustesLuz({ l, aoMudar, aoPrevia }: { l: NonNullable<EfeitosInterativo
       {!lanterna && (
         <div className="flex items-center justify-between pt-1">
           <span className="text-[12px] text-texto2">Cor da luz</span>
-          <input type="color" aria-label="Cor da luz" value={d.color.slice(0, 7)} onChange={(ev) => set({ color: ev.target.value })} className="h-7 w-10 cursor-pointer rounded border border-borda bg-transparent" />
+          <BotaoCor rotulo="Cor da luz" cor={d.color} aoMudar={(color) => set({ color })} />
         </div>
       )}
       <Finos resumo={`${d.size}%`} aoPadrao={() => aoMudar({ mode: l.mode })}>
