@@ -11,7 +11,7 @@
 import { calcularLayout } from '@/lib/editor/autolayout'
 import type { Camada as CamadaCena } from '@/lib/scene/schema'
 import { COMPONENTES, GRADE, alfa, contraste, coresIndicador, legivel, luminanciaRelativa, misturar, regrasDe, superficie, type Alinhamento, type Decoracao, type Fundo, type Superficie, type TemaVisual, type TipoTela } from './designSystem'
-import { acimaNaGrade, alinharNaGrade, colunasNaGrade, entrelinhaNaGrade, espacoNaGrade, naGrade, repartirNaGrade, type MedidaDado } from './grade8'
+import { acimaNaGrade, alinharNaGrade, colunasNaGrade, entrelinhaNaGrade, espacoNaGrade, naGrade, repartirNaGrade, type MedidaDado, type Seguidor } from './grade8'
 import { formatarComo, formatarPct, valorDe } from './numeros'
 
 export type Estilo = 'editorial' | 'ousado' | 'minimal'
@@ -212,6 +212,9 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Inter
   const exatas = new Set<string>()
   const depoisDaGrade: ((achar: (id: string) => Camada | undefined) => void)[] = []
   const dado = (l: Camada, eixo: MedidaDado['eixo'], ancora: MedidaDado['ancora'] = 'inicio') => { dados.set(l.id, { eixo, ancora }); return l }
+  /** O valor acompanha a ponta da barra a um vão fixo (múltiplo de 8), no eixo dela. */
+  const seguir = new Map<string, Seguidor>()
+  const segue = (l: { id: string }, de: { id: string }, eixo: Seguidor['eixo'], gap: number, lado: Seguidor['lado'] = 'depois') => { seguir.set(l.id, { de: de.id, eixo, lado, gap }) }
   const F = t.fontes
   const raioCartao = Math.min(t.raio, 36)
   // tela desenhada em "minimal" (sem decoração) montada agora numa energia com decoração: ganha a decoração do estilo
@@ -680,22 +683,21 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Inter
     const lg = c.logo
     if (!lg || lg.largura <= 0 || lg.altura <= 0) return null
     const prop = lg.largura / lg.altura
-    // um lado na grade de 8; o outro segue a proporção do arquivo (medida exata, como o comprimento de uma barra)
+    // caixa na grade de 8 nos dois lados, na proporção do arquivo (arredondada): o arquivo fica contido nela
     let h = Math.max(GRADE, abaixo(maxH))
-    let w = h * prop
-    let livre: MedidaDado['eixo'] = 'x'
-    if (w > maxW) { w = Math.max(GRADE, abaixo(maxW)); h = w / prop; livre = 'y' }
+    let w = Math.max(GRADE, naGrade(h * prop))
+    if (w > maxW) { w = Math.max(GRADE, abaixo(maxW)); h = Math.max(GRADE, naGrade(w / prop)) }
     const xl = align === 'center' ? x + (maxW - w) / 2 : align === 'right' ? x + maxW - w : x
     const apaga = contraste(lg.cor, s.fundo) < 2
     const escuroAtras = luminanciaRelativa(s.fundo) < 0.3
     const l: Camada = {
       id: c.uid(papel), type: 'image', assetId: lg.assetId, fit: 'contain', name: papel === 'logo' ? 'logo' : 'logo-rodape',
-      x: Math.round(xl), y: Math.round(y + (maxH - h) / 2), width: Math.max(1, Math.round(w * 100) / 100), height: Math.max(1, Math.round(h * 100) / 100), ariaLabel: c.marca ? `Logo ${c.marca}` : 'Logo',
+      x: Math.round(xl), y: Math.round(y + (maxH - h) / 2), width: w, height: h, ariaLabel: c.marca ? `Logo ${c.marca}` : 'Logo',
       ...(apaga ? { adjust: { brightness: 0, contrast: 1, saturate: 1, grayscale: 0, ...(escuroAtras ? { invert: 1 } : {}) } } : {}),
       enterAnimation: animTexto(0),
     }
     L.push(l)
-    return dado(l, livre, livre === 'x' ? (align === 'center' ? 'centro' : align === 'right' ? 'fim' : 'inicio') : 'centro')
+    return l
   }
 
   // ---------- cabeçalho e rodapé das telas de conteúdo ----------
@@ -1126,8 +1128,8 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Inter
         dados.forEach((x, k) => {
           const hb = Math.max(8, (Math.abs(x.n ?? 0) / max) * altMax)
           const xk = M + k * (colW + gap)
-          dado(forma('barra', 'rect', xk, base - hb, colW, hb, { fill: k === destaque ? forte : corBarra, radii: [Math.min(raioCartao, 16), Math.min(raioCartao, 16), 0, 0], radius: Math.min(raioCartao, 16), enterAnimation: { type: 'slideUp', duration: 700, delay: 200 + k * 110, easing: 'easeOut' } }), 'y', 'fim')
-          texto('texto', x.valor, { x: xk, y: base - hb - 56, w: colW, fonte: 'titulo', tamanhos: [40, 34, 28], max: 1, align: 'center', cor: k === destaque ? forte : s.tinta, anim: animItem(k) })
+          const b = dado(forma('barra', 'rect', xk, base - hb, colW, hb, { fill: k === destaque ? forte : corBarra, radii: [Math.min(raioCartao, 16), Math.min(raioCartao, 16), 0, 0], radius: Math.min(raioCartao, 16), enterAnimation: { type: 'slideUp', duration: 700, delay: 200 + k * 110, easing: 'easeOut' } }), 'y', 'fim')
+          segue(texto('texto', x.valor, { x: xk, y: base - hb - 56, w: colW, fonte: 'titulo', tamanhos: [40, 34, 28], max: 1, align: 'center', cor: k === destaque ? forte : s.tinta, anim: animItem(k) }).l, b, 'y', 16, 'antes')
           texto('item', x.rotulo, { x: xk, y: base + 16, w: colW, tamanhos: [24, 22, 20], max: 2, cor: s.suave, align: 'center', anim: animItem(k) })
         })
       } else {
@@ -1143,8 +1145,8 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Inter
           texto('item', x.rotulo, { x: M, y: st ? yk : yk + (hb - 30) / 2, w: rotW - 24, tamanhos: ateAltura(st ? [32, 28] : [28, 25, 22], passo - GRADE), max: st ? 1 : 2, cor: s.tinta, anim: animItem(k) })
           const yb = st ? yk + 50 : yk
           const wb = Math.max(10, (Math.abs(x.n ?? 0) / max) * larguraMax)
-          dado(forma('barra', 'rect', xb, yb, wb, hb, { fill: k === destaque ? forte : corBarra, radius: Math.min(raioCartao, hb / 2), enterAnimation: { type: 'reveal', duration: 800, delay: 200 + k * 110, easing: 'easeOut' } }), 'x')
-          texto('texto', x.valor, { x: xb + wb + 20, y: yb + (hb - 40) / 2, w: 160, fonte: 'titulo', tamanhos: [34, 30, 26], max: 1, cor: k === destaque ? forte : s.tinta, anim: animItem(k) })
+          const b = dado(forma('barra', 'rect', xb, yb, wb, hb, { fill: k === destaque ? forte : corBarra, radius: Math.min(raioCartao, hb / 2), enterAnimation: { type: 'reveal', duration: 800, delay: 200 + k * 110, easing: 'easeOut' } }), 'x')
+          segue(texto('texto', x.valor, { x: xb + wb + 16, y: yb + (hb - 40) / 2, w: 160, fonte: 'titulo', tamanhos: [34, 30, 26], max: 1, cor: k === destaque ? forte : s.tinta, anim: animItem(k) }).l, b, 'x', 16)
         })
       }
       break
@@ -1222,10 +1224,15 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Inter
         texto('item', x.rotulo, { x: M, y: st ? yk : yk + (hb - 34) / 2, w: rotW - 24, tamanhos: ateAltura(st ? [32, 28] : [30, 27, 24], passo - GRADE), max: st ? 1 : 2, peso: dest ? 600 : 400, cor: s.tinta, anim: animItem(k) })
         const yb = st ? yk + 50 : yk
         const wb = Math.max(10, (x.n / max) * larguraMax)
-        dado(forma('barra', 'rect', xb, yb, wb, hb, { fill: dest ? forte : corBarra, radius: Math.min(raioCartao, hb / 2), enterAnimation: { type: 'reveal', duration: dur(800), delay: 200 + k * 110, easing: 'easeOut' } }), 'x')
-        const xv = st ? xb + wb + 16 : xb + wb + 24
-        texto('texto', x.valor, { x: xv, y: yb + (hb - 40) / 2, w: st ? 200 : 190, fonte: 'titulo', tamanhos: [34, 30, 26], max: 1, cor: dest ? forte : s.tinta, anim: animItem(k) })
-        texto('dado', formatarPct((x.n / soma) * 100), { x: xv + (st ? 0 : 190), y: st ? yb + hb + 6 : yb + (hb - 30) / 2, w: 130, fonte: 'mono', tamanhos: [st ? 24 : 22], max: 1, cor: s.suave, anim: animItem(k) })
+        const b = dado(forma('barra', 'rect', xb, yb, wb, hb, { fill: dest ? forte : corBarra, radius: Math.min(raioCartao, hb / 2), enterAnimation: { type: 'reveal', duration: dur(800), delay: 200 + k * 110, easing: 'easeOut' } }), 'x')
+        const gapV = st ? 16 : 24
+        const xv = xb + wb + gapV
+        const v = texto('texto', x.valor, { x: xv, y: yb + (hb - 40) / 2, w: st ? 200 : 192, fonte: 'titulo', tamanhos: [34, 30, 26], max: 1, cor: dest ? forte : s.tinta, anim: animItem(k) }).l
+        segue(v, b, 'x', gapV)
+        const pct = texto('dado', formatarPct((x.n / soma) * 100), { x: xv + (st ? 0 : 192), y: st ? yb + hb + 8 : yb + (hb - 30) / 2, w: 136, fonte: 'mono', tamanhos: [st ? 24 : 22], max: 1, cor: s.suave, anim: animItem(k) }).l
+        // a porcentagem logo depois do valor (story: embaixo dele, a partir da mesma ponta)
+        if (st) segue(pct, b, 'x', gapV)
+        else segue(pct, v, 'x', 0)
       })
       // total conferido: a soma das partes, no mesmo formato dos valores
       const yT = yB + n * passo + 8
@@ -1277,11 +1284,13 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Inter
         const topo = y0 + 80
         const h = (v: number) => Math.max(8, (Math.abs(v) / maxV) * (base - topo))
         linha(M, base, graficoW, 2.5, s.linha)
+        const valores: Camada[] = []
         ;[ref, atual].forEach((x, k) => {
           const xk = xA + k * (colW + gap)
           const hk = h(x.n)
-          dado(forma('barra', 'rect', xk, base - hk, colW, hk, k === 0 ? { fill: alfa(forte, s.tipo === 'escuro' ? 0.16 : 0.1), stroke: forte, strokeWidth: 3, dash: 10, radius: Math.min(raioCartao, 14), enterAnimation: { type: 'slideUp', duration: dur(700), delay: 200, easing: 'easeOut' } } : { fill: forte, radius: Math.min(raioCartao, 14), enterAnimation: { type: 'slideUp', duration: dur(700), delay: 350, easing: 'easeOut' } }), 'y', 'fim')
-          texto('texto', x.valor, { x: xk - 8, y: base - h(Math.max(ref.n, atual.n)) - 64, w: colW + 16, fonte: 'titulo', tamanhos: [48, 42, 36, 32], max: 1, align: 'center', cor: k === 0 ? s.tinta : forte, anim: animItem(k) })
+          const b = dado(forma('barra', 'rect', xk, base - hk, colW, hk, k === 0 ? { fill: alfa(forte, s.tipo === 'escuro' ? 0.16 : 0.1), stroke: forte, strokeWidth: 3, dash: 10, radius: Math.min(raioCartao, 14), enterAnimation: { type: 'slideUp', duration: dur(700), delay: 200, easing: 'easeOut' } } : { fill: forte, radius: Math.min(raioCartao, 14), enterAnimation: { type: 'slideUp', duration: dur(700), delay: 350, easing: 'easeOut' } }), 'y', 'fim')
+          valores.push(texto('texto', x.valor, { x: xk - 8, y: base - hk - 64, w: colW + 16, fonte: 'titulo', tamanhos: [48, 42, 36, 32], max: 1, align: 'center', cor: k === 0 ? s.tinta : forte, anim: animItem(k) }).l)
+          segue(valores[k]!, b, 'y', 16, 'antes')
           texto('item', x.rotulo, { x: xk - gap / 2 + 8, y: base + 18, w: colW + gap - 16, tamanhos: st ? [30, 26] : [28, 25], max: 2, align: 'center', cor: s.suave, anim: animItem(k) })
         })
         if (atual.n < ref.n) {
@@ -1290,8 +1299,11 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Inter
           const yReal = base - h(atual.n)
           // linha da meta atravessando as duas colunas e o trecho que falta no realizado
           exatas.add(linha(xA - 24, yMeta, colW * 2 + gap + 48, 2, alfa(forte, 0.6), { dash: 8 }).id)
-          exatas.add(forma('gap', 'rect', xk, yMeta, colW, Math.max(4, yReal - yMeta), { fill: alfa(negativo, 0.14), stroke: negativo, strokeWidth: 2, dash: 6, radius: 6, enterAnimation: animForma(600) }).id)
-          texto('dado', `gap ${formatarComo(ref.n - atual.n, ref.valor)}`, { x: xk + colW + 20, y: yMeta + (yReal - yMeta) / 2 - 18, w: st ? W - M - (xk + colW + 20) : 240, fonte: 'mono', tamanhos: [st ? 24 : 22], max: 2, cor: negativo, anim: animTexto(700) })
+          const gapM = forma('gap', 'rect', xk, yMeta, colW, Math.max(4, yReal - yMeta), { fill: alfa(negativo, 0.14), stroke: negativo, strokeWidth: 2, dash: 6, radius: 6, enterAnimation: animForma(600) })
+          exatas.add(gapM.id)
+          // o valor do realizado fica acima do que falta (a 16 px do topo da meta)
+          if (valores[1]) segue(valores[1], gapM, 'y', 16, 'antes')
+          texto('dado', `gap ${formatarComo(ref.n - atual.n, ref.valor)}`, { x: xk + colW + 24, y: yMeta + (yReal - yMeta) / 2 - 18, w: st ? W - M - (xk + colW + 24) : 240, fonte: 'mono', tamanhos: [st ? 24 : 22], max: 2, cor: negativo, anim: animTexto(700) })
         }
       } else {
         // barras horizontais grandes, base zero: anterior (apagada) e atual (cheia)
@@ -1326,8 +1338,9 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Inter
       const taxas = etapas.map((x, k) => (k === 0 || etapas[k - 1]!.n === 0 ? null : (x.n / etapas[k - 1]!.n) * 100))
       const perda = taxas.reduce<number>((m, tx, k) => (tx !== null && (m < 0 || tx < taxas[m]!) ? k : m), -1)
       const rotW = st ? 0 : wc(3)
-      const areaX = st ? M : xc(3)
-      const areaW = st ? W - M * 2 - 230 : wc(6)
+      // área na grade e de 16 em 16: o centro das barras do funil centrado cai na grade de 8
+      const areaX = naGrade(st ? M : xc(3))
+      const areaW = Math.floor((st ? W - M * 2 - 230 : wc(6)) / (2 * GRADE)) * 2 * GRADE
       const taxaX = st ? W - M - 210 : xc(9)
       const taxaW = st ? 210 : wc(3)
       const disp = fimConteudo - y0 - (st ? 40 : 60)
@@ -1340,11 +1353,13 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Inter
         const wb = Math.max(8, (x.n / topoN) * areaW)
         const xb = centrado ? areaX + (areaW - wb) / 2 : areaX
         const fill = forte
-        dado(forma('barra', 'rect', xb, yk, wb, hb, { fill, radius: Math.min(raioCartao, 12, hb / 2, wb / 2), enterAnimation: { type: 'reveal', duration: dur(700), delay: 150 + k * 120, easing: 'easeOut' } }), 'x', centrado ? 'centro' : 'inicio')
+        const barra = dado(forma('barra', 'rect', xb, yk, wb, hb, { fill, radius: Math.min(raioCartao, 12, hb / 2, wb / 2), enterAnimation: { type: 'reveal', duration: dur(700), delay: 150 + k * 120, easing: 'easeOut' } }), 'x', centrado ? 'centro' : 'inicio')
         const tamV = ateAltura(st ? [40, 34, 30, 26] : [36, 32, 28, 24, 20], hb, 1.1)
         const cabeNaBarra = wb >= x.valor.length * tamV[0]! * 0.62 + 28
-        const wFora = Math.min(220, (centrado ? (areaW - wb) / 2 : areaW - wb) - 14)
-        texto('texto', x.valor, { x: cabeNaBarra ? xb : xb + wb + 14, y: yk + (hb - Math.ceil(tamV[0]! * 1.22)) / 2, w: cabeNaBarra ? wb : Math.max(60, wFora), fonte: 'titulo', tamanhos: tamV, max: 1, lh: 1.1, align: cabeNaBarra ? 'center' : 'left', cor: cabeNaBarra ? legivel(fill, [sobreDestaque, '#FFFFFF', '#141414'], 4.5) : s.tinta, anim: animItem(k) })
+        const wFora = abaixo(Math.min(224, (centrado ? (areaW - wb) / 2 : areaW - wb) - 16))
+        // (dentro da barra: a caixa na grade, sem passar da ponta; fora: a 16 px da ponta)
+        const valorF = texto('texto', x.valor, { x: cabeNaBarra ? xb : xb + wb + 16, y: yk + (hb - Math.ceil(tamV[0]! * 1.22)) / 2, w: cabeNaBarra ? Math.max(GRADE, abaixo(wb)) : Math.max(64, wFora), fonte: 'titulo', tamanhos: tamV, max: 1, lh: 1.1, align: cabeNaBarra ? 'center' : 'left', cor: cabeNaBarra ? legivel(fill, [sobreDestaque, '#FFFFFF', '#141414'], 4.5) : s.tinta, anim: animItem(k) })
+        if (!cabeNaBarra) segue(valorF.l, barra, 'x', 16)
         if (st) texto('item', x.rotulo, { x: M, y: yk + hb + 6, w: areaW, tamanhos: [26, 24], max: 1, cor: s.tinta, anim: animItem(k) })
         else {
           // rótulo numa linha quando o passo é curto, com o corpo que cabe no passo
@@ -1394,8 +1409,12 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Inter
       // altura de linha em 8 + 16k: o texto de uma linha (40 px), o marcador e o valor com a barra centram sem meio passo
       const meioPasso = (v: number) => Math.floor((v - GRADE) / (2 * GRADE)) * 2 * GRADE + GRADE
       const hLinha = meioPasso(Math.max(st ? 72 : 56, Math.min(st ? 112 : 88, (disp - fios * GRADE) / (corpo.length + 1.1))))
-      // a posição tem largura fixa (o marcador); as outras colunas dividem o resto pelo tamanho do conteúdo
-      const wPos = colPos >= 0 ? Math.max(st ? 96 : 120, naGrade(hLinha * 0.56) + 24) : 0
+      // o menor diâmetro do marcador (de 16 em 16 abaixo da linha) com pelo menos metade da altura dela: centra na grade
+      let dia = hLinha - 2 * GRADE
+      while (dia - 2 * GRADE >= hLinha / 2) dia -= 2 * GRADE
+      // a posição tem largura fixa (o marcador, centrado: largura − diâmetro em múltiplos de 16); as outras colunas
+      // dividem o resto pelo tamanho do conteúdo
+      const wPos = colPos >= 0 ? dia + Math.ceil((Math.max(st ? 96 : 120, naGrade(hLinha * 0.56) + 24) - dia) / (2 * GRADE)) * 2 * GRADE : 0
       const pesos = cab.map((h, k) => (k === colPos ? 0 : Math.max(4, h.length * 0.8, ...corpo.map((l) => l[k]!.length)) * (numerica[k] ? 1 : 1.25)))
       const gapCel = st ? 16 : 24
       const partesL = repartirNaGrade(largT - padX * 2 - wPos - gapCel * (nCols - 1), pesos)
@@ -1410,9 +1429,6 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Inter
         if (k === colPos) {
           const top = iLin < 3
           const caixa = frame('grupo', 0, 0, w, hLinha, { alX: 'center', alY: 'center', h: 'fill', pai })
-          // o menor diâmetro (de 16 em 16 abaixo da linha) com pelo menos metade da altura dela: centra na grade
-          let dia = hLinha - 2 * GRADE
-          while (dia - 2 * GRADE >= hLinha / 2) dia -= 2 * GRADE
           const m0 = frame('marcador', 0, 0, dia, dia, { h: 'fixed', alX: 'center', alY: 'center', pai: caixa.id, extra: { fill: top ? (iLin === 0 ? forte : alfa(forte, iLin === 1 ? 0.75 : 0.55)) : alfa(s.fundo, 0), ...(top ? {} : { stroke: s.linha, strokeWidth: 2 }), radius: Math.round(dia / 2), enterAnimation: animItem(iLin) } })
           texto('dado', v, { x: 0, y: 0, w: dia, fonte: 'mono', tamanhos: [Math.max(16, Math.round(dia * 0.42))], max: 1, align: 'center', cor: top ? legivel(iLin === 0 ? forte : misturar(s.fundo, forte, iLin === 1 ? 0.75 : 0.55), ['#FFFFFF', '#141414', s.fundo], 4.5) : s.suave, peso: 600, anim: null, pai: m0.id, lh: 1.1 })
           return
@@ -1683,12 +1699,13 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Inter
         // o fio liga os centros dos pontos finais (traço: acompanha os pontos depois da grade)
         exatas.add(fio.id)
         depoisDaGrade.push((achar) => {
-          const cs = pontos.map((p) => achar(p.id)).filter((b): b is Camada => !!b).map((b) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 }))
+          const bs = pontos.map((p) => achar(p.id)).filter((b): b is Camada => !!b)
           const f = achar(fio.id)
-          if (!f || !cs.length) return
-          f.x = Math.round(cs[0]!.x - 1.5)
-          f.y = Math.round(cs[0]!.y)
-          f.height = Math.max(1, Math.round(cs[cs.length - 1]!.y - cs[0]!.y))
+          if (!f || !bs.length) return
+          // (do topo do primeiro ponto à base do último, por trás deles: as pontas do fio ficam na grade)
+          f.x = Math.round(bs[0]!.x + bs[0]!.width / 2 - 1.5)
+          f.y = bs[0]!.y
+          f.height = Math.max(1, bs[bs.length - 1]!.y + bs[bs.length - 1]!.height - bs[0]!.y)
         })
       }
       break
@@ -1998,7 +2015,7 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Inter
   // regra do 8 (grade8.ts): posições, tamanhos e espaçamentos na grade de 8 px, com o auto layout resolvido
   // (posição e tamanho finais; o editor continua o layout ao editar)
   const final = alinharNaGrade(L, {
-    dados, exatas, uid: c.uid,
+    dados, exatas, seguir, uid: c.uid,
     alturaTexto: (l) => contarLinhas(String(l.text), String(l.fontFamily), Number(l.fontSize), l.width, { maiusculas: l.transform === 'uppercase', espacamento: Number(l.letterSpacing ?? 0), peso: Number(l.fontWeight ?? 400) }) * Number(l.fontSize) * Number(l.lineHeight ?? 1.2),
   })
   const porIdFinal = new Map(final.map((l) => [l.id, l]))

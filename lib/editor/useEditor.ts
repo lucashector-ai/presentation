@@ -22,6 +22,7 @@ import { comDescendentes, ehFrame, filhosDe, mapaDe, paiDe, raizesDaSelecao } fr
 import { LAYOUT_PADRAO, inferirLayout, inserirNoFrame as inserirNoFrameFn, moverNaLista as moverNaListaFn, resolverCamadas, type OpcoesResolver } from './autolayout'
 import { distribuir as distribuirRects } from './guias'
 import { criarMascara, ehMascara, removerMascara } from '@/lib/scene/mascara'
+import { ajustarEspacamentoCena } from './espacamento8'
 import { dados, ehErroDados, useDados, type AssetDemo } from '@/lib/dados'
 import { aplicarOps, compactar, diferenca, type Op } from '@/lib/colab/ops'
 import { MotorDocumento } from '@/lib/colab/motor'
@@ -544,6 +545,12 @@ export function useEditor(projetoId: string, abertura: AberturaEditor | null) {
       /** Transformação livre da tela atual num único passo de desfazer (preencher em grade, dividir, vetores). */
       transformarCena: (fn: (c: Cena) => Cena, historico = true, opcoes?: OpcoesResolver) => atualizarCenaAtual(fn, historico, opcoes),
       atualizarDocumento: (patch: Partial<Pick<DocumentoProjeto, 'theme' | 'mode'>>) => aplicar((d) => ({ ...d, ...patch })),
+      /**
+       * "Ajustar espaçamento (8 px)": a regra do 8 nas distâncias (entre vizinhos e até o pai) da tela atual ou de
+       * todas as telas (lib/editor/espacamento8.ts), num único passo de desfazer.
+       */
+      ajustarEspacamento: (escopo: 'tela' | 'apresentacao' = 'tela') =>
+        escopo === 'tela' ? atualizarCenaAtual(ajustarEspacamentoCena) : aplicar((d) => ({ ...d, scenes: d.scenes.map(ajustarEspacamentoCena) })),
       /** Transformação do documento inteiro (ex.: estilos de cor que atualizam camadas de várias telas). */
       transformarDocumento: (fn: (d: DocumentoProjeto) => DocumentoProjeto, historico = true) => aplicar(fn, historico),
       /** Uma tela por mídia (importação em lote). */

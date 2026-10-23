@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Editor } from '@/lib/editor/useEditor'
 import type { Avisar } from '@/lib/editor/importar'
 import { importarConteudo } from '@/lib/editor/importar'
@@ -80,15 +80,21 @@ export function MenuContexto({ editor, x, y, aoFechar, avisar }: { editor: Edito
       { rotulo: 'Adicionar interação', desativado: ids.length !== 1, acao: () => acoes.ui({ abaDireita: 'interacoes' }) },
     ],
     [
+      { rotulo: 'Ajustar espaçamento (8 px)', desativado: !editor.cena?.layers.length, acao: () => acoes.ajustarEspacamento('tela') },
+    ],
+    [
       { rotulo: 'Selecionar tudo', atalho: '⌘A', acao: () => editor.cena && acoes.selecionarExato(editor.cena.layers.filter((l) => !l.locked).map((l) => l.id)) },
       { rotulo: 'Excluir', atalho: '⌫', desativado: !tem, perigo: true, acao: () => acoes.removerCamadas(ids) },
     ],
   ]
   const larg = 232
   const left = Math.min(x, window.innerWidth - larg - 8)
-  const top = Math.max(8, Math.min(y, window.innerHeight - 560))
+  // o menu inteiro na janela: sobe o que for preciso (pela altura medida) e, numa janela baixa, rola
+  const [altura, setAltura] = useState(640)
+  useLayoutEffect(() => { if (ref.current) setAltura(ref.current.offsetHeight) }, [])
+  const top = Math.max(8, Math.min(y, window.innerHeight - altura - 8))
   return (
-    <div ref={ref} role="menu" aria-label="Ações" className="fixed z-50 rounded-lg border border-borda bg-superficie p-1 text-[13px] shadow-painel" style={{ left, top, width: larg }}>
+    <div ref={ref} role="menu" aria-label="Ações" className="fixed z-50 max-h-[calc(100dvh-16px)] overflow-y-auto rounded-lg border border-borda bg-superficie p-1 text-[13px] shadow-painel" style={{ left, top, width: larg }}>
       {grupos.map((g, i) => (
         <div key={i} className={i ? 'mt-1 border-t border-borda pt-1' : ''}>
           {g.map((it) => (
