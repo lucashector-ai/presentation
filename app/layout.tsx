@@ -7,7 +7,7 @@ import geistLatina from '@fontsource-variable/geist/files/geist-latin-wght-norma
 import './globals.css'
 import { ToastProvider } from '@/components/ui/toast'
 import { DESCRICAO_PADRAO, IMAGEM_OG, NOME, SLOGAN, absoluta } from '@/lib/seo'
-import { SITE_URL } from '@/lib/site'
+import { ORIGEM_SITE } from '@/lib/site'
 
 /** Verificação de propriedade do site (Search Console e Bing Webmaster) por variável de build; sem ela, nenhuma meta sai. */
 const VERIFICACAO = { google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION, bing: process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION }
@@ -17,12 +17,12 @@ const VERIFICACAO = { google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION, 
  * públicas (landing, /precos, /apresentacao-com-ia, /signup) liberam a indexação com metadadosPagina() de lib/seo.ts.
  */
 export const metadata: Metadata = {
-  metadataBase: new URL(SITE_URL),
+  metadataBase: new URL(ORIGEM_SITE),
   title: { default: `${NOME} — ${SLOGAN.toLowerCase()}`, template: `%s · ${NOME}` },
   description: DESCRICAO_PADRAO,
   applicationName: NOME,
   robots: { index: false, follow: false },
-  openGraph: { type: 'website', siteName: NOME, locale: 'pt_BR', url: SITE_URL, title: `${NOME} — ${SLOGAN.toLowerCase()}`, description: DESCRICAO_PADRAO, images: [{ ...IMAGEM_OG, url: absoluta(IMAGEM_OG.url) }] },
+  openGraph: { type: 'website', siteName: NOME, locale: 'pt_BR', url: ORIGEM_SITE, title: `${NOME} — ${SLOGAN.toLowerCase()}`, description: DESCRICAO_PADRAO, images: [{ ...IMAGEM_OG, url: absoluta(IMAGEM_OG.url) }] },
   twitter: { card: 'summary_large_image', title: `${NOME} — ${SLOGAN.toLowerCase()}`, description: DESCRICAO_PADRAO, images: [absoluta(IMAGEM_OG.url)] },
   ...(VERIFICACAO.google || VERIFICACAO.bing
     ? { verification: { ...(VERIFICACAO.google ? { google: VERIFICACAO.google } : {}), ...(VERIFICACAO.bing ? { other: { 'msvalidate.01': VERIFICACAO.bing } } : {}) } }

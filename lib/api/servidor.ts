@@ -12,6 +12,7 @@ import type { ZodType } from 'zod'
 import { CODIGOS_ERRO, erro, MOTIVO_SESSAO_INDISPONIVEL, ok, type CodigoErro, type TipoEventoAuditoria } from './contratos'
 import { sql } from '@/lib/db/neon'
 import { AuthIndisponivel, sessaoDaRequisicao } from '@/lib/auth/servidor'
+import { ORIGENS_DO_APP } from '@/lib/site'
 
 export class ErroHttp extends Error {
   constructor(public code: CodigoErro, message: string, public details?: unknown) {
@@ -106,10 +107,8 @@ const METODOS_SEGUROS = new Set(['GET', 'HEAD', 'OPTIONS'])
 export function verificarOrigem(req: Request) {
   if (METODOS_SEGUROS.has(req.method)) return
   const origem = req.headers.get('origin')
-  const permitidas = new Set([new URL(req.url).origin])
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    try { permitidas.add(new URL(process.env.NEXT_PUBLIC_APP_URL).origin) } catch { /* ignorar */ }
-  }
+  // a origem do próprio pedido + as origens em que o app está no ar (lib/site.ts: domínio e workers.dev)
+  const permitidas = new Set([new URL(req.url).origin, ...ORIGENS_DO_APP])
   if (origem ? !permitidas.has(origem) : req.headers.get('sec-fetch-site') === 'cross-site') {
     throw new ErroHttp('sem_permissao', 'Origem não permitida')
   }

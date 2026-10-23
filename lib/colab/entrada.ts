@@ -7,6 +7,7 @@
  */
 import { AuthIndisponivel, sessaoDaRequisicao } from '@/lib/auth/servidor'
 import { ErroHttp, ehUuid, limitar } from '@/lib/api/servidor'
+import { ORIGENS_DO_APP } from '@/lib/site'
 import { acessoAoProjeto } from './salaServidor'
 import { CABECALHO_ENTRADA, type InfoEntrada } from './protocolo'
 
@@ -25,11 +26,8 @@ function recusar(status: number, texto: string) {
 function origemPermitida(req: Request): boolean {
   const origem = req.headers.get('origin')
   if (!origem) return false
-  const permitidas = new Set([new URL(req.url).origin])
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    try { permitidas.add(new URL(process.env.NEXT_PUBLIC_APP_URL).origin) } catch { /* ignorar */ }
-  }
-  return permitidas.has(origem)
+  // a origem do próprio pedido + as origens em que o app está no ar (lib/site.ts: domínio e workers.dev)
+  return origem === new URL(req.url).origin || ORIGENS_DO_APP.has(origem)
 }
 
 export async function entrarNaSala(req: Request, salas: NamespaceSalas | undefined, projetoId: string): Promise<Response> {

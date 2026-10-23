@@ -6,7 +6,7 @@
  */
 import type { Metadata } from 'next'
 import { PACOTES_AVULSOS, PLANOS, type Plano } from './planos'
-import { SITE_URL } from './site'
+import { ORIGEM_SITE } from './site'
 
 export const NOME = 'Mostra'
 export const SLOGAN = 'Apresentações para quem cria'
@@ -21,7 +21,7 @@ export const REDES: string[] = []
 export const EMAIL_CONTATO = ''
 
 /** URL absoluta a partir de um caminho ("/precos") ou de uma URL já absoluta. */
-export const absoluta = (caminho: string) => (/^https?:\/\//.test(caminho) ? caminho : `${SITE_URL}${caminho.startsWith('/') ? caminho : `/${caminho}`}`)
+export const absoluta = (caminho: string) => (/^https?:\/\//.test(caminho) ? caminho : `${ORIGEM_SITE}${caminho.startsWith('/') ? caminho : `/${caminho}`}`)
 
 export interface PaginaPublica {
   caminho: string
@@ -100,7 +100,7 @@ export function configRobots(): ConfigRobots {
       { userAgent: [...ROBOS_IA], allow: '/', disallow },
     ],
     sitemap: absoluta('/sitemap.xml'),
-    host: SITE_URL,
+    host: ORIGEM_SITE,
   }
 }
 
@@ -113,14 +113,14 @@ export const entradasSitemap = (): EntradaSitemap[] => PAGINAS.map((p) => ({ url
 
 export type JsonLd = Record<string, unknown>
 
-const ID = { organizacao: `${SITE_URL}/#organizacao`, site: `${SITE_URL}/#site`, app: `${SITE_URL}/#app` } as const
+const ID = { organizacao: `${ORIGEM_SITE}/#organizacao`, site: `${ORIGEM_SITE}/#site`, app: `${ORIGEM_SITE}/#app` } as const
 
 export function jsonLdOrganizacao(): JsonLd {
   return {
     '@type': 'Organization',
     '@id': ID.organizacao,
     name: NOME,
-    url: SITE_URL,
+    url: ORIGEM_SITE,
     logo: { '@type': 'ImageObject', url: absoluta('/apple-touch-icon.png'), width: 180, height: 180 },
     ...(EMAIL_CONTATO ? { email: EMAIL_CONTATO } : {}),
     ...(REDES.length ? { sameAs: REDES } : {}),
@@ -129,7 +129,7 @@ export function jsonLdOrganizacao(): JsonLd {
 }
 
 export function jsonLdWebSite(): JsonLd {
-  return { '@type': 'WebSite', '@id': ID.site, url: SITE_URL, name: NOME, inLanguage: 'pt-BR', publisher: { '@id': ID.organizacao } }
+  return { '@type': 'WebSite', '@id': ID.site, url: ORIGEM_SITE, name: NOME, inLanguage: 'pt-BR', publisher: { '@id': ID.organizacao } }
 }
 
 /** Oferta de um plano (preço mensal em BRL; o Free sai como 0). */
@@ -156,7 +156,7 @@ export function jsonLdSoftware(): JsonLd {
     '@type': ['SoftwareApplication', 'WebApplication'],
     '@id': ID.app,
     name: NOME,
-    url: SITE_URL,
+    url: ORIGEM_SITE,
     description: DEFINICAO,
     applicationCategory: 'DesignApplication',
     applicationSubCategory: 'Apresentações',

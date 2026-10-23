@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { PACOTES_AVULSOS, PLANOS } from './planos'
 import { PAGINAS, ROBOS_IA, absoluta, configRobots, ehCaminhoPrivado, entradasSitemap, grafoJsonLd, jsonLdBreadcrumb, jsonLdFaq, jsonLdOrganizacao, jsonLdSoftware, jsonLdWebPage, jsonLdWebSite, metadadosPagina, serializarJsonLd } from './seo'
-import { SITE_URL } from './site'
+import { ORIGEM_SITE } from './site'
 import { COMPARATIVO, CONCORRENTES, FAQ, FAQ_PRECOS } from '@/components/marketing/dados'
 import { llmsFullTxt, llmsTxt } from '@/components/marketing/llms'
 
 describe('origem e páginas públicas', () => {
-  it('SITE_URL é https e sem barra no fim; absoluta() monta a partir dela', () => {
-    expect(SITE_URL).toMatch(/^https:\/\/[^/]+$/)
-    expect(absoluta('/precos')).toBe(`${SITE_URL}/precos`)
-    expect(absoluta('precos')).toBe(`${SITE_URL}/precos`)
+  it('ORIGEM_SITE é https e sem barra no fim; absoluta() monta a partir dela', () => {
+    expect(ORIGEM_SITE).toMatch(/^https:\/\/[^/]+$/)
+    expect(absoluta('/precos')).toBe(`${ORIGEM_SITE}/precos`)
+    expect(absoluta('precos')).toBe(`${ORIGEM_SITE}/precos`)
     expect(absoluta('https://x.y/z')).toBe('https://x.y/z')
   })
 
@@ -25,12 +25,12 @@ describe('origem e páginas públicas', () => {
 
   it('metadadosPagina: canônico absoluto, indexável, Open Graph e Twitter completos', () => {
     const m = metadadosPagina('/precos')
-    expect(m.alternates?.canonical).toBe(`${SITE_URL}/precos`)
+    expect(m.alternates?.canonical).toBe(`${ORIGEM_SITE}/precos`)
     expect(m.robots).toEqual({ index: true, follow: true })
-    expect(m.openGraph).toMatchObject({ type: 'website', locale: 'pt_BR', siteName: 'Mostra', url: `${SITE_URL}/precos` })
+    expect(m.openGraph).toMatchObject({ type: 'website', locale: 'pt_BR', siteName: 'Mostra', url: `${ORIGEM_SITE}/precos` })
     const imagens = m.openGraph?.images as { url: string; width: number; height: number }[]
-    expect(imagens[0]).toMatchObject({ url: `${SITE_URL}/og.png`, width: 1200, height: 630 })
-    expect(m.twitter).toMatchObject({ card: 'summary_large_image', images: [`${SITE_URL}/og.png`] })
+    expect(imagens[0]).toMatchObject({ url: `${ORIGEM_SITE}/og.png`, width: 1200, height: 630 })
+    expect(m.twitter).toMatchObject({ card: 'summary_large_image', images: [`${ORIGEM_SITE}/og.png`] })
     expect(m.title).toBe('Planos e preços')
     expect(metadadosPagina('/').title).toEqual({ absolute: expect.stringContaining('Mostra') })
     expect(() => metadadosPagina('/app')).toThrow()
@@ -40,8 +40,8 @@ describe('origem e páginas públicas', () => {
 describe('robots e sitemap', () => {
   it('robots libera tudo menos app, api, p e criar, para todos e para os robôs de IA, e aponta o sitemap', () => {
     const r = configRobots()
-    expect(r.sitemap).toBe(`${SITE_URL}/sitemap.xml`)
-    expect(r.host).toBe(SITE_URL)
+    expect(r.sitemap).toBe(`${ORIGEM_SITE}/sitemap.xml`)
+    expect(r.host).toBe(ORIGEM_SITE)
     const geral = r.rules.find((x) => x.userAgent === '*')!
     expect(geral.allow).toBe('/')
     expect(geral.disallow).toEqual(['/app/', '/app$', '/api/', '/p/', '/criar'])
@@ -61,7 +61,7 @@ describe('robots e sitemap', () => {
     const entradas = entradasSitemap()
     expect(entradas.map((e) => e.url)).toEqual(PAGINAS.map((p) => absoluta(p.caminho)))
     for (const e of entradas) {
-      expect(e.url.startsWith(`${SITE_URL}/`)).toBe(true)
+      expect(e.url.startsWith(`${ORIGEM_SITE}/`)).toBe(true)
       expect(e.priority).toBeGreaterThan(0)
     }
   })
@@ -107,12 +107,12 @@ describe('JSON-LD', () => {
   it('Breadcrumb, WebPage, WebSite e Organization têm ids e URLs absolutas', () => {
     const trilha = jsonLdBreadcrumb([{ nome: 'Início', caminho: '/' }, { nome: 'Preços', caminho: '/precos' }])
     const itens = trilha.itemListElement as { position: number; item: string }[]
-    expect(itens.map((i) => i.item)).toEqual([`${SITE_URL}/`, `${SITE_URL}/precos`])
+    expect(itens.map((i) => i.item)).toEqual([`${ORIGEM_SITE}/`, `${ORIGEM_SITE}/precos`])
     expect(itens.map((i) => i.position)).toEqual([1, 2])
-    expect(jsonLdWebPage('/precos')).toMatchObject({ '@type': 'WebPage', url: `${SITE_URL}/precos`, inLanguage: 'pt-BR' })
-    expect(jsonLdOrganizacao()).toMatchObject({ '@type': 'Organization', url: SITE_URL })
+    expect(jsonLdWebPage('/precos')).toMatchObject({ '@type': 'WebPage', url: `${ORIGEM_SITE}/precos`, inLanguage: 'pt-BR' })
+    expect(jsonLdOrganizacao()).toMatchObject({ '@type': 'Organization', url: ORIGEM_SITE })
     expect(jsonLdOrganizacao()).not.toHaveProperty('sameAs') // sem perfis inventados
-    expect(jsonLdWebSite()).toMatchObject({ '@type': 'WebSite', url: SITE_URL })
+    expect(jsonLdWebSite()).toMatchObject({ '@type': 'WebSite', url: ORIGEM_SITE })
   })
 
   it('o grafo serializado é JSON válido, com @context, e escapa "<" para não fechar o <script>', () => {
@@ -136,7 +136,7 @@ describe('comparativo e llms.txt', () => {
     const curto = llmsTxt()
     expect(curto.startsWith('# Mostra\n\n> ')).toBe(true)
     expect(curto).toContain('## Páginas')
-    expect(curto).toContain(`${SITE_URL}/precos`)
+    expect(curto).toContain(`${ORIGEM_SITE}/precos`)
     expect(curto).toContain(`R$ ${PLANOS.plus.precoMensalBRL}`)
     expect(curto).toContain('1 crédito = 1 tela')
     const completo = llmsFullTxt()
