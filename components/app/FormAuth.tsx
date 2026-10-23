@@ -7,7 +7,7 @@ import { dados } from '@/lib/dados'
 import { PLANOS } from '@/lib/planos'
 import { textoTelas } from '@/lib/telasIa'
 import { Botao, Campo, Entrada, cx } from '@/components/ui'
-import { Marca } from '@/components/ui/Logo'
+import { Marca, TAMANHO_MARCA } from '@/components/ui/Logo'
 
 const EMAIL_DEMO = 'demo@mostra.app'
 
@@ -119,7 +119,7 @@ export function FormAuth({ modo }: { modo: 'login' | 'signup' }) {
         <>
           {/* Neon Auth (gerenciado) oferece Google, não Apple: no modo real só o Google aparece */}
           <div className={cx('grid gap-2.5', MODO_DEMO ? 'grid-cols-2' : 'grid-cols-1')}>
-            <BotaoSocial rotulo="Google" onClick={entrarSocial} icone={<span className="text-[15px] font-bold leading-none">G</span>} />
+            <BotaoSocial rotulo="Google" onClick={entrarSocial} icone={<IconeGoogle />} />
             {MODO_DEMO && <BotaoSocial rotulo="Apple" onClick={entrarSocial} icone={<span className="block h-[13px] w-[11px] rounded-[5px_5px_6px_6px] bg-current" />} />}
           </div>
           <div className="flex items-center gap-3 text-[12px] text-texto3">
@@ -278,6 +278,21 @@ function RecuperarSenha() {
   )
 }
 
+/**
+ * "G" do Google: o SVG oficial do logo de produto (fonts.gstatic.com/s/i/productlogos/googleg), nas cores da marca,
+ * como pedem as diretrizes do "Sign in with Google" — sem recolorir nem recortar.
+ */
+function IconeGoogle() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" aria-hidden>
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+    </svg>
+  )
+}
+
 function BotaoSocial({ rotulo, icone, onClick }: { rotulo: string; icone: ReactNode; onClick: () => void }) {
   return (
     <button
@@ -293,21 +308,21 @@ function BotaoSocial({ rotulo, icone, onClick }: { rotulo: string; icone: ReactN
 }
 
 /**
- * Moldura das telas de login/cadastro (Claude Design, "Auth"): coluna do formulário à esquerda e,
- * a partir de lg, o painel escuro "Feito com Mostra". Fica fora do Suspense do FormAuth para ser
- * renderizada no servidor.
+ * Moldura das telas de login/cadastro (Claude Design, "Auth"): logo no topo, formulário centralizado na coluna
+ * (na horizontal e na vertical, entre a logo e o rodapé) e, a partir de lg, o painel escuro "Feito com Mostra".
+ * Fica fora do Suspense do FormAuth para ser renderizada no servidor.
  */
 export function LayoutAuth({ children }: { children: ReactNode }) {
   return (
     <div className="grid min-h-dvh bg-fundo text-texto lg:grid-cols-2">
       <div className="flex flex-col px-6 py-8 sm:px-[clamp(24px,5vw,72px)]">
         <Link href="/" className="self-start text-texto hover:text-texto">
-          <Marca className="text-[22px]" />
+          <Marca className={TAMANHO_MARCA} />
         </Link>
-        <main className="flex flex-1 items-center py-12">
+        <main className="flex flex-1 flex-col items-center justify-center py-12">
           <div className="w-full max-w-[380px]">{children}</div>
         </main>
-        <p className="m-0 text-[12px] text-texto3">Ao continuar, você concorda com os Termos e a Política de Privacidade.</p>
+        <p className="m-0 text-center text-[12px] text-texto3">Ao continuar, você concorda com os Termos e a Política de Privacidade.</p>
       </div>
       <PainelAuth />
     </div>

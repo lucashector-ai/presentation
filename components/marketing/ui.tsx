@@ -11,7 +11,7 @@ const BOTAO = 'inline-flex items-center justify-center gap-2 rounded-full border
 const LEVANTA = 'hover:-translate-x-0.5 hover:-translate-y-0.5 motion-reduce:hover:translate-x-0 motion-reduce:hover:translate-y-0'
 /** Botão preto com sombra "carimbo" colorida — combine com uma classe de sombra (ex.: shadow-[5px_5px_0_#E4572E]). */
 export const BOTAO_ESCURO = `${BOTAO} ${LEVANTA} bg-grafite text-[#FAFAF9] hover:text-[#FAFAF9]`
-/** Botão branco de contorno; no hover vira lima. */
+/** Botão branco de contorno; no hover vira lima. Ao lado de um BOTAO_ESCURO, deixe calha de 16 (a sombra carimbo dele avança 5–7 px). */
 export const BOTAO_CLARO = `${BOTAO} bg-white text-grafite hover:bg-lima hover:text-grafite`
 
 const FORMAS: Record<TipoForma, string> = {

@@ -18,7 +18,8 @@ export function Hero() {
           <p className="mt-9 max-w-[520px] text-[18px] leading-[1.5] text-[#3F3F3F] [text-wrap:pretty] sm:text-[20px]">
             Crie, apresente e compartilhe experiências visuais que vão além dos slides — com movimento, interações e links privados, sem escrever código.
           </p>
-          <div className="mt-9 flex flex-wrap gap-3">
+          {/* calha de 16: a sombra carimbo do botão escuro (5 px, 7 no hover) não encosta no botão claro ao lado */}
+          <div className="mt-9 flex flex-wrap gap-4">
             <Link href={ROTAS.cadastro} className={`${BOTAO_ESCURO} px-[26px] py-[17px] text-[16px] shadow-[5px_5px_0_#E4572E] hover:shadow-[7px_7px_0_#E4572E]`}>
               Começar gratuitamente
             </Link>

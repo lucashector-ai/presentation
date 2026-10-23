@@ -36,6 +36,15 @@ Direção e fluxos em [`DIRECAO.md`](./DIRECAO.md). Feito nesta rodada no fim do
 | U9 | P2 | Conteúdo dos passos do Criar com IA ainda fora da escala de 8 (alturas 52/34/44/28/36, `mt-1.5`, `gap-1.5`, `p-3.5`, raios 14/18). Só o invólucro entrou no grid, para não conflitar com o manual da marca. | `components/app/CriarComIA.tsx`, `components/app/criar/*` | Migrar depois do merge do manual da marca e tirar o arquivo de `AINDA_FORA` em `espacamento.test.ts`. |
 | U10 | P2 | Plano e conta é uma tela longa sem atalhos para as seções. | `Configuracoes.tsx` | Índice lateral fixo no xl (`col-span-4`, `sticky`) com saldo e "Comprar créditos"; fichas âncora em lg. Fica para outra rodada (UI nova). |
 | U8 | P2 | Criar com IA aceita só texto (.txt/.md/.html); PDF/DOCX pedem para colar. | `CriarComIA.tsx` `importar` | Extração no servidor (ADR 0008, pendências). |
+| U11 | P1 | "Explorar a plataforma" / "Ver um exemplo" (landing) apontam para `/p/demo_cafe_aurora…`, que só existe no armazenamento da demonstração; no build real a página responde "Este link não está mais disponível". | `components/marketing/dados.ts` `ROTAS.exemplo`, `lib/dados/real.ts` `resolverToken` | Apresentação-vitrine publicada no backend real com token fixo (seed) ou, no modo real, resolver tokens `demo_` pelos dados da demonstração. Até lá, no build real, esconder o botão ou apontar para o cadastro. |
+
+## Feito na rodada landing + entrada + folga do painel (ux)
+
+- Landing: selo DEMO no canto da logo (`Cabecalho.tsx › SELO_DEMO`); calha de 16 entre os CTAs do hero e do CTA final — a sombra carimbo do botão escuro (5 px, 7 no hover) invadia a calha de 12 e aparecia como um "resto laranja" atrás de "Explorar a plataforma".
+- Entrada e cadastro: formulário centralizado na coluna (horizontal e vertical), logo no topo, rodapé centrado; "G" oficial do Google (SVG do logo de produto servido pelo próprio Google) no lugar do "G" em texto; campos de 48 mantidos.
+- Painel: conteúdo alinhado à barra lateral (48 px no xl, 32 no lg) com largura máxima 1248 — em 1920 a folga caiu de 220 para 48; bordas das colunas continuam batendo (`grade.cjs` delta 0 em 1024/1440/1920).
+- Marca no mesmo tamanho da landing na barra lateral, no cabeçalho móvel e nas telas de entrada (`TAMANHO_MARCA`).
+- Favicon em SVG (`public/favicon.svg`) + `apple-touch-icon.png` (`scripts/gerar-favicon.mjs`); `app/icon.svg` removido.
 
 ## Feito na rodada do grid do painel (ux)
 

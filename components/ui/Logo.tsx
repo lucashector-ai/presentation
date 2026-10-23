@@ -1,3 +1,6 @@
+/** Tamanho da marca onde ela identifica o produto (cabeçalho da landing, barra lateral do painel, entrada e cadastro): um só, para ser a mesma logo em todo lugar. */
+export const TAMANHO_MARCA = 'text-[28px] sm:text-[34px]'
+
 /**
  * Wordmark da Mostra: o "m" é um traço contínuo (SVG do Claude Design) seguido de "ostra" em Geist.
  * Herda a cor do texto (currentColor) — use sobre qualquer par da paleta.
@@ -18,7 +21,7 @@ export function Marca({ className, titulo = 'Mostra' }: { className?: string; ti
   )
 }
 
-/** Só o símbolo "m" dentro de um quadrado (favicon, avatar do app, barra do editor). */
+/** Só o símbolo "m" dentro de um quadrado (avatar do app, barra do editor). O favicon é public/favicon.svg. */
 export function Simbolo({ tamanho = 28, fundo = '#171717', tinta = '#FAFAF9', className }: { tamanho?: number; fundo?: string; tinta?: string; className?: string }) {
   return (
     <span className={`inline-flex items-center justify-center ${className ?? ''}`} style={{ width: tamanho, height: tamanho, borderRadius: tamanho * 0.25, background: fundo, color: tinta }} aria-hidden>

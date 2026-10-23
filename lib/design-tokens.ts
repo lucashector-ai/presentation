@@ -50,7 +50,7 @@ export const T = {
   controle: { sm: 32, md: 40, lg: 48 },
   /**
    * Grid do painel (components/app/Layout.tsx): 4 colunas no celular, 8 no tablet e com a barra lateral (lg),
-   * 12 a partir de xl, largura máxima de 1248 centralizada. Todo espaçamento de layout sai de `espaco`
+   * 12 a partir de xl, largura máxima de 1248 alinhada à barra lateral (a 48 dela; 32 no lg). Todo espaçamento de layout sai de `espaco`
    * (múltiplos de 8); 4 só dentro de componentes (ícone e texto, título e meta de uma linha, badge).
    */
   layout: {

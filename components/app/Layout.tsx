@@ -1,6 +1,7 @@
 /**
  * Peças de layout das telas do painel: um grid só para todas as telas (4 colunas no celular, 8 no tablet e com a
- * barra lateral, 12 a partir de xl; calha 16 → 24; largura máxima 1248 centralizada). Valores em
+ * barra lateral, 12 a partir de xl; calha 16 → 24; largura máxima 1248, alinhada à barra lateral — o main do Shell
+ * para em 1248 + margens; sem barra lateral, como no Novo projeto, fica centralizada). Valores em
  * lib/design-tokens.ts › T.layout. Tudo que fica lado a lado numa tela entra numa `Grade` com um `SPAN`, assim as
  * bordas de coluna batem entre as linhas por construção. Espaçamentos só em múltiplos de 8 (4 só dentro de
  * componentes), conferidos por components/app/espacamento.test.ts.
@@ -10,7 +11,7 @@ import type { ReactNode } from 'react'
 // cópia local do cx de components/ui (módulo de cliente): assim estas peças também servem a páginas de servidor
 const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(' ')
 
-/** Contêiner de toda tela do painel: largura máxima do grid, centralizado. */
+/** Contêiner de toda tela do painel: largura máxima do grid (com a barra lateral, o main já para nessa largura; sem ela, centraliza). */
 export function PaginaPainel({ children, className, ...rest }: React.HTMLAttributes<HTMLDivElement>) {
   return <div className={cx('mx-auto w-full max-w-painel', className)} {...rest}>{children}</div>
 }
