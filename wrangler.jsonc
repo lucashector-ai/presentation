@@ -13,6 +13,8 @@
   "vars": { "NEXT_PUBLIC_SITE_URL": "https://mostra.page" },
   // Domínio próprio: Custom Domains do Worker (criam o DNS e o certificado sozinhos). Só funcionam com a zona
   // Custom Domains: a zona mostra.page está ativa na conta (docs/dominio.md).
+  // o workers.dev continua ligado durante a transição (com `routes`, o wrangler o desligaria por padrão)
+  "workers_dev": true,
   "routes": [
     { "pattern": "mostra.page", "custom_domain": true },
     { "pattern": "www.mostra.page", "custom_domain": true }
