@@ -358,6 +358,15 @@ await passo('Sair e voltar: login leva de volta ao destino (/app/projects/:id)',
   await page.getByRole('heading', { level: 1, name: NOME_PROJETO }).waitFor({ timeout: 20000 })
 })
 
+await passo('Landing: "Explorar a plataforma" abre o exemplo público (vitrine da demo, sem servidor)', async () => {
+  await page.goto(`${BASE}/`, { waitUntil: 'networkidle' })
+  await esperarHidratacao()
+  await page.getByRole('link', { name: /Explorar a plataforma/ }).first().click()
+  await page.waitForURL(/\/p\/demo_/, { timeout: 30000 })
+  await page.locator('[data-layer-id]').first().waitFor({ timeout: 30000 })
+  if (await page.getByText(/não está mais disponível/).count()) throw new Error('o exemplo da landing está indisponível no modo real')
+})
+
 await browser.close()
 console.log('\n' + passos.join('\n'))
 console.log(`\nErros de console/página: ${erros.length}`)

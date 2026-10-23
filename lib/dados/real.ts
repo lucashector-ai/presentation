@@ -423,6 +423,8 @@ export const fonteReal: FonteDados = {
     definir((e) => ({ ...e, links: e.links.map((l) => (l.id === id && !l.revogadoEm ? { ...l, revogadoEm: quando } : l)) }))
   },
   async resolverToken(token) {
+    // vitrine da landing ("Explorar a plataforma"): os exemplos da demo abrem também aqui, sem ir ao servidor
+    if (token.startsWith('demo_')) return (await import('@/lib/demo/vitrine')).resolverVitrine(token)
     const r = await chamar(() => api.share.resolver(token))
     if (r.state === 'unavailable') return r
     if (r.state === 'locked') return { state: 'locked', projectName: r.projectName }
