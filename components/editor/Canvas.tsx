@@ -68,13 +68,20 @@ function cursorDaAlca(a: Alca, rot: number): string {
 const ZONA_GIRAR = 16
 const FOLGA_GIRAR = 3
 /** Cursor de girar (seta curva em volta do canto), orientado pelo canto e pela rotação da camada, como no Figma. */
+/** Cursores de girar já montados (por canto e ângulo em passos de 5°): trocar a URL do cursor recalcula estilo. */
+const cursoresGirar = new Map<string, string>()
 function cursorGirar(canto: Alca, rot: number): string {
   const base = { ne: 0, se: 90, sw: 180, nw: 270 }[canto as 'ne' | 'se' | 'sw' | 'nw'] ?? 0
-  const ang = Math.round(base + rot)
+  const ang = Math.round((base + rot) / 5) * 5
+  const chave = `${canto}:${ang}`
+  const pronto = cursoresGirar.get(chave)
+  if (pronto) return pronto
   const tinta = (cor: string, w: number) => `fill="none" stroke="${cor}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"`
   const forma = 'M10 8A6 6 0 0 1 16 14M12.5 5.5L10 8l2.5 2.5M13.5 11.5L16 14l2.5-2.5'
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><g transform="rotate(${ang} 12 12)"><path d="${forma}" ${tinta('#fff', 3.6)}/><path d="${forma}" ${tinta('#171717', 1.6)}/></g></svg>`
-  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 12 12, grab`
+  const cursor = `url("data:image/svg+xml,${encodeURIComponent(svg)}") 12 12, grab`
+  cursoresGirar.set(chave, cursor)
+  return cursor
 }
 function normalizarAngulo(a: number): number {
   let n = ((a + 540) % 360) - 180
@@ -1036,7 +1043,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
                     })}
                     {/* zonas de girar: logo fora de cada canto, com o cursor curvo daquele canto */}
                     {!travada && CANTOS.map((a) => (
-                      <div key={`g-${a}`} data-alca="rot" data-testid={`zona-girar-${a}`} className="pointer-events-auto absolute z-[9]" style={{ width: ZONA_GIRAR, height: ZONA_GIRAR, left: a.includes('w') ? -ZONA_GIRAR - FOLGA_GIRAR - folgaX : r.width + FOLGA_GIRAR + folgaX, top: a.includes('n') ? -ZONA_GIRAR - FOLGA_GIRAR - folgaY : r.height + FOLGA_GIRAR + folgaY, cursor: cursorGirar(a, rot) }} />
+                      <div key={`g-${a}`} data-alca="rot" data-testid={`zona-girar-${a}`} className="pointer-events-auto absolute z-[9]" style={{ width: ZONA_GIRAR, height: ZONA_GIRAR, left: a.includes('w') ? -ZONA_GIRAR - FOLGA_GIRAR - folgaX : r.width + FOLGA_GIRAR + folgaX, top: a.includes('n') ? -ZONA_GIRAR - FOLGA_GIRAR - folgaY : r.height + FOLGA_GIRAR + folgaY, cursor: girando ? g.cursor : cursorGirar(a, rot) }} />
                     ))}
                     {/* 4 alças quadradas brancas com borda de 1 px na cor da seleção */}
                     {!travada && !girando && CANTOS.map((a) => (

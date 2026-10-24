@@ -173,7 +173,9 @@ function herancaDeFrames(camadas: readonly Camada[]): Map<string, Heranca> {
       const l = x0 - c.x
       const b = c.y + c.height - y1
       const d = c.x + c.width - x1
-      if (t > 0 || l > 0 || b > 0 || d > 0) clip = `inset(${t}px ${d}px ${b}px ${l}px${raio && clips.length === 1 ? ` round ${raio}` : ''})`
+      // frame com raio recorta sempre (mesmo um filho do tamanho exato dele, como a foto na tela de um mockup)
+      const comRaio = !!raio && clips.length === 1
+      if (t > 0 || l > 0 || b > 0 || d > 0 || comRaio) clip = `inset(${t}px ${d}px ${b}px ${l}px${comRaio ? ` round ${raio}` : ''})`
     }
     r.set(c.id, { oculta: anc.some((a) => a.hidden), opacidade: anc.reduce((o, a) => o * a.opacity, 1), clip })
   }
@@ -324,7 +326,7 @@ const LayerView = memo(function LayerView({ camada: c, props, origemMorph, heran
   const base: CSSProperties = {
     position: 'absolute',
     ...geoAtual,
-    opacity: (visivel ? (geoAtual.opacity as number) : 0.3) * (heranca?.opacidade ?? 1),
+    opacity: (visivel ? (geoAtual.opacity as number) : 0) * (heranca?.opacidade ?? 1),
     clipPath: heranca?.clip,
     ['--clip-final' as string]: heranca?.clip ?? 'none',
     zIndex: c.z,
@@ -333,7 +335,7 @@ const LayerView = memo(function LayerView({ camada: c, props, origemMorph, heran
     ...(c.type === 'text' ? { ['--clip-folga' as string]: `${folgaTinta(c)}px` } : {}),
     // a entrada termina na opacidade parada da camada (com a dos frames pais): ao soltar a animação no fim,
     // nada muda de lugar nem de opacidade
-    ['--op' as string]: (visivel ? c.opacity : 0.3) * (heranca?.opacidade ?? 1),
+    ['--op' as string]: (visivel ? c.opacity : 0) * (heranca?.opacidade ?? 1),
     cursor: clicavel ? 'pointer' : undefined,
     mixBlendMode: e?.blend && e.blend !== 'normal' ? e.blend : undefined,
     // vidro fosco: desfoque com um pouco de saturação (como o Figma e o iOS); o recorte nos cantos arredondados fica
