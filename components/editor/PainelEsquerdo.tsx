@@ -23,7 +23,7 @@ export function PainelEsquerdo({ editor, assets, avisar, aoBloco }: { editor: Ed
     <aside aria-label="Painel esquerdo" className="flex h-full flex-col border-r border-borda bg-superficie">
       <div role="tablist" aria-label="Painel esquerdo" className="flex shrink-0 gap-0.5 border-b border-borda p-2">
         {abas.map((a) => (
-          <button key={a.id} role="tab" aria-selected={estado.abaEsquerda === a.id} onClick={() => acoes.ui({ abaEsquerda: a.id })} className={cx('flex-1 rounded-md px-1.5 py-1.5 text-[13px] transition-colors', estado.abaEsquerda === a.id ? 'bg-canvas font-medium text-texto' : 'text-texto2 hover:text-texto')}>
+          <button key={a.id} role="tab" aria-selected={estado.abaEsquerda === a.id} onClick={() => acoes.ui({ abaEsquerda: a.id })} className={cx('flex-1 rounded-md px-1.5 py-1.5 text-[13px] transition-colors', estado.abaEsquerda === a.id ? 'bg-hover font-medium text-texto' : 'text-texto2 hover:text-texto')}>
             {a.rotulo}
           </button>
         ))}

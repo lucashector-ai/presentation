@@ -2,12 +2,12 @@
 /**
  * Menu "⋯" da barra superior do editor: ver (guias de layout, ⌃⇧4), tela (ajustar espaçamento em 8 px na tela ou na
  * apresentação inteira), exportar (PNG/JPG 1×–3× da tela ou da seleção, PDF da apresentação),
- * detalhes do projeto e atalhos. No celular também reúne o que não cabe na barra (desfazer, pré-visualizar,
- * opções de apresentação).
+ * detalhes do projeto e atalhos. Em telas estreitas também reúne o que saiu da barra: desfazer/refazer,
+ * pré-visualizar e convidar (< 1280 px) e as opções de apresentação (< 1024 px).
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
-import { AlignHorizontalSpaceAround, Check, Copy, Download, Eye, FileText, Info, Keyboard, Loader2, MonitorPlay, MoreHorizontal, Play, Redo2, Undo2 } from 'lucide-react'
+import { AlignHorizontalSpaceAround, Check, Copy, Download, Eye, FileText, Info, Keyboard, Loader2, MonitorPlay, MoreHorizontal, Play, Redo2, Undo2, UserPlus } from 'lucide-react'
 import type { Editor } from '@/lib/editor/useEditor'
 import { ESCALAS, type FormatoImagem } from '@/lib/exportar/medidas'
 import { cx } from '@/components/ui'
@@ -22,9 +22,10 @@ export interface PropsMenuEditor {
   aoPreview: () => void
   aoApresentar: (o: { doInicio?: boolean; telaCheia?: boolean; apresentador?: boolean }) => void
   aoAtalhos: () => void
+  aoConvidar?: () => void
 }
 
-export function MenuEditor({ editor, projetoId, nomeProjeto, aoPreview, aoApresentar, aoAtalhos }: PropsMenuEditor) {
+export function MenuEditor({ editor, projetoId, nomeProjeto, aoPreview, aoApresentar, aoAtalhos, aoConvidar }: PropsMenuEditor) {
   const [aberto, setAberto] = useState(false)
   const [formato, setFormato] = useState<FormatoImagem>('png')
   const [escala, setEscala] = useState(2)
@@ -56,14 +57,17 @@ export function MenuEditor({ editor, projetoId, nomeProjeto, aoPreview, aoAprese
       </button>
       {aberto && (
         <div role="menu" aria-label="Mais opções" className="absolute right-0 z-50 mt-1 max-h-[calc(100dvh-64px)] w-[272px] overflow-y-auto max-md:fixed max-md:left-auto max-md:right-2 max-md:top-[52px] rounded-lg border border-borda bg-superficie p-1 shadow-painel">
-          <div className="md:hidden">
+          <div className="xl:hidden">
             <div className="flex gap-1 p-1">
               <button type="button" role="menuitem" disabled={!estado.passado.length} onClick={acoes.desfazer} className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md bg-superficie2 text-[12px] hover:bg-hover disabled:opacity-40"><Undo2 className="h-3.5 w-3.5" /> Desfazer</button>
               <button type="button" role="menuitem" disabled={!estado.futuro.length} onClick={acoes.refazer} className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md bg-superficie2 text-[12px] hover:bg-hover disabled:opacity-40"><Redo2 className="h-3.5 w-3.5" /> Refazer</button>
             </div>
-            <Item icone={<Eye className="h-3.5 w-3.5" />} onClick={fechar(aoPreview)}>Pré-visualizar</Item>
-            <Item icone={<Play className="h-3.5 w-3.5" />} onClick={fechar(() => aoApresentar({ telaCheia: true, doInicio: true }))}>Apresentar do início</Item>
-            <Item icone={<MonitorPlay className="h-3.5 w-3.5" />} onClick={fechar(() => aoApresentar({ apresentador: true }))}>Visão do apresentador</Item>
+            <Item icone={<Eye className="h-3.5 w-3.5" />} onClick={fechar(aoPreview)}>Pré-visualizar <span className="mono float-right text-[11px] text-texto3">⌘↵</span></Item>
+            {aoConvidar && <Item icone={<UserPlus className="h-3.5 w-3.5" />} onClick={fechar(aoConvidar)}>Convidar pessoas para editar</Item>}
+            <div className="lg:hidden">
+              <Item icone={<Play className="h-3.5 w-3.5" />} onClick={fechar(() => aoApresentar({ telaCheia: true, doInicio: true }))}>Apresentar do início</Item>
+              <Item icone={<MonitorPlay className="h-3.5 w-3.5" />} onClick={fechar(() => aoApresentar({ apresentador: true }))}>Visão do apresentador</Item>
+            </div>
             <div className="my-1 h-px bg-borda" />
           </div>
 

@@ -2,7 +2,7 @@
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronDown, ChevronLeft, ChevronRight, CloudOff, Eye, Keyboard, Loader2, MonitorPlay, PanelLeft, Play, Redo2, SlidersHorizontal, Undo2, TriangleAlert, Grid3X3, Magnet, Box, Columns3, Ratio, UserPlus } from 'lucide-react'
+import { Eye, PanelLeft, SlidersHorizontal, TriangleAlert } from 'lucide-react'
 import { mesmoEditorForaDoCanvas, useEditor, type AberturaEditor, type Editor as EditorEstado, type Ferramenta } from '@/lib/editor/useEditor'
 import { PASSO_GRANDE, deslocarComGrade } from '@/lib/editor/guias'
 import { atalhoFigma, opacidadePorDigito, type MemoriaDigito } from '@/lib/editor/atalhos'
@@ -18,9 +18,10 @@ import { PainelEsquerdo } from './PainelEsquerdo'
 import { Canvas } from './Canvas'
 import { Inspetor } from './inspetor/Inspetor'
 import { MenuContexto } from './MenuContexto'
-import { BotaoIA } from './ia/PainelIA'
 import { BarraFerramentas } from './BarraFerramentas'
-import { MenuEditor } from './MenuEditor'
+import { Cabecalho, type OpcoesApresentar } from './Cabecalho'
+import { Rodape } from './Rodape'
+import { definirEscala, lerEscala, zoomMais, zoomMenos } from './escalaCanvas'
 import { Gaveta } from './Gaveta'
 import { EVENTO_ABRIR, PainelPreencher, preencherSelecao } from './PreencherGrade'
 import { atalhoPreencher } from '@/lib/editor/preencher'
@@ -28,10 +29,9 @@ import { Viewer } from '@/components/viewer/Viewer'
 import { consumirTela, marcarOrigem, pedirTelaCheia, urlApresentar } from '@/components/viewer/retorno'
 import { Compartilhar } from '@/components/compartilhar/Compartilhar'
 import { PainelEquipe } from '@/components/app/Equipe'
-import { PresencaCabecalho } from './Presenca'
 import { EsqueletoEditor } from './EsqueletoEditor'
 import { alternarGuias, ehAtalhoGuias } from './guias/estado'
-import { Atrasado, Botao, BotaoIcone, Carregando, Modal, Simbolo, cx } from '@/components/ui'
+import { Atrasado, Botao, BotaoIcone, Carregando, Modal, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 import { MAX_HTML_EMBED } from '@/lib/scene/schema'
 
@@ -44,11 +44,7 @@ const comEditor = <P extends { editor: EditorEstado }>(C: (p: P) => React.ReactN
   memo(C, (a, b) => Object.keys(b).every((k) => (k === 'editor' ? mesmoEditorForaDoCanvas(a.editor, b.editor) : a[k as keyof P] === b[k as keyof P])))
 const PainelEsquerdoM = comEditor(PainelEsquerdo)
 const InspetorM = comEditor(Inspetor)
-const BotaoIAM = comEditor(BotaoIA)
-const MenuEditorM = comEditor(MenuEditor)
 const CanvasM = memo(Canvas)
-
-type OpcoesApresentar = { doInicio?: boolean; telaCheia?: boolean; apresentador?: boolean }
 
 const ATALHOS: [string, string][] = [
   ['V', 'Mover / selecionar'], ['F', 'Frame (arraste para desenhar)'], ['R', 'Retângulo'], ['O', 'Elipse'], ['L', 'Linha'], ['Shift + L', 'Seta'], ['P', 'Caneta (clique = canto, arraste = curva)'], ['T', 'Texto'], ['S', 'Hotspot (área clicável)'], ['H', 'Mão'], ['Espaço + arrastar', 'Mão temporária (pan)'],
@@ -117,7 +113,6 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
   const [gaveta, setGaveta] = useState<'esquerda' | 'direita' | null>(null)
   const [embed, setEmbed] = useState<{ ponto?: { x: number; y: number } } | null>(null)
   const [interagir3d, setInteragir3d] = useState(false)
-  const [escala, setEscala] = useState(1)
   const arquivoRef = useRef<HTMLInputElement>(null)
   const pontoArquivo = useRef<{ x: number; y: number } | undefined>(undefined)
   const sel = estado.selecao
@@ -353,8 +348,8 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
       if (e.key === '?' ) { setAtalhos(true); return }
       if (e.shiftKey && e.key === '!') { acoes.ajustar(); return }
       if (e.shiftKey && e.code === 'Digit2' && sel.length) { window.dispatchEvent(new Event('mostra:zoom-selecao')); return }
-      if (e.key === '+' || e.key === '=') { acoes.setZoom(Math.min(8, escala * 1.2)); return }
-      if (e.key === '-') { acoes.setZoom(Math.max(0.05, escala / 1.2)); return }
+      if (e.key === '+' || e.key === '=') { acoes.setZoom(zoomMais(lerEscala())); return }
+      if (e.key === '-') { acoes.setZoom(zoomMenos(lerEscala())); return }
       if (e.key === ']' && sel[0]) { acoes.ordem(sel[0], e.shiftKey ? 'avancar' : 'frente'); return }
       if (e.key === '[' && sel[0]) { acoes.ordem(sel[0], e.shiftKey ? 'recuar' : 'tras'); return }
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
@@ -401,7 +396,7 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
     }
     window.addEventListener('keydown', tecla)
     return () => window.removeEventListener('keydown', tecla)
-  }, [acoes, sel, cena, preview, escala, estado.documento.scenes, estado.grade, estado.gradePasso, estado.guiasLayout, editor, editor.indiceCena, camadasSelecionadas, mostrar, abrirPreview])
+  }, [acoes, sel, cena, preview, estado.documento.scenes, estado.grade, estado.gradePasso, estado.guiasLayout, editor, editor.indiceCena, camadasSelecionadas, mostrar, abrirPreview])
 
   if (!editor.existe || !projeto) {
     return <div className="flex h-dvh items-center justify-center p-6 text-center text-sm text-texto2">Projeto não encontrado. <Link className="ml-1 underline" href="/app">Voltar ao painel</Link></div>
@@ -440,7 +435,7 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
       <div className="relative flex min-h-0 flex-1">
         <div className="hidden w-[248px] shrink-0 md:block"><PainelEsquerdoM editor={editorFixo} assets={assetsLista} avisar={avisar} aoBloco={aoBloco} /></div>
         <main className="relative min-w-0 flex-1">
-          <CanvasM editor={editor} assets={assets} avisar={avisar} interagir3d={interagir3d} aoEscala={setEscala} aoGesto={setGestoCanvas} />
+          <CanvasM editor={editor} assets={assets} avisar={avisar} interagir3d={interagir3d} aoEscala={definirEscala} aoGesto={setGestoCanvas} />
           <BarraMovel ferramenta={estado.ferramenta} aoFerramenta={acoes.setFerramenta} aoMidia={aoMidia} gaveta={gaveta} aoGaveta={setGaveta} />
         </main>
         <div className="hidden w-[288px] shrink-0 lg:block"><InspetorM editor={editorPaineis} assets={assetsLista} /></div>
@@ -452,7 +447,7 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
         <InspetorM editor={editorPaineis} assets={assetsLista} />
       </Gaveta>
 
-      <Rodape editor={editorFixo} escala={escala} interagir3d={interagir3d} aoInteragir3d={setInteragir3d} aoAtalhos={abrirAtalhos} />
+      <Rodape editor={editorFixo} interagir3d={interagir3d} aoInteragir3d={setInteragir3d} aoAtalhos={abrirAtalhos} />
 
       {menu && <MenuContexto editor={editor} x={menu.x} y={menu.y} aoFechar={() => setMenu(null)} avisar={avisar} />}
       {preencher && <PainelPreencher editor={editor} x={preencher.x} y={preencher.y} aoFechar={fecharPreencher} />}
@@ -499,54 +494,6 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
   )
 }
 
-/** Barra superior (memo): durante um arraste no canvas não re-renderiza a cada quadro. */
-const Cabecalho = comEditor(function Cabecalho({ editor, projetoId, nomeProjeto, aoMidia, aoPreview, aoApresentar, aoAtalhos, aoConvidar, aoCompartilhar }: { editor: EditorEstado; projetoId: string; nomeProjeto: string; aoMidia: () => void; aoPreview: () => void; aoApresentar: (opcoes?: OpcoesApresentar) => void; aoAtalhos: () => void; aoConvidar: () => void; aoCompartilhar: () => void }) {
-  const { estado, acoes } = editor
-  const usuario = useDados((e) => e.usuario)
-  const { mostrar } = useToast()
-  const [menuApresentar, setMenuApresentar] = useState(false)
-  const ap = (opcoes?: OpcoesApresentar) => { setMenuApresentar(false); aoApresentar(opcoes) }
-  const renomear = (nome: string) => {
-    void dados.atualizarProjeto(projetoId, { nome }).catch((e) => mostrar(mensagemDeErro(e, 'Não foi possível renomear o projeto.'), 'erro'))
-  }
-  return (
-    <header className="flex h-[52px] shrink-0 items-center gap-1.5 border-b border-borda bg-superficie px-2 sm:gap-2 sm:px-3">
-      <Link href="/app" onClick={() => acoes.salvarAgora()} aria-label="Início" title="Voltar ao Início" className="shrink-0 rounded-md p-0.5 hover:bg-hover"><Simbolo tamanho={26} /></Link>
-      <Link href="/app" onClick={() => acoes.salvarAgora()} className="hidden shrink-0 text-[13px] text-texto2 hover:text-texto lg:inline">Início</Link>
-      <span className="hidden text-bordaHover sm:inline">/</span>
-      <input aria-label="Nome do projeto" defaultValue={nomeProjeto} onBlur={(e) => { if (e.target.value.trim() && e.target.value !== nomeProjeto) renomear(e.target.value.trim()) }} className="h-8 w-0 min-w-0 flex-1 truncate rounded-md bg-transparent px-1.5 text-[14px] font-medium outline-none hover:bg-hover focus:bg-hover md:w-44 md:flex-none lg:w-64" />
-      <EstadoSalvo editor={editor} />
-      <span className="hidden flex-1 md:block" />
-      <BotaoIcone rotulo="Desfazer (Ctrl+Z)" className="hidden md:inline-flex" disabled={!estado.passado.length} onClick={acoes.desfazer}><Undo2 className="h-4 w-4" /></BotaoIcone>
-      <BotaoIcone rotulo="Refazer (Ctrl+Shift+Z)" className="hidden md:inline-flex" disabled={!estado.futuro.length} onClick={acoes.refazer}><Redo2 className="h-4 w-4" /></BotaoIcone>
-      <span className="mx-1 hidden h-5 w-px bg-borda lg:block" />
-      <BarraFerramentas className="hidden lg:flex" ferramenta={estado.ferramenta} aoFerramenta={acoes.setFerramenta} aoMidia={aoMidia} />
-      <span className="hidden flex-1 md:block" />
-      <BotaoIAM editor={editor} nomeProjeto={nomeProjeto} />
-      <div className="hidden lg:block"><PresencaCabecalho sala={editor.sala} documento={estado.documento} eu={{ nome: usuario.nome || usuario.email || 'Você' }} aoIrParaCena={acoes.irParaCena} /></div>
-      <BotaoIcone rotulo="Convidar pessoas para editar" className="hidden md:inline-flex" onClick={aoConvidar}><UserPlus className="h-4 w-4" /></BotaoIcone>
-      <Botao tamanho="sm" variante="fantasma" className="hidden lg:inline-flex" icone={<Eye className="h-4 w-4" />} onClick={aoPreview}>Pré-visualizar</Botao>
-      <BotaoIcone rotulo="Pré-visualizar (Ctrl/⌘ + Enter)" className="hidden md:inline-flex lg:hidden" onClick={aoPreview}><Eye className="h-4 w-4" /></BotaoIcone>
-      <MenuEditorM editor={editor} projetoId={projetoId} nomeProjeto={nomeProjeto} aoPreview={aoPreview} aoApresentar={aoApresentar} aoAtalhos={aoAtalhos} />
-      <BotaoIcone rotulo="Apresentar" className="shrink-0 lg:hidden" onClick={() => ap({ telaCheia: true })}><Play className="h-4 w-4 fill-current" /></BotaoIcone>
-      <div className="relative hidden lg:block">
-        <div className="flex">
-          <Botao tamanho="sm" variante="secundario" className="rounded-r-none border-r-0" icone={<Play className="h-3.5 w-3.5 fill-current" />} data-apresentar onClick={() => ap({ telaCheia: true })}>Apresentar</Botao>
-          <Botao tamanho="sm" variante="secundario" className="rounded-l-none px-1.5" aria-label="Mais opções de apresentação" aria-expanded={menuApresentar} onClick={() => setMenuApresentar((v) => !v)}><ChevronDown className="h-3.5 w-3.5" /></Botao>
-        </div>
-        {menuApresentar && (
-          <div role="menu" className="absolute right-0 z-40 mt-1 w-60 rounded-lg border border-borda bg-superficie p-1 shadow-painel" onMouseLeave={() => setMenuApresentar(false)}>
-            <button role="menuitem" className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] hover:bg-hover" onClick={() => ap({ telaCheia: true, doInicio: true })}><Play className="h-3.5 w-3.5" /> Apresentar do início</button>
-            <button role="menuitem" className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] hover:bg-hover" onClick={() => ap()}><Eye className="h-3.5 w-3.5" /> Apresentar nesta janela</button>
-            <button role="menuitem" className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] hover:bg-hover" onClick={() => ap({ apresentador: true })}><MonitorPlay className="h-3.5 w-3.5" /> Visão do apresentador (notas)</button>
-          </div>
-        )}
-      </div>
-      <Botao tamanho="sm" variante="acento" className="shrink-0" onClick={aoCompartilhar}>Compartilhar</Botao>
-    </header>
-  )
-})
-
 /** Celular/tablet: ferramentas e painéis em gavetas. */
 const BarraMovel = memo(function BarraMovel({ ferramenta, aoFerramenta, aoMidia, gaveta, aoGaveta }: { ferramenta: Ferramenta; aoFerramenta: (f: Ferramenta) => void; aoMidia: () => void; gaveta: 'esquerda' | 'direita' | null; aoGaveta: (g: 'esquerda' | 'direita') => void }) {
   return (
@@ -559,41 +506,6 @@ const BarraMovel = memo(function BarraMovel({ ferramenta, aoFerramenta, aoMidia,
         <BotaoIcone rotulo="Propriedades" ativo={gaveta === 'direita'} onClick={() => aoGaveta('direita')}><SlidersHorizontal className="h-4 w-4" /></BotaoIcone>
       </div>
     </div>
-  )
-})
-
-/** Barra inferior: zoom, grade, encaixes, telas e verificação. */
-const Rodape = comEditor(function Rodape({ editor, escala, interagir3d, aoInteragir3d, aoAtalhos }: { editor: EditorEstado; escala: number; interagir3d: boolean; aoInteragir3d: (f: (v: boolean) => boolean) => void; aoAtalhos: () => void }) {
-  const { estado, acoes, validacao, indiceCena } = editor
-  const { mostrar } = useToast()
-  const total = estado.documento.scenes.length
-  return (
-    <footer className="hidden h-9 shrink-0 items-center gap-1 border-t border-borda bg-superficie px-3 text-[12px] text-texto2 md:flex">
-      <button aria-label="Diminuir zoom" className="rounded px-2 py-1 hover:bg-hover hover:text-texto" onClick={() => acoes.setZoom(Math.max(0.05, escala / 1.2))}>−</button>
-      <span className="mono w-11 text-center tabular-nums text-texto">{Math.round(escala * 100)}%</span>
-      <button aria-label="Aumentar zoom" className="rounded px-2 py-1 hover:bg-hover hover:text-texto" onClick={() => acoes.setZoom(Math.min(8, escala * 1.2))}>+</button>
-      <button className="rounded px-2 py-1 hover:bg-hover hover:text-texto" onClick={acoes.ajustar}>Ajustar</button>
-      <span className="mx-1 h-4 w-px bg-borda" />
-      <BotaoIcone rotulo="Grade (Shift + ')" ativo={estado.grade} className="h-6 w-6" onClick={() => acoes.ui({ grade: !estado.grade })}><Grid3X3 className="h-3.5 w-3.5" /></BotaoIcone>
-      {estado.grade && (
-        <label className="flex items-center gap-1 rounded px-1 text-texto2" title="Tamanho da grade (posição e tamanho arredondam para ela)">
-          <input aria-label="Tamanho da grade" type="number" min={1} max={200} value={estado.gradePasso} onChange={(e) => { const v = Math.round(Number(e.target.value)); if (v >= 1 && v <= 200) acoes.ui({ gradePasso: v }) }} onKeyDown={(e) => e.stopPropagation()} className="mono h-5 w-9 rounded bg-superficie2 px-1 text-right text-[11px] text-texto outline-none focus:ring-1 focus:ring-acento" />
-          <span className="text-[11px]">px</span>
-        </label>
-      )}
-      <BotaoIcone rotulo="Guias inteligentes" ativo={estado.snap} className="h-6 w-6" onClick={() => acoes.ui({ snap: !estado.snap })}><Magnet className="h-3.5 w-3.5" /></BotaoIcone>
-      <BotaoIcone rotulo="Encaixar nas frações da tela (1/2, 1/3, 1/4…)" ativo={estado.fracoes} className="h-6 w-6" onClick={() => acoes.ui({ fracoes: !estado.fracoes })}><Ratio className="h-3.5 w-3.5" /></BotaoIcone>
-      <BotaoIcone rotulo="Guias de layout (Ctrl + Shift + 4)" ativo={estado.guiasLayout} className="h-6 w-6" onClick={() => alternarGuias(acoes, estado.guiasLayout, mostrar)}><Columns3 className="h-3.5 w-3.5" /></BotaoIcone>
-      <BotaoIcone rotulo="Interagir com 3D e incorporados no canvas" ativo={interagir3d} className="h-6 w-6" onClick={() => aoInteragir3d((v) => !v)}><Box className="h-3.5 w-3.5" /></BotaoIcone>
-      <span className="flex-1" />
-      <button aria-label="Tela anterior" className="rounded p-1 hover:bg-hover disabled:opacity-30" disabled={indiceCena <= 0} onClick={() => acoes.irParaCena(estado.documento.scenes[indiceCena - 1]!.id)}><ChevronLeft className="h-3.5 w-3.5" /></button>
-      <span className="mono tabular-nums text-texto">{String(indiceCena + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}</span>
-      <button aria-label="Próxima tela" className="rounded p-1 hover:bg-hover disabled:opacity-30" disabled={indiceCena >= total - 1} onClick={() => acoes.irParaCena(estado.documento.scenes[indiceCena + 1]!.id)}><ChevronRight className="h-3.5 w-3.5" /></button>
-      <span className="flex-1" />
-      {!validacao.ok && <button className="mr-2 flex items-center gap-1 text-perigo hover:underline" onClick={() => { acoes.selecionarExato([]); acoes.ui({ abaDireita: 'design' }) }}><TriangleAlert className="h-3.5 w-3.5" /> {validacao.erros.length} erro(s)</button>}
-      <span className="hidden gap-3 xl:flex"><span><b className="font-medium text-texto">V</b> Mover</span><span><b className="font-medium text-texto">T</b> Texto</span><span><b className="font-medium text-texto">S</b> Hotspot</span><span><b className="font-medium text-texto">H</b> Mão</span><span><b className="font-medium text-texto">⌘V</b> Colar do Figma</span><span><b className="font-medium text-texto">⌘Z</b> Desfazer</span></span>
-      <BotaoIcone rotulo="Atalhos de teclado (?)" className="ml-2 h-6 w-6" onClick={aoAtalhos}><Keyboard className="h-3.5 w-3.5" /></BotaoIcone>
-    </footer>
   )
 })
 
@@ -618,33 +530,6 @@ function ModalEmbed({ aberto, aoFechar, aoConfirmar }: { aberto: boolean; aoFech
         </>
       )}
     </Modal>
-  )
-}
-
-function EstadoSalvo({ editor }: { editor: ReturnType<typeof useEditor> }) {
-  const { estado, acoes } = editor
-  const s = estado.salvamento
-  if (s === 'conflito')
-    return (
-      <span className="ml-2 hidden items-center gap-1.5 text-[12px] text-avisoTexto sm:flex" role="status" aria-live="polite">
-        <TriangleAlert className="h-3 w-3" /> Não salvo: versão mais recente
-      </span>
-    )
-  const mapa = {
-    salvo: { cor: 'bg-sucesso', texto: 'Salvo' },
-    alterado: { cor: 'bg-aviso', texto: 'Salvando…' },
-    salvando: { cor: 'bg-aviso', texto: 'Salvando…' },
-    offline: { cor: 'bg-perigo', texto: estado.conexao ? 'Sincroniza ao voltar' : 'Sem conexão — salvaremos ao reconectar' },
-    falha: { cor: 'bg-perigo', texto: 'Falha ao salvar' },
-  } as const
-  const m = mapa[s]
-  return (
-    <span className="ml-2 hidden items-center gap-1.5 whitespace-nowrap text-[12px] text-texto3 sm:flex" role="status" aria-live="polite" data-salvamento={s} title={s === 'salvo' ? 'Todas as alterações foram salvas.' : s === 'falha' && estado.falhaSala ? estado.falhaSala : undefined}>
-      {s === 'salvando' ? <Loader2 className="h-3 w-3 animate-spin" /> : s === 'offline' ? <CloudOff className="h-3 w-3 text-perigo" /> : <span className={cx('h-1.5 w-1.5 rounded-full', m.cor)} />}
-      {m.texto}
-      <span className="sr-only">{s === 'salvo' ? 'Todas as alterações foram salvas.' : ''}</span>
-      {s === 'falha' && <button className="underline" onClick={acoes.salvarAgora}>Tentar novamente</button>}
-    </span>
   )
 }
 
