@@ -47,6 +47,11 @@ async function esperarSalvo(p = page) {
   await p.locator('header [role=status]', { hasText: 'Todas as alterações foram salvas.' }).waitFor({ timeout: 8000 })
 }
 const telas = (p = page) => p.getByRole('listbox', { name: 'Telas' }).getByRole('option')
+/** Escolhe um valor num menu suspenso do Mostra (botão combobox → lista em portal com data-valor). */
+async function escolher(loc, valor, p = page) {
+  await loc.click()
+  await p.locator(`[role=listbox] [role=option][data-valor="${valor}"]`).click()
+}
 async function esperarTelas(n, p = page) {
   for (let t = 0; t < 5000; t += 100) { if ((await telas(p).count()) === n) return; await p.waitForTimeout(100) }
   throw new Error(`esperava ${n} telas, há ${await telas(p).count()}`)
@@ -538,7 +543,7 @@ await passo('Texto: entrelinha justa não corta descendentes nem acentos (a tint
   await page.getByLabel('Conteúdo do texto').fill('O próximo resultado\ncomeça agora')
   await page.evaluate(() => document.activeElement?.blur())
   for (const [r, v] of [['Tamanho da fonte', 140], ['Entrelinha', 1]]) { const f = page.getByLabel(r, { exact: true }); await f.fill(String(v)); await f.press('Enter') }
-  await page.getByLabel('Peso', { exact: true }).selectOption('700')
+  await escolher(page.getByLabel('Peso', { exact: true }), '700')
   // cor que contrasta com qualquer fundo de tela (o tema da apresentação pode ter fundo escuro e texto escuro)
   await page.getByRole('button', { name: 'Cor do texto: escolher cor' }).click()
   const hex = page.getByLabel('Hexadecimal')
@@ -787,7 +792,7 @@ await passo('Fonte do Google na apresentação (página nova, carregada do zero)
 await passo('Exportar PNG com a fonte do Google embutida (largura do texto ≠ fonte de reserva)', async () => {
   await page.getByTestId('canvas').getByText('Google 2026').click()
   await page.getByRole('button', { name: 'Adicionar exportação' }).click()
-  await page.getByLabel('Escala da exportação').selectOption('1')
+  await escolher(page.getByLabel('Escala da exportação'), '1')
   const tam = Number(await page.getByLabel('Tamanho da fonte').inputValue())
   const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 30000 }), page.getByRole('button', { name: /^Exportar / }).click()])
   const png = fs.readFileSync(await dl.path())
@@ -1207,15 +1212,15 @@ await passo('Guias de layout: 12 colunas e grade de 8, editar, ⌃⇧4, encaixe 
   await esperarGuias('6 colunas')
   await secao.getByRole('button', { name: 'Editar guia: 6 colunas' }).waitFor()
   // tipo: Esquerda fixa a largura que as colunas tinham (240) e a margem vira deslocamento; Esticar volta ao "Auto"
-  await pop.getByLabel('Tipo das colunas').selectOption('start')
+  await escolher(pop.getByLabel('Tipo das colunas'), 'start')
   if ((await esperarValor(pop.getByLabel('Largura das colunas'), 240)) !== 240) throw new Error('largura fixa ≠ 240 ao sair do esticar')
   await pop.getByLabel('Deslocamento').waitFor()
-  await pop.getByLabel('Tipo das colunas').selectOption('stretch')
+  await escolher(pop.getByLabel('Tipo das colunas'), 'stretch')
   if (!(await pop.getByLabel('Largura das colunas').isDisabled())) throw new Error('largura deveria ser Auto ao esticar')
   // tipo da guia (topo do popover): colunas → linhas → colunas
-  await pop.getByLabel('Tipo da guia').selectOption('rows')
+  await escolher(pop.getByLabel('Tipo da guia'), 'rows')
   await esperarGuias('6 linhas')
-  await page.getByRole('dialog', { name: 'Guia de layout: Linhas' }).getByLabel('Tipo da guia').selectOption('columns')
+  await escolher(page.getByRole('dialog', { name: 'Guia de layout: Linhas' }).getByLabel('Tipo da guia'), 'columns')
   await esperarGuias('6 colunas')
   await page.getByRole('button', { name: 'Fechar guia' }).click()
   // "+": grade de 8, já com o popover aberto

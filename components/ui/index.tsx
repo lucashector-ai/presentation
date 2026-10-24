@@ -1,7 +1,8 @@
 'use client'
-import { cloneElement, forwardRef, isValidElement, useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { cloneElement, forwardRef, isValidElement, useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from 'react'
 import { Loader2, X } from 'lucide-react'
 import { Marca, Simbolo } from './Logo'
+import { MenuSuspenso, type OpcaoMenu } from './MenuSuspenso'
 
 export function cx(...c: Array<string | false | null | undefined>) {
   return c.filter(Boolean).join(' ')
@@ -29,16 +30,20 @@ const tamanhos: Record<TamanhoBotao, string> = { sm: 'h-8 px-3 text-[13px] gap-1
 
 export const Botao = forwardRef<HTMLButtonElement, BotaoProps>(function Botao({ variante = 'primario', tamanho = 'md', carregando, icone, className, children, disabled, ...rest }, ref) {
   return (
-    <button ref={ref} disabled={disabled || carregando} className={cx('inline-flex items-center justify-center border-[1.5px] font-medium transition-colors duration-rapida disabled:cursor-not-allowed disabled:opacity-50', variantes[variante], tamanhos[tamanho], className)} {...rest}>
+    <button ref={ref} disabled={disabled || carregando} className={cx('inline-flex items-center justify-center whitespace-nowrap border-[1.5px] font-medium transition-colors duration-rapida disabled:cursor-not-allowed disabled:opacity-50', variantes[variante], tamanhos[tamanho], className)} {...rest}>
       {carregando ? <Loader2 className="h-4 w-4 animate-spin" /> : icone}
       {children}
     </button>
   )
 })
 
-export function BotaoIcone({ rotulo, className, children, ativo, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { rotulo: string; ativo?: boolean }) {
+/**
+ * Botão de ícone 32 px. `ativo` = alternador ligado (acento suave, como os do inspetor); `destaque` = ligado em cor
+ * cheia (a ferramenta ativa do editor, como no Figma). Os dois seguem os tokens do tema (nada de preto/branco fixo).
+ */
+export function BotaoIcone({ rotulo, className, children, ativo, destaque, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { rotulo: string; ativo?: boolean; destaque?: boolean }) {
   return (
-    <button aria-label={rotulo} title={rotulo} aria-pressed={ativo} className={cx('inline-flex h-8 w-8 items-center justify-center rounded-md text-textoCorpo transition-colors hover:bg-hover hover:text-texto disabled:opacity-40', ativo && 'bg-acao text-acaoTexto hover:bg-acao hover:text-acaoTexto', className)} {...rest}>
+    <button aria-label={rotulo} title={rotulo} aria-pressed={ativo} className={cx('inline-flex h-8 w-8 items-center justify-center rounded-md text-textoCorpo transition-colors hover:bg-hover hover:text-texto disabled:opacity-40', ativo && (destaque ? 'bg-acento text-acentoTexto hover:bg-acentoHover hover:text-acentoTexto' : 'bg-acentoSuave text-acento hover:bg-acentoSuave hover:text-acento'), className)} {...rest}>
       {children}
     </button>
   )
@@ -53,12 +58,9 @@ export const AreaTexto = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<
   return <textarea ref={ref} className={cx('w-full rounded-lg border border-bordaForte bg-superficie px-3.5 py-2.5 text-sm text-texto placeholder:text-texto3 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15', className)} {...rest} />
 })
 
-export function Selecao({ className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <select className={cx('h-10 w-full rounded-controle border border-bordaForte bg-superficie px-3 text-sm text-texto outline-none focus:border-acento', className)} {...rest}>
-      {children}
-    </select>
-  )
+/** Lista de opções dos formulários (40 px, com borda): o menu suspenso do Mostra no lugar do <select>. */
+export function Selecao({ rotulo, valor, opcoes, aoMudar, className }: { rotulo: string; valor: string; opcoes: OpcaoMenu[]; aoMudar: (v: string) => void; className?: string }) {
+  return <MenuSuspenso aparencia="grande" rotulo={rotulo} valor={valor} opcoes={opcoes} aoMudar={aoMudar} className={className} />
 }
 
 export function Campo({ rotulo, dica, erro, children, inline }: { rotulo: string; dica?: string; erro?: string; children: ReactNode; inline?: boolean }) {

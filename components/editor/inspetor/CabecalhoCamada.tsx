@@ -1,9 +1,10 @@
 'use client'
 /** Cabeçalho do painel Design: tipo da camada (forma troca por aqui, como "Retângulo ▾" no Figma), nome e ações. */
-import { ArrowDownToLine, ArrowUpToLine, ChevronDown, Copy, Group, Layers, Lock, Trash2, Ungroup } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpToLine, Copy, Group, Layers, Lock, Trash2, Ungroup } from 'lucide-react'
 import type { CamadaForma } from '@/lib/scene/schema'
 import { FORMAS } from '@/lib/scene/schema'
 import { BotaoMini } from './controles'
+import { MenuSuspenso } from '@/components/ui/MenuSuspenso'
 import { ICONE_TIPO, NOME_FORMA, NOME_TIPO, comum, useCamadas, type PropsSecao } from './selecao'
 
 export function CabecalhoCamada({ editor }: PropsSecao) {
@@ -23,14 +24,16 @@ export function CabecalhoCamada({ editor }: PropsSecao) {
       <div className="flex h-8 items-center gap-1.5">
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px] bg-acentoSuave text-acento"><Icone className="h-3.5 w-3.5" strokeWidth={1.75} /></span>
         {formas ? (
-          <span className="relative -ml-0.5 flex min-w-0 items-center gap-0.5 rounded-[5px] px-1 py-1 hover:bg-hover focus-within:ring-1 focus-within:ring-acento">
-            <span className="truncate text-[13px] font-medium">{titulo}</span>
-            <ChevronDown className="h-3 w-3 shrink-0 text-texto3" aria-hidden />
-            <select aria-label="Forma" value={typeof forma === 'string' ? forma : ''} onChange={(e) => set({ shape: e.target.value as CamadaForma['shape'], vetor: undefined } as Partial<CamadaForma>)} className="absolute inset-0 cursor-pointer opacity-0">
-              {typeof forma !== 'string' && <option value="">Misto</option>}
-              {FORMAS.filter((f) => f !== 'path' || forma === 'path').map((f) => <option key={f} value={f}>{NOME_FORMA[f] ?? f}</option>)}
-            </select>
-          </span>
+          <MenuSuspenso
+            aparencia="texto"
+            rotulo="Forma"
+            className="-ml-0.5 min-w-0"
+            valor={typeof forma === 'string' ? forma : ''}
+            aoMudar={(v) => v && set({ shape: v as CamadaForma['shape'], vetor: undefined } as Partial<CamadaForma>)}
+            opcoes={[...(typeof forma !== 'string' ? [{ id: '', rotulo: 'Misto' }] : []), ...FORMAS.filter((f) => f !== 'path' || forma === 'path').map((f) => ({ id: f, rotulo: NOME_FORMA[f] ?? f }))]}
+          >
+            {titulo}
+          </MenuSuspenso>
         ) : (
           <span className="min-w-0 truncate text-[13px] font-medium">{titulo}</span>
         )}

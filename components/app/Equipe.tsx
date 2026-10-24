@@ -61,10 +61,7 @@ export function PainelEquipe({ projetoId, aoSair }: { projetoId?: string; aoSair
           <form className="flex flex-col gap-2 sm:flex-row sm:items-end" onSubmit={(e) => { e.preventDefault(); if (email.trim()) void convidar(true) }}>
             <div className="min-w-0 flex-1"><Campo rotulo="E-mail de quem vai entrar"><Entrada type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nome@estudio.com" autoComplete="off" /></Campo></div>
             <div className="sm:w-36"><Campo rotulo="Papel">
-              <Selecao aria-label="Papel do convite" value={papel} onChange={(e) => setPapel(e.target.value as 'editor' | 'viewer')}>
-                <option value="editor">Pode editar</option>
-                <option value="viewer">Pode ver</option>
-              </Selecao>
+              <Selecao rotulo="Papel do convite" valor={papel} aoMudar={(v) => setPapel(v as 'editor' | 'viewer')} opcoes={[{ id: 'editor', rotulo: 'Pode editar' }, { id: 'viewer', rotulo: 'Pode ver' }]} />
             </Campo></div>
             <Botao type="submit" icone={<UserPlus className="h-4 w-4" />} carregando={enviando} disabled={!email.trim()}>Convidar</Botao>
           </form>
@@ -95,10 +92,7 @@ export function PainelEquipe({ projetoId, aoSair }: { projetoId?: string; aoSair
               {dono && m.papel !== 'owner' ? (
                 <>
                   <div className="w-32 shrink-0">
-                    <Selecao aria-label={`Papel de ${m.nome}`} value={m.papel} onChange={(e) => void acao(() => dados.equipe.alterarPapel(m.userId, e.target.value as 'editor' | 'viewer'), 'Papel atualizado.')} className="h-8 text-[12px]">
-                      <option value="editor">Pode editar</option>
-                      <option value="viewer">Pode ver</option>
-                    </Selecao>
+                    <Selecao rotulo={`Papel de ${m.nome}`} valor={m.papel} aoMudar={(v) => void acao(() => dados.equipe.alterarPapel(m.userId, v as 'editor' | 'viewer'), 'Papel atualizado.')} className="!h-8 !text-[12px]" opcoes={[{ id: 'editor', rotulo: 'Pode editar' }, { id: 'viewer', rotulo: 'Pode ver' }]} />
                   </div>
                   <BotaoIcone rotulo={`Remover ${m.nome}`} onClick={() => void acao(() => dados.equipe.remover(m.userId), `${m.nome} saiu do espaço.`)}><Trash2 className="h-4 w-4" /></BotaoIcone>
                 </>

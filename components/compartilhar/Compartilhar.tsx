@@ -73,9 +73,7 @@ export function Compartilhar({ projetoId, publicarFora = false }: { projetoId: s
         <h3 className="rotulo-mono">Novo link privado</h3>
         <div className="grid gap-3 sm:grid-cols-2">
           <Campo rotulo="Validade">
-            <Selecao value={validade} onChange={(e) => setValidade(e.target.value as typeof validade)}>
-              <option value="0">Sem prazo</option><option value="7">7 dias</option><option value="30">30 dias</option><option value="90">90 dias</option>
-            </Selecao>
+            <Selecao rotulo="Validade" valor={validade} aoMudar={(v) => setValidade(v as typeof validade)} opcoes={[{ id: '0', rotulo: 'Sem prazo' }, { id: '7', rotulo: '7 dias' }, { id: '30', rotulo: '30 dias' }, { id: '90', rotulo: '90 dias' }]} />
           </Campo>
           <div>
             <div className="mb-1.5 flex items-center justify-between"><span className="text-[13px] font-medium">Proteger com senha</span><Alternador rotulo="Proteger com senha" ativo={comSenha} onChange={(v) => { if (!podeSenha) return mostrar('Links com senha estão disponíveis a partir do plano Pro.', 'info'); setComSenha(v) }} /></div>

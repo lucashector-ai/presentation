@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronRight, Minus, Plus } from 'lucide-react'
 import { cx } from '@/components/ui'
+import { MenuSuspenso } from '@/components/ui/MenuSuspenso'
 import { useInspetor } from './contexto'
 
 export { CampoCor } from './CampoCor'
@@ -130,16 +131,9 @@ export function Segmentado<T extends string>({ valor, opcoes, aoMudar, rotulo, i
   )
 }
 
-export function SeletorLista({ valor, aoMudar, opcoes, rotulo, prefixo }: { valor: string; aoMudar: (v: string) => void; opcoes: { id: string; rotulo: string }[]; rotulo: string; prefixo?: ReactNode }) {
-  return (
-    <span className="relative flex h-7 w-full min-w-0 items-center rounded-md bg-superficie2 ring-inset hover:ring-1 hover:ring-bordaForte focus-within:!ring-1 focus-within:!ring-acento">
-      {prefixo && <span className="pointer-events-none flex h-full w-7 shrink-0 items-center justify-center text-texto3" aria-hidden>{prefixo}</span>}
-      <select aria-label={rotulo} value={valor} onChange={(e) => aoMudar(e.target.value)} className={cx('h-full w-full min-w-0 cursor-pointer appearance-none truncate bg-transparent pr-7 text-[12px] text-texto outline-none', !prefixo && 'pl-2')}>
-        {opcoes.map((o) => <option key={o.id} value={o.id}>{o.rotulo}</option>)}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-2 h-3 w-3 text-texto3" aria-hidden />
-    </span>
-  )
+/** Lista de opções do inspetor (menu suspenso do Mostra, no lugar do <select>): campo de 28 px com prefixo opcional. */
+export function SeletorLista({ valor, aoMudar, opcoes, rotulo, prefixo }: { valor: string; aoMudar: (v: string) => void; opcoes: { id: string; rotulo: string; grupo?: string; desativada?: boolean }[]; rotulo: string; prefixo?: ReactNode }) {
+  return <MenuSuspenso aparencia="campo" rotulo={rotulo} valor={valor} aoMudar={aoMudar} opcoes={opcoes} prefixo={prefixo} />
 }
 
 export function Interruptor({ ativo, aoMudar, rotulo }: { ativo: boolean; aoMudar: (v: boolean) => void; rotulo: string }) {
