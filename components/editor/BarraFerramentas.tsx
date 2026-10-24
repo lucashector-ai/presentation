@@ -35,11 +35,11 @@ export function BarraFerramentas({ ferramenta, aoFerramenta, aoMidia, className,
   const formaAtiva = FORMAS.some((f) => f.id === ferramenta)
   return (
     <div className={cx('items-center gap-0.5', className)} role="toolbar" aria-label="Ferramentas">
-      <BotaoIcone rotulo="Mover (V)" ativo={ferramenta === 'mover'} onClick={() => aoFerramenta('mover')}><MousePointer2 className="h-4 w-4" /></BotaoIcone>
-      <BotaoIcone rotulo="Frame (F)" ativo={ferramenta === 'frame'} onClick={() => aoFerramenta('frame')}><Frame className="h-4 w-4" /></BotaoIcone>
+      <BotaoIcone rotulo="Mover (V)" destaque ativo={ferramenta === 'mover'} onClick={() => aoFerramenta('mover')}><MousePointer2 className="h-4 w-4" /></BotaoIcone>
+      <BotaoIcone rotulo="Frame (F)" destaque ativo={ferramenta === 'frame'} onClick={() => aoFerramenta('frame')}><Frame className="h-4 w-4" /></BotaoIcone>
       <div ref={ref} className="relative flex">
-        <BotaoIcone rotulo={forma.tecla ? `${forma.rotulo} (${forma.tecla})` : forma.rotulo} ativo={formaAtiva} className="rounded-r-none" onClick={() => aoFerramenta(forma.id)}>{forma.icone}</BotaoIcone>
-        <button type="button" aria-label="Mais formas" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((v) => !v)} className={cx('inline-flex h-8 w-4 items-center justify-center rounded-r-md text-texto2 hover:bg-hover hover:text-texto', formaAtiva && 'bg-acao/90 text-acaoTexto hover:bg-acao hover:text-acaoTexto')}>
+        <BotaoIcone rotulo={forma.tecla ? `${forma.rotulo} (${forma.tecla})` : forma.rotulo}  destaque ativo={formaAtiva} className="rounded-r-none" onClick={() => aoFerramenta(forma.id)}>{forma.icone}</BotaoIcone>
+        <button type="button" aria-label="Mais formas" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((v) => !v)} className={cx('inline-flex h-8 w-4 items-center justify-center rounded-r-md text-texto2 hover:bg-hover hover:text-texto', formaAtiva && 'bg-acento text-acentoTexto hover:bg-acentoHover hover:text-acentoTexto')}>
           <ChevronDown className="h-3 w-3" />
         </button>
         {menu && (
@@ -52,11 +52,11 @@ export function BarraFerramentas({ ferramenta, aoFerramenta, aoMidia, className,
           </div>
         )}
       </div>
-      <BotaoIcone rotulo="Caneta (P)" ativo={ferramenta === 'caneta'} onClick={() => aoFerramenta('caneta')}><PenTool className="h-4 w-4" /></BotaoIcone>
-      <BotaoIcone rotulo="Texto (T)" ativo={ferramenta === 'texto'} onClick={() => aoFerramenta('texto')}><Type className="h-4 w-4" /></BotaoIcone>
+      <BotaoIcone rotulo="Caneta (P)" destaque ativo={ferramenta === 'caneta'} onClick={() => aoFerramenta('caneta')}><PenTool className="h-4 w-4" /></BotaoIcone>
+      <BotaoIcone rotulo="Texto (T)" destaque ativo={ferramenta === 'texto'} onClick={() => aoFerramenta('texto')}><Type className="h-4 w-4" /></BotaoIcone>
       <BotaoIcone rotulo="Imagem, vídeo, SVG ou 3D" onClick={aoMidia}><ImageIcon className="h-4 w-4" /></BotaoIcone>
-      <BotaoIcone rotulo="Hotspot (S)" ativo={ferramenta === 'hotspot'} onClick={() => aoFerramenta('hotspot')}><Crosshair className="h-4 w-4" /></BotaoIcone>
-      <BotaoIcone rotulo="Mão (H ou Espaço)" ativo={ferramenta === 'mao'} onClick={() => aoFerramenta('mao')}><Hand className="h-4 w-4" /></BotaoIcone>
+      <BotaoIcone rotulo="Hotspot (S)" destaque ativo={ferramenta === 'hotspot'} onClick={() => aoFerramenta('hotspot')}><Crosshair className="h-4 w-4" /></BotaoIcone>
+      <BotaoIcone rotulo="Mão (H ou Espaço)" destaque ativo={ferramenta === 'mao'} onClick={() => aoFerramenta('mao')}><Hand className="h-4 w-4" /></BotaoIcone>
     </div>
   )
 }

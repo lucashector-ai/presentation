@@ -21,7 +21,7 @@ export function Inspetor({ editor, assets }: { editor: Editor; assets: AssetDemo
       <aside aria-label="Propriedades" className="flex h-full flex-col border-l border-borda bg-superficie">
         <div role="tablist" aria-label="Painel de propriedades" className="flex shrink-0 gap-0.5 border-b border-borda p-2">
           {abas.map((a) => (
-            <button key={a.id} role="tab" aria-selected={estado.abaDireita === a.id} onClick={() => acoes.ui({ abaDireita: a.id })} className={cx('flex flex-1 items-center justify-center gap-1.5 rounded-md px-1.5 py-1.5 text-[13px] transition-colors', estado.abaDireita === a.id ? 'bg-canvas font-medium text-texto' : 'text-texto2 hover:text-texto')}>
+            <button key={a.id} role="tab" aria-selected={estado.abaDireita === a.id} onClick={() => acoes.ui({ abaDireita: a.id })} className={cx('flex flex-1 items-center justify-center gap-1.5 rounded-md px-1.5 py-1.5 text-[13px] transition-colors', estado.abaDireita === a.id ? 'bg-hover font-medium text-texto' : 'text-texto2 hover:text-texto')}>
               {a.rotulo}
               {a.id === 'interacoes' && totalInter > 0 && <span className="text-[11px] text-acento">{totalInter}</span>}
             </button>

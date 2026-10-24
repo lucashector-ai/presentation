@@ -76,7 +76,7 @@ function PainelOpcoesTexto({ c, set, ancora, aoFechar }: { c: CamadaTexto; set: 
     const el = ref.current
     const fora = (e: PointerEvent) => {
       const alvo = e.target as Element
-      if (el?.contains(alvo) || ancora?.contains(alvo) || alvo.closest?.('[role="dialog"]')) return
+      if (el?.contains(alvo) || ancora?.contains(alvo) || alvo.closest?.('[role="dialog"], [data-menu-suspenso]')) return
       fechar.current()
     }
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('[role="dialog"][aria-label^="Seletor de cor"]')) { e.preventDefault(); fechar.current() } }
@@ -98,7 +98,7 @@ function PainelOpcoesTexto({ c, set, ancora, aoFechar }: { c: CamadaTexto; set: 
       <div className="flex h-10 items-center gap-1 border-b border-borda pl-2 pr-1.5">
         <div role="tablist" aria-label="Opções de texto" className="flex flex-1 gap-0.5">
           {(['basico', 'detalhes'] as const).map((a) => (
-            <button key={a} type="button" role="tab" aria-selected={aba === a} onClick={() => setAba(a)} className={cx('rounded-md px-2 py-1 text-[12px] transition-colors', aba === a ? 'bg-canvas font-medium text-texto' : 'text-texto2 hover:text-texto')}>
+            <button key={a} type="button" role="tab" aria-selected={aba === a} onClick={() => setAba(a)} className={cx('rounded-md px-2 py-1 text-[12px] transition-colors', aba === a ? 'bg-hover font-medium text-texto' : 'text-texto2 hover:text-texto')}>
               {a === 'basico' ? 'Básico' : 'Detalhes'}
             </button>
           ))}

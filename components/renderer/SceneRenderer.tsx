@@ -327,8 +327,11 @@ const LayerView = memo(function LayerView({ camada: c, props, origemMorph, heran
     ['--op' as string]: (visivel ? c.opacity : 0.3) * (heranca?.opacidade ?? 1),
     cursor: clicavel ? 'pointer' : undefined,
     mixBlendMode: e?.blend && e.blend !== 'normal' ? e.blend : undefined,
-    backdropFilter: vidroDe(e) ? `blur(${vidroDe(e)}px)` : undefined,
-    WebkitBackdropFilter: vidroDe(e) ? `blur(${vidroDe(e)}px)` : undefined,
+    // vidro fosco: desfoque com um pouco de saturação (como o Figma e o iOS); o recorte nos cantos arredondados fica
+    // anti-serrilhado com a camada isolada (isolation) em vez de só o border-radius
+    backdropFilter: vidroDe(e) ? `blur(${vidroDe(e)}px) saturate(1.4)` : undefined,
+    WebkitBackdropFilter: vidroDe(e) ? `blur(${vidroDe(e)}px) saturate(1.4)` : undefined,
+    isolation: vidroDe(e) ? 'isolate' : undefined,
     ...mascara,
     transition: origemMorph ? `left ${morphDuracao}ms ${morphEasing}, top ${morphDuracao}ms ${morphEasing}, width ${morphDuracao}ms ${morphEasing}, height ${morphDuracao}ms ${morphEasing}, opacity ${morphDuracao}ms ${morphEasing}, transform ${morphDuracao}ms ${morphEasing}` : undefined,
     ...plano.estilo,

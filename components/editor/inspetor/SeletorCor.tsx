@@ -13,6 +13,7 @@ import type { EstiloCor, Gradiente } from '@/lib/scene/schema'
 import { proximoNome } from '@/lib/editor/estilosCor'
 import { PALETA } from '@/lib/design-tokens'
 import { cx } from '@/components/ui'
+import { MenuSuspenso } from '@/components/ui/MenuSuspenso'
 import { alfaDe, comAlfa, corNoGradiente, cssBarraGradiente, hexParaRgba, hsvParaHsl, hsvParaRgb, hslParaHsv, lerCor, mesmaCor, normalizarHex, rgbParaHsv, rgbaParaHex, type Hsv } from '@/lib/editor/cor'
 import { BotaoMini, CampoNum } from './campos'
 import { useInspetor } from './contexto'
@@ -154,8 +155,8 @@ export function SeletorCor({ ancora, valor, aoMudar, aoFechar, tipos = ['solido'
     const el = ref.current
     el?.focus({ preventScroll: true })
     const fora = (e: PointerEvent) => {
-      const alvo = e.target as Node
-      if (el?.contains(alvo) || ancora?.contains(alvo)) return
+      const alvo = e.target as Element
+      if (el?.contains(alvo) || ancora?.contains(alvo) || alvo.closest?.('[data-menu-suspenso]')) return
       fechar.current()
     }
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); fechar.current() } }
@@ -199,7 +200,7 @@ export function SeletorCor({ ancora, valor, aoMudar, aoFechar, tipos = ['solido'
       <div className="flex h-10 items-center gap-1 border-b border-borda pl-2 pr-1.5">
         <div role="tablist" aria-label="Origem da cor" className="flex flex-1 gap-0.5">
           {(['personalizado', 'paleta'] as const).map((a) => (
-            <button key={a} type="button" role="tab" aria-selected={aba === a} onClick={() => setAba(a)} className={cx('rounded-md px-2 py-1 text-[12px] transition-colors', aba === a ? 'bg-canvas font-medium text-texto' : 'text-texto2 hover:text-texto')}>
+            <button key={a} type="button" role="tab" aria-selected={aba === a} onClick={() => setAba(a)} className={cx('rounded-md px-2 py-1 text-[12px] transition-colors', aba === a ? 'bg-hover font-medium text-texto' : 'text-texto2 hover:text-texto')}>
               {a === 'personalizado' ? 'Personalizado' : 'Paleta'}
             </button>
           ))}
@@ -399,12 +400,7 @@ function CamposModo({ modo, setModo, hsv, alfa, cor, aoHsv, aoHex }: { modo: Mod
           ]
   return (
     <div className="flex items-center gap-1">
-      <span className="relative flex h-7 w-[58px] shrink-0 items-center rounded-md hover:bg-hover">
-        <select aria-label="Modelo de cor" value={modo} onChange={(e) => setModo(e.target.value as Modo)} className="h-full w-full cursor-pointer appearance-none bg-transparent pl-1.5 text-[11px] font-medium uppercase text-texto2 outline-none focus-visible:ring-1 focus-visible:ring-acento">
-          <option value="hex">Hex</option><option value="rgb">RGB</option><option value="hsl">HSL</option><option value="hsb">HSB</option>
-        </select>
-        <svg viewBox="0 0 8 8" className="pointer-events-none absolute right-1.5 h-2 w-2 text-texto3" aria-hidden><path d="M1 3l3 3 3-3" stroke="currentColor" fill="none" strokeWidth="1.3" /></svg>
-      </span>
+      <MenuSuspenso aparencia="texto" rotulo="Modelo de cor" className="w-[58px] shrink-0 !px-1.5 !text-[11px] uppercase !text-texto2 hover:!text-texto" valor={modo} aoMudar={(m) => setModo(m as Modo)} opcoes={[{ id: 'hex', rotulo: 'Hex' }, { id: 'rgb', rotulo: 'RGB' }, { id: 'hsl', rotulo: 'HSL' }, { id: 'hsb', rotulo: 'HSB' }]} />
       {modo === 'hex' ? <CampoHex cor={cor} aoHex={aoHex} /> : canais.map((c) => <CampoNum key={`${modo}-${c.rotulo}`} compacto rotulo={c.rotulo} titulo={`${c.rotulo} (0–${c.max})`} valor={c.valor} min={0} max={c.max} className="!pl-1.5" aoMudar={c.aplicar} />)}
       {alfaCampo}
     </div>

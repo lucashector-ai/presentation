@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Eye, EyeOff, Link2, Link2Off } from 'lucide-react'
 import type { Camada } from '@/lib/scene/schema'
 import { MODOS_MESCLAGEM } from '@/lib/scene/schema'
-import { cx } from '@/components/ui'
+import { MenuSuspenso } from '@/components/ui/MenuSuspenso'
 import { BotaoCampo, BotaoMini, CampoNum, MISTO, Rotulo, Secao } from './controles'
 import { IconeCantos, IconeMesclagem, IconeOpacidade, IconeRaio, IconeSuavizacao } from './icones'
 import { comum, useCamadas, type PropsSecao } from './selecao'
@@ -69,22 +69,20 @@ export function SecaoAparencia({ editor }: PropsSecao) {
           <BotaoMini rotulo={oculto === true ? 'Mostrar' : 'Ocultar'} ativo={oculto === true} onClick={() => set({ hidden: oculto !== true })}>
             {oculto === true ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
           </BotaoMini>
-          <span className={cx('relative inline-flex h-6 w-6 items-center justify-center rounded-[5px] focus-within:ring-1 focus-within:ring-acento', blend !== 'normal' ? 'bg-acentoSuave text-acento' : 'text-texto2 hover:bg-hover hover:text-texto')} title={`Mesclagem: ${blend === MISTO ? 'mista' : NOMES_MESCLAGEM[blend]}`}>
+          <MenuSuspenso
+            aparencia="icone"
+            rotulo="Modo de mesclagem"
+            title={`Mesclagem: ${blend === MISTO ? 'mista' : NOMES_MESCLAGEM[blend]}`}
+            ativo={blend !== 'normal'}
+            valor={blend === MISTO ? '' : blend}
+            aoMudar={(v) => v && setFn((c) => ({ ...c, effects: { ...efeitosBase, ...c.effects, blend: v as (typeof MODOS_MESCLAGEM)[number] } }))}
+            opcoes={[
+              ...(blend === MISTO ? [{ id: '', rotulo: 'Misto' }] : []),
+              ...GRUPOS_MESCLAGEM.flatMap((g, i) => g.map((m) => ({ id: m, rotulo: NOMES_MESCLAGEM[m], grupo: i === 0 ? undefined : ['Escurecer', 'Clarear', 'Contraste', 'Inversão', 'Componente'][i - 1] }))),
+            ]}
+          >
             <IconeMesclagem />
-            <select
-              aria-label="Modo de mesclagem"
-              value={blend === MISTO ? '' : blend}
-              onChange={(e) => setFn((c) => ({ ...c, effects: { ...efeitosBase, ...c.effects, blend: e.target.value as (typeof MODOS_MESCLAGEM)[number] } }))}
-              className="absolute inset-0 cursor-pointer opacity-0"
-            >
-              {blend === MISTO && <option value="">Misto</option>}
-              {GRUPOS_MESCLAGEM.map((g, i) => (
-                <optgroup key={i} label={i === 0 ? 'Normal' : ['Escurecer', 'Clarear', 'Contraste', 'Inversão', 'Componente'][i - 1]}>
-                  {g.map((m) => <option key={m} value={m}>{NOMES_MESCLAGEM[m]}</option>)}
-                </optgroup>
-              ))}
-            </select>
-          </span>
+          </MenuSuspenso>
         </>
       }
     >

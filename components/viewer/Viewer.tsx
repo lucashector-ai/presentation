@@ -429,9 +429,14 @@ export function Viewer(props: ViewerProps) {
  * anterior por cima sumindo — esta só se move (sem opacidade animada sobre as entradas tocando dentro).
  * Estado próprio (e os filhos vêm prontos do Viewer): ao soltar, só este nó re-renderiza.
  */
-function TelaEntrando({ transicao, espera, sobAnterior = false, fimEntradas, style, children }: { transicao?: string; espera: boolean; sobAnterior?: boolean; fimEntradas: number; style: CSSProperties; children: ReactNode }) {
+function TelaEntrando({ transicao: transicaoProp, espera, sobAnterior: sobAnteriorProp = false, fimEntradas, style, children }: { transicao?: string; espera: boolean; sobAnterior?: boolean; fimEntradas: number; style: CSSProperties; children: ReactNode }) {
+  // a transição e o "sob a anterior" ficam como eram ao montar: quando a tela anterior sai do DOM, `sobAnterior`
+  // vira false e, se a classe mudasse de `cena-transicao-fade sob-a-anterior` (sem animação) para
+  // `cena-transicao-fade`, o fade recomeçaria do zero — a tela piscava depois da transição
+  const [{ transicao, sobAnterior }] = useState({ transicao: transicaoProp, sobAnterior: sobAnteriorProp })
   const [feita, setFeita] = useState(false)
-  const [terminou, setTerminou] = useState(false)
+  // fade sob a anterior não anima nada aqui (a anterior some por cima): já conta como terminado
+  const [terminou, setTerminou] = useState(transicao === 'fade' && sobAnterior)
   // soltar a classe recalcula o estilo da tela inteira (a tela deixa de ser uma camada composta): espera as
   // entradas terminarem e a página ficar ociosa, para não cair no meio delas
   useEffect(() => {

@@ -137,7 +137,9 @@ export function SecaoEfeitos({ editor }: PropsSecao) {
       {!misto && (
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Predefinições de efeito">
           {([
-            ['Vidro fosco', () => comSombras({ ...ef0(e), backdropBlur: 24, backdropBlurHidden: undefined }, [{ x: 0, y: 1, blur: 0, spread: 0, color: '#FFFFFF80', inner: true }, { x: 0, y: 24, blur: 48, spread: -16, color: '#00000040' }])],
+            // borda translúcida de 1 px por dentro (sombra interna com expansão 1) + sombra macia sem expansão negativa
+            // exagerada (ficava um halo escuro descolado da borda); o desfoque do fundo satura um pouco (renderizador)
+            ['Vidro fosco', () => comSombras({ ...ef0(e), backdropBlur: 24, backdropBlurHidden: undefined }, [{ x: 0, y: 0, blur: 0, spread: 1, color: '#FFFFFF66', inner: true }, { x: 0, y: 12, blur: 32, spread: -6, color: '#00000029' }])],
             ['Brilho', () => comSombras(ef0(e), [{ x: 0, y: 0, blur: 56, spread: 6, color: '#5965F2A6' }, ...sombrasDe(e).filter((s) => s.inner)])],
             ['Grão', () => ({ ...ef0(e), noise: (e?.noise ?? 0) > 0 ? undefined : 0.22 })],
           ] as const).map(([nome, fn]) => (

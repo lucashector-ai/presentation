@@ -84,7 +84,7 @@ export function QuemEstaNaTela({ sala, cenaId }: { sala: ConexaoSala | null; cen
   if (!aqui.length) return null
   return (
     <span className="pointer-events-none absolute right-1 top-1 flex -space-x-1" aria-label={`Nesta tela: ${aqui.map((p) => p.nome).join(', ')}`}>
-      {aqui.slice(0, 3).map((p) => <span key={p.userId} className="h-3 w-3 rounded-full border border-white" style={{ background: p.cor }} title={p.nome} />)}
+      {aqui.slice(0, 3).map((p) => <span key={p.userId} className="h-3 w-3 rounded-full border border-superficie" style={{ background: p.cor }} title={p.nome} />)}
     </span>
   )
 }

@@ -242,6 +242,12 @@ export function EditorVetor({ editor, camadaId, vp, ferramentaInicial = 'mover',
   }, [camada, v, cenaDe])
 
   // ---------- caneta ----------
+  /** Nó de onde o traçado continua (primeiro ou último), em coordenadas da cena. */
+  const pontaDoDesenho = (c: Caixa, vv: Vetor, d: { c: number; inicio: boolean }): P | null => {
+    const cam = vv.caminhos[d.c]
+    const n = cam ? (d.inicio ? cam.nos[0] : cam.nos[cam.nos.length - 1]) : undefined
+    return n ? localParaCena(c, vv, n) : null
+  }
   const caneta = (pt: P, ev: React.PointerEvent) => {
     const pc0 = cenaDe(pt)
     const { p: pc } = encaixarPonto(pc0, new Set(), ev.metaKey || ev.ctrlKey || !estado.snap)
@@ -260,8 +266,11 @@ export function EditorVetor({ editor, camadaId, vp, ferramentaInicial = 'mover',
       return
     }
     const antes = acoes.documentoAtual()
-    const local = cenaParaLocal(camada, v, pc)
     const a = acertar(pt)
+    // Shift: o novo nó fica a 0/45/90° do nó anterior do traçado
+    const ancora = desenho ? pontaDoDesenho(camada, v, desenho) : null
+    const pcFinal = ev.shiftKey && ancora && a?.tipo !== 'no' ? prender45(ancora, pc) : pc
+    const local = cenaParaLocal(camada, v, pcFinal)
     if (desenho) {
       const cam = v.caminhos[desenho.c]
       const outraPonta = cam ? (desenho.inicio ? cam.nos.length - 1 : 0) : -1
@@ -276,7 +285,7 @@ export function EditorVetor({ editor, camadaId, vp, ferramentaInicial = 'mover',
       const r = adicionarNo(v, desenho.c, local, undefined, desenho.inicio)
       gravar(camada, r.vetor, false)
       setSel([r.ref])
-      gesto.current = { tipo: 'caneta', ref: r.ref, base: r.vetor, caixa: camada, antes, inverter: desenho.inicio, inicio: pc, moveu: false }
+      gesto.current = { tipo: 'caneta', ref: r.ref, base: r.vetor, caixa: camada, antes, inverter: desenho.inicio, inicio: pcFinal, moveu: false }
       return
     }
     // continuar de uma ponta de caminho aberto
@@ -354,11 +363,20 @@ export function EditorVetor({ editor, camadaId, vp, ferramentaInicial = 'mover',
           return
         }
         return
-      case 'cortar':
-        setSel([])
-        if (a?.tipo === 'seg') aplicarJa(cortarSegmento(v, a.c, a.i, a.t))
-        else if (a?.tipo === 'no') aplicarJa(abrirNoNo(v, a.ref))
+      case 'cortar': {
+        // corta o caminho ali (fechado abre; aberto vira dois) e deixa as duas pontas novas selecionadas,
+        // para o corte ficar visível e dar para afastar uma da outra
+        if (!a || (a.tipo !== 'seg' && a.tipo !== 'no')) { setSel([]); return }
+        const cam = v.caminhos[a.tipo === 'seg' ? a.c : a.ref.c]!
+        const c = a.tipo === 'seg' ? a.c : a.ref.c
+        const novo = a.tipo === 'seg' ? cortarSegmento(v, a.c, a.i, a.t) : abrirNoNo(v, a.ref)
+        if (novo === v) { setSel([]); return }
+        setDesenho(null)
+        aplicarJa(novo)
+        const nos = novo.caminhos[c]?.nos.length ?? 0
+        setSel(cam.fechado ? [{ c, i: 0 }, { c, i: nos - 1 }] : [{ c, i: nos - 1 }, { c: c + 1, i: 0 }])
         return
+      }
       case 'apagar':
         if (a?.tipo === 'no') { setSel([]); aplicarJa(removerNos(v, [a.ref])) }
         else if (a?.tipo === 'seg') { setSel([]); aplicarJa(apagarSegmento(v, a.c, a.i)) }
@@ -382,7 +400,9 @@ export function EditorVetor({ editor, camadaId, vp, ferramentaInicial = 'mover',
   const onPointerMove = (ev: React.PointerEvent) => {
     const pt = localDoEvento(ev)
     const g = gesto.current
-    setCursor(pt)
+    // caneta com Shift: a linha de prévia já mostra o ponto preso a 45°
+    const ancora = !g && ev.shiftKey && ferramenta === 'caneta' && desenho && camada && v ? pontaDoDesenho(camada, v, desenho) : null
+    setCursor(ancora ? telaDe(prender45(ancora, cenaDe(pt))) : pt)
     if (!g) {
       if (ferramenta === 'pintar') { const c = regiaoSob(pt); setHover(c == null ? null : { tipo: 'seg', c, i: -1, t: 0 }) }
       else { const a = acertar(pt); setHover(a) }
@@ -427,7 +447,9 @@ export function EditorVetor({ editor, camadaId, vp, ferramentaInicial = 'mover',
       case 'caneta': {
         if (!g.moveu && dist(telaDe(pc), telaDe(g.inicio)) < 3) return
         g.moveu = true
-        gravar(g.caixa, definirAlcasDoNo(g.base, g.ref, cenaParaLocal(g.caixa, g.base, pc), g.inverter), false)
+        const no = g.base.caminhos[g.ref.c]?.nos[g.ref.i]
+        const alvo = ev.shiftKey && no ? prender45(localParaCena(g.caixa, g.base, no), pc) : pc
+        gravar(g.caixa, definirAlcasDoNo(g.base, g.ref, cenaParaLocal(g.caixa, g.base, alvo), g.inverter), false)
         break
       }
       case 'area':
@@ -512,10 +534,25 @@ export function EditorVetor({ editor, camadaId, vp, ferramentaInicial = 'mover',
         aoSair(camadaId)
         return
       }
-      if ((e.key === 'Delete' || e.key === 'Backspace') && vv && c && s.length) {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && vv && c && (s.length || d)) {
         e.preventDefault()
-        setSel([])
-        aplicarJa(removerNos(vv, s))
+        if (d && vv.caminhos[d.c]) {
+          // traçando: tira o último ponto e continua do anterior (apertar de novo tira o próximo)
+          const cam = vv.caminhos[d.c]!
+          const i = d.inicio ? 0 : cam.nos.length - 1
+          const r = removerNos(vv, [{ c: d.c, i }])
+          const resta = r?.caminhos[d.c]
+          aplicarJa(r)
+          if (resta && resta.nos.length >= 2 && r.caminhos.length === vv.caminhos.length) setSel([{ c: d.c, i: d.inicio ? 0 : resta.nos.length - 1 }])
+          else { setDesenho(null); setSel([]) }
+          return
+        }
+        // nós selecionados: apaga e seleciona o vizinho anterior, para Delete repetido ir tirando um a um
+        const primeiro = [...s].sort((a, b) => a.c - b.c || a.i - b.i)[0]!
+        const r = removerNos(vv, s)
+        aplicarJa(r)
+        const cam = r?.caminhos[primeiro.c]
+        setSel(cam && r && r.caminhos.length === vv.caminhos.length && cam.nos.length ? [{ c: primeiro.c, i: Math.min(cam.nos.length - 1, Math.max(0, primeiro.i - 1)) }] : [])
         return
       }
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && vv && c && s.length) {
@@ -592,7 +629,7 @@ export function EditorVetor({ editor, camadaId, vp, ferramentaInicial = 'mover',
         <div role="toolbar" aria-label="Editar vetor" data-testid="barra-vetor" className="pointer-events-auto flex items-center gap-0.5 rounded-xl border border-borda bg-superficie p-1 shadow-painel" onPointerDown={(e) => e.stopPropagation()}>
           <span className="rotulo-mono hidden px-2 !text-[10px] sm:inline">Editar vetor</span>
           {FERRAMENTAS.map((f) => (
-            <button key={f.id} type="button" aria-label={f.rotulo} aria-pressed={ferramenta === f.id} title={`${f.rotulo} (${f.tecla}) — ${f.dica}`} onClick={() => setFerramenta(f.id)} className={cx('inline-flex h-8 w-8 items-center justify-center rounded-md text-texto2 hover:bg-hover hover:text-texto', ferramenta === f.id && 'bg-acao/90 text-acaoTexto hover:bg-acao hover:text-acaoTexto')}>
+            <button key={f.id} type="button" aria-label={f.rotulo} aria-pressed={ferramenta === f.id} title={`${f.rotulo} (${f.tecla}) — ${f.dica}`} onClick={() => setFerramenta(f.id)} className={cx('inline-flex h-8 w-8 items-center justify-center rounded-md text-texto2 hover:bg-hover hover:text-texto', ferramenta === f.id && 'bg-acento text-acentoTexto hover:bg-acentoHover hover:text-acentoTexto')}>
               {f.icone}
             </button>
           ))}
@@ -607,6 +644,14 @@ export function EditorVetor({ editor, camadaId, vp, ferramentaInicial = 'mover',
       </div>
     </div>
   )
+}
+
+/** Shift: prende o ponto ao ângulo de 0/45/90° em volta da origem (como a caneta do Figma). */
+function prender45(origem: P, p: P): P {
+  const d = Math.hypot(p.x - origem.x, p.y - origem.y)
+  if (d < 1e-6) return p
+  const ang = Math.round(Math.atan2(p.y - origem.y, p.x - origem.x) / (Math.PI / 4)) * (Math.PI / 4)
+  return { x: Math.round(origem.x + Math.cos(ang) * d), y: Math.round(origem.y + Math.sin(ang) * d) }
 }
 
 function unir(a: readonly RefNo[], b: readonly RefNo[]): RefNo[] {

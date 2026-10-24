@@ -54,7 +54,7 @@ export function PopoverGuia({ ancora, guia, area, aoMudar, aoFechar }: { ancora:
     const fora = (e: PointerEvent) => {
       const alvo = e.target as Element
       // o seletor de cor aberto daqui fica em outro portal: clicar nele não fecha a guia
-      if (el?.contains(alvo) || ancora?.contains(alvo) || alvo.closest?.('[role=dialog]')) return
+      if (el?.contains(alvo) || ancora?.contains(alvo) || alvo.closest?.('[role=dialog], [data-menu-suspenso]')) return
       fechar.current()
     }
     const esc = (e: KeyboardEvent) => {
