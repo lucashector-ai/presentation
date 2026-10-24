@@ -35,7 +35,7 @@ import { Atrasado, Botao, BotaoIcone, Carregando, Modal, Simbolo, cx } from '@/c
 import { useToast } from '@/components/ui/toast'
 import { MAX_HTML_EMBED } from '@/lib/scene/schema'
 import { gerarBento } from '@/lib/editor/bento'
-import { gerarMockup } from '@/lib/editor/mockups'
+import { gerarFeedInstagram, gerarMockup } from '@/lib/editor/mockups'
 import { novoId } from '@/lib/scene/order'
 
 /**
@@ -221,6 +221,14 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
         return
       }
       case 'embed': return setEmbed({ ponto })
+      case 'instagram': {
+        const larg = Math.round((H * 0.42) / 8) * 8
+        const camadas = gerarFeedInstagram({ x: (ponto?.x ?? W / 2) - larg / 2, y: (ponto?.y ?? H / 2) - larg, largura: larg }, {}, novoId('insta', cena.layers))
+        acoes.inserirCamadas(camadas)
+        setTimeout(() => acoes.selecionar([camadas[0]!.id]), 0)
+        avisar('Feed criado. Solte as artes nos posts, edite nome e números; os posts entram em cascata e o celular inclina com o mouse.', 'info')
+        return
+      }
       case 'mockup': {
         // celular por padrão; o modelo e a cor mudam na seção Mockup do inspetor
         const larg = Math.round((W * 0.2) / 8) * 8
