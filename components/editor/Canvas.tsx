@@ -18,7 +18,7 @@
  *   mover e redimensionar encaixam nas bordas das colunas/linhas e na grade (do frame pai da seleção e da tela)
  * - Editar vetor: duplo clique (ou Enter) numa forma/SVG selecionada, ou caneta (P) — ver vetor/EditorVetor.tsx
  */
-import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Camada, CamadaFrame, CamadaTexto, DocumentoProjeto } from '@/lib/scene/schema'
 import type { Editor } from '@/lib/editor/useEditor'
 import { encaixar, guiasDaCaixa, intersecta, anguloRotacao, limiarEmCena, medirDistancias, redimensionarComEncaixe, LIMIAR_TELA } from '@/lib/editor/guias'
@@ -62,6 +62,7 @@ type Gesto =
   | { tipo: 'mover'; inicio: { x: number; y: number }; iniciais: Map<string, Retangulo>; raizes: string[]; caixa: Retangulo; moveu: boolean; antes: DocumentoProjeto; fluxo: boolean; delta: { x: number; y: number }; ponteiro: { x: number; y: number }; duplicar: boolean }
   | { tipo: 'redimensionar'; alca: Alca; inicio: { x: number; y: number }; caixa: Retangulo; iniciais: Map<string, Retangulo>; antes: DocumentoProjeto; moveu?: boolean }
   | { tipo: 'rotacionar'; centro: { x: number; y: number }; id: string; antes: DocumentoProjeto }
+  | { tipo: 'linha'; id: string; ponta: 'w' | 'e'; fixo: { x: number; y: number }; inicio: { x: number; y: number }; espessura: number; antes: DocumentoProjeto; moveu: boolean }
   | { tipo: 'area'; inicio: { x: number; y: number }; atual: { x: number; y: number }; base: string[] }
   | { tipo: 'desenhar'; inicio: { x: number; y: number }; atual: { x: number; y: number }; manterFerramenta: boolean }
   | { tipo: 'pan'; inicio: { x: number; y: number }; panInicial: { x: number; y: number } }
@@ -107,6 +108,9 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
   }, [])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const gestoAvisado = useRef(false)
+  /** Pinça na tela de toque: dois dedos dão zoom no ponto médio (trackpad já chega como roda com Ctrl). */
+  const toques = useRef(new Map<number, { x: number; y: number }>())
+  const pinca = useRef<{ dist0: number; s0: number } | null>(null)
   const estiloTexto = useRef<EstiloTexto>({})
   /** Modo "Editar vetor": camada em edição (null = caneta antes do primeiro clique). */
   const [modoVetor, setModoVetor] = useState<{ id: string | null; ferramenta: FerramentaVetor } | null>(null)
@@ -138,9 +142,12 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
   }, [cena, tamanho, estado.zoom, estado.pan])
 
   const escalaVp = vp?.s
-  // zoom contínuo (roda, pinça): as camadas re-renderizam na escala nova quando sobra tempo; até lá a cena
-  // desenhada na escala anterior acompanha por transform (o quadro sai na hora, sem re-renderizar tudo)
-  const escalaCena = useDeferredValue(escalaVp ?? 0)
+  // zoom contínuo (roda, pinça, botões, teclado): durante o gesto só a transform da cena muda — as camadas ficam
+  // desenhadas na escala de antes e acompanham por `scale()`; param de chegar passos de zoom por 160 ms e elas
+  // re-renderizam uma única vez na escala final (re-renderizar a cada passo custava um quadro inteiro por camada)
+  const ultimoZoomContinuo = useRef(0)
+  const escalaCena = useEscalaAssentada(escalaVp ?? 0, ultimoZoomContinuo)
+  const zoomEmCurso = !!escalaCena && !!escalaVp && escalaCena !== escalaVp
   const ocultarTexto = useMemo(() => (editandoTexto ? new Set([editandoTexto]) : undefined), [editandoTexto])
   useEffect(() => { if (escalaVp) aoEscala?.(escalaVp) }, [escalaVp, aoEscala])
 
@@ -196,19 +203,51 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); window.removeEventListener('blur', sair) }
   }, [])
 
-  // roda: pan; Ctrl/⌘ (e pinça do trackpad): zoom no cursor
+  // roda: pan; Ctrl/⌘ (e pinça do trackpad): zoom no cursor. Os eventos da roda chegam mais rápido que os
+  // quadros: ficam acumulados e viram um único estado por quadro (rAF), em vez de um render por evento
+  const vpRef = useRef(vp)
+  vpRef.current = vp
+  const zoomEmRef = useRef(zoomEm)
+  zoomEmRef.current = zoomEm
   useEffect(() => {
     const el = ref.current
     if (!el) return
+    let quadro = 0
+    let fator = 1
+    let dx = 0
+    let dy = 0
+    let ponto = { x: 0, y: 0 }
+    const aplicar = () => {
+      const v = vpRef.current
+      if (!v) return
+      const est = estadoRef.current
+      if (fator !== 1) zoomEmRef.current(v.s * fator, ponto)
+      else if (dx || dy) acoes.ui({ pan: { x: est.pan.x - dx, y: est.pan.y - dy }, zoom: est.zoom || v.s })
+      fator = 1
+      dx = 0
+      dy = 0
+    }
+    // o primeiro evento do quadro vale na hora (sem esperar o rAF); os seguintes se acumulam até o próximo quadro
+    const noQuadro = () => { quadro = 0; aplicar() }
     const roda = (e: WheelEvent) => {
       e.preventDefault()
-      if (!vp) return
-      if (e.ctrlKey || e.metaKey) zoomEm(vp.s * Math.exp(-e.deltaY * 0.0022), local(e))
-      else acoes.ui({ pan: { x: estado.pan.x - e.deltaX, y: estado.pan.y - e.deltaY }, zoom: estado.zoom || vp.s })
+      if (!vpRef.current) return
+      if (e.ctrlKey || e.metaKey) {
+        // pinça do trackpad: deltas pequenos e contínuos; roda do mouse: passos de ~100
+        fator *= Math.exp(-e.deltaY * 0.0022)
+        ponto = local(e)
+        ultimoZoomContinuo.current = performance.now()
+      } else {
+        dx += e.deltaX
+        dy += e.deltaY
+      }
+      if (quadro) return
+      aplicar()
+      quadro = requestAnimationFrame(noQuadro)
     }
     el.addEventListener('wheel', roda, { passive: false })
-    return () => el.removeEventListener('wheel', roda)
-  }, [ref, vp, zoomEm, local, acoes, estado.pan, estado.zoom])
+    return () => { el.removeEventListener('wheel', roda); if (quadro) cancelAnimationFrame(quadro) }
+  }, [ref, local, acoes])
 
   // Enter num texto selecionado (EditorShell) entra em edição com tudo selecionado
   useEffect(() => {
@@ -431,6 +470,18 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
     const p = local(ev)
     const pc = paraCena(p)
     ;(ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId)
+    if (ev.pointerType === 'touch') {
+      toques.current.set(ev.pointerId, p)
+      if (toques.current.size === 2) {
+        // segundo dedo: o gesto de um dedo que estava em curso vira pinça (zoom), sem mover nada
+        const [a, b] = [...toques.current.values()]
+        if (gesto.current?.tipo === 'mover' && gesto.current.moveu) acoes.registrarHistorico(gesto.current.antes)
+        gesto.current = null
+        pinca.current = { dist0: Math.max(1, Math.hypot(b!.x - a!.x, b!.y - a!.y)), s0: vp.s }
+        if (!estado.zoom) acoes.ui({ zoom: vp.s })
+        return
+      }
+    }
     if (ev.button === 1 || modoMao) {
       gesto.current = { tipo: 'pan', inicio: p, panInicial: estado.pan }
       if (!estado.zoom) acoes.ui({ zoom: vp.s })
@@ -443,6 +494,13 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
     alcaPressionada.current = alca && alca !== 'rot' ? { alca, t: ev.timeStamp } : null
     if (alca === 'rot' && unica) {
       gesto.current = { tipo: 'rotacionar', centro: { x: unica.x + unica.width / 2, y: unica.y + unica.height / 2 }, id: unica.id, antes: acoes.documentoAtual() }
+      return
+    }
+    if (alca && alca !== 'rot' && unica && ehLinha(unica) && !unica.locked) {
+      // linha: a alça de cada ponta estica/encolhe o comprimento e gira em volta da outra ponta (como no Figma)
+      const { a, b } = pontasDaLinha(unica)
+      const ponta = alca.includes('w') ? 'w' : 'e'
+      gesto.current = { tipo: 'linha', id: unica.id, ponta, fixo: ponta === 'w' ? b : a, inicio: pc, espessura: unica.height, antes: acoes.documentoAtual(), moveu: false }
       return
     }
     if (alca && alca !== 'rot' && caixaSel) {
@@ -497,6 +555,16 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
 
   const onPointerMove = (ev: React.PointerEvent) => {
     if (!vp) return
+    if (pinca.current && toques.current.has(ev.pointerId)) {
+      toques.current.set(ev.pointerId, local(ev))
+      if (toques.current.size === 2) {
+        const [a, b] = [...toques.current.values()]
+        const dist = Math.max(1, Math.hypot(b!.x - a!.x, b!.y - a!.y))
+        ultimoZoomContinuo.current = performance.now()
+        zoomEm(pinca.current.s0 * (dist / pinca.current.dist0), { x: (a!.x + b!.x) / 2, y: (a!.y + b!.y) / 2 })
+      }
+      return
+    }
     const g = gesto.current
     if (g && !retGesto.current) retGesto.current = ref.current!.getBoundingClientRect()
     const p = local(ev)
@@ -581,6 +649,16 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
       case 'rotacionar':
         acoes.atualizarCamadas([g.id], { rotation: anguloRotacao(g.centro, pc, ev.shiftKey) } as Partial<Camada>, false)
         break
+      case 'linha': {
+        if (!g.moveu) {
+          if (Math.hypot(pc.x - g.inicio.x, pc.y - g.inicio.y) * vp.s < 3) break
+          g.moveu = true
+        }
+        const p = { x: naGrade(pc.x), y: naGrade(pc.y) }
+        const r = g.ponta === 'e' ? caixaDeLinha(g.fixo, p, g.espessura, ev.shiftKey) : caixaDeLinha(p, g.fixo, g.espessura, ev.shiftKey)
+        acoes.atualizarCamadas([g.id], { x: r.x, y: r.y, width: r.width, height: r.height, rotation: r.rotation } as Partial<Camada>, false)
+        break
+      }
       case 'area': {
         g.atual = pc
         const area = retDe(g.inicio, g.atual)
@@ -600,6 +678,10 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
   }
 
   const onPointerUp = (ev: React.PointerEvent) => {
+    if (ev.pointerType === 'touch') {
+      toques.current.delete(ev.pointerId)
+      if (pinca.current) { if (toques.current.size < 2) pinca.current = null; return }
+    }
     const g = gesto.current
     gesto.current = null
     retGesto.current = null
@@ -629,7 +711,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
         }
         acoes.registrarHistorico(g.antes)
       }
-    } else if ((g.tipo === 'redimensionar' && g.moveu) || g.tipo === 'rotacionar') acoes.registrarHistorico(g.antes)
+    } else if ((g.tipo === 'redimensionar' && g.moveu) || (g.tipo === 'linha' && g.moveu) || g.tipo === 'rotacionar') acoes.registrarHistorico(g.antes)
     if (g.tipo === 'desenhar') {
       const r = retDe(g.inicio, g.atual)
       const pequeno = r.width < 8 && r.height < 8
@@ -738,8 +820,11 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
   const duplicando = g?.tipo === 'mover' && g.duplicar
   const cursorDuplicar = !g && alt && !ehDesenho && !modoMao && !editandoTexto && !!hover && !mapa.get(hover)?.locked
   const cursor = modoMao ? (g?.tipo === 'pan' ? 'grabbing' : 'grab') : duplicando || cursorDuplicar ? CURSOR_DUPLICAR : estado.ferramenta === 'texto' ? 'text' : ehDesenho ? 'crosshair' : 'default'
+  // a tela (fundo, sombra, grade e camadas) fica desenhada na escala assentada; durante o zoom só a transform muda
+  const escalaDesenho = escalaCena || vp.s
+  const telaDesenho = { width: cena.size.width * escalaDesenho, height: cena.size.height * escalaDesenho }
   // grade visível: passo configurado, dobrado até ficar legível na tela
-  let passoTela = estado.gradePasso * vp.s
+  let passoTela = estado.gradePasso * escalaDesenho
   while (passoTela < 6) passoTela *= 2
 
   // Alt: distâncias da seleção até a camada sob o cursor (ou até o frame pai / a tela)
@@ -780,10 +865,8 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
         {String(indiceCena + 1).padStart(2, '0')} — {cena.title || 'Sem título'}
       </div>
 
-      <div data-testid="canvas" className="absolute shadow-[0_1px_3px_rgba(0,0,0,.06),0_20px_50px_-30px_rgba(0,0,0,.35)]" style={{ left: telaCena.x, top: telaCena.y, width: telaCena.width, height: telaCena.height }}>
-        <div style={escalaCena && escalaCena !== vp.s ? { transform: `scale(${vp.s / escalaCena})`, transformOrigin: '0 0' } : undefined}>
-          <CenaCanvas key={`${cena.id}-${previaAtiva ? estado.previa : 0}`} cena={cena} assets={assets} escala={escalaCena || vp.s} modo={previaAtiva ? 'viewer' : 'editor'} interativoNoEditor={interagir3d} chaveEntrada={`${estado.previa}`} ocultar={ocultarTexto} />
-        </div>
+      <div data-testid="canvas" className="absolute shadow-[0_1px_3px_rgba(0,0,0,.06),0_20px_50px_-30px_rgba(0,0,0,.35)]" style={{ left: telaCena.x, top: telaCena.y, width: telaDesenho.width, height: telaDesenho.height, ...(zoomEmCurso ? { transform: `scale(${vp.s / escalaDesenho})`, transformOrigin: '0 0', willChange: 'transform' } : {}) }}>
+        <CenaCanvas key={`${cena.id}-${previaAtiva ? estado.previa : 0}`} cena={cena} assets={assets} escala={escalaDesenho} modo={previaAtiva ? 'viewer' : 'editor'} interativoNoEditor={interagir3d} chaveEntrada={`${estado.previa}`} ocultar={ocultarTexto} />
         {estado.grade && <div aria-hidden data-testid="grade" className="grade-editor pointer-events-none absolute inset-0 z-[1]" style={{ backgroundSize: `${passoTela}px ${passoTela}px` }} />}
         {estado.documento.mode === 'story' && <div aria-hidden className="pointer-events-none absolute border border-dashed border-texto3/60" style={{ left: '6%', right: '6%', top: '8%', bottom: '10%' }} />}
       </div>
@@ -791,8 +874,15 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
       {/* guias de layout (grade, colunas, linhas) da tela e dos frames */}
       {areasGuias.length > 0 && <CamadaGuias areas={areasGuias} vp={vp} largura={tamanho.width} altura={tamanho.height} />}
 
-      {/* hover: 2 px na cor da seleção (a seleção tem 1 px e alças) */}
-      {hover && !vetorAtivo && !estado.selecao.includes(hover) && (!g || g.tipo === 'mover') && !editandoTexto && (() => { const l = mapa.get(hover); return l ? <Contorno r={paraTela(l)} rot={l.rotation} cor={alt && caixaSel ? 'rgb(var(--cor-guia))' : COR_SELECAO} largura={alt && caixaSel ? 1 : 2} testid="contorno-hover" /> : null })()}
+      {/* hover: UM contorno de 1 px na cor da seleção, sem halo, só na camada sob o cursor (como no Figma); nada
+          por cima da seleção — camadas já selecionadas ou dentro da caixa da seleção não ganham hover */}
+      {hover && !vetorAtivo && !estado.selecao.includes(hover) && (!g || g.tipo === 'mover') && !editandoTexto && (() => {
+        const l = mapa.get(hover)
+        if (!l) return null
+        const medindo = alt && !!caixaSel
+        if (!medindo && caixaSel && l.x >= caixaSel.x && l.y >= caixaSel.y && l.x + l.width <= caixaSel.x + caixaSel.width && l.y + l.height <= caixaSel.y + caixaSel.height) return null
+        return <Contorno r={paraTela(l)} rot={l.rotation} cor={medindo ? 'rgb(var(--cor-guia))' : COR_SELECAO} semHalo testid="contorno-hover" />
+      })()}
 
       {/* frames: contorno tracejado do frame pai da seleção (contexto) */}
       {unica && !editandoTexto && (() => { const p = paiDe(unica, mapa); return p ? <Contorno r={paraTela(p)} rot={p.rotation} cor={COR_SELECAO} tracejado testid="contorno-pai" /> : null })()}
@@ -813,6 +903,29 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
       {caixaSel && !editandoTexto && !vetorAtivo && !interacoesVisiveis && !(g?.tipo === 'mover' && g.fluxo && g.moveu) && (() => {
         const r = paraTela(caixaSel)
         const travada = selecionadas.every((l) => l.locked)
+        if (unica && ehLinha(unica)) {
+          // linha (ou camada fininha): contorno rente, uma alça quadrada em cada ponta e só o comprimento na etiqueta
+          const { a, b } = pontasDaLinha(unica)
+          const ta = paraTela({ ...a, width: 0, height: 0 })
+          const tb = paraTela({ ...b, width: 0, height: 0 })
+          const c = { x: (ta.x + tb.x) / 2, y: (ta.y + tb.y) / 2 }
+          const cursor = cursorDaPonta(unica.rotation)
+          return (
+            <>
+              {!travada && <div data-alca="w" data-testid="alca-linha-w" className="absolute z-10 h-2 w-2 border border-selecao bg-white" style={{ left: ta.x - 4, top: ta.y - 4, cursor }} />}
+              {!travada && <div data-alca="e" data-testid="alca-linha-e" className="absolute z-10 h-2 w-2 border border-selecao bg-white" style={{ left: tb.x - 4, top: tb.y - 4, cursor }} />}
+              {!travada && (
+                <div className="pointer-events-none absolute z-10" style={{ left: c.x, top: c.y, width: 0, height: 0, transform: `rotate(${unica.rotation}deg)` }}>
+                  <div className="absolute w-px bg-selecao" style={{ left: 0, top: -20, height: 16, boxShadow: `0 0 0 1px ${HALO_SELECAO}` }} />
+                  <div data-alca="rot" title="Girar (Shift = 15°)" className="pointer-events-auto absolute h-3 w-3 rounded-full border border-selecao bg-white" style={{ left: -6, top: -32, cursor: 'grab' }} />
+                </div>
+              )}
+              <div data-testid="etiqueta-medidas" className="mono pointer-events-none absolute whitespace-nowrap rounded-[4px] bg-selecao px-1.5 py-[3px] text-[11px] font-medium leading-none text-white" style={{ left: c.x, top: c.y + 10, transform: 'translateX(-50%)', boxShadow: `0 0 0 1px ${HALO_SELECAO}` }}>
+                {Math.round(unica.width)}{unica.rotation ? ` · ${unica.rotation}°` : ''}
+              </div>
+            </>
+          )
+        }
         return (
           <>
             {/* seleção múltipla: caixa inteira sólida, como no Figma (cada camada já tem o próprio contorno) */}
@@ -925,6 +1038,27 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
   )
 }
 
+/** Tempo sem mudar de escala para as camadas serem re-renderizadas na escala nova (um gesto de zoom "assentou"). */
+const ASSENTAR_ZOOM_MS = 160
+
+/**
+ * Escala em que as camadas da cena estão desenhadas: segue a escala da viewport com atraso — enquanto chegam
+ * passos de um zoom contínuo (roda, pinça), fica na anterior e a cena acompanha por transform; assenta ao parar.
+ * Um passo isolado (botões +/−, teclado, ⇧1) desenha já na escala nova: segurar por transform rasterizaria duas
+ * vezes (na transform e de novo ao assentar).
+ */
+function useEscalaAssentada(escala: number, ultimoContinuo: React.RefObject<number>): number {
+  const [assentada, setAssentada] = useState(escala)
+  useEffect(() => {
+    if (!escala || escala === assentada) return
+    // primeira escala (ou a cena acabou de aparecer) ou passo isolado: desenha já na escala certa
+    if (!assentada || performance.now() - ultimoContinuo.current > ASSENTAR_ZOOM_MS) { setAssentada(escala); return }
+    const t = window.setTimeout(() => setAssentada(escala), ASSENTAR_ZOOM_MS)
+    return () => window.clearTimeout(t)
+  }, [escala, assentada, ultimoContinuo])
+  return assentada || escala
+}
+
 /**
  * Telas e frames com guias de layout, com a mesma identidade enquanto nada muda nelas (memo do CamadaGuias):
  * mover outras camadas recria a tela, mas não a lista. `visiveis` = ⌃⇧4.
@@ -946,8 +1080,9 @@ function rotuloTamanho(v: number, d: Camada['sizingW']) {
 }
 
 /** Contorno sólido (ou tracejado) em px de tela, com o halo claro por fora (ver HALO_SELECAO). */
-function Contorno({ r, rot, cor, largura = 1, tracejado, testid }: { r: Retangulo; rot: number; cor: string; largura?: number; tracejado?: boolean; testid?: string }) {
-  return <div data-testid={testid} className="pointer-events-none absolute" style={{ left: r.x, top: r.y, width: r.width, height: r.height, outline: `${largura}px ${tracejado ? 'dashed' : 'solid'} ${cor}`, boxShadow: haloDe(largura), transform: rot ? `rotate(${rot}deg)` : undefined }} />
+function Contorno({ r, rot, cor, largura = 1, tracejado, semHalo, testid }: { r: Retangulo; rot: number; cor: string; largura?: number; tracejado?: boolean; semHalo?: boolean; testid?: string }) {
+  // sem transição nenhuma: seleção e hover aparecem no mesmo quadro do clique/movimento (como no Figma)
+  return <div data-testid={testid} className="pointer-events-none absolute" style={{ left: r.x, top: r.y, width: r.width, height: r.height, outline: `${largura}px ${tracejado ? 'dashed' : 'solid'} ${cor}`, boxShadow: semHalo ? undefined : haloDe(largura), transform: rot ? `rotate(${rot}deg)` : undefined, transition: 'none' }} />
 }
 
 /** Cartão "Clique → 05 Aplicações · Morph · 600ms" ligado à camada selecionada (aba Interações). */
@@ -965,7 +1100,7 @@ function FluxoInteracao({ camada, editor, assets, r }: { camada: Camada; editor:
   return (
     <>
       <div className="pointer-events-none absolute w-px bg-selecao" style={{ left: r.x + Math.min(84, r.width / 2), top: topo, height: 64, boxShadow: `0 0 0 1px ${HALO_SELECAO}` }} />
-      <div className="pointer-events-none absolute flex items-center gap-3 rounded-[10px] border border-selecao bg-white p-2 pr-3 shadow-[0_12px_30px_-12px_rgba(13,153,255,.45)]" style={{ left: r.x + 16, top: topo + 64 }}>
+      <div className="pointer-events-none absolute flex items-center gap-3 rounded-[10px] border border-selecao bg-superficie p-2 pr-3 shadow-[0_12px_30px_-12px_rgba(13,153,255,.45)]" style={{ left: r.x + 16, top: topo + 64 }}>
         <MiniaturaCena cena={alvo} assets={assets} largura={78} className="border-0" />
         <div className="whitespace-nowrap">
           <div className="text-[13px] font-medium text-acento">{gatilho} → {String(idx + 1).padStart(2, '0')} {alvo.title}</div>
@@ -974,6 +1109,28 @@ function FluxoInteracao({ camada, editor, assets, r }: { camada: Camada; editor:
       </div>
     </>
   )
+}
+
+/** Linha, seta ou qualquer camada fininha (≤ 4 px de altura): seleção com alças só nas pontas, como no Figma. */
+export function ehLinha(l: Camada): boolean {
+  return (l.type === 'shape' && (l.shape === 'line' || l.shape === 'arrow')) || l.height <= 4
+}
+
+/** Pontas (centro das bordas esquerda e direita) de uma camada girada em volta do próprio centro, em coordenadas da cena. */
+export function pontasDaLinha(l: Retangulo & { rotation: number }): { a: { x: number; y: number }; b: { x: number; y: number } } {
+  const cx = l.x + l.width / 2
+  const cy = l.y + l.height / 2
+  const ang = (l.rotation * Math.PI) / 180
+  const dx = (Math.cos(ang) * l.width) / 2
+  const dy = (Math.sin(ang) * l.width) / 2
+  return { a: { x: cx - dx, y: cy - dy }, b: { x: cx + dx, y: cy + dy } }
+}
+
+/** Cursor de redimensionar mais próximo do ângulo da linha (0° = ↔, 45° = ⤡, 90° = ↕, 135° = ⤢). */
+function cursorDaPonta(rotation: number): string {
+  const a = ((rotation % 180) + 180) % 180
+  const setor = Math.round(a / 45) % 4
+  return ['ew-resize', 'nwse-resize', 'ns-resize', 'nesw-resize'][setor]!
 }
 
 function retDe(a: { x: number; y: number }, b: { x: number; y: number }): Retangulo {
