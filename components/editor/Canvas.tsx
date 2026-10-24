@@ -1021,6 +1021,9 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
               const cx = r.x + r.width / 2, cy = r.y + r.height / 2
               const baixo = rot ? Math.max(...[[-r.width / 2, -r.height / 2], [r.width / 2, -r.height / 2], [r.width / 2, r.height / 2], [-r.width / 2, r.height / 2]].map(([px, py]) => cy + px! * Math.sin(th) + py! * Math.cos(th))) : r.y + r.height
               const anguloEtiqueta = girando ? (unica ? unica.rotation : Math.round(g.delta * 10) / 10) : unica?.rotation
+              // alvo pequeno (< 24 px na tela): alças e zonas de girar vão para fora, a camada continua à vista
+              const folgaX = r.width < 24 ? (24 - r.width) / 2 : 0
+              const folgaY = r.height < 24 ? (24 - r.height) / 2 : 0
               return (
                 <>
                   <div className="pointer-events-none absolute" style={{ left: r.x, top: r.y, width: r.width, height: r.height, transform: rot ? `rotate(${rot}deg)` : undefined, transformOrigin: 'center' }}>
@@ -1033,11 +1036,11 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
                     })}
                     {/* zonas de girar: logo fora de cada canto, com o cursor curvo daquele canto */}
                     {!travada && CANTOS.map((a) => (
-                      <div key={`g-${a}`} data-alca="rot" data-testid={`zona-girar-${a}`} className="pointer-events-auto absolute z-[9]" style={{ width: ZONA_GIRAR, height: ZONA_GIRAR, left: a.includes('w') ? -ZONA_GIRAR - FOLGA_GIRAR : r.width + FOLGA_GIRAR, top: a.includes('n') ? -ZONA_GIRAR - FOLGA_GIRAR : r.height + FOLGA_GIRAR, cursor: cursorGirar(a, rot) }} />
+                      <div key={`g-${a}`} data-alca="rot" data-testid={`zona-girar-${a}`} className="pointer-events-auto absolute z-[9]" style={{ width: ZONA_GIRAR, height: ZONA_GIRAR, left: a.includes('w') ? -ZONA_GIRAR - FOLGA_GIRAR - folgaX : r.width + FOLGA_GIRAR + folgaX, top: a.includes('n') ? -ZONA_GIRAR - FOLGA_GIRAR - folgaY : r.height + FOLGA_GIRAR + folgaY, cursor: cursorGirar(a, rot) }} />
                     ))}
                     {/* 4 alças quadradas brancas com borda de 1 px na cor da seleção */}
                     {!travada && !girando && CANTOS.map((a) => (
-                      <div key={a} data-alca={a} className="pointer-events-auto absolute z-10 h-2 w-2 border border-selecao bg-white" style={{ left: (a.includes('w') ? 0 : r.width) - 4, top: (a.includes('n') ? 0 : r.height) - 4, cursor: cursorDaAlca(a, rot) }} />
+                      <div key={a} data-alca={a} className="pointer-events-auto absolute z-10 h-2 w-2 border border-selecao bg-white" style={{ left: (a.includes('w') ? -folgaX : r.width + folgaX) - 4, top: (a.includes('n') ? -folgaY : r.height + folgaY) - 4, cursor: cursorDaAlca(a, rot) }} />
                     ))}
                   </div>
                   {/* etiqueta de medidas: pílula sólida com texto branco; durante o giro mostra o ângulo */}
