@@ -36,7 +36,7 @@ export function SecaoMockup({ editor }: PropsSecao) {
     <Secao titulo="Mockup">
       <SeletorLista rotulo="Modelo do mockup" valor={meta.modelo} opcoes={MODELOS_MOCKUP.map((m) => ({ id: m.id, rotulo: m.nome }))} aoMudar={(modelo) => regenerar({ modelo })} />
       <div className="flex items-center justify-between text-[12px]"><span className="text-texto2">Cor da moldura</span><BotaoCor rotulo="Cor da moldura" cor={meta.cor} aoMudar={(cor) => regenerar({ cor })} /></div>
-      <p className="text-[11px] leading-relaxed text-texto2">Arraste uma imagem ou vídeo para dentro de "Tela": ela fica recortada no formato do aparelho. Trocar o modelo mantém o conteúdo.</p>
+      <p className="text-[11px] leading-relaxed text-texto2">Arraste uma imagem ou vídeo para dentro de &ldquo;Tela&rdquo;: ela fica recortada no formato do aparelho. Trocar o modelo mantém o conteúdo.</p>
     </Secao>
   )
 }
