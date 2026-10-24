@@ -2,7 +2,12 @@
  * Traços (puros): lista nova `strokes` com compatibilidade com o traço antigo (`stroke/strokeWidth/dash` em
  * formas e frames), derivado na leitura. Editar no painel grava a lista e limpa os campos antigos.
  */
-import type { Camada, CamadaForma, Traco } from './schema'
+import type { Camada, CamadaForma, PONTAS_SETA, Traco } from './schema'
+
+export type PontaSeta = (typeof PONTAS_SETA)[number]
+/** Ponta de início/fim efetiva de uma linha/seta (a forma "arrow" nasce com seta no fim). */
+export const pontaInicio = (c: Camada, t: Traco): PontaSeta => t.startArrow ?? 'none'
+export const pontaFim = (c: Camada, t: Traco): PontaSeta => t.endArrow ?? (c.type === 'shape' && c.shape === 'arrow' ? 'arrow' : 'none')
 
 export const TRACO_PADRAO: Traco = { color: '#171717', weight: 1, position: 'inside', style: 'solid', dash: 8, gap: 8, cap: 'none', join: 'miter' }
 

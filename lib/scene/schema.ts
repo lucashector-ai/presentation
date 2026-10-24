@@ -357,6 +357,8 @@ export type Gradiente = z.infer<typeof GradienteSchema>
 export const POSICOES_TRACO = ['inside', 'center', 'outside'] as const
 export const ESTILOS_TRACO = ['solid', 'dashed', 'dotted'] as const
 export const PONTAS_TRACO = ['none', 'round', 'square'] as const
+/** Ponta de início/fim de linhas e setas (como o "Start point"/"End point" do Figma). */
+export const PONTAS_SETA = ['none', 'arrow', 'triangle', 'circle', 'square', 'bar'] as const
 export const JUNCOES_TRACO = ['miter', 'round', 'bevel'] as const
 const LadoTraco = z.number().min(0).max(200)
 
@@ -376,6 +378,9 @@ export const TracoSchema = z.object({
   gap: z.number().min(0).max(500).default(8),
   cap: z.enum(PONTAS_TRACO).default('none'),
   join: z.enum(JUNCOES_TRACO).default('miter'),
+  /** Linhas e setas: ponta desenhada no início/fim (ausente = seta no fim da forma "arrow", nenhuma na linha). */
+  startArrow: z.enum(PONTAS_SETA).optional(),
+  endArrow: z.enum(PONTAS_SETA).optional(),
   hidden: z.boolean().optional(),
 })
 export type Traco = z.infer<typeof TracoSchema>

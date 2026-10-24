@@ -10,7 +10,7 @@ import { useState } from 'react'
 import { Eye, EyeOff, Minus, Settings2 } from 'lucide-react'
 import type { Camada, Traco } from '@/lib/scene/schema'
 import { MAX_TRACOS } from '@/lib/scene/schema'
-import { TRACO_PADRAO, comTracos, espessuraMax, tracosDe } from '@/lib/scene/tracos'
+import { TRACO_PADRAO, comTracos, espessuraMax, pontaFim, pontaInicio, tracosDe } from '@/lib/scene/tracos'
 import { BotaoCampo, BotaoMini, CampoNum, MISTO, Secao, Segmentado, SeletorLista } from './controles'
 import { LinhaPintura } from './CampoCor'
 import type { Pintura } from './SeletorCor'
@@ -24,6 +24,7 @@ const caminho = (c: Camada) => c.type === 'shape' && c.shape !== 'rect' && c.sha
 /** Tipos com traço. */
 export const aceitaTraco = (c: Camada) => c.type !== 'hotspot'
 
+const PONTAS: { id: NonNullable<Traco['endArrow']>; rotulo: string }[] = [{ id: 'none', rotulo: 'Nenhuma' }, { id: 'arrow', rotulo: 'Seta' }, { id: 'triangle', rotulo: 'Triângulo' }, { id: 'circle', rotulo: 'Círculo' }, { id: 'square', rotulo: 'Quadrado' }, { id: 'bar', rotulo: 'Barra' }]
 const POSICOES: { id: Traco['position']; rotulo: string }[] = [{ id: 'inside', rotulo: 'Dentro' }, { id: 'center', rotulo: 'Centro' }, { id: 'outside', rotulo: 'Fora' }]
 const LADOS = [['top', 'Superior', '↑'], ['right', 'Direito', '→'], ['bottom', 'Inferior', '↓'], ['left', 'Esquerdo', '←']] as const
 
@@ -92,6 +93,13 @@ export function SecaoTraco({ editor }: PropsSecao) {
       )}
       {primeiro && !misto && (
         <>
+          {soLinhas && (
+            // linhas e setas: ponta de início e de fim, como no Figma ("Start point" / "End point")
+            <div className="grid grid-cols-2 gap-1.5">
+              <SeletorLista rotulo="Ponta de início" prefixo={<span className="text-[11px]">⇤</span>} valor={String(comum(sel, (c) => pontaInicio(c, tracosDe(c)[0] ?? TRACO_PADRAO)))} aoMudar={(v) => v !== MISTO && todos({ startArrow: v as Traco['startArrow'] })} opcoes={[...(comum(sel, (c) => pontaInicio(c, tracosDe(c)[0] ?? TRACO_PADRAO)) === MISTO ? [{ id: MISTO, rotulo: 'Misto' }] : []), ...PONTAS]} />
+              <SeletorLista rotulo="Ponta de fim" prefixo={<span className="text-[11px]">⇥</span>} valor={String(comum(sel, (c) => pontaFim(c, tracosDe(c)[0] ?? TRACO_PADRAO)))} aoMudar={(v) => v !== MISTO && todos({ endArrow: v as Traco['endArrow'] })} opcoes={[...(comum(sel, (c) => pontaFim(c, tracosDe(c)[0] ?? TRACO_PADRAO)) === MISTO ? [{ id: MISTO, rotulo: 'Misto' }] : []), ...PONTAS]} />
+            </div>
+          )}
           <div className="grid grid-cols-[1fr_1fr_28px_28px] gap-1.5">
             {soLinhas ? (
               <SeletorLista rotulo="Pontas do traço" prefixo={<span className="text-[11px]">⌐</span>} valor={String(valor((t) => t.cap) ?? 'none')} aoMudar={(cap) => todos({ cap: cap as Traco['cap'] })} opcoes={[{ id: 'none', rotulo: 'Sem ponta' }, { id: 'round', rotulo: 'Redonda' }, { id: 'square', rotulo: 'Quadrada' }]} />
