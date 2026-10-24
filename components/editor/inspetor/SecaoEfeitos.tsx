@@ -180,7 +180,7 @@ export function SecaoEfeitos({ editor }: PropsSecao) {
 function DetalhesSombra({ sombra, texto, aoMudar }: { sombra: Sombra; texto: boolean; aoMudar: (f: (s: Sombra) => Sombra) => void }) {
   const nome = nomeSombra(sombra)
   return (
-    <div className="space-y-2 rounded-lg border border-borda p-2">
+    <div className="space-y-2 border-l border-bordaForte pl-2">
       <SeletorLista rotulo="Predefinição da sombra" valor={nome} aoMudar={(v) => { const p = SOMBRAS[v]; if (p) aoMudar((s) => ({ ...p, inner: s.inner })) }} opcoes={Object.keys(NOMES_SOMBRA).filter((k) => k !== 'personalizada' || nome === 'personalizada').map((k) => ({ id: k, rotulo: NOMES_SOMBRA[k]! }))} />
       <div className="grid grid-cols-2 gap-2">
         <CampoNum prefixo="X" rotulo="Sombra X" valor={sombra.x} min={-200} max={200} aoMudar={(x) => aoMudar((s) => ({ ...s, x }))} />
@@ -229,7 +229,7 @@ function DetalhesRealista({ ajustes: a, aoMudar }: { ajustes: SombraRealista; ao
   const previa = boxShadowCss(gerarSombrasRealistas({ ...a, elevation: a.elevation / 3 }))
   const predef = PREDEFINICOES_REALISTA.find((p) => Object.entries(p.ajustes).every(([k, v]) => a[k as keyof SombraRealista] === v))?.id ?? ''
   return (
-    <div className="space-y-2 rounded-lg border border-borda p-2">
+    <div className="space-y-2 border-l border-bordaForte pl-2">
       <div className="flex gap-2.5">
         <div
           ref={pad}

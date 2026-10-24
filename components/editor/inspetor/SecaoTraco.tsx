@@ -143,7 +143,7 @@ export function SecaoTraco({ editor }: PropsSecao) {
             </div>
           )}
           {mais && (
-            <div className="space-y-2 rounded-lg border border-borda p-2">
+            <div className="space-y-2 border-l border-bordaForte pl-2">
               <Segmentado<Traco['style']>
                 rotulo="Estilo do traço"
                 valor={estilo === MISTO || !estilo ? 'solid' : estilo}

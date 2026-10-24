@@ -218,7 +218,8 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
         <p className="mt-0.5 truncate text-[12px] text-texto3">{multi ? sel.map(nomeCamada).join(', ') : temAlguma ? [a.type !== 'none' ? resumoEntrada : null, loop ? nomeLoop(loop.type) : null, saida ? `sai: ${nomeAnimacao(saida.type)}` : null].filter(Boolean).join(' · ') : 'Sem animação'}</p>
       </div>
 
-      <Secao key={`${chaveSel}-entrada`} titulo="Entrada" chave="anim.entrada" resumo={resumoEntrada} acao={a.type !== 'none' ? <BotaoPrevia aoClicar={() => tocar()} /> : undefined}>
+      {/* a Prévia da entrada é a do cabeçalho (uma só à vista); Ênfase e Saída têm a própria */}
+      <Secao key={`${chaveSel}-entrada`} titulo="Entrada" chave="anim.entrada" resumo={resumoEntrada}>
         <Galeria
           key={chaveSel}
           presets={PRESETS_ENTRADA}
