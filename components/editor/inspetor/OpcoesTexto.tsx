@@ -163,7 +163,7 @@ function Basico({ c, set }: { c: CamadaTexto; set: Set }) {
             </Item>
           )}
           <Item rotulo="Pular descend.">
-            <span className="flex-1 truncate text-[11px] text-texto3">{c.decorationSkipInk === false ? 'Linha corrida' : 'Contorna g, p, y'}</span>
+            <span className="flex-1 truncate text-[12px] text-texto3">{c.decorationSkipInk === false ? 'Linha corrida' : 'Contorna g, p, y'}</span>
             <Interruptor rotulo="Pular descendentes" ativo={c.decorationSkipInk !== false} aoMudar={(v) => set({ decorationSkipInk: v ? undefined : false })} />
           </Item>
           <Item rotulo="Cor da linha">
@@ -198,7 +198,7 @@ function Basico({ c, set }: { c: CamadaTexto; set: Set }) {
         <CampoNum prefixo={<IconeParagrafo />} rotulo="Espaço entre parágrafos" valor={c.paragraphSpacing ?? 0} min={0} max={1000} sufixo="px" aoMudar={(v) => set({ paragraphSpacing: v || undefined })} />
       </Item>
       <Item rotulo="Truncar texto" dica="Corta com reticências (…) no fim da caixa ou no número máximo de linhas">
-        <span className="flex-1 truncate text-[11px] text-texto3">{c.truncate ? 'Com reticências' : 'Desligado'}</span>
+        <span className="flex-1 truncate text-[12px] text-texto3">{c.truncate ? 'Com reticências' : 'Desligado'}</span>
         <Interruptor rotulo="Truncar texto" ativo={!!c.truncate} aoMudar={(v) => set({ truncate: v || undefined })} />
       </Item>
       {c.truncate && (
@@ -221,7 +221,7 @@ function Detalhes({ c, set }: { c: CamadaTexto; set: Set }) {
           { id: 'pretty', rotulo: 'Bonita' },
         ]} />
       </Item>
-      {hug && <p className="pl-[92px] text-[11px] leading-snug text-texto3">Vale com largura fixa ou altura automática.</p>}
+      {hug && <p className="pl-[92px] text-[12px] text-texto3">Vale com largura fixa ou altura automática.</p>}
       <Item rotulo="Algarismos">
         <Segmentado<'p' | 't'> rotulo="Algarismos" valor={c.tabularNums ? 't' : 'p'} aoMudar={(v) => set({ tabularNums: v === 't' ? true : undefined })} opcoes={[
           { id: 'p', rotulo: 'Proporcionais' },
@@ -229,7 +229,7 @@ function Detalhes({ c, set }: { c: CamadaTexto; set: Set }) {
         ]} />
       </Item>
       <Item rotulo="Ligaduras" dica="Ligaduras comuns da fonte (fi, fl)">
-        <span className="flex-1 truncate text-[11px] text-texto3" style={{ fontVariantLigatures: c.ligatures === false ? 'none' : undefined }}>fi fl</span>
+        <span className="flex-1 truncate text-[12px] text-texto3" style={{ fontVariantLigatures: c.ligatures === false ? 'none' : undefined }}>fi fl</span>
         <Interruptor rotulo="Ligaduras" ativo={c.ligatures !== false} aoMudar={(v) => set({ ligatures: v ? undefined : false })} />
       </Item>
     </>

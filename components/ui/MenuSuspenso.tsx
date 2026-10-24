@@ -1,13 +1,16 @@
 'use client'
 /**
- * Menu suspenso do Mostra (no lugar do <select> nativo): botão gatilho + lista em portal, com cara de menu do Mac —
- * mesma moldura dos popovers do editor (borda, superfície, sombra-painel, cantos 9 px), ✓ no item escolhido,
- * grupos com título. Acessível: `role="combobox"` no gatilho e `role="listbox"` na lista; abre com clique, ↓/↑,
- * Enter ou Espaço; na lista ↑/↓/Home/End movem, letras procuram, Enter/Espaço escolhem, Esc/Tab/clique fora
- * fecham e o foco volta ao gatilho. Fica na janela (abre para cima se faltar espaço) e segue o tema.
+ * Menu suspenso do Mostra — um só visual para escolher uma opção (no lugar do <select>) e para menus de ações
+ * (predefinições, "Mais"): botão gatilho + lista em portal, 8 px de raio, sombra discreta, itens de 32 px, ✓ fino
+ * no item escolhido/marcado, separadores finos e títulos de grupo. Mesma cara nos dois temas (tokens).
+ *
+ * Modos: `opcoes` (padrão; `role=combobox` + `listbox`, ✓ no `valor`) e `acoes` (`aria-haspopup=menu` + `menu`,
+ * cada opção tem `aoClicar`; ✓ quando `marcada`). Teclado: abre com clique, ↓/↑, Enter ou Espaço; na lista ↑/↓/
+ * Home/End movem, letras procuram, Enter/Espaço escolhem, Esc/Tab/clique fora fecham e o foco volta ao gatilho.
+ * Rolar só reposiciona a lista. Fica na janela (abre para cima se faltar espaço).
  *
  * Aparências: `campo` (inspetor, 28 px, fundo superficie2), `grande` (formulários, 40 px com borda), `texto`
- * (só o rótulo com a seta, ex.: "Retângulo ▾") e `icone` (um ícone 24 px que abre o menu, ex.: mesclagem).
+ * (só o rótulo com a seta, ex.: "Retângulo ▾") e `icone` (um ícone 24 px que abre o menu, ex.: mesclagem, "Mais").
  */
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
@@ -22,6 +25,16 @@ export interface OpcaoMenu {
   grupo?: string
   desativada?: boolean
   icone?: ReactNode
+  /** Linha menor embaixo do rótulo — só quando ajuda de verdade (ex.: o que vai ser colado). */
+  descricao?: string
+  /** Modo `acoes`: ação do item. */
+  aoClicar?: () => void
+  /** Modo `acoes`: item marcado (✓), ex.: um efeito que está ligado. */
+  marcada?: boolean
+  /** Modo `acoes`: ação destrutiva (vermelho). */
+  perigo?: boolean
+  /** Linha divisória acima deste item. */
+  separador?: boolean
 }
 
 export type AparenciaMenu = 'campo' | 'grande' | 'texto' | 'icone'
@@ -29,9 +42,11 @@ export type AparenciaMenu = 'campo' | 'grande' | 'texto' | 'icone'
 export interface PropsMenuSuspenso {
   /** Nome acessível (aria-label) do gatilho e da lista. */
   rotulo: string
-  valor: string
+  valor?: string
   opcoes: OpcaoMenu[]
-  aoMudar: (id: string) => void
+  aoMudar?: (id: string) => void
+  /** `opcoes` (escolher um valor) ou `acoes` (menu de comandos). */
+  modo?: 'opcoes' | 'acoes'
   aparencia?: AparenciaMenu
   /** Ícone/letra à esquerda do campo (aparência `campo`). */
   prefixo?: ReactNode
@@ -42,7 +57,7 @@ export interface PropsMenuSuspenso {
   title?: string
   className?: string
   desativado?: boolean
-  /** Largura mínima da lista em px (padrão: a do gatilho, no mínimo 160). */
+  /** Largura mínima da lista em px (padrão: a do gatilho nos campos; 160 nos ícones). */
   larguraLista?: number
   /** Texto do gatilho quando o valor não está nas opções. */
   placeholder?: string
@@ -50,7 +65,7 @@ export interface PropsMenuSuspenso {
 
 const ALTURA_MAX = 320
 
-export function MenuSuspenso({ rotulo, valor, opcoes, aoMudar, aparencia = 'campo', prefixo, children, ativo, title, className, desativado, larguraLista, placeholder }: PropsMenuSuspenso) {
+export function MenuSuspenso({ rotulo, valor = '', opcoes, aoMudar, modo = 'opcoes', aparencia = 'campo', prefixo, children, ativo, title, className, desativado, larguraLista, placeholder }: PropsMenuSuspenso) {
   const [aberto, setAberto] = useState(false)
   const [realce, setRealce] = useState(-1)
   const [pos, setPos] = useState<CSSProperties | null>(null)
@@ -58,8 +73,11 @@ export function MenuSuspenso({ rotulo, valor, opcoes, aoMudar, aparencia = 'camp
   const lista = useRef<HTMLDivElement>(null)
   const idLista = useId()
   const busca = useRef({ texto: '', em: 0 })
+  const acoes = modo === 'acoes'
   const atual = opcoes.find((o) => o.id === valor)
-  const indiceAtual = opcoes.findIndex((o) => o.id === valor)
+  const indiceAtual = acoes ? opcoes.findIndex((o) => o.marcada) : opcoes.findIndex((o) => o.id === valor)
+  const marcada = (o: OpcaoMenu) => (acoes ? !!o.marcada : o.id === valor)
+  const comMarcacao = !acoes || opcoes.some((o) => o.marcada !== undefined)
 
   const fechar = useCallback((focar = true) => {
     setAberto(false)
@@ -72,11 +90,12 @@ export function MenuSuspenso({ rotulo, valor, opcoes, aoMudar, aparencia = 'camp
   }
   const escolher = (o: OpcaoMenu) => {
     if (o.desativada) return
-    if (o.id !== valor) aoMudar(o.id)
     fechar()
+    if (acoes) o.aoClicar?.()
+    else if (o.id !== valor) aoMudar?.(o.id)
   }
 
-  // posição: embaixo do gatilho, alinhada à esquerda; para cima se não couber; largura ≥ a do gatilho
+  // posição: embaixo do gatilho; para cima se não couber; campos com a largura do gatilho, ícones alinhados à direita
   useLayoutEffect(() => {
     if (!aberto) return
     const el = lista.current
@@ -84,18 +103,21 @@ export function MenuSuspenso({ rotulo, valor, opcoes, aoMudar, aparencia = 'camp
     if (!el || !g) return
     const posicionar = () => {
       const a = g.getBoundingClientRect()
-      const w = Math.max(larguraLista ?? 0, aparencia === 'campo' || aparencia === 'grande' ? a.width : 0, 160)
+      const campo = aparencia === 'campo' || aparencia === 'grande'
+      const w = campo ? Math.max(larguraLista ?? 0, a.width, 160) : Math.max(larguraLista ?? 160, el.offsetWidth)
       const h = Math.min(el.scrollHeight + 2, ALTURA_MAX)
       const abaixo = window.innerHeight - a.bottom - 8
       const paraCima = h > abaixo && a.top - 8 > abaixo
       const top = paraCima ? Math.max(8, a.top - 4 - h) : Math.min(a.bottom + 4, window.innerHeight - h - 8)
       let left = aparencia === 'icone' ? a.right - w : a.left
       left = Math.max(8, Math.min(left, window.innerWidth - w - 8))
-      setPos({ left, top, width: w, maxHeight: Math.min(ALTURA_MAX, window.innerHeight - 16) })
+      setPos({ left, top, ...(campo ? { width: w } : { minWidth: Math.max(larguraLista ?? 160, 160) }), maxHeight: Math.min(ALTURA_MAX, window.innerHeight - 16) })
     }
     posicionar()
     window.addEventListener('resize', posicionar)
-    return () => window.removeEventListener('resize', posicionar)
+    // rolar (inclusive o rolar-até-o-gatilho que precede um clique) só reposiciona; clicar fora fecha
+    document.addEventListener('scroll', posicionar, true)
+    return () => { window.removeEventListener('resize', posicionar); document.removeEventListener('scroll', posicionar, true) }
   }, [aberto, aparencia, larguraLista, opcoes.length])
 
   // clique fora (capturado: popovers que fecham no pointerdown reconhecem a lista por [data-menu-suspenso])
@@ -106,10 +128,8 @@ export function MenuSuspenso({ rotulo, valor, opcoes, aoMudar, aparencia = 'camp
       if (lista.current?.contains(alvo) || gatilho.current?.contains(alvo)) return
       fechar(false)
     }
-    const rolou = (e: Event) => { if (!lista.current?.contains(e.target as Node)) fechar(false) }
     document.addEventListener('pointerdown', fora, true)
-    document.addEventListener('scroll', rolou, true)
-    return () => { document.removeEventListener('pointerdown', fora, true); document.removeEventListener('scroll', rolou, true) }
+    return () => document.removeEventListener('pointerdown', fora, true)
   }, [aberto, fechar])
 
   // foco na lista (depois de posicionada: escondida ela não aceita foco) e item realçado à vista
@@ -146,6 +166,7 @@ export function MenuSuspenso({ rotulo, valor, opcoes, aoMudar, aparencia = 'camp
   }
 
   const teclaLista = (e: React.KeyboardEvent) => {
+    // nada daqui chega aos atalhos do editor (setas moveriam a camada, Enter abriria a edição do texto…)
     e.stopPropagation()
     if (e.key === 'Escape') { e.preventDefault(); fechar(); return }
     if (e.key === 'Tab') { fechar(); return }
@@ -162,7 +183,7 @@ export function MenuSuspenso({ rotulo, valor, opcoes, aoMudar, aparencia = 'camp
     // aberto com o foco ainda no gatilho: as teclas valem para a lista
     if (aberto) { teclaLista(e); return }
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); abrir() }
-    else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    else if (!acoes && e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
       // letra com o menu fechado: pula direto para a opção, como no select do Mac
       const i = procurar(e.key)
       if (i >= 0) { e.preventDefault(); e.stopPropagation(); escolher(opcoes[i]!) }
@@ -178,7 +199,7 @@ export function MenuSuspenso({ rotulo, valor, opcoes, aoMudar, aparencia = 'camp
   const grupos: { titulo?: string; itens: { o: OpcaoMenu; i: number }[] }[] = []
   opcoes.forEach((o, i) => {
     const ultimo = grupos[grupos.length - 1]
-    if (ultimo && ultimo.titulo === o.grupo) ultimo.itens.push({ o, i })
+    if (ultimo && ultimo.titulo === o.grupo && !o.separador) ultimo.itens.push({ o, i })
     else grupos.push({ titulo: o.grupo, itens: [{ o, i }] })
   })
 
@@ -186,14 +207,14 @@ export function MenuSuspenso({ rotulo, valor, opcoes, aoMudar, aparencia = 'camp
     <div
       ref={lista}
       id={idLista}
-      role="listbox"
+      role={acoes ? 'menu' : 'listbox'}
       aria-label={rotulo}
       aria-activedescendant={realce >= 0 ? `${idLista}-${realce}` : undefined}
       tabIndex={-1}
       data-menu-suspenso=""
       onKeyDown={teclaLista}
       onPointerDown={(e) => e.stopPropagation()}
-      className="fixed z-[80] overflow-y-auto rounded-lg border border-borda bg-superficie p-1 text-[13px] text-texto shadow-painel outline-none"
+      className={cx('fixed z-[80] overflow-y-auto rounded-[8px] border border-borda bg-superficie p-1 text-texto shadow-[0_8px_24px_-12px_rgba(0,0,0,.28)] outline-none', aparencia === 'grande' ? 'text-[13px]' : 'text-[12px]', aparencia === 'icone' && 'max-w-[280px]')}
       style={{ ...(pos ?? { left: -9999, top: -9999 }), visibility: pos ? undefined : 'hidden' }}
     >
       {grupos.map((g, gi) => (
@@ -203,18 +224,22 @@ export function MenuSuspenso({ rotulo, valor, opcoes, aoMudar, aparencia = 'camp
             <div
               key={o.id}
               id={`${idLista}-${i}`}
-              role="option"
-              aria-selected={o.id === valor}
+              role={acoes ? (o.marcada === undefined ? 'menuitem' : 'menuitemcheckbox') : 'option'}
+              aria-selected={acoes ? undefined : o.id === valor}
+              aria-checked={acoes && o.marcada !== undefined ? o.marcada : undefined}
               aria-disabled={o.desativada || undefined}
               data-indice={i}
               data-valor={o.id}
               onPointerMove={() => { if (realce !== i && !o.desativada) setRealce(i) }}
               onClick={() => escolher(o)}
-              className={cx('flex cursor-default items-center gap-2 rounded-md py-1.5 pl-2 pr-3 text-left', realce === i && !o.desativada && 'bg-hover', o.desativada && 'opacity-40')}
+              className={cx('flex min-h-8 cursor-default items-center gap-2 rounded-[6px] px-2 text-left', o.descricao ? 'py-1.5' : 'h-8', realce === i && !o.desativada && 'bg-hover', o.desativada && 'opacity-40', o.perigo && 'text-perigo')}
             >
-              <span className="flex w-3.5 shrink-0 items-center justify-center">{o.id === valor && <Check className="h-3.5 w-3.5" />}</span>
+              {comMarcacao && <span className="flex w-3.5 shrink-0 items-center justify-center" aria-hidden>{marcada(o) && <Check className="h-3.5 w-3.5" strokeWidth={1.75} />}</span>}
               {o.icone}
-              <span className="min-w-0 flex-1 truncate">{o.rotulo}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate">{o.rotulo}</span>
+                {o.descricao && <span className="block truncate text-[11px] leading-snug text-texto3">{o.descricao}</span>}
+              </span>
             </div>
           ))}
         </div>
@@ -228,9 +253,9 @@ export function MenuSuspenso({ rotulo, valor, opcoes, aoMudar, aparencia = 'camp
       <button
         ref={gatilho}
         type="button"
-        role="combobox"
+        role={acoes ? undefined : 'combobox'}
         aria-label={rotulo}
-        aria-haspopup="listbox"
+        aria-haspopup={acoes ? 'menu' : 'listbox'}
         aria-expanded={aberto}
         aria-controls={aberto ? idLista : undefined}
         title={title ?? (aparencia === 'icone' || aparencia === 'texto' ? rotulo : undefined)}

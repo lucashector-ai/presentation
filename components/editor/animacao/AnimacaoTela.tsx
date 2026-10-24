@@ -4,7 +4,7 @@
  * profundidade (parallax) e avanço automático em seções recolhíveis com resumo.
  */
 import { useState } from 'react'
-import { Layers3, Sparkles, Timer, Trash2 } from 'lucide-react'
+import { Timer } from 'lucide-react'
 import type { Editor } from '@/lib/editor/useEditor'
 import { ESTILOS_TELA, ORDENS_TELA, animarTelaInteira, duracaoPrevia, removerAnimacoes, type EstiloTela, type OrdemTela } from '@/lib/scene/animacoes'
 import { pararPrevia, pedirPrevia, usePreviaAnimacao } from '@/components/renderer/animacao'
@@ -55,7 +55,7 @@ export function AnimacaoTela({ editor }: { editor: Editor }) {
     <div className="pb-6">
       <div className="border-b border-borda px-3 pb-2 pt-3">
         <div className="rotulo-mono">Tela {String(editor.indiceCena + 1).padStart(2, '0')}</div>
-        <p className="mt-0.5 text-[12px] leading-snug text-texto2">Animações da tela inteira. Selecione uma camada para animar só ela.</p>
+        <div className="mt-0.5 flex h-8 items-center text-[14px] font-medium">{cena.title || 'Sem título'}</div>
       </div>
 
       <Secao titulo="Transição de entrada" chave="tela.transicao" resumo={resumoTransicao(cena)} acao={tr.type !== 'none' ? <BotaoPrevia aoClicar={() => previaTransicao(editor)} /> : undefined}>
@@ -65,30 +65,28 @@ export function AnimacaoTela({ editor }: { editor: Editor }) {
       <Secao titulo="Linha do tempo" chave="tela.linha" resumo={`${animadas} de ${cena.layers.length} animadas`} acao={<BotaoPreviaTela aoClicar={() => tocarTela()} />}>
         <LinhaDoTempo editor={editor} />
         {animadas > 0 && (
-          <button type="button" onClick={() => acoes.atualizarCena({ layers: removerAnimacoes(cena.layers) })} className="flex items-center gap-1.5 text-[12px] text-texto2 hover:text-perigo">
-            <Trash2 className="h-3 w-3" aria-hidden /> Remover animações da tela
+          <button type="button" onClick={() => acoes.atualizarCena({ layers: removerAnimacoes(cena.layers) })} className="text-[12px] text-texto2 hover:text-perigo">
+            Remover animações da tela
           </button>
         )}
       </Secao>
 
       <Secao titulo="Animar tudo" chave="tela.sequencia" aberta={animadas === 0} resumo={def.rotulo}>
-        <p className="text-[12px] leading-snug text-texto2">Cada camada ganha uma entrada combinando com as outras, em sequência.</p>
         <Chips rotulo="Estilo" valor={estilo} opcoes={ESTILOS_TELA.map((e) => ({ id: e.id, rotulo: e.rotulo }))} aoMudar={setEstilo} />
-        <p className="text-[11px] text-texto3">{def.descricao} · intervalo de {def.intervalo} ms</p>
+        <p className="text-[12px] text-texto3">{def.descricao} · {def.intervalo} ms entre camadas</p>
         <SeletorLista rotulo="Ordem da sequência" valor={ordem} aoMudar={(v) => setOrdem(v as OrdemTela)} opcoes={ORDENS_TELA} />
-        <button type="button" onClick={animarTudo} disabled={!cena.layers.length} className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-acento text-[13px] font-medium text-acentoTexto transition-opacity hover:opacity-90 disabled:opacity-40">
-          <Sparkles className="h-3.5 w-3.5" aria-hidden /> Animar tela inteira
+        <button type="button" onClick={animarTudo} disabled={!cena.layers.length} title="Cada camada ganha uma entrada combinando com as outras, em sequência" className="h-8 w-full rounded-md bg-acento text-[12px] font-medium text-acentoTexto transition-opacity hover:opacity-90 disabled:opacity-40">
+          Animar tela inteira
         </button>
       </Secao>
 
       <Secao titulo="Profundidade (parallax)" chave="tela.profundidade" aberta={false} resumo={comProfundidade ? `${comProfundidade} ${comProfundidade === 1 ? 'camada' : 'camadas'}` : 'Nenhuma'} acao={comProfundidade ? <BotaoPrevia aoClicar={() => tocarProfundidade()} /> : undefined}>
-        <p className="text-[12px] leading-snug text-texto2">Fundo mais longe, imagens no meio, títulos à frente. Reage ao mouse, à rolagem do Story e à transição.</p>
-        <button type="button" onClick={darProfundidade} disabled={!cena.layers.length} className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-borda text-[13px] font-medium text-texto transition-colors hover:border-bordaForte disabled:opacity-40">
-          <Layers3 className="h-3.5 w-3.5" aria-hidden /> Dar profundidade à tela
+        <button type="button" onClick={darProfundidade} disabled={!cena.layers.length} title="Fundo mais longe, imagens no meio, títulos à frente; reage ao mouse, à rolagem do Story e à transição" className="h-8 w-full rounded-md border border-borda text-[12px] font-medium text-texto transition-colors hover:border-bordaForte disabled:opacity-40">
+          Dar profundidade à tela
         </button>
         {comProfundidade > 0 && (
-          <button type="button" onClick={() => acoes.atualizarCena({ layers: semProfundidade(cena.layers) })} className="flex items-center gap-1.5 text-[12px] text-texto2 hover:text-perigo">
-            <Trash2 className="h-3 w-3" aria-hidden /> Tirar a profundidade ({comProfundidade} {comProfundidade === 1 ? 'camada' : 'camadas'})
+          <button type="button" onClick={() => acoes.atualizarCena({ layers: semProfundidade(cena.layers) })} className="text-[12px] text-texto2 hover:text-perigo">
+            Tirar a profundidade ({comProfundidade} {comProfundidade === 1 ? 'camada' : 'camadas'})
           </button>
         )}
       </Secao>
@@ -101,7 +99,7 @@ export function AnimacaoTela({ editor }: { editor: Editor }) {
               <span className="w-[96px] shrink-0"><CampoNum rotulo="Segundos até avançar" prefixo={<Timer className="h-3 w-3" />} valor={segundos} min={1} max={600} passo={0.5} casas={1} sufixo="s" aoMudar={(v) => acoes.atualizarCena({ autoAdvance: Math.round(v * 1000) })} /></span>
             </div>
           ) : (
-            <p className="text-[12px] leading-snug text-texto3">Ligue para a apresentação passar para a próxima tela sozinha.</p>
+            <p className="text-[12px] text-texto3">Desligado: a próxima tela só vem com clique.</p>
           )}
         </Secao>
       )}

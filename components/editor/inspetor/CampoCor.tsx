@@ -53,7 +53,7 @@ export function LinhaPintura({ rotulo, valor, aoMudar, tipos = ['solido'], acoes
         {estilo && valor.tipo === 'solido' ? (
           <>
             <button type="button" title={`Estilo de cor: ${estilo.name}`} onClick={() => setAberto((v) => !v)} className="h-full min-w-0 flex-1 truncate pl-2 text-left text-[12px] text-texto">{estilo.name}</button>
-            <button type="button" aria-label="Desvincular estilo" title="Desvincular estilo (mantém a cor)" onClick={() => aoMudar({ tipo: 'solido', cor: valor.cor })} className="mr-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px] text-texto2 hover:bg-hover hover:text-texto"><Link2Off className="h-3.5 w-3.5" /></button>
+            <button type="button" aria-label="Desvincular estilo" title="Desvincular estilo (mantém a cor)" onClick={() => aoMudar({ tipo: 'solido', cor: valor.cor })} className="mr-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px] text-texto2 hover:text-texto"><Link2Off className="h-3.5 w-3.5" /></button>
           </>
         ) : valor.tipo === 'solido' ? (
           <>
