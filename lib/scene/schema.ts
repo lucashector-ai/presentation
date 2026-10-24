@@ -515,6 +515,8 @@ const CamadaBase = z.object({
    */
   sizingW: z.enum(DIMENSIONAMENTOS).optional(),
   sizingH: z.enum(DIMENSIONAMENTOS).optional(),
+  /** Peso do `fill` no eixo principal do auto layout (como flex-grow): 2 ocupa o dobro de 1. Ausente = 1. */
+  layoutGrow: z.number().min(0.1).max(10).optional(),
   /** Filho de auto layout com posição absoluta (ignora o fluxo). */
   absolute: z.boolean().optional(),
   /**
@@ -805,7 +807,7 @@ export const CamadaFrameSchema = CamadaBase.extend({
   /** Guias de layout do frame (só no editor). */
   guias: GuiasLayoutSchema.optional(),
   /** Bento grid (Blocos): preset, espaço e raio dos cartões; regenerado pela seção Bento do inspetor. */
-  bento: z.object({ preset: z.string().max(40), gap: z.number().min(0).max(200), radius: z.number().min(0).max(200) }).optional(),
+  bento: z.object({ preset: z.string().max(40), gap: z.number().min(0).max(200), radius: z.number().min(0).max(200), padding: z.number().min(0).max(400).optional() }).optional(),
   /** Mockup (Blocos): modelo e cor da moldura; regenerado pela seção Mockup do inspetor. */
   mockup: z.object({ modelo: z.string().max(40), cor: CorSchema }).optional(),
 })
