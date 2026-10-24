@@ -5,8 +5,7 @@
  * Prévia: os cartões tocam o efeito real (o mesmo invólucro do visualizador) com um ponteiro simulado; o botão
  * Prévia faz o mesmo no canvas.
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import type { Camada, EfeitosInterativos } from '@/lib/scene/schema'
 import type { Editor } from '@/lib/editor/useEditor'
 import { INTENSIDADES_INTERATIVAS, PARALLAX_PADRAO, TILT_PADRAO, luzDe, tiltDe, type TipoInterativo } from '@/lib/scene/reativos'
@@ -14,8 +13,7 @@ import { pedirPrevia } from '@/components/renderer/animacao'
 import { CamadaReativa, DURACAO_SIMULACAO_MS } from '@/components/renderer/reativos'
 import { usePreferencias } from '@/components/renderer/useTamanho'
 import { Deslizante, SeletorLista } from '@/components/editor/inspetor/controles'
-import { cx } from '@/components/ui'
-import { BotaoPrevia, CartaoPreset, Chips, GradeCartoesPreset, Rotulo, useCiclo } from './ui'
+import { BotaoPrevia, CartaoPreset, Chips, Finos, GradeCartoesPreset, Rotulo, useCiclo } from './ui'
 import { BotaoCor } from '../inspetor/CampoCor'
 
 type Cartao = 'parallax' | 'tilt' | 'luz' | 'lanterna'
@@ -36,6 +34,12 @@ export function sugestaoInterativa(c: Camada): Cartao[] {
 
 const ativoNo = (e: EfeitosInterativos | undefined, k: Cartao) =>
   k === 'parallax' ? !!e?.parallax?.depth : k === 'tilt' ? !!e?.tilt : k === 'luz' ? e?.spotlight?.mode === 'light' : e?.spotlight?.mode === 'dark'
+
+/** Resumo de uma linha ("Parallax, Tilt 3D" ou "Nenhum"). */
+export function resumoInterativo(c: Camada): string {
+  const ligados = CARTOES.filter((k) => ativoNo(c.interactiveEffects, k.id)).map((k) => k.rotulo)
+  return ligados.length ? ligados.join(', ') : 'Nenhum'
+}
 
 export function AbaInterativa({ editor, sel }: { editor: Editor; sel: Camada[] }) {
   const { acoes } = editor
@@ -61,7 +65,7 @@ export function AbaInterativa({ editor, sel }: { editor: Editor; sel: Camada[] }
   const algum = !!e && (!!e.parallax?.depth || !!e.tilt || !!e.spotlight)
 
   return (
-    <div className="space-y-2 pt-3">
+    <div className="space-y-2">
       <Rotulo acao={algum ? <BotaoPrevia aoClicar={previa} /> : undefined}>Reage ao mouse e à rolagem</Rotulo>
       <GradeCartoesPreset rotulo="Efeitos interativos">
         {CARTOES.map((k) => (
@@ -72,7 +76,7 @@ export function AbaInterativa({ editor, sel }: { editor: Editor; sel: Camada[] }
       </GradeCartoesPreset>
       {!algum && (
         <p className="text-[12px] leading-snug text-texto3">
-          Sugestão para esta camada: {sugestaoInterativa(l).map((k) => CARTOES.find((x) => x.id === k)!.rotulo).join(', ')}. Liga e desliga com um clique; dá para combinar.
+          Sugestão para esta camada: {sugestaoInterativa(l).map((k) => CARTOES.find((x) => x.id === k)!.rotulo).join(', ')}. Dá para combinar.
         </p>
       )}
 
@@ -80,7 +84,7 @@ export function AbaInterativa({ editor, sel }: { editor: Editor; sel: Camada[] }
       {e?.tilt ? <AjustesTilt t={e.tilt} aoMudar={(t) => mudar((a) => ({ ...a, tilt: t }), false)} aoPrevia={previa} /> : null}
       {e?.spotlight ? <AjustesLuz l={e.spotlight} aoMudar={(s) => mudar((a) => ({ ...a, spotlight: s }), false)} aoPrevia={previa} /> : null}
 
-      {algum && <p className="text-[11px] leading-snug text-texto3">Slides e Explorar: seguem o mouse (o parallax também acompanha a transição e o voo da câmera). Story: o parallax acompanha a rolagem. No toque, tilt e luz ficam desligados; com movimento reduzido, nada se mexe.</p>}
+      {algum && <p className="text-[11px] leading-snug text-texto3">Segue o mouse nos slides e no Explorar; no Story, o parallax acompanha a rolagem. No toque e com movimento reduzido, fica parado.</p>}
     </div>
   )
 }
@@ -92,24 +96,6 @@ function limpar(e: EfeitosInterativos): EfeitosInterativos | undefined {
   if (e.tilt) r.tilt = e.tilt
   if (e.spotlight) r.spotlight = e.spotlight
   return Object.keys(r).length ? r : undefined
-}
-
-/** Ajustes finos recolhidos, com o atalho "Padrão". */
-function Finos({ children, resumo, aoPadrao }: { children: ReactNode; resumo?: string; aoPadrao?: () => void }) {
-  const [aberto, setAberto] = useState(false)
-  return (
-    <div className="rounded-lg border border-borda">
-      <div className="flex h-8 items-center gap-1 pl-1 pr-2">
-        <button type="button" aria-expanded={aberto} onClick={() => setAberto((v) => !v)} className="flex h-full min-w-0 flex-1 items-center gap-1 rounded-md px-1 text-left text-[12px] font-medium text-texto hover:bg-hover">
-          <ChevronRight className={cx('h-3.5 w-3.5 shrink-0 text-texto3 transition-transform', aberto && 'rotate-90')} />
-          Ajustes finos
-          {!aberto && resumo && <span className="ml-1 truncate font-normal text-texto3">{resumo}</span>}
-        </button>
-        {aoPadrao && <button type="button" onClick={aoPadrao} className="shrink-0 text-[11px] text-texto2 hover:text-texto">Padrão</button>}
-      </div>
-      {aberto && <div className="space-y-2 border-t border-borda px-2.5 pb-2.5 pt-2">{children}</div>}
-    </div>
-  )
 }
 
 /** Prévia 300 ms depois do último ajuste (arrastar o deslizador não toca a cada passo). */

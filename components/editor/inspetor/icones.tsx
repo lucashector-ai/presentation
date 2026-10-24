@@ -138,3 +138,10 @@ export const IconeSombraInterna = () => (
     <rect x="1.5" y="1.5" width="11" height="11" rx="2" /><path d="M4 10V5.5A1.5 1.5 0 0 1 5.5 4H10" opacity=".5" />
   </svg>
 )
+/** Predefinições (menu de efeitos prontos): estrela de quatro pontas com uma menor. */
+export const IconePredefinicoes = () => (
+  <svg viewBox="0 0 14 14" className="h-3.5 w-3.5" {...base}>
+    <path d="M6 2.5c.4 2.2 1.3 3.1 3.5 3.5-2.2.4-3.1 1.3-3.5 3.5-.4-2.2-1.3-3.1-3.5-3.5 2.2-.4 3.1-1.3 3.5-3.5Z" />
+    <path d="M10.8 8.6c.2 1 .6 1.4 1.6 1.6-1 .2-1.4.6-1.6 1.6-.2-1-.6-1.4-1.6-1.6 1-.2 1.4-.6 1.6-1.6Z" fill="currentColor" stroke="none" opacity=".7" />
+  </svg>
+)

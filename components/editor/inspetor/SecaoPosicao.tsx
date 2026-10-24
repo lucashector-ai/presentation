@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceAround, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceAround, FlipHorizontal2, FlipVertical2, RotateCw } from 'lucide-react'
 import type { Alinhamento } from '@/lib/scene/transform'
 import { cx } from '@/components/ui'
-import { BotaoCampo, CampoNum, Secao } from './controles'
+import { BotaoCampo, CampoNum, Menu, Secao } from './controles'
 import { IconeAngulo } from './SeletorCor'
 import { comum, useCamadas, type PropsSecao } from './selecao'
 
@@ -22,6 +22,16 @@ const ALINHAR: [Alinhamento, typeof AlignStartVertical, string][] = [
   ['centroV', AlignCenterHorizontal, 'Centralizar na vertical'],
   ['base', AlignEndHorizontal, 'Alinhar à base'],
 ]
+
+/** Vistas 3D prontas (como os presets do plugin Isometric do Figma), num menu em vez de fileira de chips. */
+const VISTAS_3D = [
+  { nome: 'Plano', rx: 0, ry: 0 },
+  { nome: 'Esquerda', rx: 0, ry: -35 },
+  { nome: 'Direita', rx: 0, ry: 35 },
+  { nome: 'Superior esquerda', rx: 30, ry: -35 },
+  { nome: 'Superior direita', rx: 30, ry: 35 },
+  { nome: 'Isométrico', rx: 45, ry: -30 },
+] as const
 
 export function GrupoBotoes({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={cx('flex h-8 min-w-0 flex-1 items-center rounded-md bg-superficie2 p-[2px]', className)}>{children}</div>
@@ -76,10 +86,14 @@ export function SecaoPosicao({ editor }: PropsSecao) {
         <CampoNum prefixo="3D X" rotulo="Inclinação 3D no eixo X" valor={comum(sel, (c) => c.rotateX ?? 0)} min={-180} max={180} sufixo="°" aoMudar={(v) => set({ rotateX: v || undefined })} aoDelta={(d) => setFn((c) => ({ ...c, rotateX: ((c.rotateX ?? 0) + d) || undefined }))} />
         <CampoNum prefixo="3D Y" rotulo="Inclinação 3D no eixo Y" valor={comum(sel, (c) => c.rotateY ?? 0)} min={-180} max={180} sufixo="°" aoMudar={(v) => set({ rotateY: v || undefined })} aoDelta={(d) => setFn((c) => ({ ...c, rotateY: ((c.rotateY ?? 0) + d) || undefined }))} />
       </div>
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Predefinições 3D">
-        {([['Plano', 0, 0], ['Esquerda', 0, -35], ['Direita', 0, 35], ['Sup. esquerda', 30, -35], ['Sup. direita', 30, 35], ['Isométrico', 45, -30]] as const).map(([nome, rx, ry]) => (
-          <button key={nome} type="button" onClick={() => set({ rotateX: rx || undefined, rotateY: ry || undefined })} className="h-7 rounded-full border border-borda px-2.5 text-[11px] text-textoCorpo hover:border-bordaHover">{nome}</button>
-        ))}
+      <div className="grid grid-cols-[1fr_32px] gap-2">
+        <Menu
+          rotulo="Vista 3D"
+          variante="campo"
+          itens={VISTAS_3D.map((v) => ({ id: v.nome, rotulo: v.nome, descricao: v.rx || v.ry ? `${v.rx}° · ${v.ry}°` : 'Sem inclinação', ativo: comum(sel, (c) => c.rotateX ?? 0) === v.rx && comum(sel, (c) => c.rotateY ?? 0) === v.ry, aoClicar: () => set({ rotateX: v.rx || undefined, rotateY: v.ry || undefined }) }))}
+        >
+          {VISTAS_3D.find((v) => comum(sel, (c) => c.rotateX ?? 0) === v.rx && comum(sel, (c) => c.rotateY ?? 0) === v.ry)?.nome ?? 'Vista 3D personalizada'}
+        </Menu>
       </div>
     </Secao>
   )

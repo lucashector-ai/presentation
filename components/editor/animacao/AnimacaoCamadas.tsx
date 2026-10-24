@@ -1,7 +1,12 @@
 'use client'
-/** Aba Animação com camadas selecionadas: galerias de Entrada, Ênfase (loop) e Saída + controles simples. */
+/**
+ * Aba Animação com camadas selecionadas: seções recolhíveis Entrada · Ênfase (loop) · Saída · Interativo ·
+ * Transição da tela, cada uma com um resumo de uma linha quando fechada; galerias com prévia ao passar o mouse;
+ * o essencial à vista e "Ajustes finos" recolhidos. Menu "Mais": copiar/colar animação, aplicar a todas as
+ * camadas da tela, remover. Toda mudança toca no canvas na hora.
+ */
 import { useEffect, useRef, useState } from 'react'
-import { ClipboardPaste, Copy, Hourglass, Layers, Timer } from 'lucide-react'
+import { Hourglass, Layers, MoreHorizontal, Timer } from 'lucide-react'
 import type { Animacao, Camada, Loop } from '@/lib/scene/schema'
 import type { Editor } from '@/lib/editor/useEditor'
 import {
@@ -12,6 +17,7 @@ import {
   PRESETS_SAIDA,
   VELOCIDADES,
   animacaoDoPreset,
+  animavel,
   camposDaCurva,
   curvaDe,
   duracaoPorVelocidade,
@@ -28,14 +34,15 @@ import {
   type TipoLoop,
 } from '@/lib/scene/animacoes'
 import { pedirPrevia } from '@/components/renderer/animacao'
-import { CampoNum, Deslizante, Interruptor, SeletorLista } from '@/components/editor/inspetor/controles'
+import { CampoNum, Deslizante, Interruptor, Menu, Secao, Segmentado, SeletorLista } from '@/components/editor/inspetor/controles'
 import { CurvaEasing } from '@/components/editor/inspetor/CurvaEasing'
-import { AbasInternas, BotaoPrevia, CartaoPreset, Chips, GradeCartoesPreset, MiniPrevia, Rotulo, areaAnimacao, useAnimacaoCopiada } from './ui'
+import { ICONE_TIPO } from '@/components/editor/inspetor/selecao'
+import { BotaoPrevia, CartaoPreset, Chips, GradeCartoesPreset, MiniPrevia, Rotulo, areaAnimacao, useAnimacaoCopiada } from './ui'
 import { Galeria, PainelAjustes, sugestoesPara } from './Ajustes'
-import { AbaInterativa } from './Interativos'
+import { AbaInterativa, resumoInterativo } from './Interativos'
+import { TransicaoTela, previaTransicao, resumoTransicao } from './Transicao'
 import { temInterativo } from '@/lib/scene/reativos'
 
-type Aba = 'entrada' | 'enfase' | 'saida' | 'interativo'
 const INTERVALOS = [60, 100, 150, 250] as const
 const INTENSIDADES = [
   { id: 'sutil', rotulo: 'Fraca', v: 0.5 },
@@ -73,6 +80,14 @@ const semCampo = <K extends 'enterAnimation' | 'loopAnimation' | 'exitAnimation'
   delete copia[k]
   return copia as Camada
 }
+const semAnimacoes = (c: Camada) => semCampo(semCampo(semCampo(c, 'enterAnimation'), 'loopAnimation'), 'exitAnimation')
+/** Copia entrada/loop/saída de `de` para a camada `c` (mantém o atraso que `c` já tinha, para não desfazer sequências). */
+const comAnimacoesDe = (c: Camada, de: { enterAnimation?: Animacao; loopAnimation?: Loop; exitAnimation?: Animacao }, manterAtraso = false): Camada => ({
+  ...semAnimacoes(c),
+  ...(de.enterAnimation ? { enterAnimation: manterAtraso && c.enterAnimation ? { ...de.enterAnimation, delay: c.enterAnimation.delay } : de.enterAnimation } : {}),
+  ...(de.loopAnimation ? { loopAnimation: de.loopAnimation } : {}),
+  ...(de.exitAnimation ? { exitAnimation: de.exitAnimation } : {}),
+}) as Camada
 
 /** Atraso e duração com o rótulo em cima (o prefixo do campo numérico só cabe um ícone/letra). */
 function CamposTempo({ atraso, duracao, rotulo, maxAtraso, aoAtraso, aoDuracao }: { atraso: number; duracao: number; rotulo: string; maxAtraso: number; aoAtraso: (v: number) => void; aoDuracao: (v: number) => void }) {
@@ -92,7 +107,6 @@ function CamposTempo({ atraso, duracao, rotulo, maxAtraso, aoAtraso, aoDuracao }
 
 export function AnimacaoCamadas({ editor }: { editor: Editor }) {
   const { camadasSelecionadas: sel, acoes } = editor
-  const [aba, setAba] = useState<Aba>('entrada')
   const [intervalo, setIntervalo] = useState<number>(100)
   const [ordem, setOrdem] = useState<OrdemTela>('leitura')
   const [curvaAberta, setCurvaAberta] = useState(false)
@@ -109,9 +123,12 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
   const a: Animacao = l.enterAnimation ?? { type: 'none', duration: 600, delay: 0, easing: 'easeOut' }
   const loop = l.loopAnimation
   const saida = l.exitAnimation
+  const temAlguma = a.type !== 'none' || !!loop || !!saida
   const atrasos = sel.map((c) => c.enterAnimation?.delay ?? 0)
   const emSequencia = multi && new Set(atrasos).size > 1
   const diferentes = multi && sel.some((c) => !igual(c.enterAnimation, l.enterAnimation) || !igual(c.loopAnimation, loop) || !igual(c.exitAnimation, saida)) && !emSequencia
+  const camadasDaTela = editor.cena?.layers ?? []
+  const outrasDaTela = camadasDaTela.filter((c) => animavel(c) && !ids.includes(c.id))
 
   // ---------- prévia ----------
   const tocar = (opts: { saida?: boolean; loop?: boolean } = {}) =>
@@ -145,7 +162,6 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
   const escolherEntrada = (tipo: TipoAnimacao) => setEntrada(tipo === 'none' ? null : animacaoDoPreset(tipo, a))
   const ajustarEntrada = (patch: Partial<Animacao>, remover?: (keyof Animacao)[]) =>
     acoes.atualizarCamadas(ids, (c) => (c.enterAnimation ? ({ ...c, enterAnimation: comAjuste(c.enterAnimation, patch, remover) } as Camada) : c))
-  const camadasDaTela = editor.cena?.layers ?? []
 
   // ---------- loop / saída ----------
   const setLoop = (novo: Loop | null) => {
@@ -157,211 +173,205 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
     if (nova) tocar({ saida: true })
   }
 
+  // ---------- "Mais" ----------
+  const animacoes = { enterAnimation: l.enterAnimation, loopAnimation: loop, exitAnimation: saida }
+  const colar = () => {
+    const c0 = areaAnimacao.ler()
+    if (!c0) return
+    acoes.atualizarCamadas(ids, (c) => comAnimacoesDe(c, c0))
+    tocar({ loop: !!c0.loopAnimation })
+  }
+  const aplicarNaTela = () => {
+    acoes.atualizarCamadas(outrasDaTela.map((c) => c.id), (c) => comAnimacoesDe(c, animacoes, true))
+    setTimeout(() => pedirPrevia({ ids: camadasDaTela.filter(animavel).map((c) => c.id), duracao: Math.max(...camadasDaTela.map((c) => (c.enterAnimation ? c.enterAnimation.delay + duracaoTotal(c.enterAnimation) : 0)), a.type !== 'none' ? a.delay + duracaoTotal(a) : 0) + 300 }), 40)
+  }
+  const mais = (
+    <Menu
+      rotulo="Mais ações da animação"
+      itens={[
+        { id: 'copiar', rotulo: 'Copiar animação', descricao: 'Entrada, ênfase e saída desta camada', desativado: !temAlguma, aoClicar: () => areaAnimacao.copiar(animacoes) },
+        { id: 'colar', rotulo: 'Colar animação', descricao: copiada ? `${copiada.enterAnimation ? nomeAnimacao(copiada.enterAnimation.type) : 'sem entrada'}${copiada.loopAnimation ? ` · ${nomeLoop(copiada.loopAnimation.type)}` : ''}${copiada.exitAnimation ? ` · sai: ${nomeAnimacao(copiada.exitAnimation.type)}` : ''}` : 'Copie a animação de uma camada primeiro', desativado: !copiada, aoClicar: colar },
+        { id: 'tela', rotulo: 'Aplicar a todas as camadas da tela', descricao: outrasDaTela.length ? `${outrasDaTela.length} ${outrasDaTela.length === 1 ? 'outra camada recebe' : 'outras camadas recebem'} a mesma animação (atrasos mantidos)` : 'Não há outras camadas nesta tela', desativado: !temAlguma || !outrasDaTela.length, aoClicar: aplicarNaTela },
+        ...(diferentes ? [{ id: 'selecionadas', rotulo: 'Aplicar a todas as selecionadas', descricao: 'Usa a animação da primeira camada nas outras', aoClicar: () => { acoes.atualizarCamadas(ids, (c) => comAnimacoesDe(c, animacoes)); tocar() } }] : []),
+        { id: 'remover', rotulo: multi ? 'Remover animações das selecionadas' : 'Remover animações desta camada', separador: true, perigo: true, desativado: !temAlguma && !temInterativo(l), aoClicar: () => acoes.atualizarCamadas(ids, (c) => { const { interactiveEffects: _x, ...sem } = semAnimacoes(c); return sem as Camada }) },
+      ]}
+    >
+      <MoreHorizontal className="h-3.5 w-3.5" />
+    </Menu>
+  )
+
   const curva = curvaAberta ? 'personalizada' : curvaDe(a)
-  const resumo = a.type !== 'none' ? `${nomeAnimacao(a.type)} · ${a.duration} ms${a.delay ? ` · após ${a.delay} ms` : ''}` : 'Sem entrada'
+  const resumoEntrada = a.type !== 'none' ? `${nomeAnimacao(a.type)} · ${a.duration} ms${a.delay ? ` · após ${a.delay} ms` : ''}` : 'Nenhuma'
+  const resumoLoop = loop ? `${nomeLoop(loop.type)}${loop.repeat ? ` · ${loop.repeat}×` : loop.until === 'offscreen' ? ' · até sair' : ''}` : 'Nenhuma'
+  const resumoSaida = saida ? `${nomeAnimacao(saida.type)} · ${saida.duration} ms` : 'Nenhuma'
+  const Icone = sel.every((c) => c.type === l.type) ? ICONE_TIPO[l.type] : Layers
 
   return (
-    <div>
-      <div className="border-b border-borda px-4 py-4">
-        <div className="rotulo-mono mb-1 flex items-center gap-1.5">{multi ? <><Layers className="h-3 w-3" /> {sel.length} camadas</> : 'Camada'}</div>
-        <div className="truncate text-[15px] font-medium">{multi ? sel.map(nomeCamada).join(', ') : nomeCamada(l)}</div>
-        <div className="mt-0.5 truncate text-[12px] text-texto2">{resumo}{loop ? ` · ${nomeLoop(loop.type)}` : ''}{saida ? ` · sai: ${nomeAnimacao(saida.type)}` : ''}</div>
+    <div className="pb-6">
+      <div className="border-b border-borda px-3 pb-2 pt-2.5">
+        <div className="flex h-8 items-center gap-1.5">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px] bg-acentoSuave text-acento"><Icone className="h-3.5 w-3.5" strokeWidth={1.75} /></span>
+          <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{multi ? `${sel.length} camadas` : nomeCamada(l)}</span>
+          {temAlguma && <BotaoPrevia aoClicar={() => tocar({ loop: !!loop })} />}
+          {mais}
+        </div>
+        <p className="mt-0.5 truncate text-[11px] text-texto3">{multi ? sel.map(nomeCamada).join(', ') : temAlguma ? [a.type !== 'none' ? resumoEntrada : null, loop ? nomeLoop(loop.type) : null, saida ? `sai: ${nomeAnimacao(saida.type)}` : null].filter(Boolean).join(' · ') : 'Sem animação. Escolha uma entrada abaixo.'}</p>
       </div>
 
-      <section className="border-b border-borda px-4 py-4">
-        <AbasInternas
-          valor={aba}
-          aoMudar={setAba}
-          opcoes={[
-            { id: 'entrada', rotulo: 'Entrada', ativo: a.type !== 'none' },
-            { id: 'enfase', rotulo: 'Ênfase', ativo: !!loop },
-            { id: 'saida', rotulo: 'Saída', ativo: !!saida },
-            { id: 'interativo', rotulo: 'Interativo', ativo: temInterativo(l) },
-          ]}
+      <Secao key={`${chaveSel}-entrada`} titulo="Entrada" chave="anim.entrada" resumo={resumoEntrada} acao={a.type !== 'none' ? <BotaoPrevia aoClicar={() => tocar()} /> : undefined}>
+        <Galeria
+          key={chaveSel}
+          presets={PRESETS_ENTRADA}
+          atual={a.type !== 'none' ? a : undefined}
+          textoPermitido={todasTexto}
+          sugestoes={multi ? [] : sugestoesPara(l)}
+          aoEscolher={(p) => setEntrada(animacaoDoPreset(p.id, a, p))}
+          rotulo="Efeito de entrada"
+          extra={<CartaoPreset rotulo="Nenhuma" selecionado={a.type === 'none'} aoClicar={() => escolherEntrada('none')}>{() => <MiniPrevia tocando={false} cor="#C9C6C0" />}</CartaoPreset>}
         />
+        {!todasTexto && ehAnimacaoDeTexto(a.type) && <p className="text-[12px] text-texto2">{nomeAnimacao(a.type)} só funciona em texto; nas outras camadas vira fade.</p>}
 
-        {aba === 'entrada' && (
-          <div className="space-y-2 pt-3">
-            <Rotulo acao={a.type !== 'none' ? <BotaoPrevia aoClicar={() => tocar()} /> : undefined}>Como a camada aparece</Rotulo>
-            <Galeria
+        {a.type !== 'none' && (
+          <div className="space-y-2 pt-1">
+            <Rotulo>Velocidade</Rotulo>
+            <Chips rotulo="Velocidade" cheio valor={velocidadeDe(a.type, a.duration)} opcoes={VELOCIDADES.map((v) => ({ ...v, titulo: `${duracaoPorVelocidade(a.type, v.id)} ms` }))} aoMudar={(v) => patchEntrada({ duration: duracaoPorVelocidade(a.type, v) })} />
+            <PainelAjustes
               key={chaveSel}
-              presets={PRESETS_ENTRADA}
-              atual={a.type !== 'none' ? a : undefined}
-              textoPermitido={todasTexto}
-              sugestoes={multi ? [] : sugestoesPara(l)}
-              aoEscolher={(p) => setEntrada(animacaoDoPreset(p.id, a, p))}
-              rotulo="Efeito de entrada"
-              extra={<CartaoPreset rotulo="Nenhuma" selecionado={a.type === 'none'} aoClicar={() => escolherEntrada('none')}>{() => <MiniPrevia tocando={false} cor="#C9C6C0" />}</CartaoPreset>}
-            />
-            {!todasTexto && ehAnimacaoDeTexto(a.type) && <p className="text-[12px] text-texto2">{nomeAnimacao(a.type)} só funciona em texto; nas outras camadas vira fade.</p>}
-
-            {a.type !== 'none' && (
-              <div className="space-y-2 pt-1">
-                <Rotulo>Velocidade</Rotulo>
-                <Chips rotulo="Velocidade" cheio valor={velocidadeDe(a.type, a.duration)} opcoes={VELOCIDADES.map((v) => ({ ...v, titulo: `${duracaoPorVelocidade(a.type, v.id)} ms` }))} aoMudar={(v) => patchEntrada({ duration: duracaoPorVelocidade(a.type, v) })} />
-                {a.type !== 'typewriter' && a.type !== 'scramble' && a.trigger !== 'scroll' && (
-                  <>
-                    <Rotulo>Repetir</Rotulo>
-                    <Chips rotulo="Repetições da entrada" cheio valor={REPETICOES_ENTRADA.some((r) => r.id === String(a.repeat ?? 1)) ? String(a.repeat ?? 1) : null} opcoes={REPETICOES_ENTRADA} aoMudar={(id) => { const n = Number(id); acoes.atualizarCamadas(ids, (c) => (c.enterAnimation ? ({ ...c, enterAnimation: comAjuste(c.enterAnimation, n > 1 ? { repeat: n } : {}, n > 1 ? [] : ['repeat']) } as Camada) : c)); tocar() }} />
-                  </>
-                )}
-                <PainelAjustes
-                  key={chaveSel}
-                  anim={a}
-                  camada={l}
-                  camadasDaTela={camadasDaTela}
-                  aoMudar={ajustarEntrada}
-                  aoPrevia={() => tocar()}
-                  resumoTempo={`${a.delay ? `após ${a.delay} ms · ` : ''}${CURVAS.find((c) => c.id === curva)?.rotulo ?? ''}`}
-                  tempo={
+              anim={a}
+              camada={l}
+              camadasDaTela={camadasDaTela}
+              aoMudar={ajustarEntrada}
+              aoPrevia={() => tocar()}
+              resumoTempo={`${a.delay ? `após ${a.delay} ms · ` : ''}${CURVAS.find((c) => c.id === curva)?.rotulo ?? ''}${(a.repeat ?? 1) > 1 ? ` · ${a.repeat}×` : ''}`}
+              tempo={
+                <>
+                  <CamposTempo
+                    atraso={a.delay}
+                    duracao={a.duration}
+                    rotulo="da entrada"
+                    maxAtraso={5000}
+                    aoAtraso={(delay) => (multi && emSequencia ? setEntrada({ ...a, delay }, { restaggerar: true }) : patchEntrada({ delay }))}
+                    aoDuracao={(duration) => patchEntrada({ duration })}
+                  />
+                  <Rotulo>Curva</Rotulo>
+                  <Chips
+                    rotulo="Curva"
+                    valor={curva}
+                    opcoes={CURVAS.map((c) => ({ id: c.id, rotulo: c.rotulo }))}
+                    aoMudar={(c) => { setCurvaAberta(c === 'personalizada'); if (c === 'personalizada') { if (!a.bezier) patchEntrada({ bezier: pontosDaCurva(a) }) } else patchEntrada(camposDaCurva(c)) }}
+                  />
+                  {curva === 'personalizada' && (
+                    <CurvaEasing
+                      easing={a.easing}
+                      bezier={a.bezier}
+                      duracao={a.duration}
+                      chave={`${a.type}-${a.duration}-${(a.bezier ?? []).join(',')}`}
+                      aoInicio={() => { antesCurva.current = acoes.documentoAtual() }}
+                      aoMudar={(bezier) => acoes.atualizarCamadas(ids, (c) => (c.enterAnimation ? ({ ...c, enterAnimation: { ...c.enterAnimation, bezier } } as Camada) : c), false)}
+                      aoFim={() => { acoes.registrarHistorico(antesCurva.current); tocar() }}
+                    />
+                  )}
+                  {a.type !== 'typewriter' && a.type !== 'scramble' && a.trigger !== 'scroll' && (
                     <>
-                      <CamposTempo
-                        atraso={a.delay}
-                        duracao={a.duration}
-                        rotulo="da entrada"
-                        maxAtraso={5000}
-                        aoAtraso={(delay) => (multi && emSequencia ? setEntrada({ ...a, delay }, { restaggerar: true }) : patchEntrada({ delay }))}
-                        aoDuracao={(duration) => patchEntrada({ duration })}
-                      />
-                      <Rotulo>Curva</Rotulo>
-                      <Chips
-                        rotulo="Curva"
-                        valor={curva}
-                        opcoes={CURVAS.map((c) => ({ id: c.id, rotulo: c.rotulo }))}
-                        aoMudar={(c) => { setCurvaAberta(c === 'personalizada'); if (c === 'personalizada') { if (!a.bezier) patchEntrada({ bezier: pontosDaCurva(a) }) } else patchEntrada(camposDaCurva(c)) }}
-                      />
-                      {curva === 'personalizada' && (
-                        <CurvaEasing
-                          easing={a.easing}
-                          bezier={a.bezier}
-                          duracao={a.duration}
-                          chave={`${a.type}-${a.duration}-${(a.bezier ?? []).join(',')}`}
-                          aoInicio={() => { antesCurva.current = acoes.documentoAtual() }}
-                          aoMudar={(bezier) => acoes.atualizarCamadas(ids, (c) => (c.enterAnimation ? ({ ...c, enterAnimation: { ...c.enterAnimation, bezier } } as Camada) : c), false)}
-                          aoFim={() => { acoes.registrarHistorico(antesCurva.current); tocar() }}
-                        />
-                      )}
+                      <Rotulo>Repetir</Rotulo>
+                      <Chips rotulo="Repetições da entrada" cheio valor={REPETICOES_ENTRADA.some((r) => r.id === String(a.repeat ?? 1)) ? String(a.repeat ?? 1) : null} opcoes={REPETICOES_ENTRADA} aoMudar={(id) => { const n = Number(id); acoes.atualizarCamadas(ids, (c) => (c.enterAnimation ? ({ ...c, enterAnimation: comAjuste(c.enterAnimation, n > 1 ? { repeat: n } : {}, n > 1 ? [] : ['repeat']) } as Camada) : c)); tocar() }} />
                     </>
-                  }
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        {aba === 'enfase' && (
-          <div className="space-y-2 pt-3">
-            <Rotulo acao={loop ? <BotaoPrevia aoClicar={() => tocar({ loop: true })} /> : undefined}>Movimento contínuo</Rotulo>
-            <GradeCartoesPreset rotulo="Ênfase em loop">
-              <CartaoPreset rotulo="Nenhuma" selecionado={!loop} aoClicar={() => setLoop(null)}>{() => <MiniPrevia tocando={false} cor="#C9C6C0" />}</CartaoPreset>
-              {PRESETS_LOOP.map((p) => (
-                <CartaoPreset key={p.id} duasLinhas rotulo={p.rotulo} selecionado={loop?.type === p.id} aoClicar={() => setLoop({ type: p.id as TipoLoop, duration: p.duracao, intensity: loop?.intensity ?? 1, ...(loop?.repeat ? { repeat: loop.repeat } : {}) })}>
-                  {(t) => <MiniPrevia loop={p.id} tocando={t} />}
-                </CartaoPreset>
-              ))}
-            </GradeCartoesPreset>
-            <p className="text-[12px] leading-snug text-texto3">Começa quando a entrada termina e repete enquanto a tela estiver aberta (ou o número de vezes escolhido).</p>
-            {loop && (
-              <>
-                {AMPLITUDE[loop.type] ? (
-                  <>
-                    <Rotulo>{AMPLITUDE[loop.type]!.rotulo}</Rotulo>
-                    <Chips rotulo="Intensidade" cheio valor={INTENSIDADES.find((i) => i.v === loop.intensity)?.id ?? null} opcoes={[...INTENSIDADES]} aoMudar={(id) => setLoop({ ...loop, intensity: INTENSIDADES.find((i) => i.id === id)!.v })} />
-                    <Deslizante rotulo={`${AMPLITUDE[loop.type]!.rotulo} do loop`} valor={Math.round(AMPLITUDE[loop.type]!.base * loop.intensity * 10) / 10} min={Math.round(AMPLITUDE[loop.type]!.base * 0.25 * 10) / 10} max={AMPLITUDE[loop.type]!.base * 3} passo={AMPLITUDE[loop.type]!.base >= 10 ? 1 : 0.5} aoMudar={(v) => acoes.atualizarCamadas(ids, (c) => (c.loopAnimation ? ({ ...c, loopAnimation: { ...c.loopAnimation, intensity: Math.max(0.25, Math.min(3, v / AMPLITUDE[loop.type]!.base)) } } as Camada) : c))} formatar={(v) => `${v}${AMPLITUDE[loop.type]!.unidade}`} />
-                  </>
-                ) : null}
-                <Rotulo>Repetir</Rotulo>
-                <Chips rotulo="Repetições do loop" cheio valor={loop.until === 'offscreen' ? 'fora' : loop.repeat ? (REPETICOES.some((r) => r.id === String(loop.repeat)) ? String(loop.repeat) : null) : 'inf'} opcoes={REPETICOES} aoMudar={(id) => { const { repeat: _r, until: _u, ...sem } = loop; setLoop(id === 'inf' ? sem : id === 'fora' ? { ...sem, until: 'offscreen' } : { ...sem, repeat: Number(id) }) }} />
-                <Rotulo>Ritmo</Rotulo>
-                <Chips
-                  rotulo="Ritmo do loop"
-                  cheio
-                  valor={RITMOS.find((r) => Math.round((PRESETS_LOOP.find((p) => p.id === loop.type)?.duracao ?? 3000) * r.f) === loop.duration)?.id ?? null}
-                  opcoes={[...RITMOS]}
-                  aoMudar={(id) => setLoop({ ...loop, duration: Math.round((PRESETS_LOOP.find((p) => p.id === loop.type)?.duracao ?? 3000) * RITMOS.find((r) => r.id === id)!.f) })}
-                />
-              </>
-            )}
-          </div>
-        )}
-
-        {aba === 'saida' && (
-          <div className="space-y-2 pt-3">
-            <Rotulo acao={saida ? <BotaoPrevia aoClicar={() => tocar({ saida: true })} /> : undefined}>Ao sair da tela</Rotulo>
-            <Galeria
-              key={chaveSel}
-              presets={PRESETS_SAIDA}
-              atual={saida}
-              textoPermitido={false}
-              saida
-              aoEscolher={(p) => setSaida({ ...animacaoDoPreset(p.id, undefined, p), delay: saida?.delay ?? 0 })}
-              rotulo="Animação de saída"
-              extra={<CartaoPreset rotulo="Nenhuma" selecionado={!saida} aoClicar={() => setSaida(null)}>{() => <MiniPrevia tocando={false} cor="#C9C6C0" />}</CartaoPreset>}
+                  )}
+                </>
+              }
             />
-            <p className="text-[12px] leading-snug text-texto3">Toca antes da transição; a próxima tela entra quando as saídas terminam.</p>
-            {saida && (
-              <>
-                <Rotulo>Velocidade</Rotulo>
-                <Chips rotulo="Velocidade da saída" cheio valor={velocidadeDe(saida.type, saida.duration)} opcoes={VELOCIDADES} aoMudar={(v) => setSaida({ ...saida, duration: duracaoPorVelocidade(saida.type, v) })} />
-                <PainelAjustes
-                  key={chaveSel}
-                  anim={saida}
-                  camada={l}
-                  camadasDaTela={camadasDaTela}
-                  saida
-                  aoMudar={(patch, remover) => acoes.atualizarCamadas(ids, (c) => (c.exitAnimation ? ({ ...c, exitAnimation: comAjuste(c.exitAnimation, patch, remover) } as Camada) : c))}
-                  aoPrevia={() => tocar({ saida: true })}
-                  resumoTempo={saida.delay ? `após ${saida.delay} ms` : undefined}
-                  tempo={<CamposTempo atraso={saida.delay} duracao={saida.duration} rotulo="da saída" maxAtraso={2000} aoAtraso={(delay) => setSaida({ ...saida, delay })} aoDuracao={(duration) => setSaida({ ...saida, duration })} />}
-                />
-              </>
-            )}
           </div>
         )}
-        {aba === 'interativo' && <AbaInterativa editor={editor} sel={sel} />}
-      </section>
+      </Secao>
+
+      <Secao key={`${chaveSel}-enfase`} titulo="Ênfase" chave="anim.enfase" aberta={!!loop} resumo={resumoLoop} acao={loop ? <BotaoPrevia aoClicar={() => tocar({ loop: true })} /> : undefined}>
+        <GradeCartoesPreset rotulo="Ênfase em loop">
+          <CartaoPreset rotulo="Nenhuma" selecionado={!loop} aoClicar={() => setLoop(null)}>{() => <MiniPrevia tocando={false} cor="#C9C6C0" />}</CartaoPreset>
+          {PRESETS_LOOP.map((p) => (
+            <CartaoPreset key={p.id} duasLinhas rotulo={p.rotulo} selecionado={loop?.type === p.id} aoClicar={() => setLoop({ type: p.id as TipoLoop, duration: p.duracao, intensity: loop?.intensity ?? 1, ...(loop?.repeat ? { repeat: loop.repeat } : {}) })}>
+              {(t) => <MiniPrevia loop={p.id} tocando={t} />}
+            </CartaoPreset>
+          ))}
+        </GradeCartoesPreset>
+        {!loop && <p className="text-[12px] leading-snug text-texto3">Movimento contínuo depois da entrada, enquanto a tela estiver aberta.</p>}
+        {loop && (
+          <>
+            {AMPLITUDE[loop.type] ? (
+              <>
+                <Rotulo>{AMPLITUDE[loop.type]!.rotulo}</Rotulo>
+                <Chips rotulo="Intensidade" cheio valor={INTENSIDADES.find((i) => i.v === loop.intensity)?.id ?? null} opcoes={[...INTENSIDADES]} aoMudar={(id) => setLoop({ ...loop, intensity: INTENSIDADES.find((i) => i.id === id)!.v })} />
+                <Deslizante rotulo={`${AMPLITUDE[loop.type]!.rotulo} do loop`} valor={Math.round(AMPLITUDE[loop.type]!.base * loop.intensity * 10) / 10} min={Math.round(AMPLITUDE[loop.type]!.base * 0.25 * 10) / 10} max={AMPLITUDE[loop.type]!.base * 3} passo={AMPLITUDE[loop.type]!.base >= 10 ? 1 : 0.5} aoMudar={(v) => acoes.atualizarCamadas(ids, (c) => (c.loopAnimation ? ({ ...c, loopAnimation: { ...c.loopAnimation, intensity: Math.max(0.25, Math.min(3, v / AMPLITUDE[loop.type]!.base)) } } as Camada) : c))} formatar={(v) => `${v}${AMPLITUDE[loop.type]!.unidade}`} />
+              </>
+            ) : null}
+            <Rotulo>Ritmo</Rotulo>
+            <Chips
+              rotulo="Ritmo do loop"
+              cheio
+              valor={RITMOS.find((r) => Math.round((PRESETS_LOOP.find((p) => p.id === loop.type)?.duracao ?? 3000) * r.f) === loop.duration)?.id ?? null}
+              opcoes={[...RITMOS]}
+              aoMudar={(id) => setLoop({ ...loop, duration: Math.round((PRESETS_LOOP.find((p) => p.id === loop.type)?.duracao ?? 3000) * RITMOS.find((r) => r.id === id)!.f) })}
+            />
+            <Rotulo>Repetir</Rotulo>
+            <Chips rotulo="Repetições do loop" cheio valor={loop.until === 'offscreen' ? 'fora' : loop.repeat ? (REPETICOES.some((r) => r.id === String(loop.repeat)) ? String(loop.repeat) : null) : 'inf'} opcoes={REPETICOES} aoMudar={(id) => { const { repeat: _r, until: _u, ...sem } = loop; setLoop(id === 'inf' ? sem : id === 'fora' ? { ...sem, until: 'offscreen' } : { ...sem, repeat: Number(id) }) }} />
+          </>
+        )}
+      </Secao>
+
+      <Secao key={`${chaveSel}-saida`} titulo="Saída" chave="anim.saida" aberta={!!saida} resumo={resumoSaida} acao={saida ? <BotaoPrevia aoClicar={() => tocar({ saida: true })} /> : undefined}>
+        <Galeria
+          key={chaveSel}
+          presets={PRESETS_SAIDA}
+          atual={saida}
+          textoPermitido={false}
+          saida
+          aoEscolher={(p) => setSaida({ ...animacaoDoPreset(p.id, undefined, p), delay: saida?.delay ?? 0 })}
+          rotulo="Animação de saída"
+          extra={<CartaoPreset rotulo="Nenhuma" selecionado={!saida} aoClicar={() => setSaida(null)}>{() => <MiniPrevia tocando={false} cor="#C9C6C0" />}</CartaoPreset>}
+        />
+        {!saida && <p className="text-[12px] leading-snug text-texto3">Toca antes da transição; a próxima tela entra quando as saídas terminam.</p>}
+        {saida && (
+          <>
+            <Rotulo>Velocidade</Rotulo>
+            <Chips rotulo="Velocidade da saída" cheio valor={velocidadeDe(saida.type, saida.duration)} opcoes={VELOCIDADES} aoMudar={(v) => setSaida({ ...saida, duration: duracaoPorVelocidade(saida.type, v) })} />
+            <PainelAjustes
+              key={chaveSel}
+              anim={saida}
+              camada={l}
+              camadasDaTela={camadasDaTela}
+              saida
+              aoMudar={(patch, remover) => acoes.atualizarCamadas(ids, (c) => (c.exitAnimation ? ({ ...c, exitAnimation: comAjuste(c.exitAnimation, patch, remover) } as Camada) : c))}
+              aoPrevia={() => tocar({ saida: true })}
+              resumoTempo={saida.delay ? `após ${saida.delay} ms` : undefined}
+              tempo={<CamposTempo atraso={saida.delay} duracao={saida.duration} rotulo="da saída" maxAtraso={2000} aoAtraso={(delay) => setSaida({ ...saida, delay })} aoDuracao={(duration) => setSaida({ ...saida, duration })} />}
+            />
+          </>
+        )}
+      </Secao>
+
+      <Secao key={`${chaveSel}-interativo`} titulo="Interativo" chave="anim.interativo" aberta={temInterativo(l)} resumo={resumoInterativo(l)}>
+        <AbaInterativa editor={editor} sel={sel} />
+      </Secao>
 
       {multi && (
-        <section className="space-y-2 border-b border-borda px-4 py-4">
-          <div className="flex items-center justify-between">
-            <span className="text-[13px] font-medium">Em sequência</span>
-            <Interruptor rotulo="Animar em sequência" ativo={emSequencia} aoMudar={(v) => (a.type === 'none' ? undefined : v ? setEntrada(a, { restaggerar: true }) : patchEntrada({ delay: Math.min(...atrasos) }))} />
-          </div>
-          <p className="text-[12px] leading-snug text-texto3">{a.type === 'none' ? 'Escolha uma entrada para animar as camadas uma depois da outra.' : 'Uma camada depois da outra, com o intervalo escolhido.'}</p>
+        <Secao key={`${chaveSel}-sequencia`} titulo="Em sequência" chave="anim.sequencia" resumo={emSequencia ? `a cada ${intervalo} ms` : 'Juntas'} acao={<Interruptor rotulo="Animar em sequência" ativo={emSequencia} aoMudar={(v) => (a.type === 'none' ? undefined : v ? setEntrada(a, { restaggerar: true }) : patchEntrada({ delay: Math.min(...atrasos) }))} />}>
+          <p className="text-[12px] leading-snug text-texto3">{a.type === 'none' ? 'Escolha uma entrada para animar as camadas uma depois da outra.' : emSequencia ? 'Uma camada depois da outra, com o intervalo escolhido.' : 'Todas entram juntas. Ligue para animar uma depois da outra.'}</p>
           {emSequencia && (
             <>
               <Rotulo>Intervalo</Rotulo>
-              <Chips rotulo="Intervalo entre camadas" cheio valor={String(intervalo)} opcoes={INTERVALOS.map((i) => ({ id: String(i), rotulo: `${i} ms` }))} aoMudar={(v) => { setIntervalo(Number(v)); setEntrada(a, { restaggerar: true, intervalo: Number(v) }) }} />
+              <Segmentado rotulo="Intervalo entre camadas" valor={String(intervalo)} opcoes={INTERVALOS.map((i) => ({ id: String(i), rotulo: `${i} ms` }))} aoMudar={(v) => { setIntervalo(Number(v)); setEntrada(a, { restaggerar: true, intervalo: Number(v) }) }} />
               <SeletorLista rotulo="Ordem da sequência" valor={ordem} aoMudar={(v) => { setOrdem(v as OrdemTela); setEntrada(a, { restaggerar: true, ordem: v as OrdemTela }) }} opcoes={ORDENS_TELA} />
             </>
           )}
-          {diferentes && (
-            <button type="button" onClick={() => { acoes.atualizarCamadas(ids, (c) => ({ ...semCampo(semCampo(semCampo(c, 'enterAnimation'), 'loopAnimation'), 'exitAnimation'), ...(l.enterAnimation ? { enterAnimation: l.enterAnimation } : {}), ...(loop ? { loopAnimation: loop } : {}), ...(saida ? { exitAnimation: saida } : {}) }) as Camada); tocar() }} className="h-8 w-full rounded-md border border-borda text-[12px] hover:border-bordaForte">
-              Aplicar a todas as selecionadas
-            </button>
-          )}
-        </section>
+        </Secao>
       )}
 
-      <section className="flex gap-2 px-4 py-4">
-        <button type="button" onClick={() => areaAnimacao.copiar({ enterAnimation: l.enterAnimation, loopAnimation: loop, exitAnimation: saida })} disabled={!l.enterAnimation && !loop && !saida} className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-borda text-[12px] text-texto2 hover:border-bordaForte hover:text-texto disabled:opacity-40">
-          <Copy className="h-3.5 w-3.5" /> Copiar animação
-        </button>
-        <button
-          type="button"
-          disabled={!copiada}
-          onClick={() => {
-            const c0 = areaAnimacao.ler()
-            if (!c0) return
-            acoes.atualizarCamadas(ids, (c) => ({ ...semCampo(semCampo(semCampo(c, 'enterAnimation'), 'loopAnimation'), 'exitAnimation'), ...(c0.enterAnimation ? { enterAnimation: c0.enterAnimation } : {}), ...(c0.loopAnimation ? { loopAnimation: c0.loopAnimation } : {}), ...(c0.exitAnimation ? { exitAnimation: c0.exitAnimation } : {}) }) as Camada)
-            tocar({ loop: !!c0.loopAnimation })
-          }}
-          title={copiada ? `Colar: ${copiada.enterAnimation ? nomeAnimacao(copiada.enterAnimation.type) : 'sem entrada'}` : 'Copie a animação de uma camada primeiro'}
-          className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-borda text-[12px] text-texto2 hover:border-bordaForte hover:text-texto disabled:opacity-40"
-        >
-          <ClipboardPaste className="h-3.5 w-3.5" /> Colar
-        </button>
-      </section>
+      {editor.cena && (
+        <Secao titulo="Transição da tela" chave="anim.transicao" aberta={false} resumo={resumoTransicao(editor.cena)} acao={transicaoAtiva(editor) ? <BotaoPrevia aoClicar={() => previaTransicao(editor)} /> : undefined}>
+          <TransicaoTela editor={editor} />
+        </Secao>
+      )}
     </div>
   )
 }
+
+const transicaoAtiva = (editor: Editor) => (editor.cena?.transition?.type ?? 'fade') !== 'none'

@@ -6,14 +6,14 @@
  * Galeria com busca, sugestões para a camada e uma categoria por vez.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ArrowDown, ArrowDownLeft, ArrowDownRight, ArrowLeft, ArrowRight, ArrowUp, ArrowUpLeft, ArrowUpRight, ChevronRight, RotateCcw, Search } from 'lucide-react'
+import { ArrowDown, ArrowDownLeft, ArrowDownRight, ArrowLeft, ArrowRight, ArrowUp, ArrowUpLeft, ArrowUpRight, Search } from 'lucide-react'
 import type { Animacao, Camada } from '@/lib/scene/schema'
 import { aplicarIntensidade, definicao, intensidadeDe, parametros, temIntensidade, CATEGORIAS, INTENSIDADES, type Categoria, type Direcao, type Origem, type Parametro } from '@/lib/scene/parametros'
 import { categoriaDoPreset, chavePreset, ehNumeroDestaque, nomeCamada, presetSelecionado, type PresetEntrada } from '@/lib/scene/animacoes'
 import { TRECHO_ROLAGEM_PADRAO } from '@/components/renderer/plano'
 import { CampoNum, Deslizante, SeletorLista } from '@/components/editor/inspetor/controles'
 import { cx } from '@/components/ui'
-import { CartaoPreset, Chips, GradeCartoesPreset, MiniPrevia, Rotulo } from './ui'
+import { CartaoPreset, Chips, Finos, GradeCartoesPreset, MiniPrevia, Rotulo } from './ui'
 import { BotaoCor } from '../inspetor/CampoCor'
 
 // ---------- galeria ----------
@@ -189,7 +189,7 @@ export function PainelAjustes({ anim, camada, camadasDaTela, saida, aoMudar, aoP
   }
   const ajustado = CAMPOS_AJUSTE.some((k) => anim[k] !== undefined)
   // ajustes finos começam abertos se já houver algum valor que só se mexe lá
-  const [finos, setFinos] = useState(() => (['scale', 'rotate', 'blur', 'opacity', 'origin', 'stagger'] as const).some((k) => anim[k] !== undefined) || (anim.distance !== undefined && !DISTANCIAS.some((x) => Number(x.id) === anim.distance)))
+  const finos = (['scale', 'rotate', 'blur', 'opacity', 'origin', 'stagger'] as const).some((k) => anim[k] !== undefined) || (anim.distance !== undefined && !DISTANCIAS.some((x) => Number(x.id) === anim.distance))
   const palavras = useMemo(() => (camada.type === 'text' ? camada.text.trim().split(/\s+/).filter(Boolean) : []), [camada])
   const outras = camadasDaTela.filter((c) => c.id !== camada.id && c.type !== 'hotspot')
   const quando = anim.trigger ?? 'enter'
@@ -317,22 +317,8 @@ export function PainelAjustes({ anim, camada, camadasDaTela, saida, aoMudar, aoP
       )}
 
       {temFinos && (
-        <div className="rounded-lg border border-borda">
-          <div className="flex h-8 items-center gap-1 pl-1 pr-2">
-            <button type="button" aria-expanded={finos} onClick={() => setFinos((v) => !v)} className="flex h-full min-w-0 flex-1 items-center gap-1 rounded-md px-1 text-left text-[12px] font-medium text-texto hover:bg-hover">
-              <ChevronRight className={cx('h-3.5 w-3.5 shrink-0 text-texto3 transition-transform', finos && 'rotate-90')} />
-              Ajustes finos
-              {!finos && resumoTempo && <span className="ml-1 truncate font-normal text-texto3">{resumoTempo}</span>}
-            </button>
-            {ajustado && (
-              <button type="button" onClick={() => mudar({}, [...CAMPOS_AJUSTE])} title="Voltar aos valores do efeito" className="flex shrink-0 items-center gap-1 text-[11px] text-texto2 hover:text-texto">
-                <RotateCcw className="h-3 w-3" /> Padrão
-              </button>
-            )}
-          </div>
-          {finos && (
-            <div className="space-y-2 border-t border-borda px-2.5 pb-2.5 pt-2">
-              {tempo}
+        <Finos aberto={finos} resumo={resumoTempo} aoPadrao={ajustado ? () => mudar({}, [...CAMPOS_AJUSTE]) : undefined}>
+          {tempo}
               {quando === 'scroll' && !saida && (() => {
                 const [ini, fim] = anim.scrollRange ?? TRECHO_ROLAGEM_PADRAO
                 return (
@@ -383,9 +369,7 @@ export function PainelAjustes({ anim, camada, camadasDaTela, saida, aoMudar, aoP
                     : <Deslizante rotulo="Intervalo entre partes em ms" valor={anim.stagger} min={0} max={300} passo={5} aoMudar={(v) => mudar({ stagger: v })} formatar={(v) => `${v}ms`} />}
                 </>
               )}
-            </div>
-          )}
-        </div>
+        </Finos>
       )}
     </div>
   )

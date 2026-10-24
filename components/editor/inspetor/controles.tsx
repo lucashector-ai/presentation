@@ -2,10 +2,12 @@
 /**
  * Controles compactos do inspetor, no modelo do painel Design do Figma com a identidade Mostra:
  * campos cinza (superficie2) de 32 px, rótulo-prefixo arrastável, números tabulares, seções com título
- * e ações à direita; seções vazias recolhidas só com o título e um "+".
+ * e ações à direita; seções recolhíveis com resumo e memória; seções vazias só com o título e um "+";
+ * menu suspenso para predefinições e ações raras.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ChevronDown, ChevronRight, Minus, Plus } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { Check, ChevronDown, ChevronRight, Minus, Plus } from 'lucide-react'
 import { cx } from '@/components/ui'
 import { useInspetor } from './contexto'
 
@@ -14,11 +16,31 @@ export { BotaoCampo, BotaoMini, CampoNum, MISTO, type Misto } from './campos'
 import { BotaoMini, MISTO, type Misto } from './campos'
 
 
-export function Secao({ titulo, children, acao, aberta = true, vazia, aoAdicionar, rotuloAdicionar, aoRemover, rotuloRemover, recolhivel }: {
+/**
+ * Seções abertas/fechadas pela pessoa, lembradas entre seleções e sessões (chave = título ou `chave`).
+ * Só o que ela mexeu entra aqui: o padrão de cada seção (`aberta`) continua valendo para o resto.
+ */
+const CHAVE_SECOES = 'mostra.inspetor.secoes'
+const lembradas = new Map<string, boolean>()
+try {
+  if (typeof localStorage !== 'undefined') for (const [k, v] of Object.entries(JSON.parse(localStorage.getItem(CHAVE_SECOES) ?? '{}') as Record<string, boolean>)) lembradas.set(k, !!v)
+} catch { /* sem armazenamento */ }
+function lembrar(chave: string, aberta: boolean) {
+  lembradas.set(chave, aberta)
+  try { localStorage.setItem(CHAVE_SECOES, JSON.stringify(Object.fromEntries(lembradas))) } catch { /* sem armazenamento */ }
+}
+
+/**
+ * Seção do inspetor (modelo do painel Design do Figma): cabeçalho de 32 px com título, resumo e ações à direita;
+ * clicar no título recolhe/expande (lembrado por `chave`/título); recolhida mostra `resumo` numa linha;
+ * vazia mostra só o título e o "+".
+ */
+export function Secao({ titulo, children, acao, aberta = true, vazia, aoAdicionar, rotuloAdicionar, aoRemover, rotuloRemover, recolhivel = true, resumo, chave }: {
   titulo: string
   children?: ReactNode
   /** Ícones/ações à direita do título. */
   acao?: ReactNode
+  /** Estado inicial (se a pessoa nunca recolheu/abriu esta seção). */
   aberta?: boolean
   /** Sem conteúdo: mostra só o título e o "+". */
   vazia?: boolean
@@ -27,34 +49,153 @@ export function Secao({ titulo, children, acao, aberta = true, vazia, aoAdiciona
   /** "−" no título (remove a seção inteira, ex.: Exportar). */
   aoRemover?: () => void
   rotuloRemover?: string
-  /** Título com seta para recolher/expandir (seções secundárias). */
+  /** `false` = sempre aberta (sem seta). */
   recolhivel?: boolean
+  /** Uma linha ao lado do título quando recolhida ("Subir · 800 ms"). */
+  resumo?: string
+  /** Chave da memória (padrão: o título). */
+  chave?: string
 }) {
-  const [abrir, setAbrir] = useState(aberta)
+  const id = chave ?? titulo
+  const [abrir, setAbrir] = useState(() => lembradas.get(id) ?? aberta)
+  const alternar = () => setAbrir((v) => { lembrar(id, !v); return !v })
   const mostrar = !vazia && (!recolhivel || abrir)
+  const recolhida = !vazia && recolhivel && !abrir
   return (
-    <section aria-label={titulo} className={cx('border-b border-borda px-3', vazia || (recolhivel && !abrir) ? 'py-0.5' : 'pb-2.5 pt-0.5')}>
-      <div className="flex h-7 items-center gap-1">
-        {recolhivel ? (
-          <button type="button" onClick={() => setAbrir((v) => !v)} aria-expanded={abrir} className="-ml-1 flex h-7 min-w-0 flex-1 items-center gap-1 rounded-[5px] px-1 text-left text-[12px] font-medium text-texto hover:bg-hover/60">
-            {abrir ? <ChevronDown className="h-3 w-3 shrink-0 text-texto3" /> : <ChevronRight className="h-3 w-3 shrink-0 text-texto3" />}
+    <section aria-label={titulo} className={cx('border-b border-borda px-3', mostrar && children !== undefined && 'pb-2')}>
+      <div className="flex h-8 items-center gap-1">
+        {vazia ? (
+          aoAdicionar ? (
+            <button type="button" onClick={aoAdicionar} className="-ml-1 flex h-7 min-w-0 flex-1 items-center rounded-[5px] px-1 text-left text-[12px] font-medium text-texto2 hover:text-texto">
+              <span className="truncate">{titulo}</span>
+            </button>
+          ) : (
+            <h3 className="min-w-0 flex-1 truncate text-[12px] font-medium text-texto2">{titulo}</h3>
+          )
+        ) : recolhivel ? (
+          <button type="button" onClick={alternar} aria-expanded={abrir} className="-ml-1 flex h-7 min-w-0 flex-1 items-center gap-1 rounded-[5px] px-1 text-left text-[12px] font-medium text-texto hover:bg-hover/60">
+            <ChevronRight className={cx('h-3 w-3 shrink-0 text-texto3 transition-transform', abrir && 'rotate-90')} aria-hidden />
             <span className="truncate">{titulo}</span>
-          </button>
-        ) : vazia && aoAdicionar ? (
-          <button type="button" onClick={aoAdicionar} className="flex h-7 min-w-0 flex-1 items-center text-left text-[12px] font-medium text-texto2 hover:text-texto">
-            <span className="truncate">{titulo}</span>
+            {recolhida && resumo && <span className="ml-auto min-w-0 truncate pl-2 font-normal text-texto3">{resumo}</span>}
           </button>
         ) : (
-          <h3 className={cx('min-w-0 flex-1 truncate text-[12px] font-medium', vazia ? 'text-texto2' : 'text-texto')}>{titulo}</h3>
+          <h3 className="min-w-0 flex-1 truncate text-[12px] font-medium text-texto">{titulo}</h3>
         )}
         <div className="flex shrink-0 items-center gap-0.5">
-          {acao}
+          {!recolhida && acao}
           {aoAdicionar && <BotaoMini rotulo={rotuloAdicionar ?? `Adicionar ${titulo.toLowerCase()}`} onClick={aoAdicionar}><Plus className="h-3.5 w-3.5" /></BotaoMini>}
-          {aoRemover && !vazia && <BotaoMini rotulo={rotuloRemover ?? `Remover ${titulo.toLowerCase()}`} onClick={aoRemover}><Minus className="h-3.5 w-3.5" /></BotaoMini>}
+          {aoRemover && !vazia && !recolhida && <BotaoMini rotulo={rotuloRemover ?? `Remover ${titulo.toLowerCase()}`} onClick={aoRemover}><Minus className="h-3.5 w-3.5" /></BotaoMini>}
         </div>
       </div>
-      {mostrar && children !== undefined && <div className="space-y-1.5">{children}</div>}
+      {mostrar && children !== undefined && <div className="space-y-2">{children}</div>}
     </section>
+  )
+}
+
+export interface ItemMenu {
+  id: string
+  rotulo: string
+  /** Linha menor embaixo do rótulo. */
+  descricao?: string
+  /** Marcado (menu de opções): vira `menuitemcheckbox`. */
+  ativo?: boolean
+  desativado?: boolean
+  /** Linha divisória acima deste item. */
+  separador?: boolean
+  perigo?: boolean
+  aoClicar: () => void
+}
+
+/**
+ * Menu suspenso leve (predefinições, "Mais"): o gatilho é um botão de ícone (24 px) ou um campo com seta;
+ * a lista abre num portal, alinhada à direita do gatilho, com setas/Home/End/Esc no teclado e fecha ao clicar fora,
+ * rolar ou escolher.
+ */
+export function Menu({ rotulo, itens, children, variante = 'icone', ativo, className, titulo }: { rotulo: string; itens: ItemMenu[]; children: ReactNode; variante?: 'icone' | 'campo'; ativo?: boolean; className?: string; titulo?: string }) {
+  const gatilho = useRef<HTMLButtonElement>(null)
+  const lista = useRef<HTMLDivElement>(null)
+  const [aberto, setAberto] = useState(false)
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
+  useEffect(() => {
+    if (!aberto) return
+    const posicionar = () => {
+      const r = gatilho.current?.getBoundingClientRect()
+      const el = lista.current
+      if (!r || !el) return
+      const w = el.offsetWidth, h = el.offsetHeight
+      const left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8))
+      const top = r.bottom + 4 + h > window.innerHeight - 8 ? Math.max(8, r.top - 4 - h) : r.bottom + 4
+      setPos({ left, top })
+    }
+    posicionar()
+    const fora = (e: PointerEvent) => { const a = e.target as Node; if (!lista.current?.contains(a) && !gatilho.current?.contains(a)) setAberto(false) }
+    // rolar o painel (inclusive o rolar-até-o-gatilho que precede um clique) só reposiciona; clicar fora fecha
+    window.addEventListener('pointerdown', fora, true)
+    window.addEventListener('scroll', posicionar, true)
+    window.addEventListener('resize', posicionar)
+    // foco no item marcado (ou no primeiro)
+    const alvo = lista.current?.querySelector<HTMLButtonElement>('[aria-checked="true"]') ?? lista.current?.querySelector<HTMLButtonElement>('[role^="menuitem"]:not(:disabled)')
+    alvo?.focus({ preventScroll: true })
+    return () => { window.removeEventListener('pointerdown', fora, true); window.removeEventListener('scroll', posicionar, true); window.removeEventListener('resize', posicionar) }
+  }, [aberto])
+  const fechar = (focar = true) => { setAberto(false); if (focar) gatilho.current?.focus({ preventScroll: true }) }
+  const teclas = (e: React.KeyboardEvent) => {
+    // nada daqui chega aos atalhos do editor (setas moveriam a camada, Enter abriria a edição do texto…)
+    e.stopPropagation()
+    const botoes = [...(lista.current?.querySelectorAll<HTMLButtonElement>('[role^="menuitem"]:not(:disabled)') ?? [])]
+    const i = botoes.indexOf(document.activeElement as HTMLButtonElement)
+    if (e.key === 'Escape') { e.preventDefault(); fechar() }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); botoes[(i + 1) % botoes.length]?.focus() }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); botoes[(i - 1 + botoes.length) % botoes.length]?.focus() }
+    else if (e.key === 'Home') { e.preventDefault(); botoes[0]?.focus() }
+    else if (e.key === 'End') { e.preventDefault(); botoes[botoes.length - 1]?.focus() }
+    else if (e.key === 'Tab') fechar(false)
+  }
+  const comMarcacao = itens.some((i) => i.ativo !== undefined)
+  return (
+    <>
+      <button
+        ref={gatilho}
+        type="button"
+        aria-label={variante === 'icone' ? rotulo : undefined}
+        title={titulo ?? (variante === 'icone' ? rotulo : undefined)}
+        aria-haspopup="menu"
+        aria-expanded={aberto}
+        onClick={() => setAberto((v) => !v)}
+        onKeyDown={(e) => { if (e.key === 'ArrowDown' && !aberto) { e.preventDefault(); e.stopPropagation(); setAberto(true) } }}
+        className={cx(
+          variante === 'icone'
+            ? cx('inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px] transition-colors', ativo || aberto ? 'bg-acentoSuave text-acento' : 'text-texto2 hover:bg-hover hover:text-texto')
+            : cx('flex h-7 w-full min-w-0 items-center gap-1 rounded-md bg-superficie2 px-2 text-left text-[12px] text-texto ring-inset hover:ring-1 hover:ring-bordaForte', aberto && 'ring-1 ring-acento'),
+          className
+        )}
+      >
+        {variante === 'campo' ? <><span className="min-w-0 flex-1 truncate">{children}</span><ChevronDown className="h-3 w-3 shrink-0 text-texto3" aria-hidden /></> : children}
+      </button>
+      {aberto && typeof document !== 'undefined' && createPortal(
+        <div ref={lista} role="menu" aria-label={rotulo} onKeyDown={teclas} className="fixed z-50 min-w-[180px] max-w-[260px] rounded-lg border border-borda bg-superficie p-1 text-[12px] shadow-painel" style={{ left: pos?.left ?? -9999, top: pos?.top ?? -9999 }}>
+          {itens.map((it) => (
+            <div key={it.id} className={cx(it.separador && 'mt-1 border-t border-borda pt-1')}>
+              <button
+                type="button"
+                role={it.ativo === undefined ? 'menuitem' : 'menuitemcheckbox'}
+                aria-checked={it.ativo === undefined ? undefined : it.ativo}
+                disabled={it.desativado}
+                onClick={() => { fechar(); it.aoClicar() }}
+                className={cx('flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left outline-none hover:bg-hover focus-visible:bg-hover disabled:cursor-not-allowed disabled:opacity-40', it.perigo ? 'text-perigo' : 'text-texto')}
+              >
+                {comMarcacao && <span className="flex h-4 w-3 shrink-0 items-center justify-center" aria-hidden>{it.ativo && <Check className="h-3 w-3 text-acento" />}</span>}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">{it.rotulo}</span>
+                  {it.descricao && <span className="block text-[11px] leading-snug text-texto3">{it.descricao}</span>}
+                </span>
+              </button>
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
+    </>
   )
 }
 
