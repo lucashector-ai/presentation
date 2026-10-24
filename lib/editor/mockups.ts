@@ -82,11 +82,11 @@ export function gerarFeedInstagram(pos: { x: number; y: number; largura: number 
   const esc = W / 328 // medidas desenhadas para um celular de 328 px de tela
   const px = (v: number) => Math.round(v * esc)
   const x0 = tela.x
-  let y = tela.y + px(56)
+  let y = tela.y + px(84)
   const texto = (dados: Record<string, unknown>) => add({ type: 'text', fontFamily: 'Geist', color: '#171717', ...dados })
   // fundo branco do app + nome no topo
   add({ type: 'shape', shape: 'rect', id: id('fundo'), name: 'Fundo do app', x: tela.x, y: tela.y, width: W, height: tela.height, fill: '#FFFFFF' })
-  texto({ id: id('arroba'), name: 'Arroba', text: op.arroba ?? '@suamarca', x: x0 + px(16), y: y - px(36), width: W - px(32), height: px(24), fontSize: px(16), fontWeight: 600 })
+  texto({ id: id('arroba'), name: 'Arroba', text: op.arroba ?? '@suamarca', x: x0 + px(16), y: y - px(30), width: W - px(32), height: px(24), fontSize: px(16), fontWeight: 600 })
   // perfil: avatar + contadores
   add({ type: 'shape', shape: 'ellipse', id: id('avatar'), name: 'Avatar', x: x0 + px(16), y, width: px(72), height: px(72), fill: '#E4572E' })
   const contadores: [string, string][] = [['128', 'posts'], ['12,4 mil', 'seguidores'], ['310', 'seguindo']]
