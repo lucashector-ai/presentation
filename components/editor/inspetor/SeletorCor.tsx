@@ -17,6 +17,7 @@ import { MenuSuspenso } from '@/components/ui/MenuSuspenso'
 import { alfaDe, comAlfa, corNoGradiente, cssBarraGradiente, hexParaRgba, hsvParaHsl, hsvParaRgb, hslParaHsv, lerCor, mesmaCor, normalizarHex, rgbParaHsv, rgbaParaHex, type Hsv } from '@/lib/editor/cor'
 import { BotaoMini, CampoNum } from './campos'
 import { useInspetor } from './contexto'
+import { EnviarImagem } from './EnviarImagem'
 
 export type TipoPintura = 'solido' | 'linear' | 'radial' | 'angular' | 'imagem'
 export type Encaixe = 'cover' | 'contain' | 'fill'
@@ -119,7 +120,10 @@ export function SeletorCor({ ancora, valor, aoMudar, aoFechar, tipos = ['solido'
     aplicarCor(rgbaParaHex(rgb))
   }
 
+  // imagem sem nenhuma mídia ainda: a aba abre (com o botão de enviar) antes de haver o que aplicar
+  const [imagemPendente, setImagemPendente] = useState(false)
   const trocarTipo = (t: TipoPintura) => {
+    setImagemPendente(t === 'imagem' && valor.tipo !== 'imagem')
     if (t === tipoDaPintura(valor)) return
     if (t === 'solido') aoMudar({ tipo: 'solido', cor: corAtiva })
     else if (t === 'linear' || t === 'radial') {
@@ -179,7 +183,7 @@ export function SeletorCor({ ancora, valor, aoMudar, aoFechar, tipos = ['solido'
     } catch { /* cancelado */ }
   }
 
-  const tipoAtual = tipoDaPintura(valor)
+  const tipoAtual = imagemPendente && valor.tipo !== 'imagem' ? 'imagem' : tipoDaPintura(valor)
   const paleta = useMemo(() => {
     const vistos = new Set<string>()
     return PALETA.flatMap((p) => [{ cor: p.fundo, nome: p.nome }, { cor: p.tinta, nome: `${p.nome} (tinta)` }]).filter((x) => (vistos.has(x.cor) ? false : (vistos.add(x.cor), true)))
@@ -230,8 +234,8 @@ export function SeletorCor({ ancora, valor, aoMudar, aoFechar, tipos = ['solido'
             </div>
           )}
 
-          {!estiloEd && valor.tipo === 'imagem' ? (
-            <EscolhaImagem valor={valor} aoMudar={aoMudar} />
+          {!estiloEd && (valor.tipo === 'imagem' || tipoAtual === 'imagem') ? (
+            <EscolhaImagem valor={valor.tipo === 'imagem' ? valor : { tipo: 'imagem', encaixe: 'cover' }} aoMudar={aoMudar} />
           ) : (
             <>
               {grad && (
@@ -473,9 +477,11 @@ function ListaEstilos({ estilos, ligado, aoEscolher, aoEditar, aoRemover, aoNovo
 
 function EscolhaImagem({ valor, aoMudar }: { valor: Extract<Pintura, { tipo: 'imagem' }>; aoMudar: (p: Pintura) => void }) {
   const { imagens } = useInspetor()
-  if (!imagens.length) return <p className="py-6 text-center text-[11px] text-texto2">Envie imagens na aba Arquivos para usá-las como preenchimento.</p>
+  const enviar = <EnviarImagem largo aoEnviada={(assetId) => aoMudar({ ...valor, assetId })} />
+  if (!imagens.length) return <div className="space-y-2 py-2">{enviar}<p className="text-center text-[11px] text-texto2">Ou arraste uma imagem para a aba Arquivos.</p></div>
   return (
     <div className="space-y-2.5">
+      {enviar}
       <div role="radiogroup" aria-label="Imagem" className="grid max-h-[220px] grid-cols-3 gap-1.5 overflow-y-auto rolagem-fina">
         {imagens.map((im) => (
           <button key={im.id} type="button" role="radio" aria-checked={valor.assetId === im.id} title={im.nome} aria-label={im.nome} onClick={() => aoMudar({ ...valor, assetId: im.id })} className={cx('aspect-square overflow-hidden rounded-md bg-superficie2 outline-none focus-visible:ring-2 focus-visible:ring-acento', valor.assetId === im.id ? 'ring-2 ring-acento ring-offset-1' : 'shadow-[inset_0_0_0_1px_rgba(0,0,0,.08)]')}>

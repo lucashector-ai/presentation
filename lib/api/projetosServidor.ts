@@ -66,6 +66,7 @@ export function idsDeAssets(doc: DocumentoProjeto): string[] {
     for (const l of s.layers) {
       if (l.type === 'image' || l.type === 'video') ids.add(l.assetId)
       if (l.type === 'video' && l.posterAssetId) ids.add(l.posterAssetId)
+      if ((l.type === 'shape' || l.type === 'frame') && l.fillImage) ids.add(l.fillImage.assetId)
     }
   }
   return [...ids]

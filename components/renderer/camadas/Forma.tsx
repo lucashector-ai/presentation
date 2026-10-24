@@ -9,7 +9,7 @@ import { caminhoCantos, raiosDaCamada, temSuavizacao } from '@/lib/scene/cantos'
 import { pontosDaForma } from '@/lib/scene/formas'
 import { pontaFim, pontaInicio, pontaSvg, tracejadoSvg, tracosVisiveis, type PontaSeta } from '@/lib/scene/tracos'
 import { boxShadowCss, internas, sombrasVisiveis } from '@/lib/scene/efeitos'
-import { gradienteCss, padraoCss, raioCss } from '../estilos'
+import { fundoImagemCss, gradienteCss, padraoCss, raioCss } from '../estilos'
 
 function DefsGradiente({ id, g }: { id: string; g: Gradiente }) {
   return (
@@ -114,11 +114,12 @@ function DefsGradienteSo({ id, g }: { id: string; g: Gradiente }) {
   )
 }
 
-export function Forma({ camada: c }: { camada: CamadaForma }) {
+export function Forma({ camada: c, urlImagem }: { camada: CamadaForma; urlImagem?: string }) {
   if (c.isMask) return null
   if (c.shape === 'path' && c.vetor) return <FormaVetor c={c} v={c.vetor} />
   if (c.shape === 'line' || c.shape === 'arrow') return <LinhaComTracos c={c} />
-  const preenchimento = c.gradient ? gradienteCss(c.gradient) : c.fill
+  const imagem = urlImagem && c.fillImage ? urlImagem : undefined
+  const preenchimento = imagem ? fundoImagemCss(imagem, c.fillImage!.fit) : c.gradient ? gradienteCss(c.gradient) : c.fill
   if (c.shape === 'rect' || c.shape === 'ellipse') {
     const legado = !c.strokes
     // cantos suavizados (squircle): recorte pelo caminho; a sombra externa vai para o filtro do contêiner
@@ -133,8 +134,8 @@ export function Forma({ camada: c }: { camada: CamadaForma }) {
       boxShadow: boxShadowCss(suave ? internas(c.effects) : sombrasVisiveis(c.effects)),
       ...padraoCss(c),
     }
-    if (c.pattern !== 'none' && preenchimento) estilo.backgroundColor = c.gradient ? undefined : c.fill
-    if (c.pattern !== 'none') estilo.background = undefined
+    if (c.pattern !== 'none' && preenchimento && !imagem) estilo.backgroundColor = c.gradient ? undefined : c.fill
+    if (c.pattern !== 'none' && !imagem) estilo.background = undefined
     if (c.pattern !== 'none' && c.gradient) estilo.backgroundImage = `${padraoCss(c).backgroundImage}, ${gradienteCss(c.gradient)}`
     return <div style={estilo} />
   }
@@ -142,7 +143,8 @@ export function Forma({ camada: c }: { camada: CamadaForma }) {
   const h = c.height
   const sw = c.strokes ? 0 : c.strokeWidth
   const gid = `g-${c.id}`
-  const fill = c.gradient ? `url(#${gid})` : c.fill
+  const pid = `p-${c.id}`
+  const fill = imagem ? `url(#${pid})` : c.gradient ? `url(#${gid})` : c.fill
   const stroke = c.stroke && sw ? c.stroke : 'none'
   const dash = c.dash ? `${c.dash} ${c.dash}` : undefined
   let forma: JSX.Element
@@ -165,6 +167,13 @@ export function Forma({ camada: c }: { camada: CamadaForma }) {
   return (
     <svg width="100%" height="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ overflow: 'visible', display: 'block' }} aria-hidden>
       {c.gradient && <DefsGradiente id={gid} g={c.gradient} />}
+      {imagem && (
+        <defs>
+          <pattern id={pid} patternUnits="userSpaceOnUse" width={w} height={h}>
+            <image href={imagem} width={w} height={h} preserveAspectRatio={c.fillImage!.fit === 'fill' ? 'none' : c.fillImage!.fit === 'contain' ? 'xMidYMid meet' : 'xMidYMid slice'} />
+          </pattern>
+        </defs>
+      )}
       {forma}
     </svg>
   )

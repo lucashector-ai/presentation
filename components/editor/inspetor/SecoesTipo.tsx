@@ -4,8 +4,8 @@
  * Texto (tipografia + fundo da caixa), Imagem (+ Recorte e Ajustes recolhidos), Vídeo, Vetor, Modelo 3D
  * (+ Câmera e Luz recolhidas), Lottie, Incorporado e Hotspot.
  */
-import { useMemo, useRef, useState } from 'react'
-import { ImagePlus, Loader2, AlignCenter, AlignJustify, AlignLeft, AlignRight, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, Italic, Link2, Minus, Underline } from 'lucide-react'
+import { useMemo } from 'react'
+import { AlignCenter, AlignJustify, AlignLeft, AlignRight, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, Italic, Link2, Minus, Underline } from 'lucide-react'
 import type { Camada, CamadaImagem, CamadaLottie, CamadaModelo3d, CamadaSvg, CamadaTexto, CamadaVideo } from '@/lib/scene/schema'
 import { SeletorFonte, useCatalogoFontes } from '@/components/fontes/SeletorFonte'
 import { fontesDoDocumento } from '@/components/renderer/fontes'
@@ -18,9 +18,7 @@ import { BotaoOpcoesTexto } from './OpcoesTexto'
 import { BotaoGrupo, GrupoBotoes } from './SecaoPosicao'
 import { IconeEntrelinha, IconeEspacamento, IconeTamanho } from './icones'
 import { useCamadas, type PropsSecao } from './selecao'
-import { dados, mensagemDeErro } from '@/lib/dados'
-import { sanitizarSvgNavegador } from '@/lib/editor/importar'
-import { useToast } from '@/components/ui/toast'
+import { EnviarImagem } from './EnviarImagem'
 
 type Set = (p: Partial<Camada>) => void
 
@@ -148,23 +146,6 @@ function SeletorAsset({ valor, assets, aoMudar, rotulo }: { valor: string; asset
 const ENCAIXES = [{ id: 'cover', rotulo: 'Cobrir' }, { id: 'contain', rotulo: 'Conter' }, { id: 'fill', rotulo: 'Esticar' }] as const
 
 /** Botão "Adicionar imagem": envia um arquivo do computador e já o coloca na camada (troca a imagem). */
-function EnviarImagem({ aoEnviada }: { aoEnviada: (assetId: string) => void }) {
-  const entrada = useRef<HTMLInputElement>(null)
-  const [enviando, setEnviando] = useState(false)
-  const { mostrar } = useToast()
-  const enviar = async (f: File | undefined) => {
-    if (!f) return
-    setEnviando(true)
-    try { const a = await dados.enviarArquivo(f, () => undefined, { sanitizarSvg: sanitizarSvgNavegador }); aoEnviada(a.id) } catch (e) { mostrar(mensagemDeErro(e, 'Não foi possível enviar a imagem.'), 'erro') } finally { setEnviando(false); if (entrada.current) entrada.current.value = '' }
-  }
-  return (
-    <>
-      <BotaoMini rotulo="Adicionar imagem do computador" onClick={() => entrada.current?.click()}>{enviando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}</BotaoMini>
-      <input ref={entrada} type="file" accept=".png,.jpg,.jpeg,.webp,.gif,.avif,.svg" className="hidden" onChange={(e) => void enviar(e.target.files?.[0])} />
-    </>
-  )
-}
-
 function SecaoImagem({ c, set, assets }: { c: CamadaImagem; set: Set; assets: AssetDemo[] }) {
   const s = (p: Partial<CamadaImagem>) => set(p as Partial<Camada>)
   const adj = c.adjust ?? { brightness: 1, contrast: 1, saturate: 1, grayscale: 0 }

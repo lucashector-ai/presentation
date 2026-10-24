@@ -548,6 +548,10 @@ const CamadaBase = z.object({
 
 export const EncaixeSchema = z.enum(['contain', 'cover', 'fill'])
 
+/** Preenchimento com imagem (formas e frames), como o Image fill do Figma: ocupa a caixa e respeita raio e recorte. */
+export const ImagemPreenchimentoSchema = z.object({ assetId: IdSchema, fit: EncaixeSchema.default('cover') })
+export type ImagemPreenchimento = z.infer<typeof ImagemPreenchimentoSchema>
+
 /** Recorte não destrutivo de imagem: frações (0–1) da imagem original. */
 export const RecorteSchema = z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), w: z.number().min(0.01).max(1), h: z.number().min(0.01).max(1) })
 
@@ -692,6 +696,7 @@ export const CamadaFormaSchema = CamadaBase.extend({
   shape: z.enum(FORMAS).default('rect'),
   fill: CorSchema.default('#5965F2'),
   gradient: GradienteSchema.optional(),
+  fillImage: ImagemPreenchimentoSchema.optional(),
   stroke: CorSchema.optional(),
   strokeWidth: z.number().min(0).max(100).default(0),
   /** Tracejado do contorno (0 = contínuo). */
@@ -796,6 +801,7 @@ export const CamadaFrameSchema = CamadaBase.extend({
   type: z.literal('frame'),
   fill: CorSchema.optional(),
   gradient: GradienteSchema.optional(),
+  fillImage: ImagemPreenchimentoSchema.optional(),
   stroke: CorSchema.optional(),
   strokeWidth: z.number().min(0).max(100).default(0),
   radius: z.number().min(0).max(999).default(0),

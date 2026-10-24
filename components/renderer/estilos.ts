@@ -74,3 +74,8 @@ export const MASCARAS: Record<string, string | undefined> = {
   arch: 'inset(0 0 0 0 round 50% 50% 0 0 / 30% 30% 0 0)',
   triangle: 'polygon(50% 0, 100% 100%, 0 100%)',
 }
+
+/** CSS de fundo para o preenchimento com imagem (cobrir, conter ou esticar), centralizado. */
+export function fundoImagemCss(url: string, fit: 'cover' | 'contain' | 'fill' = 'cover'): string {
+  return `center / ${fit === 'fill' ? '100% 100%' : fit} no-repeat url("${url}")`
+}

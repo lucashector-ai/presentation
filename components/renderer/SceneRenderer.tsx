@@ -16,7 +16,7 @@ import { sangrar, type Sangria } from '@/lib/scene/sangria'
 import { costurar } from '@/lib/scene/costura'
 import { ancestrais, mapaDe } from '@/lib/scene/arvore'
 import { recolorirSvg, svgParaDataUrl } from '@/lib/importar/svg'
-import { MASCARAS, filtroCss, gradienteCss, raioCss, sombraCss, transformCss } from './estilos'
+import { MASCARAS, filtroCss, fundoImagemCss, gradienteCss, raioCss, sombraCss, transformCss } from './estilos'
 import { boxShadowCss, desfoqueDe, internas, projetadas, textShadowCss, vidroDe } from '@/lib/scene/efeitos'
 import { caminhoCantos, raiosDaCamada, temSuavizacao } from '@/lib/scene/cantos'
 import { estiloMascara, herdarAnimacoesDaMascara } from '@/lib/scene/mascara'
@@ -403,7 +403,7 @@ function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, an
     case 'shape':
       return (
         <Desenho ativo={!!desenhar} style={{ width: '100%', height: '100%', filter: filtroCss(e, (c.shape !== 'rect' && c.shape !== 'ellipse') || (c.shape === 'rect' && temSuavizacao(c))) }}>
-          <Forma camada={origemMorph?.type === 'shape' ? { ...c, fill: origemMorph.fill } : c} />
+          <Forma camada={origemMorph?.type === 'shape' ? { ...c, fill: origemMorph.fill } : c} urlImagem={c.fillImage ? assets[c.fillImage.assetId]?.url : undefined} />
         </Desenho>
       )
     case 'frame': {
@@ -414,7 +414,7 @@ function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, an
             width: '100%',
             height: '100%',
             boxSizing: 'border-box',
-            background: c.gradient ? gradienteCss(c.gradient) : c.fill,
+            background: c.fillImage && assets[c.fillImage.assetId]?.url ? fundoImagemCss(assets[c.fillImage.assetId]!.url, c.fillImage.fit) : c.gradient ? gradienteCss(c.gradient) : c.fill,
             border: !c.strokes && c.stroke && c.strokeWidth ? `${c.strokeWidth}px solid ${c.stroke}` : undefined,
             borderRadius: suave ? undefined : raioCss(c),
             clipPath: suave ? recorteSuave(c) : undefined,

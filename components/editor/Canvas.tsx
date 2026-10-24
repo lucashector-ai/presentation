@@ -45,10 +45,9 @@ import { normalizarZ } from '@/lib/scene/order'
 import { lerDataTransfer } from '@/lib/importar/clipboard'
 import { importarConteudo, type Avisar } from '@/lib/editor/importar'
 import type { AssetDemo } from '@/lib/demo/tipos'
+import { cursorMostra } from '@/lib/editor/cursores'
 
 /** Cursor de duplicar (seta com uma segunda seta menor), preta com contorno branco; ponta em (3, 2). */
-const SVG_DUPLICAR = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M3 2v15l4-3.5 2.6 5.8 2.4-1-2.5-5.7h5Z" fill="#171717" stroke="#fff" stroke-width="1.3" stroke-linejoin="round"/><path d="M14.5 12.5v8l2.2-1.9 1.4 3.1 1.3-.55-1.35-3.1h2.75Z" fill="#171717" stroke="#fff" stroke-width="1.1" stroke-linejoin="round"/></svg>'
-const CURSOR_DUPLICAR = `url("data:image/svg+xml,${encodeURIComponent(SVG_DUPLICAR)}") 3 2, copy`
 
 /** Cena do canvas (memo): pan, hover e guias não re-renderizam as camadas. */
 const CenaCanvas = memo(SceneRenderer)
@@ -58,32 +57,17 @@ const CANTOS: Alca[] = ['nw', 'ne', 'se', 'sw']
 const BORDAS: Alca[] = ['n', 'e', 's', 'w']
 /** Ângulo (em graus, sentido horário na tela) do eixo de cada alça com a camada sem rotação. */
 const ANGULO_ALCA: Record<Alca, number> = { e: 0, w: 0, se: 45, nw: 45, n: 90, s: 90, ne: 135, sw: 135 }
-const CURSORES_EIXO = ['ew-resize', 'nwse-resize', 'ns-resize', 'nesw-resize']
-/** Cursor de redimensionar da alça, girado junto com a camada. */
+/** Cursor de redimensionar da alça (seta do Mostra), girado exatamente junto com a camada, como no Figma. */
 function cursorDaAlca(a: Alca, rot: number): string {
-  const setor = ((Math.round((ANGULO_ALCA[a] + rot) / 45) % 4) + 4) % 4
-  return CURSORES_EIXO[setor]!
+  return cursorMostra('seta', ANGULO_ALCA[a] + rot)
 }
 /** Zona de girar fora de cada canto (px de tela além da alça) e lado dela. */
 const ZONA_GIRAR = 16
 const FOLGA_GIRAR = 3
-/** Cursor de girar orientado pelo canto e pela rotação da camada. Já montados (por canto e ângulo em passos de 5°): trocar a URL do cursor recalcula estilo. */
-const cursoresGirar = new Map<string, string>()
+/** Cursor de girar (do sistema de cursores do Mostra) orientado pelo canto e pela rotação da camada. */
 function cursorGirar(canto: Alca, rot: number): string {
   const base = { ne: 0, se: 90, sw: 180, nw: 270 }[canto as 'ne' | 'se' | 'sw' | 'nw'] ?? 0
-  const ang = Math.round((base + rot) / 5) * 5
-  const chave = `${canto}:${ang}`
-  const pronto = cursoresGirar.get(chave)
-  if (pronto) return pronto
-  // como o do Figma: um quarto de arco preenchido, convexo para o canto, com uma ponta de seta cheia em cada lado,
-  // preto com contorno branco (legível em qualquer fundo)
-  const arco = 'M7 5A12 12 0 0 1 19 17L17 17A10 10 0 0 0 7 7Z'
-  const pontas = 'M2.6 6L7.6 1.9L7.6 10.1ZM18 21.4L13.9 16.4L22.1 16.4Z'
-  const desenho = (d: string) => `<path d="${d}" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round" paint-order="stroke"/>`
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><g transform="rotate(${ang} 12 12)">${desenho(arco)}${desenho(pontas)}</g></svg>`
-  const cursor = `url("data:image/svg+xml,${encodeURIComponent(svg)}") 12 12, grab`
-  cursoresGirar.set(chave, cursor)
-  return cursor
+  return cursorMostra('girar', base + rot)
 }
 function normalizarAngulo(a: number): number {
   let n = ((a + 540) % 360) - 180
@@ -921,7 +905,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
   // ⌥ sobre uma camada (ou arrastando a cópia): cursor de duplicar, como no Figma
   const duplicando = g?.tipo === 'mover' && g.duplicar
   const cursorDuplicar = !g && alt && !ehDesenho && !modoMao && !editandoTexto && !!hover && !mapa.get(hover)?.locked
-  const cursor = modoMao ? (g?.tipo === 'pan' ? 'grabbing' : 'grab') : g?.tipo === 'rotacionar' ? g.cursor : duplicando || cursorDuplicar ? CURSOR_DUPLICAR : estado.ferramenta === 'texto' ? 'text' : ehDesenho ? 'crosshair' : 'default'
+  const cursor = modoMao ? cursorMostra(g?.tipo === 'pan' ? 'grabbing' : 'grab') : g?.tipo === 'rotacionar' ? g.cursor : duplicando || cursorDuplicar ? cursorMostra('duplicate') : estado.ferramenta === 'texto' ? cursorMostra('text') : estado.ferramenta === 'caneta' ? cursorMostra('pen') : ehDesenho ? cursorMostra('crosshair') : cursorMostra('pointer')
   // a tela (fundo, sombra, grade e camadas) fica desenhada na escala assentada; durante o zoom só a transform muda
   const escalaDesenho = escalaCena || vp.s
   escalaDesenhoRef.current = escalaDesenho
@@ -1246,11 +1230,9 @@ export function pontasDaLinha(l: Retangulo & { rotation: number }): { a: { x: nu
   return { a: { x: cx - dx, y: cy - dy }, b: { x: cx + dx, y: cy + dy } }
 }
 
-/** Cursor de redimensionar mais próximo do ângulo da linha (0° = ↔, 45° = ⤡, 90° = ↕, 135° = ⤢). */
+/** Cursor de redimensionar no ângulo da linha. */
 function cursorDaPonta(rotation: number): string {
-  const a = ((rotation % 180) + 180) % 180
-  const setor = Math.round(a / 45) % 4
-  return ['ew-resize', 'nwse-resize', 'ns-resize', 'nesw-resize'][setor]!
+  return cursorMostra('seta', rotation)
 }
 
 function retDe(a: { x: number; y: number }, b: { x: number; y: number }): Retangulo {

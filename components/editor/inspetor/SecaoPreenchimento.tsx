@@ -22,13 +22,16 @@ const mantidas = new Set<string>()
 
 type ComPreenchimento = CamadaForma | CamadaTexto | CamadaFrame
 const corBase = (c: ComPreenchimento) => (c.type === 'shape' ? c.fill : c.type === 'frame' ? (c.fill ?? '#FFFFFF') : c.color)
-const pinturaDe = (c: ComPreenchimento): Pintura => (c.gradient ? { tipo: 'gradiente', gradiente: c.gradient } : { tipo: 'solido', cor: corBase(c) })
+const pinturaDe = (c: ComPreenchimento): Pintura => (c.type !== 'text' && c.fillImage ? { tipo: 'imagem', assetId: c.fillImage.assetId, encaixe: c.fillImage.fit } : c.gradient ? { tipo: 'gradiente', gradiente: c.gradient } : { tipo: 'solido', cor: corBase(c) })
 const propCor = (c: Camada): PropCor => (c.type === 'text' ? 'color' : 'fill')
 /** Editar a cor direto solta o estilo ligado (como no Figma); gradiente também. */
 const comPintura = (c: Camada, p: Pintura): Camada => {
   if (c.type !== 'shape' && c.type !== 'text' && c.type !== 'frame') return c
-  if (p.tipo === 'gradiente') return desligarEstilo({ ...c, gradient: p.gradiente }, propCor(c))
-  if (p.tipo === 'solido') return gravarCor({ ...c, gradient: undefined } as Camada, propCor(c), p.cor)
+  // imagem: só formas e frames (texto não tem preenchimento com imagem); sem imagem escolhida, fica como está
+  if (p.tipo === 'imagem') return c.type !== 'text' && p.assetId ? ({ ...c, fillImage: { assetId: p.assetId, fit: p.encaixe ?? 'cover' }, gradient: undefined } as Camada) : c
+  const semImagem = (c.type !== 'text' ? { ...c, fillImage: undefined } : c) as Camada
+  if (p.tipo === 'gradiente') return desligarEstilo({ ...semImagem, gradient: p.gradiente } as Camada, propCor(c))
+  if (p.tipo === 'solido') return gravarCor({ ...semImagem, gradient: undefined } as Camada, propCor(c), p.cor)
   return c
 }
 const comCor = (c: Camada, f: (cor: string) => string): Camada => (c.type === 'shape' ? { ...c, fill: f(c.fill) } : c.type === 'frame' ? { ...c, fill: f(c.fill ?? '#FFFFFF') } : c.type === 'text' ? { ...c, color: f(c.color) } : c)
@@ -43,7 +46,7 @@ export function SecaoPreenchimento({ editor }: PropsSecao) {
   const chave = camadas.map((c) => `${c.id}:fill`).join(',')
   const pintura = comum(camadas, (c) => pinturaDe(c as ComPreenchimento))
   const forma = tipo === 'shape' || tipo === 'frame'
-  const semFill = tipo === 'frame' && camadas.every((c) => c.type === 'frame' && !c.fill && !c.gradient)
+  const semFill = tipo === 'frame' && camadas.every((c) => c.type === 'frame' && !c.fill && !c.gradient && !c.fillImage)
   const vazia = semFill || (forma && pintura !== MISTO && pintura.tipo === 'solido' && alfaDe(pintura.cor) === 0 && !mantidas.has(chave))
   const oculta = pintura !== MISTO && pintura.tipo === 'solido' && alfaDe(pintura.cor) === 0
 
@@ -53,18 +56,18 @@ export function SecaoPreenchimento({ editor }: PropsSecao) {
     else { camadas.forEach((c) => alfaAnterior.set(c.id, alfaDe(corBase(c)))); mantidas.add(chave); setFn((c) => comCor(c, (cor) => comAlfa(cor, 0))) }
     atualizar((n) => n + 1)
   }
-  const remover = () => { mantidas.delete(chave); setFn((c) => (c.type === 'frame' ? ({ ...c, fill: undefined, gradient: undefined } as Camada) : comCor({ ...c, gradient: undefined } as Camada, (cor) => comAlfa(cor, 0)))) }
+  const remover = () => { mantidas.delete(chave); setFn((c) => (c.type === 'frame' ? ({ ...c, fill: undefined, gradient: undefined, fillImage: undefined } as Camada) : comCor({ ...c, gradient: undefined, ...(c.type === 'shape' ? { fillImage: undefined } : {}) } as Camada, (cor) => comAlfa(cor, 0)))) }
   const adicionar = () => setFn((c) => comCor(c, (cor) => comAlfa(cor, 1)))
 
   return (
     <Secao titulo="Preenchimento" vazia={vazia} aoAdicionar={vazia || pintura === MISTO ? (pintura === MISTO ? () => { const p = pinturaDe(camadas[0]!); setFn((c) => comPintura(c, p)) } : adicionar) : undefined} rotuloAdicionar="Adicionar preenchimento">
       {pintura === MISTO ? (
-        <LinhaPintura rotulo={forma ? 'Cor de preenchimento (mista)' : 'Cor do texto (mista)'} valor={pinturaDe(camadas[0]!)} vazio placeholder="Misto" tipos={['solido', 'linear', 'radial']} aoMudar={(p) => setFn((c) => comPintura(c, p))} />
+        <LinhaPintura rotulo={forma ? 'Cor de preenchimento (mista)' : 'Cor do texto (mista)'} valor={pinturaDe(camadas[0]!)} vazio placeholder="Misto" tipos={forma ? ['solido', 'linear', 'radial', 'imagem'] : ['solido', 'linear', 'radial']} aoMudar={(p) => setFn((c) => comPintura(c, p))} />
       ) : (
         <LinhaPintura
           rotulo={forma ? 'Cor de preenchimento' : 'Cor do texto'}
           valor={pintura}
-          tipos={['solido', 'linear', 'radial']}
+          tipos={forma ? ['solido', 'linear', 'radial', 'imagem'] : ['solido', 'linear', 'radial']}
           aoMudar={(p) => setFn((c) => comPintura(c, p))}
           estiloId={pintura.tipo === 'solido' ? (comum(camadas, (c) => c.colorStyleIds?.[propCor(c)]) as string | undefined) : undefined}
           aoEstilo={(e) => setFn((c) => ligarEstilo(c, propCor(c), e))}
@@ -80,7 +83,7 @@ export function SecaoPreenchimento({ editor }: PropsSecao) {
           }
         />
       )}
-      {tipo === 'shape' && <Textura camadas={camadas as CamadaForma[]} setFn={setFn} />}
+      {tipo === 'shape' && (pintura === MISTO || pintura.tipo !== 'imagem') && <Textura camadas={camadas as CamadaForma[]} setFn={setFn} />}
     </Secao>
   )
 }
