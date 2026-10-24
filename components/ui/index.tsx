@@ -39,11 +39,12 @@ export const Botao = forwardRef<HTMLButtonElement, BotaoProps>(function Botao({ 
 
 /**
  * Botão de ícone 32 px. `ativo` = alternador ligado (acento suave, como os do inspetor); `destaque` = ligado em cor
- * cheia (a ferramenta ativa do editor, como no Figma). Os dois seguem os tokens do tema (nada de preto/branco fixo).
+ * cheia com ícone branco (a ferramenta ativa do editor, como no Figma). Sem transição de cor: a resposta ao
+ * clique é imediata.
  */
 export function BotaoIcone({ rotulo, className, children, ativo, destaque, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { rotulo: string; ativo?: boolean; destaque?: boolean }) {
   return (
-    <button aria-label={rotulo} title={rotulo} aria-pressed={ativo} className={cx('inline-flex h-8 w-8 items-center justify-center rounded-md text-textoCorpo transition-colors hover:bg-hover hover:text-texto disabled:opacity-40', ativo && (destaque ? 'bg-acento text-acentoTexto hover:bg-acentoHover hover:text-acentoTexto' : 'bg-acentoSuave text-acento hover:bg-acentoSuave hover:text-acento'), className)} {...rest}>
+    <button aria-label={rotulo} title={rotulo} aria-pressed={ativo} className={cx('inline-flex h-8 w-8 items-center justify-center rounded-md text-textoCorpo hover:bg-hover hover:text-texto disabled:opacity-40', ativo && (destaque ? 'bg-acento text-white hover:bg-acentoHover hover:text-white' : 'bg-acentoSuave text-acento hover:bg-acentoSuave hover:text-acento'), className)} {...rest}>
       {children}
     </button>
   )

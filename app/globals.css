@@ -123,6 +123,8 @@ body { @apply bg-fundo text-texto antialiased; font-family: var(--font-geist-san
 .titulo-display { letter-spacing: -0.045em; line-height: 1; font-weight: 500; }
 * { @apply border-borda; }
 :focus-visible { outline: 2px solid rgb(var(--cor-acento)); outline-offset: 2px; border-radius: 6px; }
+/* campos que já têm o próprio realce (anel/fundo no contêiner, ex.: inspetor): sem o segundo contorno por cima */
+:is(input, textarea).outline-none:focus-visible { outline: none; }
 ::selection { background: rgb(var(--cor-acento) / .2); }
 
 /* ===== MOSTRA · ANIMAÇÕES DE CAMADA — início =====

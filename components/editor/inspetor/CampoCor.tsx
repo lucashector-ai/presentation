@@ -61,7 +61,7 @@ export function LinhaPintura({ rotulo, valor, aoMudar, tipos = ['solido'], acoes
             {!vazio && (
               <>
                 <span className="h-4 w-px shrink-0 bg-bordaForte" aria-hidden />
-                <CampoNum rotulo={`${rotulo}: opacidade`} valor={Math.round(alfaDe(valor.cor) * 100)} min={0} max={100} sufixo="%" className="w-[54px] !flex-none !bg-transparent !pl-1.5 hover:!ring-0 focus-within:!ring-0" aoMudar={(a) => aoMudar({ tipo: 'solido', cor: comAlfa(valor.cor, a / 100) })} />
+                <CampoNum rotulo={`${rotulo}: opacidade`} valor={Math.round(alfaDe(valor.cor) * 100)} min={0} max={100} sufixo="%" semMoldura className="w-[54px] !flex-none !pl-1.5" aoMudar={(a) => aoMudar({ tipo: 'solido', cor: comAlfa(valor.cor, a / 100) })} />
               </>
             )}
           </>
