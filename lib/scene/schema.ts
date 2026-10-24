@@ -478,6 +478,8 @@ const CamadaBase = z.object({
   rotateY: z.number().min(-180).max(180).optional(),
   /** Distância da câmera em px (quanto menor, mais perspectiva). */
   perspective: z.number().min(100).max(5000).optional(),
+  /** Mídia marcada para download na apresentação (com `documento.downloads.ativo`). Aditivo. */
+  download: z.boolean().optional(),
   opacity: z.number().min(0).max(1).default(1),
   z: z.number().int().default(0),
   locked: z.boolean().default(false),
@@ -887,6 +889,8 @@ export const DocumentoProjetoSchema = z.object({
   mode: ModoProjetoSchema,
   theme: TemaSchema.optional(),
   scenes: z.array(CenaSchema).min(1).max(300),
+  /** Downloads na apresentação: liga o botão de arquivos e a página de downloads no final. Aditivo. */
+  downloads: z.object({ ativo: z.boolean().default(false), paginaFinal: z.boolean().default(false) }).optional(),
 })
 export type DocumentoProjeto = z.infer<typeof DocumentoProjetoSchema>
 

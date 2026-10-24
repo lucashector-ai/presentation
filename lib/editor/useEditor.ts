@@ -448,6 +448,32 @@ export function useEditor(projetoId: string, abertura: AberturaEditor | null) {
         atualizarCenaAtual((cc) => ({ ...cc, layers: cc.layers.map((l) => (l.id === unico.id ? ({ ...l, layout: { ...layout, padding }, sizingW: 'hug', sizingH: 'hug' } as Camada) : zOrdem.has(l.id) ? ({ ...l, z: zOrdem.get(l.id)! } as Camada) : l)) }))
         return
       }
+      // Como no Figma: um retângulo que envolve todo o resto vira o próprio frame (fundo, contorno, raio), e os
+      // demais entram como filhos do auto layout com o respiro medido até as bordas dele
+      if (comLayout && sel.length >= 2) {
+        const dentro = (a: Camada, b: Camada) => a.x >= b.x - 0.5 && a.y >= b.y - 0.5 && a.x + a.width <= b.x + b.width + 0.5 && a.y + a.height <= b.y + b.height + 0.5
+        const fundo = sel.find((r) => r.type === 'shape' && r.shape === 'rect' && !r.pattern && !r.isMask && sel.every((o) => o === r || dentro(o, r)))
+        if (fundo && fundo.type === 'shape') {
+          const filhos = sel.filter((l) => l !== fundo)
+          const caixa = envolvente(filhos)
+          const { layout, ordem } = inferirLayout(filhos)
+          const padding = { top: Math.max(0, Math.round(caixa.y - fundo.y)), left: Math.max(0, Math.round(caixa.x - fundo.x)), right: Math.max(0, Math.round(fundo.x + fundo.width - caixa.x - caixa.width)), bottom: Math.max(0, Math.round(fundo.y + fundo.height - caixa.y - caixa.height)) }
+          const mapa0 = mapaDe(c.layers)
+          const pai = paiDe(fundo, mapa0)?.id
+          const id = novoId('frame', c.layers)
+          const frame = parseCamada({
+            id, type: 'frame', name: fundo.name || 'Auto layout', z: Math.floor(fundo.z),
+            x: Math.round(fundo.x), y: Math.round(fundo.y), width: Math.max(1, Math.round(fundo.width)), height: Math.max(1, Math.round(fundo.height)),
+            fill: fundo.fill, gradient: fundo.gradient, stroke: fundo.stroke, strokeWidth: fundo.strokeWidth, radius: fundo.radius, radii: fundo.radii, effects: fundo.effects, opacity: fundo.opacity,
+            ...(pai ? { parentId: pai } : {}),
+            layout: { ...layout, padding },
+          }) as CamadaFrame
+          const posicao = new Map(ordem.map((i, k) => [filhos[i]!.id, k]))
+          atualizarCenaAtual((cc) => ({ ...cc, layers: [...cc.layers.filter((l) => l.id !== fundo.id).map((l) => (posicao.has(l.id) ? ({ ...l, parentId: id, z: posicao.get(l.id)! } as Camada) : l)), frame] }))
+          dispatch({ tipo: 'selecionar', ids: [id] })
+          return
+        }
+      }
       const mapa = mapaDe(c.layers)
       const paiPrimeiro = sel[0] ? paiDe(sel[0], mapa)?.id : undefined
       const paiId = sel.every((l) => paiDe(l, mapa)?.id === paiPrimeiro) ? paiPrimeiro : undefined
@@ -544,7 +570,7 @@ export function useEditor(projetoId: string, abertura: AberturaEditor | null) {
       atualizarCena: (patch: Partial<Cena>, historico = true) => atualizarCenaAtual((c) => ({ ...c, ...patch }), historico),
       /** Transformação livre da tela atual num único passo de desfazer (preencher em grade, dividir, vetores). */
       transformarCena: (fn: (c: Cena) => Cena, historico = true, opcoes?: OpcoesResolver) => atualizarCenaAtual(fn, historico, opcoes),
-      atualizarDocumento: (patch: Partial<Pick<DocumentoProjeto, 'theme' | 'mode'>>) => aplicar((d) => ({ ...d, ...patch })),
+      atualizarDocumento: (patch: Partial<Pick<DocumentoProjeto, 'theme' | 'mode' | 'downloads'>>) => aplicar((d) => ({ ...d, ...patch })),
       /**
        * "Ajustar espaçamento (8 px)": a regra do 8 nas distâncias (entre vizinhos e até o pai) da tela atual ou de
        * todas as telas (lib/editor/espacamento8.ts), num único passo de desfazer.
@@ -631,6 +657,17 @@ export function useEditor(projetoId: string, abertura: AberturaEditor | null) {
           const novas = alinharRects(caixas, c.size, modo)
           const delta = new Map(novas.map((n) => { const o = caixas.find((x) => x.id === n.id)!; return [n.id, { dx: n.x - o.x, dy: n.y - o.y }] }))
           return { ...c, layers: c.layers.map((l) => { const d = ids.includes(l.id) ? delta.get(l.groupId ?? l.id) : undefined; return d ? { ...l, x: Math.round(l.x + d.dx), y: Math.round(l.y + d.dy) } : l }) }
+        }),
+      /** Move a seleção inteira como um bloco para o centro da tela (margens iguais à esquerda/direita e em cima/embaixo). */
+      centralizarNaTela: (ids: string[], eixo: 'ambos' | 'h' | 'v' = 'ambos') =>
+        atualizarCenaAtual((c) => {
+          const sel = c.layers.filter((l) => ids.includes(l.id) && !l.locked)
+          if (!sel.length) return c
+          const cx = envolvente(sel)
+          const dx = eixo === 'v' ? 0 : Math.round((c.size.width - cx.width) / 2 - cx.x)
+          const dy = eixo === 'h' ? 0 : Math.round((c.size.height - cx.height) / 2 - cx.y)
+          if (!dx && !dy) return c
+          return { ...c, layers: c.layers.map((l) => (ids.includes(l.id) && !l.locked ? { ...l, x: l.x + dx, y: l.y + dy } : l)) }
         }),
       distribuir: (ids: string[], eixo: 'h' | 'v') =>
         atualizarCenaAtual((c) => {

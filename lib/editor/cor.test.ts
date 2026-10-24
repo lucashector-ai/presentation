@@ -7,7 +7,10 @@ describe('hex', () => {
     expect(hexParaRgba('5965F2')).toEqual({ r: 89, g: 101, b: 242, a: 1 })
     expect(hexParaRgba('#00000080')).toEqual({ r: 0, g: 0, b: 0, a: 0.502 })
     expect(hexParaRgba('#0008')?.a).toBeCloseTo(0.533, 2)
-    expect(hexParaRgba('#12')).toBeNull()
+    // atalhos do Figma: 1 e 2 dígitos repetem
+    expect(hexParaRgba('#12')).toEqual({ r: 18, g: 18, b: 18, a: 1 })
+    expect(hexParaRgba('F')).toEqual({ r: 255, g: 255, b: 255, a: 1 })
+    expect(hexParaRgba('0')).toEqual({ r: 0, g: 0, b: 0, a: 1 })
     expect(hexParaRgba('#GGGGGG')).toBeNull()
   })
   it('escreve opaco sem alfa e transparente com alfa', () => {

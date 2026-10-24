@@ -52,7 +52,8 @@ export function Compartilhar({ projetoId, publicarFora = false }: { projetoId: s
       const { token } = await dados.criarLink(projetoId, { senha: comSenha ? senha : undefined, expiraEm })
       setNovoToken(token)
       setSenha('')
-      mostrar('Link criado. Copie agora: por segurança ele não será exibido de novo.', 'sucesso')
+      // já vai para a área de transferência: o link só é exibido uma vez
+      try { await navigator.clipboard.writeText(urlDoLink(BASE, token)); setCopiado(true); setTimeout(() => setCopiado(false), 1500); mostrar('Link criado e copiado. Por segurança ele não será exibido de novo.', 'sucesso') } catch { mostrar('Link criado. Copie agora: por segurança ele não será exibido de novo.', 'sucesso') }
     } catch (e) {
       mostrar(mensagemDeErro(e, 'Não foi possível criar o link.'), 'erro')
     } finally {

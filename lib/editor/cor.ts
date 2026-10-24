@@ -16,7 +16,10 @@ const hex2 = (n: number) => Math.round(limitar(n, 0, 255)).toString(16).padStart
 
 /** Lê #RGB, #RGBA, #RRGGBB ou #RRGGBBAA (com ou sem #). */
 export function hexParaRgba(hex: string): Rgba | null {
-  const t = hex.trim().replace(/^#/, '')
+  let t = hex.trim().replace(/^#/, '')
+  // atalhos como no Figma: 1 dígito repete 6× (F → FFFFFF), 2 dígitos repetem 3× (AB → ABABAB)
+  if (/^[0-9a-fA-F]$/.test(t)) t = t.repeat(6)
+  else if (/^[0-9a-fA-F]{2}$/.test(t)) t = t.repeat(3)
   if (!/^(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(t)) return null
   const cheio = t.length <= 4 ? t.split('').map((c) => c + c).join('') : t
   const n = (i: number) => parseInt(cheio.slice(i, i + 2), 16)

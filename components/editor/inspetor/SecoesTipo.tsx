@@ -29,11 +29,11 @@ export function SecoesDoTipo({ editor, assets = [] }: PropsSecao) {
   if (!l || sel.length > 1) return null
   switch (l.type) {
     case 'text': return <><SecaoTexto c={l} set={set} doDocumento={doDocumento} /><SecaoFundoTexto c={l} set={set} /></>
-    case 'image': return <SecaoImagem c={l} set={set} assets={assets} />
-    case 'video': return <SecaoVideo c={l} set={set} assets={assets} />
-    case 'svg': return <SecaoSvg c={l} set={set} />
-    case 'model3d': return <SecaoModelo c={l} set={set} assets={assets} />
-    case 'lottie': return <SecaoLottie c={l} set={set} />
+    case 'image': return <><SecaoImagem c={l} set={set} assets={assets} /><SecaoDownload c={l} set={set} editor={editor} /></>
+    case 'video': return <><SecaoVideo c={l} set={set} assets={assets} /><SecaoDownload c={l} set={set} editor={editor} /></>
+    case 'svg': return <><SecaoSvg c={l} set={set} /><SecaoDownload c={l} set={set} editor={editor} /></>
+    case 'model3d': return <><SecaoModelo c={l} set={set} assets={assets} /><SecaoDownload c={l} set={set} editor={editor} /></>
+    case 'lottie': return <><SecaoLottie c={l} set={set} /><SecaoDownload c={l} set={set} editor={editor} /></>
     case 'shape':
       // polígono: lados; estrela: pontas e raio interno (como no Figma)
       if (l.shape !== 'polygon' && l.shape !== 'star') return null
@@ -66,11 +66,26 @@ export function SecoesDoTipo({ editor, assets = [] }: PropsSecao) {
         <Secao titulo="Hotspot">
           <input aria-label="Descrição do hotspot" placeholder="Ex.: Ver aplicações da marca" value={l.ariaLabel} onChange={(e) => set({ ariaLabel: e.target.value || 'Área clicável' } as Partial<Camada>)} className="h-8 w-full rounded-md bg-superficie2 px-2 text-[12px] outline-none ring-inset hover:ring-1 hover:ring-bordaForte focus:!ring-1 focus:!ring-acento" />
           <Linha rotulo="Dica visual"><Interruptor rotulo="Contorno ao passar o mouse" ativo={l.hint} aoMudar={(hint) => set({ hint } as Partial<Camada>)} /></Linha>
-          <p className="text-[11px] leading-relaxed text-texto2">Invisível na apresentação. Configure o que acontece na aba Interações.</p>
+          <div className="space-y-1.5 text-[11px] leading-relaxed text-texto2">
+            <p><strong className="font-medium text-texto">Como funciona:</strong> o hotspot é uma área invisível por cima de qualquer coisa (foto, botão desenhado, trecho do mapa). Quem assiste clica nela e acontece o que você definir na aba <strong className="font-medium text-texto">Interações</strong>: ir para outra tela, abrir um link, mostrar ou esconder camadas.</p>
+            <p><strong className="font-medium text-texto">Organização:</strong> dê um nome claro ao hotspot (ele aparece no painel Camadas e na navegação por teclado), posicione um por destino e, no modo Explorar, use-os para ligar as telas do mapa entre si.</p>
+          </div>
         </Secao>
       )
     default: return null
   }
+}
+
+/** Download na apresentação: marca a mídia e, se preciso, liga o recurso no documento (botão e página final). */
+function SecaoDownload({ c, set, editor }: { c: Camada; set: Set; editor: PropsSecao['editor'] }) {
+  const cfg = editor.estado.documento.downloads
+  return (
+    <Secao titulo="Download">
+      <Linha rotulo="Na apresentação"><Interruptor rotulo="Disponível para download" ativo={!!c.download} aoMudar={(v) => { set({ download: v || undefined } as Partial<Camada>); if (v && !cfg?.ativo) editor.acoes.atualizarDocumento({ downloads: { ativo: true, paginaFinal: cfg?.paginaFinal ?? false } }) }} /></Linha>
+      {c.download && <Linha rotulo="Página no final"><Interruptor rotulo="Página de downloads no final da apresentação" ativo={!!cfg?.paginaFinal} aoMudar={(v) => editor.acoes.atualizarDocumento({ downloads: { ativo: true, paginaFinal: v } })} /></Linha>}
+      <p className="text-[11px] leading-relaxed text-texto2">Quem assiste vê um botão de arquivos na barra da apresentação{cfg?.paginaFinal ? ' e a lista abre sozinha na última tela' : ''}.</p>
+    </Secao>
+  )
 }
 
 const NOMES_PESO: Record<number, string> = { 100: 'Thin', 200: 'Extra light', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'Semibold', 700: 'Bold', 800: 'Extra bold', 900: 'Black' }

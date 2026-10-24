@@ -1,7 +1,7 @@
 'use client'
 /** Posição: alinhamento (6 botões + distribuir), X/Y, rotação com girar 90° e espelhar. */
 import type { ReactNode } from 'react'
-import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceAround, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceAround, FlipHorizontal2, FlipVertical2, RotateCw } from 'lucide-react'
+import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceAround, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceAround, Crosshair, FlipHorizontal2, FlipVertical2, RotateCw } from 'lucide-react'
 import type { Alinhamento } from '@/lib/scene/transform'
 import { cx } from '@/components/ui'
 import { BotaoCampo, CampoNum, Secao, SeletorLista } from './controles'
@@ -64,6 +64,11 @@ export function SecaoPosicao({ editor }: PropsSecao) {
         <GrupoBotoes>
           {ALINHAR.slice(3).map(([m, I, r]) => <BotaoGrupo key={m} rotulo={r} onClick={() => acoes.alinhar(ids, m)}><I className="h-3.5 w-3.5" /></BotaoGrupo>)}
         </GrupoBotoes>
+        {multi && (
+          <GrupoBotoes className="!flex-[0.4]">
+            <BotaoGrupo rotulo="Centralizar a seleção na tela (margens iguais)" onClick={() => acoes.centralizarNaTela(ids)}><Crosshair className="h-3.5 w-3.5" /></BotaoGrupo>
+          </GrupoBotoes>
+        )}
         {sel.length >= 3 && (
           <GrupoBotoes className="!flex-[0.7]">
             <BotaoGrupo rotulo="Distribuir na horizontal" onClick={() => acoes.distribuir(ids, 'h')}><AlignHorizontalSpaceAround className="h-3.5 w-3.5" /></BotaoGrupo>

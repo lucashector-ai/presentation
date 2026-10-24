@@ -25,6 +25,7 @@ import { useControles } from './useControles'
 import { Marca } from '@/components/ui/Logo'
 import { carregarModelViewer } from '@/components/renderer/camadas/Modelo3d'
 import { precarregarLottie } from '@/components/renderer/camadas/Lottie'
+import { Downloads } from './Downloads'
 
 export interface ViewerProps {
   documento: DocumentoProjeto
@@ -405,6 +406,7 @@ export function Viewer(props: ViewerProps) {
                 <Proportions className="h-4 w-4" />
               </button>
             )}
+            <Downloads documento={documento} assets={assets} indice={runtime.indice} total={total} />
             <button aria-label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'} onClick={(e) => { e.stopPropagation(); void alternarFullscreen() }} className="rounded-full p-2 hover:bg-white/15">
               {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
             </button>
