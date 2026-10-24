@@ -25,8 +25,20 @@ type ComPreenchimento = CamadaForma | CamadaTexto | CamadaFrame
 const corBase = (c: ComPreenchimento) => (c.type === 'shape' ? c.fill : c.type === 'frame' ? (c.fill ?? '#FFFFFF') : c.color)
 const pinturaDe = (c: ComPreenchimento): Pintura => (c.type !== 'text' && c.fillImage ? { tipo: 'imagem', assetId: c.fillImage.assetId, encaixe: c.fillImage.fit } : c.gradient ? { tipo: 'gradiente', gradiente: c.gradient } : { tipo: 'solido', cor: corBase(c) })
 const propCor = (c: Camada): PropCor => (c.type === 'text' ? 'color' : 'fill')
+/**
+ * Vetor da caneta com caminhos fechados mas nenhum preenchido (desenhado antes de fechar virar preenchível):
+ * escolher uma cor de preenchimento é pedir preenchimento — os caminhos fechados passam a preencher.
+ */
+const comVetorPreenchivel = (c: Camada): Camada => {
+  if (c.type !== 'shape' || !c.vetor) return c
+  const { caminhos } = c.vetor
+  if (caminhos.some((k) => k.fechado && !k.semPreenchimento) || !caminhos.some((k) => k.fechado)) return c
+  return { ...c, vetor: { ...c.vetor, caminhos: caminhos.map((k) => { if (!k.fechado) return k; const { semPreenchimento: _s, ...resto } = k; return resto }) } }
+}
+
 /** Editar a cor direto solta o estilo ligado (como no Figma); gradiente também. */
-const comPintura = (c: Camada, p: Pintura): Camada => {
+const comPintura = (c0: Camada, p: Pintura): Camada => {
+  const c = comVetorPreenchivel(c0)
   if (c.type !== 'shape' && c.type !== 'text' && c.type !== 'frame') return c
   // imagem: só formas e frames (texto não tem preenchimento com imagem); sem imagem escolhida, fica como está
   if (p.tipo === 'imagem') return c.type !== 'text' && p.assetId ? ({ ...c, fillImage: { assetId: p.assetId, fit: p.encaixe ?? 'cover' }, gradient: undefined } as Camada) : c
@@ -59,7 +71,7 @@ export function SecaoPreenchimento({ editor }: PropsSecao) {
     atualizar((n) => n + 1)
   }
   const remover = () => { mantidas.delete(chave); setFn((c) => (c.type === 'frame' ? ({ ...c, fill: undefined, gradient: undefined, fillImage: undefined } as Camada) : comCor({ ...c, gradient: undefined, ...(c.type === 'shape' ? { fillImage: undefined } : {}) } as Camada, (cor) => comAlfa(cor, 0)))) }
-  const adicionar = () => setFn((c) => comCor(c, (cor) => comAlfa(cor, 1)))
+  const adicionar = () => setFn((c) => comCor(comVetorPreenchivel(c), (cor) => comAlfa(cor, 1)))
 
   return (
     <Secao

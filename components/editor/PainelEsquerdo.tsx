@@ -1,7 +1,7 @@
 'use client'
 import { useMemo, useRef, useState, type JSX } from 'react'
 import { createPortal } from 'react-dom'
-import { Box, ChevronDown, ChevronRight, Code2, Copy, Crosshair, Eye, EyeOff, Film, GalleryHorizontal, Group, Image as ImageIcon, Instagram, LayoutGrid, Smartphone, Lock, LockOpen, MousePointerClick, PenTool, Quote, Sparkles, Square, Tag, Trash2, Type, Upload, Video, ArrowRight, Map as IconeMapa } from 'lucide-react'
+import { Box, ChevronDown, ChevronRight, Code2, Copy, Crosshair, Eye, EyeOff, Film, GalleryHorizontal, Group, Image as ImageIcon, Instagram, LayoutGrid, Smartphone, Lock, LockOpen, MousePointerClick, PenTool, Quote, Sparkles, Square, Tag, Trash2, Type, Upload, Video, ArrowRight, Map as IconeMapa, Plus } from 'lucide-react'
 import { IconeAutoLayout, IconeMascara } from './inspetor/icones'
 import { NOMES_TIPO_MASCARA, ehMascara, tipoMascara } from '@/lib/scene/mascara'
 import type { Camada } from '@/lib/scene/schema'
@@ -46,7 +46,13 @@ function Telas({ editor, assets }: { editor: Editor; assets: AssetDemo[] }) {
   const mapa = useMemo(() => Object.fromEntries(assets.map((a) => [a.id, a])), [assets])
   const cenas = estado.documento.scenes
   return (
-    <div className="p-3">
+    <div className="px-3 pb-3">
+      {/* como no Figma: o "+" fica no topo da lista (a tela nova entra logo depois da atual) */}
+      <div className="sticky top-0 z-10 -mx-3 mb-2 flex h-9 items-center gap-0.5 bg-superficie px-3">
+        <span className="min-w-0 flex-1 truncate font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-texto3">{cenas.length} {cenas.length === 1 ? 'tela' : 'telas'}</span>
+        {editor.estado.documento.mode === 'explorar' && <BotaoIcone rotulo="Mapa das telas" className="h-7 w-7" onClick={() => window.dispatchEvent(new Event('mostra:abrir-mapa'))}><IconeMapa className="h-3.5 w-3.5" /></BotaoIcone>}
+        <BotaoIcone rotulo="Nova tela" title="Nova tela (depois da atual)" className="h-7 w-7" onClick={() => acoes.adicionarCena(editor.indiceCena)}><Plus className="h-4 w-4" /></BotaoIcone>
+      </div>
       <ol role="listbox" aria-label="Telas" className="space-y-3">
         {cenas.map((c, i) => {
           const ativa = c.id === estado.cenaId
@@ -93,10 +99,6 @@ function Telas({ editor, assets }: { editor: Editor; assets: AssetDemo[] }) {
           )
         })}
       </ol>
-      <button type="button" onClick={() => acoes.adicionarCena(editor.indiceCena)} className="mt-4 h-9 w-full rounded-lg border border-dashed border-bordaHover text-[12px] text-texto2 hover:border-acento hover:text-acento">+ Nova tela</button>
-      {editor.estado.documento.mode === 'explorar' && (
-        <button type="button" onClick={() => window.dispatchEvent(new Event('mostra:abrir-mapa'))} className="mt-2 flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-superficie2 text-[12px] font-medium text-texto transition-colors hover:bg-hover"><IconeMapa className="h-3.5 w-3.5" />Mapa das telas</button>
-      )}
     </div>
   )
 }

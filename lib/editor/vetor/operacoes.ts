@@ -264,7 +264,11 @@ export function definirAlcasDoNo(v: Vetor, r: RefNo, saida: P, inverter = false)
 export function fecharCaminho(v: Vetor, c: number): Vetor {
   const n = clonar(v)
   const cam = n.caminhos[c]
-  if (cam && cam.nos.length >= 2) cam.fechado = true
+  if (cam && cam.nos.length >= 2) {
+    cam.fechado = true
+    // como no Figma: fechar o caminho da caneta o torna preenchível (aberto ele nasce sem preenchimento)
+    delete cam.semPreenchimento
+  }
   return n
 }
 

@@ -222,7 +222,7 @@ await passo('AC-05/AC-06 Preview: clicar no hotspot navega para a tela 02; tecla
 await passo('Undo/redo de adicionar tela', async () => {
   await page.getByRole('tab', { name: 'Telas' }).click()
   await esperarTelas(3)
-  await page.getByRole('button', { name: '+ Nova tela' }).click()
+  await page.getByRole('button', { name: 'Nova tela', exact: true }).first().click()
   await esperarTelas(4)
   await page.getByRole('button', { name: /^Desfazer/ }).click()
   await esperarTelas(3)
@@ -537,7 +537,7 @@ await passo('Texto: corte vertical (opções de texto) deixa a caixa justa nas m
 
 await passo('Texto: entrelinha justa não corta descendentes nem acentos (a tinta passa da caixa, como no Figma)', async () => {
   await page.getByRole('tab', { name: 'Telas' }).click()
-  await page.getByRole('button', { name: '+ Nova tela' }).click()
+  await page.getByRole('button', { name: 'Nova tela', exact: true }).first().click()
   await page.getByRole('tab', { name: 'Blocos' }).click()
   await page.getByRole('button', { name: 'Texto', exact: true }).click()
   await page.getByLabel('Conteúdo do texto').fill('O próximo resultado\ncomeça agora')
@@ -608,7 +608,7 @@ const arvoreCamadas = () => page.getByRole('tree', { name: 'Camadas da tela' })
 
 await passo('Máscara: texto como máscara de imagem (foto dentro do título, ⌃⌥M), editável, remover e desfazer', async () => {
   await page.getByRole('tab', { name: 'Telas' }).click()
-  await page.getByRole('button', { name: '+ Nova tela' }).click()
+  await page.getByRole('button', { name: 'Nova tela', exact: true }).first().click()
   await page.getByRole('tab', { name: 'Blocos' }).click()
   await page.getByRole('button', { name: 'Título', exact: true }).click()
   await page.getByLabel('Conteúdo do texto').fill('FOTO')
@@ -672,7 +672,7 @@ const PNG_ALFA = `${SHOTS}/alfa-e2e.png`
 
 await passo('Máscara: PNG com transparência como máscara de alfa, luminância e contorno', async () => {
   await page.getByRole('tab', { name: 'Telas' }).click()
-  await page.getByRole('button', { name: '+ Nova tela' }).click()
+  await page.getByRole('button', { name: 'Nova tela', exact: true }).first().click()
   await page.getByRole('tab', { name: 'Arquivos' }).click()
   await page.getByRole('complementary', { name: 'Painel esquerdo' }).locator('input[type=file]').setInputFiles([PNG_ALFA])
   await page.getByRole('tab', { name: 'Camadas' }).click()
@@ -1194,7 +1194,7 @@ await passo('Guias de layout: 12 colunas e grade de 8, editar, ⌃⇧4, encaixe 
   await page.getByRole('tab', { name: 'Telas' }).click()
   await esperarTelas(3)
   await telas().nth(2).click() // a tela nova entra depois da atual: fica por último
-  await page.getByRole('button', { name: '+ Nova tela' }).click()
+  await page.getByRole('button', { name: 'Nova tela', exact: true }).first().click()
   await page.locator('footer').getByText('04 / 04', { exact: true }).waitFor()
   const secao = page.getByRole('region', { name: 'Guias de layout' })
   await secao.waitFor()

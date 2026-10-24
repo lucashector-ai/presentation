@@ -5,8 +5,8 @@ import { Frame, LayoutPanelLeft, Link2, MoveHorizontal, Square, Type, Unlink2 } 
 import { comDimensionamento, dimensionamentoDoModo, modoTexto, type ModoTexto } from '@/lib/editor/medirTexto'
 import { mapaDe, paiDe, temAutoLayout } from '@/lib/scene/arvore'
 import { abrirPreencher } from '../PreencherGrade'
-import type { Camada, CamadaFrame } from '@/lib/scene/schema'
-import { BotaoMini, CampoNum, Rotulo, Secao, Segmentado } from './controles'
+import { parseCamada, type Camada, type CamadaForma, type CamadaFrame } from '@/lib/scene/schema'
+import { BotaoMini, CampoNum, LinhaCampos, Secao, Segmentado } from './controles'
 import { IconeAutoLayout } from './icones'
 import { comum, useCamadas, type PropsSecao } from './selecao'
 
@@ -16,6 +16,12 @@ const travada = (c: Camada) => travas.get(c.id) ?? proporcionalPorPadrao(c)
 
 type Fluxo = 'livre' | 'vertical' | 'horizontal'
 
+/** Retângulo → frame com recorte (mesmo ID, lugar, cor, gradiente, raio, traço, efeitos e animações). */
+function retanguloEmFrame(r: CamadaForma): Camada {
+  const { shape: _s, fill, pattern: _p, patternScale: _ps, patternWeight: _pw, patternOpacity: _po, dash: _d, count: _c, ratio: _r, vetor: _v, fillRule: _f, ...resto } = r as CamadaForma & Record<string, unknown>
+  return parseCamada({ ...resto, type: 'frame', fill, clip: true, name: r.name ?? 'Frame' })
+}
+
 export function SecaoLayout({ editor }: PropsSecao) {
   const { sel, ids, setFn } = useCamadas(editor)
   const { acoes } = editor
@@ -23,6 +29,7 @@ export function SecaoLayout({ editor }: PropsSecao) {
   const l = sel[0]
   if (!l) return null
   const frame = sel.length === 1 && l.type === 'frame' ? (l as CamadaFrame) : undefined
+  const retangulo = sel.length === 1 && l.type === 'shape' && l.shape === 'rect' && !l.isMask ? (l as CamadaForma) : undefined
   const trava = sel.every(travada)
   const w = comum(sel, (c) => Math.round(c.width * 100) / 100)
   const h = comum(sel, (c) => Math.round(c.height * 100) / 100)
@@ -41,8 +48,7 @@ export function SecaoLayout({ editor }: PropsSecao) {
       }
     >
       {frame && (
-        <div>
-          <Rotulo>Fluxo</Rotulo>
+        <LinhaCampos rotulo="Fluxo">
           <Segmentado<Fluxo>
             rotulo="Fluxo do frame"
             icones
@@ -58,21 +64,21 @@ export function SecaoLayout({ editor }: PropsSecao) {
               { id: 'horizontal', rotulo: 'Auto layout horizontal', icone: <IconeAutoLayout direcao="horizontal" /> },
             ]}
           />
-        </div>
+        </LinhaCampos>
       )}
-      <div>
-      <Rotulo>Dimensões</Rotulo>
-      <div className="grid grid-cols-[1fr_1fr_24px] items-center gap-2">
+      <LinhaCampos rotulo="Tamanho">
+      <div className="grid grid-cols-[1fr_1fr_22px] items-center gap-1.5">
         <CampoNum prefixo="W" rotulo="Largura" valor={w} min={1} aoMudar={(v) => largura(() => v)} aoDelta={(d) => largura((c) => c.width + d)} />
         <CampoNum prefixo="H" rotulo="Altura" valor={h} min={1} aoMudar={(v) => altura(() => v)} aoDelta={(d) => altura((c) => c.height + d)} />
         <BotaoMini rotulo={trava ? 'Destravar proporção' : 'Travar proporção'} ativo={trava} onClick={() => { sel.forEach((c) => travas.set(c.id, !trava)); atualizar((n) => n + 1) }}>
           {trava ? <Link2 className="h-3.5 w-3.5" /> : <Unlink2 className="h-3.5 w-3.5" />}
         </BotaoMini>
       </div>
-      </div>
-      {frame && (
-        <label className="flex h-6 cursor-pointer items-center gap-2 text-[11px] text-texto">
-          <input type="checkbox" checked={frame.clip} onChange={(e) => acoes.atualizarCamadas([frame.id], { clip: e.target.checked } as Partial<Camada>)} className="h-3.5 w-3.5 accent-[rgb(var(--cor-acento))]" />
+      </LinhaCampos>
+      {/* recorte: no frame liga o clip; num retângulo, ele vira um frame que recorta o que for colocado dentro */}
+      {(frame || retangulo) && (
+        <label className="ml-[54px] flex h-6 cursor-pointer items-center gap-2 text-[11px] text-texto2 hover:text-texto" title={frame ? 'Esconde o que passar das bordas do frame' : 'Transforma o retângulo num frame (mesma cor, raio e traço) que recorta o que for colocado dentro'}>
+          <input type="checkbox" checked={!!frame?.clip} onChange={(e) => (frame ? acoes.atualizarCamadas([frame.id], { clip: e.target.checked } as Partial<Camada>) : retangulo && acoes.atualizarCamadas([retangulo.id], (c) => retanguloEmFrame(c as CamadaForma)))} className="h-3.5 w-3.5 accent-[rgb(var(--cor-acento))]" />
           Recortar conteúdo
         </label>
       )}

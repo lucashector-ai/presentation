@@ -317,3 +317,17 @@ describe('vetor na camada', () => {
     expect(r[0]!.groupId).toBe(r[1]!.groupId)
   })
 })
+
+describe('caneta: fechar o caminho', () => {
+  it('o caminho aberto nasce sem preenchimento e, ao fechar, passa a preencher', async () => {
+    const { novoCaminho, adicionarNo, fecharCaminho } = await import('./operacoes')
+    let { vetor } = novoCaminho({ w: 100, h: 100, fillRule: 'nonzero', caminhos: [{ nos: [{ x: 0, y: 0, tipo: 'canto' }], fechado: false }] }, { x: 10, y: 90 })
+    const c = vetor.caminhos.length - 1
+    expect(vetor.caminhos[c]!.semPreenchimento).toBe(true)
+    vetor = adicionarNo(vetor, c, { x: 50, y: 10 }).vetor
+    vetor = adicionarNo(vetor, c, { x: 90, y: 90 }).vetor
+    const fechado = fecharCaminho(vetor, c).caminhos[c]!
+    expect(fechado.fechado).toBe(true)
+    expect(fechado.semPreenchimento).toBeUndefined()
+  })
+})

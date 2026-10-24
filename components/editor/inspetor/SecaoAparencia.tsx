@@ -86,15 +86,14 @@ export function SecaoAparencia({ editor }: PropsSecao) {
         </>
       }
     >
-      <div className="grid grid-cols-[1fr_1fr_32px] items-end gap-2">
+      {/* opacidade e raio na mesma linha, identificados pelo ícone (dica no hover), sem linha só para rótulos */}
+      <div className="grid grid-cols-[1fr_1fr_26px] items-center gap-1.5">
         <div className="min-w-0">
-          <Rotulo>Opacidade</Rotulo>
           <CampoNum prefixo={<IconeOpacidade />} rotulo="Opacidade" valor={opacidade} min={0} max={100} sufixo="%" aoMudar={(v) => set({ opacity: v / 100 })} aoDelta={(d) => setFn((c) => ({ ...c, opacity: Math.max(0, Math.min(1, c.opacity + d / 100)) }))} />
         </div>
         {comRaio ? (
           <>
             <div className="min-w-0">
-              <Rotulo>Raio dos cantos</Rotulo>
               <CampoNum prefixo={<IconeRaio />} rotulo="Raio dos cantos" valor={raio} min={0} max={999} aoMudar={(r) => setFn((c) => raioUnicoEm(c, r))} aoDelta={(d) => setFn((c) => raioUnicoEm(c, (raioUnico(c) ?? Math.max(...raiosDe(c))) + d))} />
             </div>
             <BotaoCampo rotulo="Cantos independentes" ativo={independentes} title={podeCantos ? 'Cantos independentes' : 'Cantos independentes: formas, frames e imagens'} disabled={!podeCantos} onClick={alternarCantos}><IconeCantos /></BotaoCampo>
@@ -102,7 +101,7 @@ export function SecaoAparencia({ editor }: PropsSecao) {
         ) : <span />}
       </div>
       {independentes && (
-        <div className="mt-2 grid grid-cols-[1fr_1fr_32px] gap-2" role="group" aria-label="Cantos independentes">
+        <div className="grid grid-cols-[1fr_1fr_26px] gap-1.5" role="group" aria-label="Cantos independentes">
           {NOMES_CANTOS.map((nome, i) => {
             const v = comum(sel, (c) => raiosDe(c)[i]!)
             // ordem visual como no Figma: superiores na 1ª linha, inferiores na 2ª (esq. | dir.)
@@ -120,12 +119,11 @@ export function SecaoAparencia({ editor }: PropsSecao) {
         </div>
       )}
       {podeSuavizar && (independentes || (suavizacao !== 0)) && (
-        <div className="mt-2 grid grid-cols-[1fr_1fr_32px] items-end gap-2">
+        <div className="grid grid-cols-[1fr_1fr_26px] items-center gap-1.5">
           <div className="min-w-0">
-            <Rotulo>Suavizar cantos</Rotulo>
             <CampoNum prefixo={<IconeSuavizacao />} rotulo="Suavização dos cantos" titulo="Suavização dos cantos (squircle, 60% = iOS)" valor={suavizacao} min={0} max={100} sufixo="%" aoMudar={(v) => set({ cornerSmoothing: v ? v / 100 : undefined })} aoDelta={(d) => setFn((c) => ({ ...c, cornerSmoothing: Math.max(0, Math.min(1, (c.cornerSmoothing ?? 0) + d / 100)) || undefined }))} />
           </div>
-          <BotaoMini rotulo="Suavização iOS (60%)" className="mb-0.5 h-7 w-auto justify-self-start px-2.5 text-[11px]" ativo={suavizacao === 60} onClick={() => set({ cornerSmoothing: 0.6 })}>iOS</BotaoMini>
+          <BotaoMini rotulo="Suavização iOS (60%)" className="h-[26px] w-auto justify-self-start px-2.5 text-[11px]" ativo={suavizacao === 60} onClick={() => set({ cornerSmoothing: 0.6 })}>iOS</BotaoMini>
         </div>
       )}
     </Secao>
