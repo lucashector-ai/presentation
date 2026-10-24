@@ -114,7 +114,7 @@ function DefsGradienteSo({ id, g }: { id: string; g: Gradiente }) {
   )
 }
 
-export function Forma({ camada: c, urlImagem }: { camada: CamadaForma; urlImagem?: string }) {
+export function Forma({ camada: c, urlImagem, transicao }: { camada: CamadaForma; urlImagem?: string; /** morph: "600ms ease" para a cor e o raio interpolarem */ transicao?: string }) {
   if (c.isMask) return null
   if (c.shape === 'path' && c.vetor) return <FormaVetor c={c} v={c.vetor} />
   if (c.shape === 'line' || c.shape === 'arrow') return <LinhaComTracos c={c} />
@@ -133,6 +133,7 @@ export function Forma({ camada: c, urlImagem }: { camada: CamadaForma; urlImagem
       border: legado && c.stroke && c.strokeWidth ? `${c.strokeWidth}px ${c.dash ? 'dashed' : 'solid'} ${c.stroke}` : undefined,
       boxShadow: boxShadowCss(suave ? internas(c.effects) : sombrasVisiveis(c.effects)),
       ...padraoCss(c),
+      transition: transicao ? `background-color ${transicao}, border-radius ${transicao}, box-shadow ${transicao}` : undefined,
     }
     if (c.pattern !== 'none' && preenchimento && !imagem) estilo.backgroundColor = c.gradient ? undefined : c.fill
     if (c.pattern !== 'none' && !imagem) estilo.background = undefined

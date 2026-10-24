@@ -8,7 +8,7 @@
  * geometria/cor antiga e animam até a nova.
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import type { Animacao, Camada, Cena, Interacao, CamadaTexto } from '@/lib/scene/schema'
+import type { Animacao, Camada, CamadaForma, Cena, Interacao, CamadaTexto } from '@/lib/scene/schema'
 import { EASING_CSS, camadaVisivel, interacoesDe, type EstadoRuntime } from '@/lib/scene/motor'
 import { ordenarParaRender } from '@/lib/scene/order'
 import { calcularLayout } from '@/lib/editor/autolayout'
@@ -374,13 +374,13 @@ const LayerView = memo(function LayerView({ camada: c, props, origemMorph, heran
       ) : temInterativo(c) && c.interactiveEffects ? (
         // parallax, tilt e luz: invólucros próprios dentro da camada (ver components/renderer/reativos.tsx)
         <CamadaReativa efeitos={c.interactiveEffects} modo={props.animar === false ? 'miniatura' : modo} reduzir={reduzirMovimento} semHover={semHover} rolagem={!!props.rolagem} largura={c.width} altura={c.height} raio={'radius' in c ? raioCss(c) : undefined} simular={previaAqui && previa?.interativo ? previa.nonce : undefined}>
-          <Conteudo camada={c} props={props} origemMorph={morphFim ? undefined : origemMorph} morphDuracao={morphDuracao} morphEasing={morphEasing} animTexto={plano.texto} rolagemTexto={plano.rolagem} desenhar={plano.desenho} />
+          <Conteudo camada={c} props={props} origemMorph={morphFim ? undefined : origemMorph} transicaoMorph={origemMorph ? `${morphDuracao}ms ${morphEasing}` : undefined} morphDuracao={morphDuracao} morphEasing={morphEasing} animTexto={plano.texto} rolagemTexto={plano.rolagem} desenhar={plano.desenho} />
           {c.strokes && <Tracos camada={c} />}
           {(e?.noise ?? 0) > 0 && <span aria-hidden style={{ ...GRAO, opacity: e!.noise, borderRadius: 'radius' in c ? raioCss(c) : undefined }} />}
         </CamadaReativa>
       ) : (
         <>
-          <Conteudo camada={c} props={props} origemMorph={morphFim ? undefined : origemMorph} morphDuracao={morphDuracao} morphEasing={morphEasing} animTexto={plano.texto} rolagemTexto={plano.rolagem} desenhar={plano.desenho} />
+          <Conteudo camada={c} props={props} origemMorph={morphFim ? undefined : origemMorph} transicaoMorph={origemMorph ? `${morphDuracao}ms ${morphEasing}` : undefined} morphDuracao={morphDuracao} morphEasing={morphEasing} animTexto={plano.texto} rolagemTexto={plano.rolagem} desenhar={plano.desenho} />
           {c.strokes && <Tracos camada={c} />}
           {(e?.noise ?? 0) > 0 && <span aria-hidden style={{ ...GRAO, opacity: e!.noise, borderRadius: 'radius' in c ? raioCss(c) : undefined }} />}
         </>
@@ -389,7 +389,18 @@ const LayerView = memo(function LayerView({ camada: c, props, origemMorph, heran
   )
 }, camadaIgual)
 
-function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, animTexto, rolagemTexto, desenhar }: { camada: Camada; props: SceneRendererProps; origemMorph?: Camada; morphDuracao: number; morphEasing: string; animTexto?: Animacao; rolagemTexto?: string; desenhar?: boolean }) {
+/**
+ * Morph de forma: nos primeiros quadros a forma nova é desenhada com a cor, o raio e o tipo (retângulo ↔ elipse)
+ * da de origem; ao trocar para os dela, a transição CSS interpola (quadrado vira círculo fechando os cantos, a
+ * cor muda no caminho) em vez de piscar.
+ */
+function visualDeOrigem(c: CamadaForma, o: Camada | undefined): CamadaForma {
+  if (o?.type !== 'shape') return c
+  const caixa = (s: CamadaForma['shape']) => s === 'rect' || s === 'ellipse'
+  return caixa(c.shape) && caixa(o.shape) ? { ...c, shape: o.shape, fill: o.fill, gradient: o.gradient, radius: o.radius, radii: o.radii } : { ...c, fill: o.fill }
+}
+
+function Conteudo({ camada: c, props, origemMorph, transicaoMorph, morphDuracao, morphEasing, animTexto, rolagemTexto, desenhar }: { camada: Camada; props: SceneRendererProps; origemMorph?: Camada; /** "600ms ease": cor, raio e forma interpolam junto com a geometria no morph. */ transicaoMorph?: string; morphDuracao: number; morphEasing: string; animTexto?: Animacao; rolagemTexto?: string; desenhar?: boolean }) {
   const { assets, modo, mobile = false, registrarVideo, interativoNoEditor } = props
   const e = c.effects
   const interativo = modo === 'viewer' || !!interativoNoEditor
@@ -399,7 +410,7 @@ function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, an
     case 'shape':
       return (
         <Desenho ativo={!!desenhar} style={{ width: '100%', height: '100%', filter: filtroCss(e, (c.shape !== 'rect' && c.shape !== 'ellipse') || (c.shape === 'rect' && temSuavizacao(c))) }}>
-          <Forma camada={origemMorph?.type === 'shape' ? { ...c, fill: origemMorph.fill } : c} urlImagem={c.fillImage ? assets[c.fillImage.assetId]?.url : undefined} />
+          <Forma camada={visualDeOrigem(c, origemMorph)} urlImagem={c.fillImage ? assets[c.fillImage.assetId]?.url : undefined} transicao={transicaoMorph} />
         </Desenho>
       )
     case 'frame': {
@@ -410,12 +421,13 @@ function Conteudo({ camada: c, props, origemMorph, morphDuracao, morphEasing, an
             width: '100%',
             height: '100%',
             boxSizing: 'border-box',
-            background: c.fillImage && assets[c.fillImage.assetId]?.url ? fundoImagemCss(assets[c.fillImage.assetId]!.url, c.fillImage.fit) : c.gradient ? gradienteCss(c.gradient) : c.fill,
+            background: c.fillImage && assets[c.fillImage.assetId]?.url ? fundoImagemCss(assets[c.fillImage.assetId]!.url, c.fillImage.fit) : c.gradient ? gradienteCss(c.gradient) : (origemMorph?.type === 'frame' ? origemMorph.fill : c.fill),
             border: !c.strokes && c.stroke && c.strokeWidth ? `${c.strokeWidth}px solid ${c.stroke}` : undefined,
-            borderRadius: suave ? undefined : raioCss(c),
+            borderRadius: suave ? undefined : raioCss(origemMorph?.type === 'frame' ? origemMorph : c),
             clipPath: suave ? recorteSuave(c) : undefined,
             boxShadow: suave ? boxShadowCss(internas(e)) : sombraCss(e),
             filter: suave ? undefined : filtroCss(e, false),
+            transition: transicaoMorph ? `background-color ${transicaoMorph}, border-radius ${transicaoMorph}, box-shadow ${transicaoMorph}` : undefined,
           }}
         />
       )
