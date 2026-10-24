@@ -5,6 +5,8 @@ module.exports = {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}', './lib/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      // cursores do Mostra (variáveis em app/cursores.css, geradas de lib/editor/cursores.ts)
+      cursor: Object.fromEntries(['default', 'pointer', 'text', 'grab', 'grabbing', 'move', 'crosshair', 'copy', 'not-allowed', 'zoom-in', 'zoom-out', 'help', 'progress', 'wait', 'cell', 'ew-resize', 'ns-resize', 'nwse-resize', 'nesw-resize', 'col-resize', 'row-resize'].map((n) => [n, `var(--cursor-${n})`])),
       colors: {
         // Tokens em CSS variables (ver app/globals.css) — permitem tema claro/escuro sem duplicar classes.
         fundo: 'rgb(var(--cor-fundo) / <alpha-value>)',

@@ -358,8 +358,18 @@ await passo('Sair e voltar: login leva de volta ao destino (/app/projects/:id)',
   await page.getByRole('heading', { level: 1, name: NOME_PROJETO }).waitFor({ timeout: 20000 })
 })
 
+await passo('Conectado: abrir a página inicial, o login ou o cadastro entra direto no painel', async () => {
+  await page.goto(`${BASE}/`)
+  await page.waitForURL(`${BASE}/app`, { timeout: 20000 })
+  await page.goto(`${BASE}/login?proximo=${encodeURIComponent(`/app/projects/${idProjeto}`)}`)
+  await page.waitForURL(`${BASE}/app/projects/${idProjeto}`, { timeout: 20000 })
+  await page.goto(`${BASE}/signup`)
+  await page.waitForURL(`${BASE}/app`, { timeout: 20000 })
+})
+
 await passo('Landing: "Explorar a plataforma" abre o exemplo público (vitrine da demo, sem servidor)', async () => {
-  await page.goto(`${BASE}/`, { waitUntil: 'networkidle' })
+  // conectado, a página inicial só abre com ?site=1 (sem ele, vai direto ao painel)
+  await page.goto(`${BASE}/?site=1`, { waitUntil: 'networkidle' })
   await esperarHidratacao()
   await page.getByRole('link', { name: /Explorar a plataforma/ }).first().click()
   await page.waitForURL(/\/p\/demo_/, { timeout: 30000 })

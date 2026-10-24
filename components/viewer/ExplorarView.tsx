@@ -92,7 +92,7 @@ export function ExplorarView({ documento, tamanho, runtime, visaoGeral, preenche
               key={c.id}
               ref={(el) => { if (el) telas.current.set(i, el); else telas.current.delete(i) }}
               className={atual && (nav.esperando || !iniciado) ? 'animacoes-em-espera' : undefined}
-              style={{ position: 'absolute', left: pos[i]!.x, top: pos[i]!.y, opacity: visaoGeral || ativa ? 1 : 0.35, transition: `opacity 500ms ease ${atraso}ms`, cursor: ativa ? undefined : 'pointer', borderRadius: 12, boxShadow: visaoGeral ? '0 40px 120px -40px rgba(0,0,0,.6)' : undefined }}
+              style={{ position: 'absolute', left: pos[i]!.x, top: pos[i]!.y, opacity: visaoGeral || ativa ? 1 : 0.35, transition: `opacity 500ms ease ${atraso}ms`, cursor: ativa ? undefined : 'var(--cursor-pointer)', borderRadius: 12, boxShadow: visaoGeral ? '0 40px 120px -40px rgba(0,0,0,.6)' : undefined }}
               onClick={ativa ? undefined : (e) => { e.stopPropagation(); aoEscolher(i) }}
               role={ativa ? undefined : 'button'}
               aria-label={ativa ? undefined : `Ir para ${c.title || `tela ${i + 1}`}`}

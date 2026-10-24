@@ -336,7 +336,7 @@ const LayerView = memo(function LayerView({ camada: c, props, origemMorph, heran
     // a entrada termina na opacidade parada da camada (com a dos frames pais): ao soltar a animação no fim,
     // nada muda de lugar nem de opacidade
     ['--op' as string]: (visivel ? c.opacity : 0) * (heranca?.opacidade ?? 1),
-    cursor: clicavel ? 'pointer' : undefined,
+    cursor: clicavel ? 'var(--cursor-pointer)' : undefined,
     mixBlendMode: e?.blend && e.blend !== 'normal' ? e.blend : undefined,
     // vidro fosco: desfoque com um pouco de saturação (como o Figma e o iOS); o recorte nos cantos arredondados fica
     // anti-serrilhado com a camada isolada (isolation) em vez de só o border-radius
@@ -569,7 +569,7 @@ function Midia({ src, fit, crop }: { src?: string; fit: 'contain' | 'cover' | 'f
       <div className="listras" style={{ width: '100%', height: '100%', background: 'rgba(163,163,163,.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, color: '#737373', fontFamily: 'var(--font-geist-mono), monospace', fontSize: 22 }}>
         <span>{!src ? 'mídia indisponível' : 'Não foi possível carregar este arquivo.'}</span>
         {src && (
-          <button onClick={(e) => { e.stopPropagation(); setTentativa((t) => t + 1) }} style={{ fontSize: 20, padding: '8px 20px', borderRadius: 99, border: '2px solid currentColor', background: 'transparent', color: 'inherit', cursor: 'pointer' }}>
+          <button onClick={(e) => { e.stopPropagation(); setTentativa((t) => t + 1) }} style={{ fontSize: 20, padding: '8px 20px', borderRadius: 99, border: '2px solid currentColor', background: 'transparent', color: 'inherit', cursor: 'var(--cursor-pointer)' }}>
             Tentar novamente
           </button>
         )}

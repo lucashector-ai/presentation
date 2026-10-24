@@ -1,13 +1,15 @@
 /**
- * Entrada do Worker do Mostra: o vinext atende o app inteiro; só duas coisas são atendidas antes, aqui:
+ * Entrada do Worker do Mostra: o vinext atende o app inteiro; só algumas coisas são atendidas antes, aqui:
  * o WebSocket da sala de colaboração (GET /api/projects/:id/sala, repassado ao Durable Object do projeto) e o
- * proxy das fontes do Google (GET /fontes/css e /fontes/arquivo/…, lib/fontes/proxy.ts).
+ * proxy das fontes do Google (GET /fontes/css e /fontes/arquivo/…, lib/fontes/proxy.ts) e o atalho de quem já está
+ * conectado (/, /login e /signup → painel, lib/auth/entrada.ts).
  * A classe do Durable Object precisa ser exportada pelo módulo principal do Worker (wrangler.jsonc → "exports").
  */
 import handler from 'vinext/server/fetch-handler'
 import { entrarNaSala, ROTA_SALA, type NamespaceSalas } from '@/lib/colab/entrada'
 import { atenderFontes, ehRotaFontes } from '@/lib/fontes/proxy'
 import { destinoCanonico, HOST_SITE } from '@/lib/site'
+import { entrarDiretoSeConectado } from '@/lib/auth/entrada'
 
 export { SalaProjeto } from '@/lib/colab/sala'
 
@@ -56,6 +58,9 @@ const worker = {
         return new Response('Não foi possível entrar na sala agora', { status: 500 })
       }
     }
+    // conectado: página inicial, login e cadastro levam direto ao painel (lib/auth/entrada.ts)
+    const direto = await entrarDiretoSeConectado(request)
+    if (direto) return url.hostname === HOST_SITE ? comCabecalhosCanonicos(direto) : direto
     const resposta = await handler.fetch(request, env, ctx)
     return url.hostname === HOST_SITE ? comCabecalhosCanonicos(resposta) : resposta
   },

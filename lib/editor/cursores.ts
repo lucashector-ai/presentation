@@ -23,15 +23,23 @@ const DESENHOS = {
   move: () => `<g filter="url(#sh)" stroke-linejoin="round" stroke-linecap="round"><g fill="#FFFFFF" stroke="#FFFFFF" stroke-width="5.5"><path d="M16 3.5l3.6 4.2h-7.2Z M16 28.5l3.6-4.2h-7.2Z M3.5 16l4.2-3.6v7.2Z M28.5 16l-4.2-3.6v7.2Z"/></g><g fill="none" stroke="#FFFFFF" stroke-width="6"><path d="M16 8v16M8 16h16"/></g><g fill="none" stroke="#171717" stroke-width="2.2"><path d="M16 8v16M8 16h16"/></g><g fill="#171717" stroke="#171717" stroke-width="2"><path d="M16 3.5l3.6 4.2h-7.2Z M16 28.5l3.6-4.2h-7.2Z M3.5 16l4.2-3.6v7.2Z M28.5 16l-4.2-3.6v7.2Z"/></g></g>`,
   seta: (a = 0) => `<g filter="url(#sh)" stroke-linejoin="round" stroke-linecap="round"><g fill="#FFFFFF" stroke="#FFFFFF" stroke-width="5.5"><g transform="rotate(${a} 16 16)"><path d="M4.5 16l4.6-4v8Z M27.5 16l-4.6-4v8Z"/></g></g><g fill="none" stroke="#FFFFFF" stroke-width="6"><g transform="rotate(${a} 16 16)"><path d="M8.5 16h15"/></g></g><g fill="none" stroke="#171717" stroke-width="2.2"><g transform="rotate(${a} 16 16)"><path d="M8.5 16h15"/></g></g><g fill="#171717" stroke="#171717" stroke-width="2"><g transform="rotate(${a} 16 16)"><path d="M4.5 16l4.6-4v8Z M27.5 16l-4.6-4v8Z"/></g></g></g>`,
   girar: (a = 0) => `<g filter="url(#sh)" stroke-linejoin="round" stroke-linecap="round"><g fill="#FFFFFF" stroke="#FFFFFF" stroke-width="5.5"><g transform="rotate(${a} 16 16)"><path d="M27 10.5l-5.4-4.6v9.2Z M8.5 27l-4.6-5.4h9.2Z"/></g></g><g fill="none" stroke="#FFFFFF" stroke-width="6"><g transform="rotate(${a} 16 16)"><path d="M8.5 21.5v-2.5c0-5 3.5-8.5 8.5-8.5h4"/></g></g><g fill="none" stroke="#171717" stroke-width="2.2"><g transform="rotate(${a} 16 16)"><path d="M8.5 21.5v-2.5c0-5 3.5-8.5 8.5-8.5h4"/></g></g><g fill="#171717" stroke="#171717" stroke-width="2"><g transform="rotate(${a} 16 16)"><path d="M27 10.5l-5.4-4.6v9.2Z M8.5 27l-4.6-5.4h9.2Z"/></g></g></g>`,
+  colResize: () => `<g filter="url(#sh)" stroke-linejoin="round" stroke-linecap="round"><g fill="#FFFFFF" stroke="#FFFFFF" stroke-width="5.5"><path d="M4.5 16l4.6-4v8Z M27.5 16l-4.6-4v8Z"/></g><g fill="none" stroke="#FFFFFF" stroke-width="6"><path d="M16 7v18M9.5 16h2.5M20 16h2.5"/></g><g fill="none" stroke="#171717" stroke-width="2.2"><path d="M16 7v18M9.5 16h2.5M20 16h2.5"/></g><g fill="#171717" stroke="#171717" stroke-width="2"><path d="M4.5 16l4.6-4v8Z M27.5 16l-4.6-4v8Z"/></g></g>`,
+  rowResize: () => `<g filter="url(#sh)" stroke-linejoin="round" stroke-linecap="round"><g fill="#FFFFFF" stroke="#FFFFFF" stroke-width="5.5"><g transform="rotate(90 16 16)"><path d="M4.5 16l4.6-4v8Z M27.5 16l-4.6-4v8Z"/></g></g><g fill="none" stroke="#FFFFFF" stroke-width="6"><g transform="rotate(90 16 16)"><path d="M16 7v18M9.5 16h2.5M20 16h2.5"/></g></g><g fill="none" stroke="#171717" stroke-width="2.2"><g transform="rotate(90 16 16)"><path d="M16 7v18M9.5 16h2.5M20 16h2.5"/></g></g><g fill="#171717" stroke="#171717" stroke-width="2"><g transform="rotate(90 16 16)"><path d="M4.5 16l4.6-4v8Z M27.5 16l-4.6-4v8Z"/></g></g></g>`,
+  progress: () => `<g filter="url(#sh)" stroke-linejoin="round" stroke-linecap="round"><g fill="#FFFFFF" stroke="#FFFFFF" stroke-width="5.5"><g transform="translate(1 1) scale(.62)"><path d="M8.6 6.6c-1.3-.6-2.6.7-2 2l6.3 15.7c.5 1.3 2.4 1.3 2.8-.1l1.8-5.7c.2-.6.6-1 1.2-1.2l5.7-1.8c1.4-.4 1.4-2.3.1-2.8Z" stroke-width="3.2"/></g></g><g fill="#AEB4FA" stroke="#171717" stroke-width="2"><g transform="translate(1 1) scale(.62)"><path d="M8.6 6.6c-1.3-.6-2.6.7-2 2l6.3 15.7c.5 1.3 2.4 1.3 2.8-.1l1.8-5.7c.2-.6.6-1 1.2-1.2l5.7-1.8c1.4-.4 1.4-2.3.1-2.8Z" stroke-width="3.2"/></g></g><circle cx="22.5" cy="22.5" r="6.6" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="4"/><circle cx="22.5" cy="22.5" r="6.6" fill="#FFFFFF" stroke="#171717" stroke-width="2"/><path d="M22.5 22.5V17.6a4.9 4.9 0 0 1 4.9 4.9Z M22.5 22.5v4.9a4.9 4.9 0 0 1-4.9-4.9Z" fill="#5965F2" stroke="none"/></g>`,
+  wait: () => `<g filter="url(#sh)" stroke-linejoin="round" stroke-linecap="round"><circle cx="16" cy="16" r="9.5" fill="none" stroke="#FFFFFF" stroke-width="7"/><circle cx="16" cy="16" r="9.5" fill="none" stroke="#171717" stroke-width="3.2"/><path d="M16 6.5a9.5 9.5 0 0 1 9.5 9.5" fill="none" stroke="#5965F2" stroke-width="3.2" stroke-linecap="round"/></g>`,
+  help: () => `<g filter="url(#sh)" stroke-linejoin="round" stroke-linecap="round"><g fill="#FFFFFF" stroke="#FFFFFF" stroke-width="5.5"><g transform="translate(1 1) scale(.62)"><path d="M8.6 6.6c-1.3-.6-2.6.7-2 2l6.3 15.7c.5 1.3 2.4 1.3 2.8-.1l1.8-5.7c.2-.6.6-1 1.2-1.2l5.7-1.8c1.4-.4 1.4-2.3.1-2.8Z" stroke-width="3.2"/></g></g><g fill="#AEB4FA" stroke="#171717" stroke-width="2"><g transform="translate(1 1) scale(.62)"><path d="M8.6 6.6c-1.3-.6-2.6.7-2 2l6.3 15.7c.5 1.3 2.4 1.3 2.8-.1l1.8-5.7c.2-.6.6-1 1.2-1.2l5.7-1.8c1.4-.4 1.4-2.3.1-2.8Z" stroke-width="3.2"/></g></g><circle cx="22.5" cy="22.5" r="6.6" fill="#5965F2" stroke="#FFFFFF" stroke-width="4"/><circle cx="22.5" cy="22.5" r="6.6" fill="#5965F2" stroke="#171717" stroke-width="2"/><path d="M20.6 21a2 2 0 1 1 2.8 1.8c-.6.3-.9.7-.9 1.3" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="22.5" cy="26.3" r="1" fill="#FFFFFF" stroke="none"/></g>`,
+  cell: () => `<g filter="url(#sh)" stroke-linejoin="round" stroke-linecap="round"><g fill="#FFFFFF" stroke="#FFFFFF" stroke-width="5.5"><path d="M13.5 5.5h5v8h8v5h-8v8h-5v-8h-8v-5h8Z"/></g><g fill="#AEB4FA" stroke="#171717" stroke-width="2"><path d="M13.5 5.5h5v8h8v5h-8v8h-5v-8h-8v-5h8Z"/></g></g>`,
 } satisfies Record<string, (a?: number) => string>
 
 export type NomeCursor = keyof typeof DESENHOS
 
 /** Hotspot no grid de 32: ponteiros na ponta (7,7); mão do link no dedo (14,5); o resto no centro. */
-const PONTA: Partial<Record<NomeCursor, [number, number]>> = { pointer: [7, 7], copy: [5, 5], notAllowed: [5, 5], duplicate: [5, 5], link: [14, 5], pen: [7, 7], eyedropper: [8, 24], zoomIn: [13.5, 13.5], zoomOut: [13.5, 13.5] }
-const RESERVA: Record<NomeCursor, string> = { pointer: 'default', grab: 'grab', grabbing: 'grabbing', text: 'text', crosshair: 'crosshair', pen: 'crosshair', zoomIn: 'zoom-in', zoomOut: 'zoom-out', notAllowed: 'not-allowed', duplicate: 'copy', copy: 'copy', link: 'pointer', eyedropper: 'crosshair', move: 'move', seta: 'ew-resize', girar: 'grab' }
+const PONTA: Partial<Record<NomeCursor, [number, number]>> = { pointer: [7, 7], copy: [5, 5], notAllowed: [5, 5], progress: [5, 5], help: [5, 5], duplicate: [5, 5], link: [14, 5], pen: [7, 7], eyedropper: [8, 24], zoomIn: [13.5, 13.5], zoomOut: [13.5, 13.5] }
+const RESERVA: Record<NomeCursor, string> = { pointer: 'default', grab: 'grab', grabbing: 'grabbing', text: 'text', crosshair: 'crosshair', pen: 'crosshair', zoomIn: 'zoom-in', zoomOut: 'zoom-out', notAllowed: 'not-allowed', duplicate: 'copy', copy: 'copy', link: 'pointer', eyedropper: 'crosshair', move: 'move', seta: 'ew-resize', girar: 'grab', colResize: 'col-resize', rowResize: 'row-resize', progress: 'progress', wait: 'wait', help: 'help', cell: 'cell' }
 
 const TAMANHO = 24
+/** Data URL enxuta: aspas simples e só os caracteres que precisam de escape (metade do tamanho de encodeURIComponent). */
+const svgEmUrl = (svg: string) => svg.replace(/"/g, "'").replace(/[%#<>]/g, (c) => encodeURIComponent(c))
 const cache = new Map<string, string>()
 
 /** Valor CSS de `cursor` para um cursor do Mostra. `angulo` (graus, horário) gira as setas e o cursor de girar. */
@@ -43,7 +51,44 @@ export function cursorMostra(nome: NomeCursor, angulo = 0): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${TAMANHO}" height="${TAMANHO}" viewBox="-2 -2 36 36">${SOMBRA}${DESENHOS[nome](a)}</svg>`
   const [px, py] = PONTA[nome] ?? [16, 16]
   const escala = TAMANHO / 36
-  const valor = `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${Math.round((px + 2) * escala)} ${Math.round((py + 2) * escala)}, ${RESERVA[nome]}`
+  const valor = `url("data:image/svg+xml,${svgEmUrl(svg)}") ${Math.round((px + 2) * escala)} ${Math.round((py + 2) * escala)}, ${RESERVA[nome]}`
   cache.set(chave, valor)
   return valor
+}
+
+/**
+ * Variáveis CSS (`--cursor-<nome>`) com os cursores do Mostra para o site inteiro: o Tailwind (`cursor-*`) e os
+ * estilos base de app/globals.css apontam para elas. Gerado por `npm run cursores` (o teste confere que está em dia).
+ */
+export const VARIAVEIS_CURSOR: Record<string, string> = {
+  default: cursorMostra('pointer'),
+  pointer: cursorMostra('link'),
+  text: cursorMostra('text'),
+  grab: cursorMostra('grab'),
+  grabbing: cursorMostra('grabbing'),
+  move: cursorMostra('move'),
+  crosshair: cursorMostra('crosshair'),
+  copy: cursorMostra('copy'),
+  'not-allowed': cursorMostra('notAllowed'),
+  'zoom-in': cursorMostra('zoomIn'),
+  'zoom-out': cursorMostra('zoomOut'),
+  help: cursorMostra('help'),
+  progress: cursorMostra('progress'),
+  wait: cursorMostra('wait'),
+  cell: cursorMostra('cell'),
+  'ew-resize': cursorMostra('seta', 0),
+  'ns-resize': cursorMostra('seta', 90),
+  'nwse-resize': cursorMostra('seta', 45),
+  'nesw-resize': cursorMostra('seta', 135),
+  'col-resize': cursorMostra('colResize'),
+  'row-resize': cursorMostra('rowResize'),
+}
+
+export function cssCursores(): string {
+  const vars = Object.entries(VARIAVEIS_CURSOR).map(([k, v]) => `  --cursor-${k}: ${v};`).join('\n')
+  return `/* Gerado por \`npm run cursores\` a partir de lib/editor/cursores.ts — não edite à mão. */
+:root {
+${vars}
+}
+`
 }

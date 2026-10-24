@@ -1,4 +1,14 @@
+@import './cursores.css';
 @tailwind base;
+
+/* Cursores do Mostra no site todo (variáveis em app/cursores.css). Na camada base: vencem o preflight do Tailwind
+   (mesma especificidade, vêm depois) e perdem para as classes cursor-* e estilos inline. */
+@layer base {
+  html { cursor: var(--cursor-default); }
+  :where(a[href], summary, select, label[for], [role='tab'], [role='menuitem'], [role='option'], [role='radio'], [role='checkbox'], [role='switch']), button, [role='button'] { cursor: var(--cursor-pointer); }
+  :where(input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file'], [type='button'], [type='submit']), textarea, [contenteditable='true']) { cursor: var(--cursor-text); }
+  :disabled { cursor: var(--cursor-not-allowed); }
+}
 @tailwind components;
 @tailwind utilities;
 

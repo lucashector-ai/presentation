@@ -19,6 +19,7 @@
     "format:check": "prettier --check .",
     "verificar": "npm run lint && npm run typecheck && npm run test && npm run build",
     "test:e2e": "node e2e/fluxo.mjs",
+    "cursores": "node scripts/gerar-cursores.ts",
     "db:migrar": "node db/migrar.mjs"
   },
   "dependencies": {
