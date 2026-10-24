@@ -33,7 +33,7 @@ export function SecaoMascara({ editor }: PropsSecao) {
         acao={<BotaoMini rotulo={desligada ? 'Ligar máscara' : 'Desligar máscara'} onClick={() => set({ hidden: !desligada })}>{desligada ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}</BotaoMini>}
       >
         <Segmentado<TipoMascara> rotulo="Tipo de máscara" valor={tipo === MISTO ? MISTO : tipo} opcoes={TIPOS_MASCARA.map((t) => ({ id: t, rotulo: NOMES_TIPO_MASCARA[t] }))} aoMudar={(t) => set({ maskType: t })} />
-        <p className="text-[11px] leading-snug text-texto3">
+        <p className="text-[12px] text-texto3">
           {tipo === MISTO ? 'Tipos diferentes na seleção.' : DICA[tipo]} {desligada ? 'Desligada: as camadas aparecem inteiras.' : `Recorta ${recortadas} ${recortadas === 1 ? 'camada' : 'camadas'}.`}
         </p>
       </Secao>

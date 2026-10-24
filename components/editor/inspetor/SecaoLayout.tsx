@@ -25,7 +25,7 @@ export function SecaoLayout({ editor }: PropsSecao) {
   const altura = (fn: (c: Camada) => number) => setFn((c) => { const height = Math.max(1, fn(c)); return { ...c, height, width: trava ? Math.max(1, Math.round((height * c.width) / c.height)) : c.width } })
   return (
     <Secao titulo="Layout">
-      <div className="grid grid-cols-[1fr_1fr_28px_28px] gap-1.5">
+      <div className="grid grid-cols-[1fr_1fr_28px_28px] gap-2">
         <CampoNum prefixo="W" rotulo="Largura" valor={w} min={1} aoMudar={(v) => largura(() => v)} aoDelta={(d) => largura((c) => c.width + d)} />
         <CampoNum prefixo="H" rotulo="Altura" valor={h} min={1} aoMudar={(v) => altura(() => v)} aoDelta={(d) => altura((c) => c.height + d)} />
         <BotaoCampo rotulo={trava ? 'Destravar proporção' : 'Travar proporção'} ativo={trava} onClick={() => { sel.forEach((c) => travas.set(c.id, !trava)); atualizar((n) => n + 1) }}>

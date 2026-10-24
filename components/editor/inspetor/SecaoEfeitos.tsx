@@ -129,10 +129,10 @@ export function SecaoEfeitos({ editor }: PropsSecao) {
       rotulo="Predefinições de efeito"
       ativo={grao}
       itens={[
-        { id: 'realista', rotulo: 'Sombra realista', descricao: 'Luz e elevação, várias camadas suaves', desativado: temRealista, aoClicar: () => { ef((x) => comSombraRealista(x, REALISTA_PADRAO)); setAberto('realista') } },
-        { id: 'vidro', rotulo: 'Vidro fosco', descricao: 'Desfoque do fundo, brilho na borda e sombra', aoClicar: () => ef((x) => comSombras({ ...ef0(x), backdropBlur: 24, backdropBlurHidden: undefined }, [{ x: 0, y: 0, blur: 0, spread: 1, color: '#FFFFFF66', inner: true }, { x: 0, y: 12, blur: 32, spread: -6, color: '#00000029' }])) },
-        { id: 'brilho', rotulo: 'Brilho', descricao: 'Halo na cor do acento', aoClicar: () => ef((x) => comSombras(ef0(x), [{ x: 0, y: 0, blur: 56, spread: 6, color: '#5965F2A6' }, ...sombrasDe(x).filter((s) => s.inner)])) },
-        { id: 'grao', rotulo: 'Grão', descricao: 'Textura de ruído por cima', ativo: grao, aoClicar: () => ef((x) => ({ ...ef0(x), noise: (x?.noise ?? 0) > 0 ? undefined : 0.22 })) },
+        { id: 'realista', rotulo: 'Sombra realista', desativado: temRealista, aoClicar: () => { ef((x) => comSombraRealista(x, REALISTA_PADRAO)); setAberto('realista') } },
+        { id: 'vidro', rotulo: 'Vidro fosco', aoClicar: () => ef((x) => comSombras({ ...ef0(x), backdropBlur: 24, backdropBlurHidden: undefined }, [{ x: 0, y: 0, blur: 0, spread: 1, color: '#FFFFFF66', inner: true }, { x: 0, y: 12, blur: 32, spread: -6, color: '#00000029' }])) },
+        { id: 'brilho', rotulo: 'Brilho', aoClicar: () => ef((x) => comSombras(ef0(x), [{ x: 0, y: 0, blur: 56, spread: 6, color: '#5965F2A6' }, ...sombrasDe(x).filter((s) => s.inner)])) },
+        { id: 'grao', rotulo: 'Grão', ativo: grao, aoClicar: () => ef((x) => ({ ...ef0(x), noise: (x?.noise ?? 0) > 0 ? undefined : 0.22 })) },
       ]}
     >
       <IconePredefinicoes />
@@ -157,7 +157,7 @@ export function SecaoEfeitos({ editor }: PropsSecao) {
           .filter((t) => t === linha.tipo || ((t !== 'realista' || !temRealista) && (t !== 'desfoque' || !temDesfoque) && (t !== 'vidro' || !temVidro) && (t !== 'interna' || !texto)))
           .map((t) => ({ id: t, rotulo: NOMES[t] }))
         return (
-          <div key={k} className="space-y-1.5">
+          <div key={k} className="space-y-2">
             <div className="flex items-center gap-1">
               {ajustavel ? (
                 <BotaoMini rotulo={`Ajustes: ${NOMES[linha.tipo].toLowerCase()}`} ativo={aberto === k} aria-expanded={aberto === k} className="h-7 w-7" onClick={() => setAberto(aberto === k ? null : k)}><IconeAjustes /></BotaoMini>
@@ -180,9 +180,9 @@ export function SecaoEfeitos({ editor }: PropsSecao) {
 function DetalhesSombra({ sombra, texto, aoMudar }: { sombra: Sombra; texto: boolean; aoMudar: (f: (s: Sombra) => Sombra) => void }) {
   const nome = nomeSombra(sombra)
   return (
-    <div className="space-y-1.5 rounded-lg border border-borda p-2">
+    <div className="space-y-2 border-l border-bordaForte pl-2">
       <SeletorLista rotulo="Predefinição da sombra" valor={nome} aoMudar={(v) => { const p = SOMBRAS[v]; if (p) aoMudar((s) => ({ ...p, inner: s.inner })) }} opcoes={Object.keys(NOMES_SOMBRA).filter((k) => k !== 'personalizada' || nome === 'personalizada').map((k) => ({ id: k, rotulo: NOMES_SOMBRA[k]! }))} />
-      <div className="grid grid-cols-2 gap-1.5">
+      <div className="grid grid-cols-2 gap-2">
         <CampoNum prefixo="X" rotulo="Sombra X" valor={sombra.x} min={-200} max={200} aoMudar={(x) => aoMudar((s) => ({ ...s, x }))} />
         <CampoNum prefixo="Y" rotulo="Sombra Y" valor={sombra.y} min={-200} max={200} aoMudar={(y) => aoMudar((s) => ({ ...s, y }))} />
         <CampoNum prefixo={<IconeDesfoque />} rotulo="Desfoque da sombra" valor={sombra.blur} min={0} max={300} aoMudar={(blur) => aoMudar((s) => ({ ...s, blur }))} />
@@ -229,7 +229,7 @@ function DetalhesRealista({ ajustes: a, aoMudar }: { ajustes: SombraRealista; ao
   const previa = boxShadowCss(gerarSombrasRealistas({ ...a, elevation: a.elevation / 3 }))
   const predef = PREDEFINICOES_REALISTA.find((p) => Object.entries(p.ajustes).every(([k, v]) => a[k as keyof SombraRealista] === v))?.id ?? ''
   return (
-    <div className="space-y-2 rounded-lg border border-borda p-2">
+    <div className="space-y-2 border-l border-bordaForte pl-2">
       <div className="flex gap-2.5">
         <div
           ref={pad}
@@ -249,7 +249,7 @@ function DetalhesRealista({ ajustes: a, aoMudar }: { ajustes: SombraRealista; ao
             <IconeLuz />
           </span>
         </div>
-        <div className="min-w-0 flex-1 space-y-1.5">
+        <div className="min-w-0 flex-1 space-y-2">
           <CampoNum prefixo="↥" rotulo="Elevação" titulo="Elevação: quanto a camada flutua (px)" valor={a.elevation} min={0} max={200} aoMudar={(elevation) => set({ elevation })} />
           <CampoNum prefixo={<IconeSombra />} rotulo="Intensidade" titulo="Intensidade da sombra" valor={Math.round(a.intensity * 100)} min={0} max={100} sufixo="%" aoMudar={(v) => set({ intensity: v / 100 })} />
           <CampoNum prefixo={<IconeDesfoque />} rotulo="Suavidade" titulo="Suavidade (desfoque das camadas)" valor={Math.round(a.softness * 100)} min={0} max={100} sufixo="%" aoMudar={(v) => set({ softness: v / 100 })} />
@@ -260,7 +260,7 @@ function DetalhesRealista({ ajustes: a, aoMudar }: { ajustes: SombraRealista; ao
           <button key={p.id} type="button" role="radio" aria-checked={predef === p.id} onClick={() => set(p.ajustes)} className={cx('h-6 min-w-0 flex-1 rounded-[5px] text-[11px] transition-colors', predef === p.id ? 'bg-superficie text-texto shadow-[0_1px_2px_rgba(0,0,0,.08),0_0_0_.5px_rgba(0,0,0,.06)]' : 'text-texto2 hover:text-texto')}>{p.rotulo}</button>
         ))}
       </div>
-      <div className="grid grid-cols-[72px_1fr] gap-1.5">
+      <div className="grid grid-cols-[72px_1fr] gap-2">
         <CampoNum prefixo="≡" rotulo="Camadas de sombra" titulo="Camadas de sombra (1–10)" valor={a.layers} min={1} max={10} aoMudar={(layers) => set({ layers: Math.round(layers) })} />
         <CampoCor rotulo="Cor da sombra realista" valor={a.color} aoMudar={(color) => color && set({ color: color.slice(0, 7) })} />
       </div>

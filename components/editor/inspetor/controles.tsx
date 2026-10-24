@@ -5,9 +5,8 @@
  * e ações à direita; seções recolhíveis com resumo e memória; seções vazias só com o título e um "+";
  * menu suspenso para predefinições e ações raras.
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
-import { Check, ChevronDown, ChevronRight, Minus, Plus } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { ChevronRight, Minus, Plus } from 'lucide-react'
 import { cx } from '@/components/ui'
 import { MenuSuspenso } from '@/components/ui/MenuSuspenso'
 import { useInspetor } from './contexto'
@@ -74,8 +73,9 @@ export function Secao({ titulo, children, acao, aberta = true, vazia, aoAdiciona
             <h3 className="min-w-0 flex-1 truncate text-[12px] font-medium text-texto2">{titulo}</h3>
           )
         ) : recolhivel ? (
-          <button type="button" onClick={alternar} aria-expanded={abrir} className="-ml-1 flex h-7 min-w-0 flex-1 items-center gap-1 rounded-[5px] px-1 text-left text-[12px] font-medium text-texto hover:bg-hover/60">
-            <ChevronRight className={cx('h-3 w-3 shrink-0 text-texto3 transition-transform', abrir && 'rotate-90')} aria-hidden />
+          // sem fundo no hover: a linha tem botões próprios à direita, e duas superfícies juntas confundem
+          <button type="button" onClick={alternar} aria-expanded={abrir} className="group -ml-1 flex h-7 min-w-0 flex-1 items-center gap-1 rounded-[5px] px-1 text-left text-[12px] font-medium text-texto">
+            <ChevronRight className={cx('h-3 w-3 shrink-0 text-texto3 transition-transform group-hover:text-texto', abrir && 'rotate-90')} aria-hidden />
             <span className="truncate">{titulo}</span>
             {recolhida && resumo && <span className="ml-auto min-w-0 truncate pl-2 font-normal text-texto3">{resumo}</span>}
           </button>
@@ -108,101 +108,28 @@ export interface ItemMenu {
 }
 
 /**
- * Menu suspenso leve (predefinições, "Mais"): o gatilho é um botão de ícone (24 px) ou um campo com seta;
- * a lista abre num portal, alinhada à direita do gatilho, com setas/Home/End/Esc no teclado e fecha ao clicar fora,
- * rolar ou escolher.
+ * Menu de ações do inspetor (predefinições, "Mais"): o mesmo `MenuSuspenso` do resto do app, no modo `acoes`.
+ * O gatilho é um botão de ícone (24 px) ou um campo com seta.
  */
 export function Menu({ rotulo, itens, children, variante = 'icone', ativo, className, titulo }: { rotulo: string; itens: ItemMenu[]; children: ReactNode; variante?: 'icone' | 'campo'; ativo?: boolean; className?: string; titulo?: string }) {
-  const gatilho = useRef<HTMLButtonElement>(null)
-  const lista = useRef<HTMLDivElement>(null)
-  const [aberto, setAberto] = useState(false)
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
-  useEffect(() => {
-    if (!aberto) return
-    const posicionar = () => {
-      const r = gatilho.current?.getBoundingClientRect()
-      const el = lista.current
-      if (!r || !el) return
-      const w = el.offsetWidth, h = el.offsetHeight
-      const left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8))
-      const top = r.bottom + 4 + h > window.innerHeight - 8 ? Math.max(8, r.top - 4 - h) : r.bottom + 4
-      setPos({ left, top })
-    }
-    posicionar()
-    const fora = (e: PointerEvent) => { const a = e.target as Node; if (!lista.current?.contains(a) && !gatilho.current?.contains(a)) setAberto(false) }
-    // rolar o painel (inclusive o rolar-até-o-gatilho que precede um clique) só reposiciona; clicar fora fecha
-    window.addEventListener('pointerdown', fora, true)
-    window.addEventListener('scroll', posicionar, true)
-    window.addEventListener('resize', posicionar)
-    // foco no item marcado (ou no primeiro)
-    const alvo = lista.current?.querySelector<HTMLButtonElement>('[aria-checked="true"]') ?? lista.current?.querySelector<HTMLButtonElement>('[role^="menuitem"]:not(:disabled)')
-    alvo?.focus({ preventScroll: true })
-    return () => { window.removeEventListener('pointerdown', fora, true); window.removeEventListener('scroll', posicionar, true); window.removeEventListener('resize', posicionar) }
-  }, [aberto])
-  const fechar = (focar = true) => { setAberto(false); if (focar) gatilho.current?.focus({ preventScroll: true }) }
-  const teclas = (e: React.KeyboardEvent) => {
-    // nada daqui chega aos atalhos do editor (setas moveriam a camada, Enter abriria a edição do texto…)
-    e.stopPropagation()
-    const botoes = [...(lista.current?.querySelectorAll<HTMLButtonElement>('[role^="menuitem"]:not(:disabled)') ?? [])]
-    const i = botoes.indexOf(document.activeElement as HTMLButtonElement)
-    if (e.key === 'Escape') { e.preventDefault(); fechar() }
-    else if (e.key === 'ArrowDown') { e.preventDefault(); botoes[(i + 1) % botoes.length]?.focus() }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); botoes[(i - 1 + botoes.length) % botoes.length]?.focus() }
-    else if (e.key === 'Home') { e.preventDefault(); botoes[0]?.focus() }
-    else if (e.key === 'End') { e.preventDefault(); botoes[botoes.length - 1]?.focus() }
-    else if (e.key === 'Tab') fechar(false)
-  }
-  const comMarcacao = itens.some((i) => i.ativo !== undefined)
   return (
-    <>
-      <button
-        ref={gatilho}
-        type="button"
-        aria-label={variante === 'icone' ? rotulo : undefined}
-        title={titulo ?? (variante === 'icone' ? rotulo : undefined)}
-        aria-haspopup="menu"
-        aria-expanded={aberto}
-        onClick={() => setAberto((v) => !v)}
-        onKeyDown={(e) => { if (e.key === 'ArrowDown' && !aberto) { e.preventDefault(); e.stopPropagation(); setAberto(true) } }}
-        className={cx(
-          variante === 'icone'
-            ? cx('inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px] transition-colors', ativo || aberto ? 'bg-acentoSuave text-acento' : 'text-texto2 hover:bg-hover hover:text-texto')
-            : cx('flex h-7 w-full min-w-0 items-center gap-1 rounded-md bg-superficie2 px-2 text-left text-[12px] text-texto ring-inset hover:ring-1 hover:ring-bordaForte', aberto && 'ring-1 ring-acento'),
-          className
-        )}
-      >
-        {variante === 'campo' ? <><span className="min-w-0 flex-1 truncate">{children}</span><ChevronDown className="h-3 w-3 shrink-0 text-texto3" aria-hidden /></> : children}
-      </button>
-      {aberto && typeof document !== 'undefined' && createPortal(
-        <div ref={lista} role="menu" aria-label={rotulo} onKeyDown={teclas} className="fixed z-50 min-w-[180px] max-w-[260px] rounded-lg border border-borda bg-superficie p-1 text-[12px] shadow-painel" style={{ left: pos?.left ?? -9999, top: pos?.top ?? -9999 }}>
-          {itens.map((it) => (
-            <div key={it.id} className={cx(it.separador && 'mt-1 border-t border-borda pt-1')}>
-              <button
-                type="button"
-                role={it.ativo === undefined ? 'menuitem' : 'menuitemcheckbox'}
-                aria-checked={it.ativo === undefined ? undefined : it.ativo}
-                disabled={it.desativado}
-                onClick={() => { fechar(); it.aoClicar() }}
-                className={cx('flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left outline-none hover:bg-hover focus-visible:bg-hover disabled:cursor-not-allowed disabled:opacity-40', it.perigo ? 'text-perigo' : 'text-texto')}
-              >
-                {comMarcacao && <span className="flex h-4 w-3 shrink-0 items-center justify-center" aria-hidden>{it.ativo && <Check className="h-3 w-3 text-acento" />}</span>}
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate">{it.rotulo}</span>
-                  {it.descricao && <span className="block text-[11px] leading-snug text-texto3">{it.descricao}</span>}
-                </span>
-              </button>
-            </div>
-          ))}
-        </div>,
-        document.body
-      )}
-    </>
+    <MenuSuspenso
+      modo="acoes"
+      aparencia={variante}
+      rotulo={rotulo}
+      ativo={ativo}
+      title={titulo}
+      className={className}
+      opcoes={itens.map((it) => ({ id: it.id, rotulo: it.rotulo, descricao: it.descricao, marcada: it.ativo, desativada: it.desativado, separador: it.separador, perigo: it.perigo, aoClicar: it.aoClicar }))}
+    >
+      {children}
+    </MenuSuspenso>
   )
 }
 
 /** Rótulo pequeno acima de um campo ("Opacidade", "Raio"). */
 export function Rotulo({ children }: { children: ReactNode }) {
-  return <span className="mb-1 block truncate text-[11px] text-texto2">{children}</span>
+  return <span className="mb-1 block truncate text-[12px] text-texto2">{children}</span>
 }
 
 /** Linha de resumo clicável (ex.: "Animação  Escala · 800ms ›"). */

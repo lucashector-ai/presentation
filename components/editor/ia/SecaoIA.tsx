@@ -16,7 +16,6 @@ export function SecaoIA({ editor }: { editor: Editor }) {
         <span className="flex-1">Reescrever {textos.length > 1 ? `${textos.length} textos` : 'texto'} com IA</span>
         <span className="mono text-[10px] font-normal text-texto3">{CUSTO_CREDITOS.reescrever} créditos</span>
       </button>
-      <p className="mt-1.5 text-[11px] leading-relaxed text-texto2">Mais curto, impactante, formal, simples, corrigir ou traduzir. Mantém o estilo.</p>
     </Secao>
   )
 }

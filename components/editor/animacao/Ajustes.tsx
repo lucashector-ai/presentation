@@ -232,7 +232,7 @@ export function PainelAjustes({ anim, camada, camadasDaTela, saida, aoMudar, aoP
             </>
           )}
           {quando !== 'enter' && (
-            <p className="text-[11px] leading-snug text-texto3">
+            <p className="text-[12px] text-texto3">
               {quando === 'after' && 'Começa quando a entrada da outra camada termina (mais o atraso).'}
               {(quando === 'click' || quando === 'hover') && 'A camada espera escondida até o público agir. Na prévia do editor ela toca direto.'}
               {quando === 'scroll' && 'No Story, o efeito avança e volta junto com a rolagem. Nos slides e no Explorar, toca ao entrar na tela.'}
@@ -294,7 +294,7 @@ export function PainelAjustes({ anim, camada, camadasDaTela, saida, aoMudar, aoP
                   <CampoNum rotulo="Espessura do indicador em px" valor={anim.progressWidth ?? null} vazio="Auto" min={1} max={80} passo={1} sufixo="px" aoMudar={(v) => mudar({ progressWidth: v })} aoLimpar={() => mudar({}, ['progressWidth'])} />
                 </div>
               </div>
-              <p className="text-[11px] leading-snug text-texto3">Enche junto com o número. “Auto”: 100 quando o texto tem %, senão o próprio número.</p>
+              <p className="text-[12px] text-texto3">Enche junto com o número. “Auto”: 100 quando o texto tem %, senão o próprio número.</p>
             </>
           )}
         </>
@@ -312,7 +312,7 @@ export function PainelAjustes({ anim, camada, camadasDaTela, saida, aoMudar, aoP
             <CampoNum prefixo="De" rotulo="Da palavra" valor={(anim.range?.[0] ?? 0) + 1} min={1} max={palavras.length} passo={1} aoMudar={(v) => mudar({ range: [v - 1, Math.max(v - 1, anim.range?.[1] ?? palavras.length - 1)] })} />
             <CampoNum prefixo="Até" rotulo="Até a palavra" valor={(anim.range?.[1] ?? palavras.length - 1) + 1} min={1} max={palavras.length} passo={1} aoMudar={(v) => mudar({ range: [Math.min(anim.range?.[0] ?? 0, v - 1), v - 1] })} />
           </div>
-          <p className="truncate text-[11px] text-texto3">“{palavras.slice(anim.range?.[0] ?? 0, (anim.range?.[1] ?? palavras.length - 1) + 1).join(' ')}”</p>
+          <p className="truncate text-[12px] text-texto3">“{palavras.slice(anim.range?.[0] ?? 0, (anim.range?.[1] ?? palavras.length - 1) + 1).join(' ')}”</p>
         </>
       )}
 
@@ -365,7 +365,7 @@ export function PainelAjustes({ anim, camada, camadasDaTela, saida, aoMudar, aoP
                 <>
                   <Rotulo acao={<button type="button" onClick={() => (anim.stagger === undefined ? mudar({ stagger: 80 }) : mudar({}, ['stagger']))} className="text-[11px] text-texto2 hover:text-texto">{anim.stagger === undefined ? 'Definir' : 'Automático'}</button>}>Intervalo entre partes</Rotulo>
                   {anim.stagger === undefined
-                    ? <p className="text-[11px] text-texto3">Automático: as partes se distribuem pela duração.</p>
+                    ? <p className="text-[12px] text-texto3">Automático: as partes se distribuem pela duração.</p>
                     : <Deslizante rotulo="Intervalo entre partes em ms" valor={anim.stagger} min={0} max={300} passo={5} aoMudar={(v) => mudar({ stagger: v })} formatar={(v) => `${v}ms`} />}
                 </>
               )}

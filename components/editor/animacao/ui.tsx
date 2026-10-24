@@ -60,20 +60,21 @@ export function BotaoPrevia({ aoClicar, tocando, rotulo = 'Prévia', aoParar }: 
 export function Finos({ children, resumo, aoPadrao, aberto: abertoInicial = false, rotulo = 'Ajustes finos' }: { children: ReactNode; resumo?: string; aoPadrao?: () => void; aberto?: boolean; rotulo?: string }) {
   const [aberto, setAberto] = useState(abertoInicial)
   return (
-    <div className="rounded-lg border border-borda">
-      <div className="flex h-8 items-center gap-1 pl-1 pr-2">
-        <button type="button" aria-expanded={aberto} onClick={() => setAberto((v) => !v)} className="flex h-full min-w-0 flex-1 items-center gap-1 rounded-md px-1 text-left text-[12px] font-medium text-texto hover:bg-hover">
-          <ChevronRight className={cx('h-3.5 w-3.5 shrink-0 text-texto3 transition-transform', aberto && 'rotate-90')} aria-hidden />
+    // sem caixa em volta: uma linha de 32 px (seta · título · resumo · Padrão) e o conteúdo com um fio à esquerda
+    <div>
+      <div className="flex h-8 items-center gap-1">
+        <button type="button" aria-expanded={aberto} onClick={() => setAberto((v) => !v)} className="group flex h-full min-w-0 flex-1 items-center gap-1 text-left text-[12px] font-medium text-texto">
+          <ChevronRight className={cx('h-3 w-3 shrink-0 text-texto3 transition-transform group-hover:text-texto', aberto && 'rotate-90')} aria-hidden />
           {rotulo}
-          {!aberto && resumo && <span className="ml-1 truncate font-normal text-texto3">{resumo}</span>}
+          {!aberto && resumo && <span className="ml-auto min-w-0 truncate pl-2 font-normal text-texto3">{resumo}</span>}
         </button>
         {aoPadrao && (
-          <button type="button" onClick={aoPadrao} title="Voltar aos valores do efeito" className="flex shrink-0 items-center gap-1 text-[11px] text-texto2 hover:text-texto">
+          <button type="button" onClick={aoPadrao} title="Voltar aos valores do efeito" className="flex shrink-0 items-center gap-1 pl-2 text-[12px] text-texto2 hover:text-texto">
             <RotateCcw className="h-3 w-3" aria-hidden /> Padrão
           </button>
         )}
       </div>
-      {aberto && <div className="space-y-2 border-t border-borda px-2.5 pb-2.5 pt-2">{children}</div>}
+      {aberto && <div className="space-y-2 border-l border-bordaForte pb-2 pl-2">{children}</div>}
     </div>
   )
 }

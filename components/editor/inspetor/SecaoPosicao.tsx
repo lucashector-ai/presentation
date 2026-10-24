@@ -91,7 +91,7 @@ export function SecaoPosicao({ editor }: PropsSecao) {
         <Menu
           rotulo="Vista 3D"
           variante="campo"
-          itens={VISTAS_3D.map((v) => ({ id: v.nome, rotulo: v.nome, descricao: v.rx || v.ry ? `${v.rx}° · ${v.ry}°` : 'Sem inclinação', ativo: comum(sel, (c) => c.rotateX ?? 0) === v.rx && comum(sel, (c) => c.rotateY ?? 0) === v.ry, aoClicar: () => set({ rotateX: v.rx || undefined, rotateY: v.ry || undefined, perspective: v.rx || v.ry ? 1200 : undefined }) }))}
+          itens={VISTAS_3D.map((v) => ({ id: v.nome, rotulo: v.nome, ativo: comum(sel, (c) => c.rotateX ?? 0) === v.rx && comum(sel, (c) => c.rotateY ?? 0) === v.ry, aoClicar: () => set({ rotateX: v.rx || undefined, rotateY: v.ry || undefined, perspective: v.rx || v.ry ? 1200 : undefined }) }))}
         >
           {VISTAS_3D.find((v) => comum(sel, (c) => c.rotateX ?? 0) === v.rx && comum(sel, (c) => c.rotateY ?? 0) === v.ry)?.nome ?? 'Vista 3D personalizada'}
         </Menu>

@@ -189,10 +189,10 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
     <Menu
       rotulo="Mais ações da animação"
       itens={[
-        { id: 'copiar', rotulo: 'Copiar animação', descricao: 'Entrada, ênfase e saída desta camada', desativado: !temAlguma, aoClicar: () => areaAnimacao.copiar(animacoes) },
-        { id: 'colar', rotulo: 'Colar animação', descricao: copiada ? `${copiada.enterAnimation ? nomeAnimacao(copiada.enterAnimation.type) : 'sem entrada'}${copiada.loopAnimation ? ` · ${nomeLoop(copiada.loopAnimation.type)}` : ''}${copiada.exitAnimation ? ` · sai: ${nomeAnimacao(copiada.exitAnimation.type)}` : ''}` : 'Copie a animação de uma camada primeiro', desativado: !copiada, aoClicar: colar },
-        { id: 'tela', rotulo: 'Aplicar a todas as camadas da tela', descricao: outrasDaTela.length ? `${outrasDaTela.length} ${outrasDaTela.length === 1 ? 'outra camada recebe' : 'outras camadas recebem'} a mesma animação (atrasos mantidos)` : 'Não há outras camadas nesta tela', desativado: !temAlguma || !outrasDaTela.length, aoClicar: aplicarNaTela },
-        ...(diferentes ? [{ id: 'selecionadas', rotulo: 'Aplicar a todas as selecionadas', descricao: 'Usa a animação da primeira camada nas outras', aoClicar: () => { acoes.atualizarCamadas(ids, (c) => comAnimacoesDe(c, animacoes)); tocar() } }] : []),
+        { id: 'copiar', rotulo: 'Copiar animação', desativado: !temAlguma, aoClicar: () => areaAnimacao.copiar(animacoes) },
+        { id: 'colar', rotulo: 'Colar animação', descricao: copiada ? [copiada.enterAnimation ? nomeAnimacao(copiada.enterAnimation.type) : null, copiada.loopAnimation ? nomeLoop(copiada.loopAnimation.type) : null, copiada.exitAnimation ? `sai: ${nomeAnimacao(copiada.exitAnimation.type)}` : null].filter(Boolean).join(' · ') : undefined, desativado: !copiada, aoClicar: colar },
+        { id: 'tela', rotulo: 'Aplicar a todas as camadas da tela', desativado: !temAlguma || !outrasDaTela.length, aoClicar: aplicarNaTela },
+        ...(diferentes ? [{ id: 'selecionadas', rotulo: 'Aplicar a todas as selecionadas', aoClicar: () => { acoes.atualizarCamadas(ids, (c) => comAnimacoesDe(c, animacoes)); tocar() } }] : []),
         { id: 'remover', rotulo: multi ? 'Remover animações das selecionadas' : 'Remover animações desta camada', separador: true, perigo: true, desativado: !temAlguma && !temInterativo(l), aoClicar: () => acoes.atualizarCamadas(ids, (c) => { const { interactiveEffects: _x, ...sem } = semAnimacoes(c); return sem as Camada }) },
       ]}
     >
@@ -215,10 +215,11 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
           {temAlguma && <BotaoPrevia aoClicar={() => tocar({ loop: !!loop })} />}
           {mais}
         </div>
-        <p className="mt-0.5 truncate text-[11px] text-texto3">{multi ? sel.map(nomeCamada).join(', ') : temAlguma ? [a.type !== 'none' ? resumoEntrada : null, loop ? nomeLoop(loop.type) : null, saida ? `sai: ${nomeAnimacao(saida.type)}` : null].filter(Boolean).join(' · ') : 'Sem animação. Escolha uma entrada abaixo.'}</p>
+        <p className="mt-0.5 truncate text-[12px] text-texto3">{multi ? sel.map(nomeCamada).join(', ') : temAlguma ? [a.type !== 'none' ? resumoEntrada : null, loop ? nomeLoop(loop.type) : null, saida ? `sai: ${nomeAnimacao(saida.type)}` : null].filter(Boolean).join(' · ') : 'Sem animação'}</p>
       </div>
 
-      <Secao key={`${chaveSel}-entrada`} titulo="Entrada" chave="anim.entrada" resumo={resumoEntrada} acao={a.type !== 'none' ? <BotaoPrevia aoClicar={() => tocar()} /> : undefined}>
+      {/* a Prévia da entrada é a do cabeçalho (uma só à vista); Ênfase e Saída têm a própria */}
+      <Secao key={`${chaveSel}-entrada`} titulo="Entrada" chave="anim.entrada" resumo={resumoEntrada}>
         <Galeria
           key={chaveSel}
           presets={PRESETS_ENTRADA}
@@ -293,7 +294,6 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
             </CartaoPreset>
           ))}
         </GradeCartoesPreset>
-        {!loop && <p className="text-[12px] leading-snug text-texto3">Movimento contínuo depois da entrada, enquanto a tela estiver aberta.</p>}
         {loop && (
           <>
             {AMPLITUDE[loop.type] ? (
@@ -328,7 +328,6 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
           rotulo="Animação de saída"
           extra={<CartaoPreset rotulo="Nenhuma" selecionado={!saida} aoClicar={() => setSaida(null)}>{() => <MiniPrevia tocando={false} cor="#C9C6C0" />}</CartaoPreset>}
         />
-        {!saida && <p className="text-[12px] leading-snug text-texto3">Toca antes da transição; a próxima tela entra quando as saídas terminam.</p>}
         {saida && (
           <>
             <Rotulo>Velocidade</Rotulo>
@@ -354,7 +353,7 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
 
       {multi && (
         <Secao key={`${chaveSel}-sequencia`} titulo="Em sequência" chave="anim.sequencia" resumo={emSequencia ? `a cada ${intervalo} ms` : 'Juntas'} acao={<Interruptor rotulo="Animar em sequência" ativo={emSequencia} aoMudar={(v) => (a.type === 'none' ? undefined : v ? setEntrada(a, { restaggerar: true }) : patchEntrada({ delay: Math.min(...atrasos) }))} />}>
-          <p className="text-[12px] leading-snug text-texto3">{a.type === 'none' ? 'Escolha uma entrada para animar as camadas uma depois da outra.' : emSequencia ? 'Uma camada depois da outra, com o intervalo escolhido.' : 'Todas entram juntas. Ligue para animar uma depois da outra.'}</p>
+          {a.type === 'none' && <p className="text-[12px] text-texto3">Escolha uma entrada primeiro.</p>}
           {emSequencia && (
             <>
               <Rotulo>Intervalo</Rotulo>

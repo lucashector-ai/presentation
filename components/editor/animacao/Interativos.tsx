@@ -74,17 +74,12 @@ export function AbaInterativa({ editor, sel }: { editor: Editor; sel: Camada[] }
           </CartaoPreset>
         ))}
       </GradeCartoesPreset>
-      {!algum && (
-        <p className="text-[12px] leading-snug text-texto3">
-          Sugestão para esta camada: {sugestaoInterativa(l).map((k) => CARTOES.find((x) => x.id === k)!.rotulo).join(', ')}. Dá para combinar.
-        </p>
-      )}
+      {!algum && <p className="text-[12px] text-texto3">Sugestão: {sugestaoInterativa(l).map((k) => CARTOES.find((x) => x.id === k)!.rotulo).join(', ')}.</p>}
 
       {e?.parallax?.depth ? <AjustesParallax p={e.parallax} aoMudar={(p) => mudar((a) => ({ ...a, parallax: p }), false)} aoPrevia={previa} /> : null}
       {e?.tilt ? <AjustesTilt t={e.tilt} aoMudar={(t) => mudar((a) => ({ ...a, tilt: t }), false)} aoPrevia={previa} /> : null}
       {e?.spotlight ? <AjustesLuz l={e.spotlight} aoMudar={(s) => mudar((a) => ({ ...a, spotlight: s }), false)} aoPrevia={previa} /> : null}
 
-      {algum && <p className="text-[11px] leading-snug text-texto3">Segue o mouse nos slides e no Explorar; no Story, o parallax acompanha a rolagem. No toque e com movimento reduzido, fica parado.</p>}
     </div>
   )
 }

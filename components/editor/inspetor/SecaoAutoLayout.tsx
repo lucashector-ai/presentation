@@ -81,7 +81,7 @@ function FilhoDoLayout({ camadas, pai, editor }: { camadas: Camada[]; pai: Camad
   return (
     <Secao titulo="No auto layout" acao={<IconeAutoLayout direcao={direcao} className="h-3.5 w-3.5 text-texto3" />}>
       {!absoluta && (
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-2 gap-2">
           <SeletorLista rotulo="Dimensionamento horizontal no auto layout" prefixo={<span className="text-[11px]">L</span>} valor={um ? (l.sizingW ?? 'fixed') : 'fixed'} opcoes={opcoes} aoMudar={(v) => acoes.atualizarCamadas(ids, { sizingW: v as Dimensionamento })} />
           <SeletorLista rotulo="Dimensionamento vertical no auto layout" prefixo={<span className="text-[11px]">A</span>} valor={um ? (l.sizingH ?? 'fixed') : 'fixed'} opcoes={opcoes} aoMudar={(v) => acoes.atualizarCamadas(ids, { sizingH: v as Dimensionamento })} />
         </div>
@@ -116,7 +116,6 @@ function PainelLayout({ frame: f, editor, podeFill }: { frame: CamadaFrame; edit
   if (!f.layout) {
     return (
       <Secao titulo="Auto layout" acao={<BotaoMini rotulo="Adicionar auto layout (Shift+A)" onClick={() => acoes.adicionarAutoLayout([f.id])}><Plus className="h-3.5 w-3.5" /></BotaoMini>}>
-        <p className="text-[11px] text-texto3">Frame livre: os filhos ficam onde você colocar. ⇧A liga o auto layout.</p>
         {recortar}
       </Secao>
     )
@@ -146,16 +145,16 @@ function PainelLayout({ frame: f, editor, podeFill }: { frame: CamadaFrame; edit
           { id: 'wrap', rotulo: 'Quebrar linha (grade que flui)', icone: <IconeAutoLayout direcao="wrap" /> },
         ]}
       />
-      <div className="grid grid-cols-2 gap-1.5">
+      <div className="grid grid-cols-2 gap-2">
         <SeletorLista rotulo="Largura do frame" prefixo={<span className="text-[11px]">L</span>} valor={f.sizingW ?? 'fixed'} opcoes={opcoesDim} aoMudar={(v) => acoes.atualizarCamadas([f.id], { sizingW: v as Dimensionamento })} />
         <SeletorLista rotulo="Altura do frame" prefixo={<span className="text-[11px]">A</span>} valor={f.sizingH ?? 'fixed'} opcoes={opcoesDim} aoMudar={(v) => acoes.atualizarCamadas([f.id], { sizingH: v as Dimensionamento })} />
       </div>
       <div className="flex gap-2">
         <PadAlinhamento valor={{ x: L.alignX, y: L.alignY }} horizontal={horizontal} espacoAuto={L.gapAuto} aoMudar={(x, y) => set({ alignX: x, alignY: y })} />
-        <div className="min-w-0 flex-1 space-y-1.5">
+        <div className="min-w-0 flex-1 space-y-2">
           <div className="flex gap-1" {...realce(f.id, 'gap')}>
             {L.gapAuto ? (
-              <button type="button" aria-label="Espaço entre itens: automático (clique para usar número)" onClick={() => setGapAuto(false)} className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md bg-superficie2 px-2 text-left text-[12px] text-texto">
+              <button type="button" aria-label="Espaço entre itens: automático (clique para usar número)" onClick={() => setGapAuto(false)} className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md bg-superficie2 px-2 text-left text-[12px] text-texto">
                 <IconeEspaco horizontal={horizontal} /> Auto
               </button>
             ) : (
@@ -172,7 +171,7 @@ function PainelLayout({ frame: f, editor, podeFill }: { frame: CamadaFrame; edit
           )}
         </div>
       </div>
-      <div className="grid grid-cols-[1fr_1fr_28px] gap-1.5">
+      <div className="grid grid-cols-[1fr_1fr_28px] gap-2">
         {abertoPorLado ? (
           <>
             <div {...realce(f.id, 'left')}><CampoNum prefixo="←" rotulo="Padding esquerdo" valor={pad.left} min={0} max={2000} aoMudar={(left) => set({ padding: { ...pad, left } })} /></div>
