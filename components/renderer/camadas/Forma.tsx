@@ -9,7 +9,7 @@ import { caminhoCantos, raiosDaCamada, temSuavizacao } from '@/lib/scene/cantos'
 import { pontosDaForma } from '@/lib/scene/formas'
 import { pontaFim, pontaInicio, pontaSvg, tracejadoSvg, tracosVisiveis, type PontaSeta } from '@/lib/scene/tracos'
 import { boxShadowCss, internas, sombrasVisiveis } from '@/lib/scene/efeitos'
-import { PADROES, gradienteCss, raioCss } from '../estilos'
+import { gradienteCss, padraoCss, raioCss } from '../estilos'
 
 function DefsGradiente({ id, g }: { id: string; g: Gradiente }) {
   return (
@@ -131,11 +131,11 @@ export function Forma({ camada: c }: { camada: CamadaForma }) {
       clipPath: suave ? `path("${caminhoCantos(c.width, c.height, raiosDaCamada(c), c.cornerSmoothing ?? 0)}")` : undefined,
       border: legado && c.stroke && c.strokeWidth ? `${c.strokeWidth}px ${c.dash ? 'dashed' : 'solid'} ${c.stroke}` : undefined,
       boxShadow: boxShadowCss(suave ? internas(c.effects) : sombrasVisiveis(c.effects)),
-      ...(c.pattern !== 'none' ? PADROES[c.pattern] : {}),
+      ...padraoCss(c),
     }
     if (c.pattern !== 'none' && preenchimento) estilo.backgroundColor = c.gradient ? undefined : c.fill
     if (c.pattern !== 'none') estilo.background = undefined
-    if (c.pattern !== 'none' && c.gradient) estilo.backgroundImage = `${PADROES[c.pattern]?.backgroundImage}, ${gradienteCss(c.gradient)}`
+    if (c.pattern !== 'none' && c.gradient) estilo.backgroundImage = `${padraoCss(c).backgroundImage}, ${gradienteCss(c.gradient)}`
     return <div style={estilo} />
   }
   const w = c.width
