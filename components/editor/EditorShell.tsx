@@ -334,6 +334,9 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
       if (mod && (e.code === 'BracketRight' || e.code === 'BracketLeft') && sel[0]) { e.preventDefault(); const f = e.code === 'BracketRight'; acoes.ordem(sel[0], e.altKey ? (f ? 'frente' : 'tras') : f ? 'avancar' : 'recuar'); return }
       if (mod && e.shiftKey && k === 'c') { e.preventDefault(); window.dispatchEvent(new Event('mostra:copiar-png')); return }
       if (mod && k === '0') { e.preventDefault(); acoes.setZoom(1); return }
+      // ⌘+ / ⌘− (e ⌘=): zoom pelos atalhos do sistema, sem o zoom do navegador
+      if (mod && (e.key === '+' || e.key === '=' || e.code === 'Equal' || e.code === 'NumpadAdd')) { e.preventDefault(); acoes.setZoom(zoomMais(lerEscala())); return }
+      if (mod && (e.key === '-' || e.code === 'Minus' || e.code === 'NumpadSubtract')) { e.preventDefault(); acoes.setZoom(zoomMenos(lerEscala())); return }
       // ⌃⌘M (Mac) / Ctrl+Alt+M: usar como máscara / remover máscara (como no Figma)
       if (e.code === 'KeyM' && e.ctrlKey && (e.metaKey || e.altKey) && sel.length) {
         e.preventDefault()
@@ -360,6 +363,7 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
       if (e.key === '?' ) { setAtalhos(true); return }
       if (e.shiftKey && e.key === '!') { acoes.ajustar(); return }
       if (e.shiftKey && e.code === 'Digit2' && sel.length) { window.dispatchEvent(new Event('mostra:zoom-selecao')); return }
+      if (e.shiftKey && e.code === 'Digit0') { e.preventDefault(); acoes.setZoom(1); return }
       if (e.key === '+' || e.key === '=') { acoes.setZoom(zoomMais(lerEscala())); return }
       if (e.key === '-') { acoes.setZoom(zoomMenos(lerEscala())); return }
       if (e.key === ']' && sel[0]) { acoes.ordem(sel[0], e.shiftKey ? 'avancar' : 'frente'); return }

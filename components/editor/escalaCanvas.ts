@@ -29,6 +29,6 @@ export function useEscalaCanvas(): number {
 
 export const ZOOM_MIN = 0.05
 export const ZOOM_MAX = 8
-/** Próximo zoom ao apertar + / − (passos de 20%, como no Figma). */
-export const zoomMais = (s: number) => Math.min(ZOOM_MAX, s * 1.2)
-export const zoomMenos = (s: number) => Math.max(ZOOM_MIN, s / 1.2)
+/** Próximo zoom ao apertar + / − (×1,33: 100 → 400% em 5 passos). */
+export const zoomMais = (s: number) => Math.min(ZOOM_MAX, (s * 4) / 3)
+export const zoomMenos = (s: number) => Math.max(ZOOM_MIN, (s * 3) / 4)
