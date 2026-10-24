@@ -35,7 +35,7 @@ import { Atrasado, Botao, BotaoIcone, Carregando, Modal, cx } from '@/components
 import { useToast } from '@/components/ui/toast'
 import { MAX_HTML_EMBED } from '@/lib/scene/schema'
 import { gerarBento } from '@/lib/editor/bento'
-import { gerarFeedInstagram, gerarMockup } from '@/lib/editor/mockups'
+import { acimaDe, FEED, gerarFeedInstagram, gerarMockup, MODELOS_MOCKUP, type ImagemMockup } from '@/lib/editor/mockups'
 import { novoId } from '@/lib/scene/order'
 
 /**
@@ -102,6 +102,8 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
   const projeto = useDados((e) => e.projetos.find((p) => p.id === projetoId))
   const assetsLista = useDados((e) => e.assets)
   const assets = useMemo(() => Object.fromEntries(assetsLista.map((a) => [a.id, a])), [assetsLista])
+  // imagens prontas do workspace: preenchem a tela dos mockups e os posts do feed ao inserir o bloco
+  const imagensMockup = useMemo<ImagemMockup[]>(() => assetsLista.filter((a) => a.tipo === 'image' && a.status === 'ready').map((a) => ({ id: a.id, width: a.width, height: a.height })), [assetsLista])
   const router = useRouter()
   const { mostrar } = useToast()
   const avisar: Avisar = useCallback((t, tipo) => mostrar(t, tipo ?? 'info'), [mostrar])
@@ -217,20 +219,23 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
       }
       case 'embed': return setEmbed({ ponto })
       case 'instagram': {
-        const larg = Math.round((H * 0.42) / 8) * 8
-        const camadas = gerarFeedInstagram({ x: (ponto?.x ?? W / 2) - larg / 2, y: (ponto?.y ?? H / 2) - larg, largura: larg }, {}, novoId('insta', cena.layers))
+        // composição de apresentação: post em destaque grande + celular com perfil e grade (imagens do workspace nos posts)
+        const alt = H * 0.8
+        const larg = Math.round((alt * FEED.w) / FEED.h / 8) * 8
+        const camadas = acimaDe(gerarFeedInstagram({ x: (ponto?.x ?? W / 2) - larg / 2, y: (ponto?.y ?? H / 2) - alt / 2, largura: larg }, { imagens: imagensMockup }, novoId('insta', cena.layers)), cena.layers)
         acoes.inserirCamadas(camadas)
         setTimeout(() => acoes.selecionar([camadas[0]!.id]), 0)
-        avisar('Feed criado. Solte as artes nos posts, edite nome e números; os posts entram em cascata e o celular inclina com o mouse.', 'info')
+        avisar('Feed criado. Solte as artes nos posts e no destaque; nome, @, números e legenda ficam na seção Mockup. Na apresentação, clicar num post mostra ele em destaque.', 'info')
         return
       }
       case 'mockup': {
         // celular por padrão; o modelo e a cor mudam na seção Mockup do inspetor
         const larg = Math.round((W * 0.2) / 8) * 8
-        const camadas = gerarMockup('celular', { x: (ponto?.x ?? W / 2) - larg / 2, y: (ponto?.y ?? H / 2) - larg, largura: larg }, {}, novoId('mockup', cena.layers))
+        const alt = (larg * MODELOS_MOCKUP[0]!.altura) / MODELOS_MOCKUP[0]!.largura
+        const camadas = acimaDe(gerarMockup('celular', { x: (ponto?.x ?? W / 2) - larg / 2, y: (ponto?.y ?? H / 2) - alt / 2, largura: larg }, {}, novoId('mockup', cena.layers), imagensMockup), cena.layers)
         acoes.inserirCamadas(camadas)
         setTimeout(() => acoes.selecionar([camadas[0]!.id]), 0)
-        avisar('Mockup criado. Solte uma imagem na "Tela" e troque o modelo na seção Mockup.', 'info')
+        avisar('Mockup criado. Solte uma imagem na "Tela" e troque o modelo e a cor na seção Mockup.', 'info')
         return
       }
       case 'bento': {
@@ -253,7 +258,7 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
         }
         return
     }
-  }, [cena, acoes, avisar])
+  }, [cena, acoes, avisar, imagensMockup])
 
   const inserirBlocoRef = useRef(inserirBloco)
   inserirBlocoRef.current = inserirBloco
