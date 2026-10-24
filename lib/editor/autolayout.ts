@@ -146,8 +146,10 @@ export function calcularLayout(camadas: readonly Camada[]): Camada[] {
     const n = medidos.length
     const gapBase = L.gapAuto ? 0 : L.gap
     const restante = extP - somaFixos - gapBase * (n - 1)
-    const fatia = nFill ? Math.max(1, restante / nFill) : 0
-    const tamanhosP = medidos.map(({ c, t }) => (dimP(c) === 'fill' ? fatia : principal(t)))
+    // fill divide o espaço restante pelos pesos (layoutGrow, padrão 1): 2 ocupa o dobro de 1
+    const pesos = medidos.map(({ c }) => (dimP(c) === 'fill' ? (c.layoutGrow ?? 1) : 0))
+    const somaPesos = pesos.reduce((s, v) => s + v, 0)
+    const tamanhosP = medidos.map(({ c, t }, i) => (dimP(c) === 'fill' ? Math.max(1, (restante * pesos[i]!) / somaPesos) : principal(t)))
     const total = tamanhosP.reduce((s, v) => s + v, 0)
     const gap = L.gapAuto && n > 1 && !nFill ? Math.max(0, (extP - total) / (n - 1)) : gapBase
     let cursor = (horizontal ? dentro.x : dentro.y) + (L.gapAuto && n > 1 && !nFill ? 0 : offset(alinP, extP - (total + gap * (n - 1))))

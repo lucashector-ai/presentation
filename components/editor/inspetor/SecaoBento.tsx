@@ -24,7 +24,7 @@ export function SecaoBento({ editor }: PropsSecao) {
 
   const regenerar = (novo: Partial<typeof meta>) => {
     const m = { ...meta, ...novo }
-    const geradas = gerarBento({ x: raiz.x, y: raiz.y, width: raiz.width, height: raiz.height }, { preset: m.preset, gap: m.gap, radius: m.radius, clip, cores: cartoes.map((k) => (k as CamadaFrame).fill ?? '#F2F1EF') }, `${raiz.id}-r${Date.now().toString(36)}`)
+    const geradas = gerarBento({ x: raiz.x, y: raiz.y, width: raiz.width, height: raiz.height }, { preset: m.preset, gap: m.gap, radius: m.radius, padding: m.padding, clip, cores: cartoes.map((k) => (k as CamadaFrame).fill ?? '#F2F1EF') }, `${raiz.id}-r${Date.now().toString(36)}`)
     const [externo, ...filhas] = geradas
     const novas = filhas.map((c) => (c.parentId === externo!.id ? { ...c, parentId: raiz.id } : c)) as Camada[]
     const velhas = comDescendentes([raiz.id], camadas).filter((id) => id !== raiz.id)
@@ -37,13 +37,14 @@ export function SecaoBento({ editor }: PropsSecao) {
   return (
     <Secao titulo="Bento grid">
       <SeletorLista rotulo="Formato do bento" valor={meta.preset} opcoes={PRESETS_BENTO.map((p) => ({ id: p.id, rotulo: p.nome }))} aoMudar={(preset) => !comConteudo && regenerar({ preset })} />
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <CampoNum prefixo="Esp." rotulo="Espaço entre cartões" valor={meta.gap} min={0} max={200} aoMudar={(gap) => !comConteudo && regenerar({ gap: Math.round(gap / 8) * 8 })} />
+        <CampoNum prefixo="Marg." rotulo="Margem interna (espaço ao redor)" valor={meta.padding ?? 0} min={0} max={400} aoMudar={(padding) => !comConteudo && regenerar({ padding: Math.round(padding / 8) * 8 })} />
         <CampoNum prefixo="Raio" rotulo="Raio dos cartões" valor={meta.radius} min={0} max={200} aoMudar={(radius) => { acoes.atualizarCamadas([raiz.id], { bento: { ...meta, radius } } as Partial<Camada>, false); acoes.atualizarCamadas(cartoes.map((k) => k.id), { radius } as Partial<Camada>) }} />
       </div>
       <Interruptor rotulo="Recortar conteúdo dos cartões" ativo={clip} aoMudar={(v) => acoes.atualizarCamadas(cartoes.map((k) => k.id), { clip: v } as Partial<Camada>)} />
       <div className="flex items-center justify-between gap-2 text-[11px] text-texto2">
-        <span>{comConteudo ? 'Cartões com conteúdo: esvazie-os para trocar o formato ou o espaço.' : `${cartoes.length} cartões vazios. Arraste imagens e textos para dentro deles.`}</span>
+        <span>{comConteudo ? 'Cartões com conteúdo: esvazie-os para trocar o formato, o espaço ou a margem.' : `${cartoes.length} cartões vazios. Redimensione o bento: os cartões acompanham.`}</span>
         {!comConteudo && <BotaoMini rotulo="Regerar cartões" onClick={() => regenerar({})}><RefreshCw className="h-3.5 w-3.5" /></BotaoMini>}
       </div>
     </Secao>

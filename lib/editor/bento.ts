@@ -18,8 +18,8 @@ export const PRESETS_BENTO: { id: string; nome: string; arvore: No }[] = [
 ]
 export const CORES_BENTO = ['#171717', '#D7F25C', '#F2F1EF', '#5965F2', '#E4572E', '#F2C14E']
 
-export interface OpcoesBento { preset: string; gap: number; radius: number; clip: boolean; cores?: string[] }
-export interface BentoMeta { preset: string; gap: number; radius: number }
+export interface OpcoesBento { preset: string; gap: number; radius: number; clip: boolean; cores?: string[]; padding?: number }
+export interface BentoMeta { preset: string; gap: number; radius: number; padding?: number }
 
 const g8 = (v: number) => Math.round(v / 8) * 8
 const peso = (n: No) => (typeof n === 'number' ? n : (n.peso ?? 1))
@@ -39,12 +39,12 @@ export function gerarBento(rect: { x: number; y: number; width: number; height: 
 
   const desenhar = (no: No, r: { x: number; y: number; width: number; height: number }, parentId: string | undefined, raizId?: string) => {
     if (typeof no === 'number') {
-      const f = frame({ id: id('cartao'), name: `Cartão ${++cartoes}`, ...r, parentId, fill: cores[(cartoes - 1) % cores.length], radius: op.radius, clip: op.clip })
+      const f = frame({ id: id('cartao'), name: `Cartão ${++cartoes}`, ...r, parentId, fill: cores[(cartoes - 1) % cores.length], radius: op.radius, clip: op.clip, sizingW: 'fill', sizingH: 'fill', layoutGrow: peso(no) })
       saida.push(f)
       return
     }
     const meu = raizId ?? id(no.dir === 'h' ? 'linha' : 'coluna')
-    if (!raizId) saida.push(frame({ id: meu, name: no.dir === 'h' ? 'Linha' : 'Coluna', ...r, parentId, layout: { direction: no.dir === 'h' ? 'horizontal' : 'vertical', gap: op.gap, gapAuto: false, padding: { top: 0, right: 0, bottom: 0, left: 0 }, alignX: 'start', alignY: 'start' } }))
+    if (!raizId) saida.push(frame({ id: meu, name: no.dir === 'h' ? 'Linha' : 'Coluna', ...r, parentId, sizingW: 'fill', sizingH: 'fill', layoutGrow: peso(no), layout: { direction: no.dir === 'h' ? 'horizontal' : 'vertical', gap: op.gap, gapAuto: false, padding: { top: 0, right: 0, bottom: 0, left: 0 }, alignX: 'start', alignY: 'start' } }))
     const total = no.filhos.reduce<number>((s, f) => s + peso(f), 0)
     const livre = (no.dir === 'h' ? r.width : r.height) - op.gap * (no.filhos.length - 1)
     let cursor = no.dir === 'h' ? r.x : r.y
@@ -60,9 +60,11 @@ export function gerarBento(rect: { x: number; y: number; width: number; height: 
 
   const raizId = `${prefixo}-bento`
   const raiz = preset.arvore
-  const externo = frame({ id: raizId, name: 'Bento grid', ...rect, clip: true, layout: typeof raiz === 'number' ? undefined : { direction: raiz.dir === 'h' ? 'horizontal' : 'vertical', gap: op.gap, gapAuto: false, padding: { top: 0, right: 0, bottom: 0, left: 0 }, alignX: 'start', alignY: 'start' }, bento: { preset: preset.id, gap: op.gap, radius: op.radius } })
+  const pad = g8(op.padding ?? 0)
+  const interno = { x: rect.x + pad, y: rect.y + pad, width: Math.max(8, rect.width - pad * 2), height: Math.max(8, rect.height - pad * 2) }
+  const externo = frame({ id: raizId, name: 'Bento grid', ...rect, clip: true, layout: typeof raiz === 'number' ? undefined : { direction: raiz.dir === 'h' ? 'horizontal' : 'vertical', gap: op.gap, gapAuto: false, padding: { top: pad, right: pad, bottom: pad, left: pad }, alignX: 'start', alignY: 'start' }, bento: { preset: preset.id, gap: op.gap, radius: op.radius, padding: pad } })
   saida.push(externo)
-  desenhar(raiz, rect, undefined, raizId)
+  desenhar(raiz, interno, undefined, raizId)
   return saida
 }
 
