@@ -14,6 +14,7 @@ import type { Pintura } from './SeletorCor'
 import { comum, useCamadas, type PropsSecao } from './selecao'
 import { desligarEstilo, gravarCor, ligarEstilo, type PropCor } from '@/lib/editor/estilosCor'
 import { tipoMascara } from '@/lib/scene/mascara'
+import { OPACIDADE_PADRAO_TEXTURA, gradienteCss, padraoCss } from '@/components/renderer/estilos'
 
 /** Opacidade anterior de cores escondidas pelo olho (para restaurar), e linhas mantidas visíveis na sessão. */
 const alfaAnterior = new Map<string, number>()
@@ -79,15 +80,44 @@ export function SecaoPreenchimento({ editor }: PropsSecao) {
           }
         />
       )}
-      {tipo === 'shape' && (
-        <SeletorLista
-          rotulo="Textura"
-          prefixo={<span className="listras block h-3 w-3 rounded-[3px] bg-texto3" />}
-          valor={String(comum(camadas, (c) => (c as CamadaForma).pattern))}
-          aoMudar={(v) => v !== MISTO && setFn((c) => ({ ...c, pattern: v as CamadaForma['pattern'] }) as Camada)}
-          opcoes={[...(comum(camadas, (c) => (c as CamadaForma).pattern) === MISTO ? [{ id: MISTO, rotulo: 'Textura: mista' }] : []), { id: 'none', rotulo: 'Sem textura' }, { id: 'stripes', rotulo: 'Textura: listras (foto)' }, { id: 'dots', rotulo: 'Textura: pontos' }, { id: 'grid', rotulo: 'Textura: grade' }]}
-        />
-      )}
+      {tipo === 'shape' && <Textura camadas={camadas as CamadaForma[]} setFn={setFn} />}
     </Secao>
+  )
+}
+
+/**
+ * Textura (listras, pontos, grade) com prévia sobre a cor da camada e, quando ligada, escala do passo, espessura
+ * e opacidade (schema aditivo: `patternScale`, `patternWeight`, `patternOpacity`; ausentes = o padrão antigo).
+ */
+function Textura({ camadas, setFn }: { camadas: CamadaForma[]; setFn: (f: (c: Camada) => Camada) => void }) {
+  const padrao = comum(camadas, (c) => (c as CamadaForma).pattern)
+  const primeira = camadas[0]!
+  const previa = padrao !== MISTO && padrao !== 'none' ? { ...padraoCss({ ...primeira, pattern: padrao }), backgroundColor: primeira.gradient ? undefined : primeira.fill, ...(primeira.gradient ? { backgroundImage: `${padraoCss({ ...primeira, pattern: padrao }).backgroundImage}, ${gradienteCss(primeira.gradient)}` } : {}) } : undefined
+  const pct = (v: number | undefined, base = 1) => Math.round((v ?? base) * 100)
+  const escala = comum(camadas, (c) => pct((c as CamadaForma).patternScale))
+  const peso = comum(camadas, (c) => pct((c as CamadaForma).patternWeight))
+  const opacidade = comum(camadas, (c) => { const f = c as CamadaForma; return pct(f.patternOpacity, OPACIDADE_PADRAO_TEXTURA[f.pattern] ?? 1) })
+  const limitar = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v))
+  const set = (patch: Partial<CamadaForma>) => setFn((c) => ({ ...c, ...patch }) as Camada)
+  return (
+    <>
+      <SeletorLista
+        rotulo="Textura"
+        prefixo={<span className="block h-3.5 w-3.5 rounded-[3px] shadow-[inset_0_0_0_1px_rgba(0,0,0,.12)]" style={previa ? { ...previa, backgroundSize: previa.backgroundSize ? '7px 7px' : undefined } : { background: 'rgb(var(--cor-texto-3) / .35)' }} />}
+        valor={String(padrao)}
+        aoMudar={(v) => v !== MISTO && set({ pattern: v as CamadaForma['pattern'] })}
+        opcoes={[...(padrao === MISTO ? [{ id: MISTO, rotulo: 'Textura: mista' }] : []), { id: 'none', rotulo: 'Sem textura' }, { id: 'stripes', rotulo: 'Textura: listras (foto)' }, { id: 'dots', rotulo: 'Textura: pontos' }, { id: 'grid', rotulo: 'Textura: grade' }]}
+      />
+      {previa && (
+        <>
+          <div aria-hidden data-testid="previa-textura" className="h-9 w-full rounded-md shadow-[inset_0_0_0_1px_rgba(0,0,0,.08)]" style={{ ...previa, backgroundSize: typeof previa.backgroundSize === 'string' ? previa.backgroundSize.split(' ').map((v) => `calc(${v} / 2)`).join(' ') : undefined }} />
+          <div className="grid grid-cols-3 gap-1.5">
+            <CampoNum prefixo={<span className="text-[11px]">⤢</span>} rotulo="Escala da textura" titulo="Escala do passo (%)" valor={escala} min={10} max={800} sufixo="%" aoMudar={(v) => set({ patternScale: limitar(v, 10, 800) / 100 })} aoDelta={(d) => setFn((c) => ({ ...c, patternScale: limitar(pct((c as CamadaForma).patternScale) + d, 10, 800) / 100 }) as Camada)} />
+            <CampoNum prefixo={<span className="text-[11px]">≡</span>} rotulo="Espessura da textura" titulo="Espessura do traço/ponto (%)" valor={peso} min={10} max={800} sufixo="%" aoMudar={(v) => set({ patternWeight: limitar(v, 10, 800) / 100 })} aoDelta={(d) => setFn((c) => ({ ...c, patternWeight: limitar(pct((c as CamadaForma).patternWeight) + d, 10, 800) / 100 }) as Camada)} />
+            <CampoNum prefixo={<span className="text-[11px]">◐</span>} rotulo="Opacidade da textura" titulo="Opacidade da textura (%)" valor={opacidade} min={0} max={100} sufixo="%" aoMudar={(v) => set({ patternOpacity: limitar(v, 0, 100) / 100 })} aoDelta={(d) => setFn((c) => { const f = c as CamadaForma; return { ...c, patternOpacity: limitar(pct(f.patternOpacity, OPACIDADE_PADRAO_TEXTURA[f.pattern] ?? 1) + d, 0, 100) / 100 } as Camada })} />
+          </div>
+        </>
+      )}
+    </>
   )
 }

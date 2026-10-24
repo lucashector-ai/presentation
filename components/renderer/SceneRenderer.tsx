@@ -187,6 +187,15 @@ const GRAO: CSSProperties = {
   backgroundSize: '160px 160px',
 }
 
+/** border-radius / clip-path do invólucro iguais aos do conteúdo (para efeitos que agem na caixa, como o vidro). */
+function recorteDoInvolucro(c: Camada, clipHerdado: string | undefined): CSSProperties {
+  if (c.type === 'shape' && c.shape === 'ellipse') return { borderRadius: '50%' }
+  if (c.type === 'shape' && c.shape !== 'rect') return {}
+  if (!('radius' in c)) return {}
+  if (!clipHerdado && (c.type === 'shape' || c.type === 'frame' || c.type === 'image') && temSuavizacao(c)) return { clipPath: `path("${caminhoCantos(c.width, c.height, raiosDaCamada(c), c.cornerSmoothing ?? 0)}")` }
+  return { borderRadius: raioCss(c) }
+}
+
 function geometria(c: Camada): CSSProperties {
   return { left: c.x, top: c.y, width: c.width, height: c.height, opacity: c.opacity, transform: transformCss(c) }
 }
@@ -332,6 +341,9 @@ const LayerView = memo(function LayerView({ camada: c, props, origemMorph, heran
     backdropFilter: vidroDe(e) ? `blur(${vidroDe(e)}px) saturate(1.4)` : undefined,
     WebkitBackdropFilter: vidroDe(e) ? `blur(${vidroDe(e)}px) saturate(1.4)` : undefined,
     isolation: vidroDe(e) ? 'isolate' : undefined,
+    // o desfoque do fundo age na caixa do invólucro: ele precisa do mesmo raio (uniforme ou por canto, elipse,
+    // squircle) do conteúdo, senão o vidro vaza quadrado pelos cantos arredondados
+    ...(vidroDe(e) ? recorteDoInvolucro(c, heranca?.clip) : {}),
     ...mascara,
     transition: origemMorph ? `left ${morphDuracao}ms ${morphEasing}, top ${morphDuracao}ms ${morphEasing}, width ${morphDuracao}ms ${morphEasing}, height ${morphDuracao}ms ${morphEasing}, opacity ${morphDuracao}ms ${morphEasing}, transform ${morphDuracao}ms ${morphEasing}` : undefined,
     ...plano.estilo,

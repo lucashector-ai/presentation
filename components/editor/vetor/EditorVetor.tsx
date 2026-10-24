@@ -629,7 +629,7 @@ export function EditorVetor({ editor, camadaId, vp, ferramentaInicial = 'mover',
         <div role="toolbar" aria-label="Editar vetor" data-testid="barra-vetor" className="pointer-events-auto flex items-center gap-0.5 rounded-xl border border-borda bg-superficie p-1 shadow-painel" onPointerDown={(e) => e.stopPropagation()}>
           <span className="rotulo-mono hidden px-2 !text-[10px] sm:inline">Editar vetor</span>
           {FERRAMENTAS.map((f) => (
-            <button key={f.id} type="button" aria-label={f.rotulo} aria-pressed={ferramenta === f.id} title={`${f.rotulo} (${f.tecla}) — ${f.dica}`} onClick={() => setFerramenta(f.id)} className={cx('inline-flex h-8 w-8 items-center justify-center rounded-md text-texto2 hover:bg-hover hover:text-texto', ferramenta === f.id && 'bg-acento text-acentoTexto hover:bg-acentoHover hover:text-acentoTexto')}>
+            <button key={f.id} type="button" aria-label={f.rotulo} aria-pressed={ferramenta === f.id} title={`${f.rotulo} (${f.tecla}) — ${f.dica}`} onClick={() => setFerramenta(f.id)} className={cx('inline-flex h-8 w-8 items-center justify-center rounded-md text-texto2 hover:bg-hover hover:text-texto', ferramenta === f.id && 'bg-acento text-white hover:bg-acentoHover hover:text-white')}>
               {f.icone}
             </button>
           ))}

@@ -700,6 +700,10 @@ export const CamadaFormaSchema = CamadaBase.extend({
   radii: RaiosSchema.optional(),
   /** Textura listrada dos placeholders do design. */
   pattern: z.enum(['none', 'stripes', 'dots', 'grid']).default('none'),
+  /** Textura: escala do passo (1 = padrão), espessura do traço/ponto (1 = padrão) e opacidade (ausente = a do padrão). */
+  patternScale: z.number().min(0.1).max(8).optional(),
+  patternWeight: z.number().min(0.1).max(8).optional(),
+  patternOpacity: z.number().min(0).max(1).optional(),
   /** Caminho editável (aditivo). Com `shape: 'path'` o renderizador desenha este caminho. */
   vetor: VetorSchema.optional(),
   /** Polígono: número de lados; estrela: número de pontas (ausente = 3 no polígono, 5 na estrela). */

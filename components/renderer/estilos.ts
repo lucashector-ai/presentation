@@ -39,10 +39,33 @@ export function transformCss(c: Pick<Camada, 'rotation' | 'flipX' | 'flipY'> & P
   return p.length ? p.join(' ') : undefined
 }
 
-export const PADROES: Record<string, CSSProperties> = {
-  stripes: { backgroundImage: 'repeating-linear-gradient(135deg, rgba(255,255,255,.10) 0 2px, transparent 2px 28px)' },
-  dots: { backgroundImage: 'radial-gradient(rgba(0,0,0,.9) 22%, transparent 24%)', backgroundSize: '36px 36px' },
-  grid: { backgroundImage: 'linear-gradient(rgba(0,0,0,.18) 2px, transparent 2px), linear-gradient(90deg, rgba(0,0,0,.18) 2px, transparent 2px)', backgroundSize: '60px 60px' },
+/** Opacidade padrão de cada textura (a dos documentos antigos, sem `patternOpacity`). */
+export const OPACIDADE_PADRAO_TEXTURA: Record<string, number> = { stripes: 0.1, dots: 0.9, grid: 0.18 }
+
+/**
+ * Textura (listras, pontos, grade) com escala do passo, espessura e opacidade. Com os três ausentes sai exatamente
+ * o padrão antigo (listras brancas a 10% a cada 28 px, pontos pretos a 90% em 36 px, grade preta a 18% em 60 px).
+ */
+export function padraoCss(c: { pattern?: string; patternScale?: number; patternWeight?: number; patternOpacity?: number }): CSSProperties {
+  const p = c.pattern ?? 'none'
+  if (p === 'none') return {}
+  const esc = c.patternScale ?? 1
+  const peso = c.patternWeight ?? 1
+  const op = c.patternOpacity ?? OPACIDADE_PADRAO_TEXTURA[p] ?? 1
+  const r = (v: number) => Math.round(v * 100) / 100
+  if (p === 'stripes') {
+    const passo = r(28 * esc)
+    const traco = r(Math.min(passo * 0.9, 2 * peso))
+    return { backgroundImage: `repeating-linear-gradient(135deg, rgba(255,255,255,${r(op)}) 0 ${traco}px, transparent ${traco}px ${passo}px)` }
+  }
+  if (p === 'dots') {
+    const cel = r(36 * esc)
+    const raio = Math.min(48, r(22 * peso))
+    return { backgroundImage: `radial-gradient(rgba(0,0,0,${r(op)}) ${raio}%, transparent ${r(raio + 2)}%)`, backgroundSize: `${cel}px ${cel}px` }
+  }
+  const cel = r(60 * esc)
+  const linha = r(Math.min(cel * 0.5, 2 * peso))
+  return { backgroundImage: `linear-gradient(rgba(0,0,0,${r(op)}) ${linha}px, transparent ${linha}px), linear-gradient(90deg, rgba(0,0,0,${r(op)}) ${linha}px, transparent ${linha}px)`, backgroundSize: `${cel}px ${cel}px` }
 }
 
 export const MASCARAS: Record<string, string | undefined> = {

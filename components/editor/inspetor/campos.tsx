@@ -49,7 +49,7 @@ export function BotaoCampo({ rotulo, ativo, children, className, ...rest }: Reac
  * - Enter/Tab confirmam, Esc desfaz a digitação;
  * - seleção múltipla com valores diferentes mostra "Misto" (↑/↓ e arraste somam em cada um, via `aoDelta`).
  */
-export function CampoNum({ prefixo, valor: valorBruto, aoMudar, aoDelta, min, max, passo = 1, sufixo, rotulo, casas = 0, titulo, className, desativado, compacto, vazio, base = 0, aoLimpar }: {
+export function CampoNum({ prefixo, valor: valorBruto, aoMudar, aoDelta, min, max, passo = 1, sufixo, rotulo, casas = 0, titulo, className, desativado, compacto, vazio, base = 0, aoLimpar, semMoldura }: {
   prefixo?: ReactNode
   /** `null` = valor automático (campo vazio com o texto de `vazio`, ex.: "Auto"). */
   valor: number | Misto | null
@@ -72,6 +72,8 @@ export function CampoNum({ prefixo, valor: valorBruto, aoMudar, aoDelta, min, ma
   base?: number
   /** Apagar o número volta ao automático. */
   aoLimpar?: () => void
+  /** Dentro de uma linha que já tem fundo e realce (ex.: o % da linha de cor): sem fundo, sem anel de hover/foco. */
+  semMoldura?: boolean
 }) {
   const { gesto } = useInspetor()
   const auto = valorBruto === null
@@ -122,7 +124,7 @@ export function CampoNum({ prefixo, valor: valorBruto, aoMudar, aoDelta, min, ma
     window.addEventListener('pointerup', soltar)
   }
   return (
-    <div title={titulo ?? rotulo} className={cx('flex min-w-0 flex-1 items-center rounded-md bg-superficie2 ring-inset', compacto ? 'h-6' : 'h-7', ' transition-shadow hover:ring-1 hover:ring-bordaForte focus-within:!ring-1 focus-within:!ring-acento', !prefixo && 'pl-2', desativado && 'opacity-50', className)}>
+    <div title={titulo ?? rotulo} className={cx('flex min-w-0 flex-1 items-center rounded-md', compacto ? 'h-6' : 'h-7', semMoldura ? 'bg-transparent' : 'bg-superficie2 ring-inset transition-shadow hover:ring-1 hover:ring-bordaForte focus-within:!ring-1 focus-within:!ring-acento', !prefixo && 'pl-2', desativado && 'opacity-50', className)}>
       {prefixo !== undefined && (
         <span onPointerDown={arrastar} className={cx('flex h-full w-7 shrink-0 select-none items-center justify-center text-[11px] text-texto3', !desativado && 'cursor-ew-resize hover:text-texto2')} aria-hidden>
           {prefixo}

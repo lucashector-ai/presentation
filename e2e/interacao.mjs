@@ -283,7 +283,7 @@ await gesto('redimensionar', {
   fim: async () => { await page.mouse.up(); await page.keyboard.press('Control+z') },
 })
 await gesto('girar', {
-  inicio: async () => { pontoAlca = await alca('[data-alca=rot]'); await page.mouse.move(pontoAlca.x, pontoAlca.y); await page.mouse.down() },
+  inicio: async () => { pontoAlca = await alca('[data-testid=zona-girar-ne]'); await page.mouse.move(pontoAlca.x, pontoAlca.y); await page.mouse.down() },
   passos: () => Array.from({ length: 60 }, (_, i) => ({ x: pontoAlca.x + Math.sin((i / 60) * Math.PI) * 140, y: pontoAlca.y + (1 - Math.cos((i / 60) * Math.PI)) * 80 })),
   fim: async () => { await page.mouse.up(); await page.keyboard.press('Control+z') },
 })
