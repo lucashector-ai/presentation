@@ -1,40 +1,81 @@
 'use client'
-/** Layout: largura e altura com travar proporção (por camada, lembrado na sessão). */
+/** Layout (como no Figma): fluxo do frame (livre/vertical/horizontal), dimensões com travar proporção e recorte. */
 import { useState } from 'react'
-import { LayoutPanelLeft, Link2, MoveHorizontal, Square, Type, Unlink2 } from 'lucide-react'
+import { Frame, LayoutPanelLeft, Link2, MoveHorizontal, Square, Type, Unlink2 } from 'lucide-react'
 import { comDimensionamento, dimensionamentoDoModo, modoTexto, type ModoTexto } from '@/lib/editor/medirTexto'
 import { mapaDe, paiDe, temAutoLayout } from '@/lib/scene/arvore'
 import { abrirPreencher } from '../PreencherGrade'
-import type { Camada } from '@/lib/scene/schema'
-import { BotaoCampo, CampoNum, Secao, Segmentado } from './controles'
+import type { Camada, CamadaFrame } from '@/lib/scene/schema'
+import { BotaoMini, CampoNum, Rotulo, Secao, Segmentado } from './controles'
+import { IconeAutoLayout } from './icones'
 import { comum, useCamadas, type PropsSecao } from './selecao'
 
 const travas = new Map<string, boolean>()
 const proporcionalPorPadrao = (c: Camada) => c.type === 'svg' || c.type === 'image' || c.type === 'model3d' || c.type === 'lottie'
 const travada = (c: Camada) => travas.get(c.id) ?? proporcionalPorPadrao(c)
 
+type Fluxo = 'livre' | 'vertical' | 'horizontal'
+
 export function SecaoLayout({ editor }: PropsSecao) {
-  const { sel, setFn } = useCamadas(editor)
+  const { sel, ids, setFn } = useCamadas(editor)
+  const { acoes } = editor
   const [, atualizar] = useState(0)
   const l = sel[0]
   if (!l) return null
+  const frame = sel.length === 1 && l.type === 'frame' ? (l as CamadaFrame) : undefined
   const trava = sel.every(travada)
   const w = comum(sel, (c) => Math.round(c.width * 100) / 100)
   const h = comum(sel, (c) => Math.round(c.height * 100) / 100)
   const largura = (fn: (c: Camada) => number) => setFn((c) => { const width = Math.max(1, fn(c)); return { ...c, width, height: trava ? Math.max(1, Math.round((width * c.height) / c.width)) : c.height } })
   const altura = (fn: (c: Camada) => number) => setFn((c) => { const height = Math.max(1, fn(c)); return { ...c, height, width: trava ? Math.max(1, Math.round((height * c.width) / c.height)) : c.width } })
   return (
-    <Secao titulo="Layout">
-      <div className="grid grid-cols-[1fr_1fr_28px_28px] gap-2">
+    <Secao
+      titulo="Layout"
+      // como no Figma: as ações ficam no título (preencher a tela; envolver num frame ou num auto layout)
+      acao={
+        <>
+          <BotaoMini rotulo="Preencher a tela: metades, terços, quartos ou células (Ctrl+Alt+setas)" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); abrirPreencher(r.left - 250, r.bottom + 6) }}><LayoutPanelLeft className="h-3.5 w-3.5" /></BotaoMini>
+          {!frame && <BotaoMini rotulo="Envolver num frame (Ctrl+Alt+G)" onClick={() => acoes.emoldurar(ids)}><Frame className="h-3.5 w-3.5" /></BotaoMini>}
+          {!frame && <BotaoMini rotulo={`Adicionar auto layout (Shift+A): envolve ${sel.length > 1 ? 'a seleção' : 'a camada'} num frame que se ajusta ao conteúdo`} onClick={() => acoes.adicionarAutoLayout(ids)}><IconeAutoLayout mais /></BotaoMini>}
+        </>
+      }
+    >
+      {frame && (
+        <div>
+          <Rotulo>Fluxo</Rotulo>
+          <Segmentado<Fluxo>
+            rotulo="Fluxo do frame"
+            icones
+            valor={!frame.layout ? 'livre' : frame.layout.direction === 'vertical' ? 'vertical' : 'horizontal'}
+            aoMudar={(f) => {
+              if (f === 'livre') return frame.layout && acoes.removerAutoLayout(frame.id)
+              if (!frame.layout) acoes.adicionarAutoLayout([frame.id])
+              acoes.atualizarLayout(frame.id, { direction: f })
+            }}
+            opcoes={[
+              { id: 'livre', rotulo: 'Livre (sem auto layout)', icone: <Frame className="h-3.5 w-3.5" /> },
+              { id: 'vertical', rotulo: 'Auto layout vertical', icone: <IconeAutoLayout direcao="vertical" /> },
+              { id: 'horizontal', rotulo: 'Auto layout horizontal', icone: <IconeAutoLayout direcao="horizontal" /> },
+            ]}
+          />
+        </div>
+      )}
+      <div>
+      <Rotulo>Dimensões</Rotulo>
+      <div className="grid grid-cols-[1fr_1fr_24px] items-center gap-2">
         <CampoNum prefixo="W" rotulo="Largura" valor={w} min={1} aoMudar={(v) => largura(() => v)} aoDelta={(d) => largura((c) => c.width + d)} />
         <CampoNum prefixo="H" rotulo="Altura" valor={h} min={1} aoMudar={(v) => altura(() => v)} aoDelta={(d) => altura((c) => c.height + d)} />
-        <BotaoCampo rotulo={trava ? 'Destravar proporção' : 'Travar proporção'} ativo={trava} onClick={() => { sel.forEach((c) => travas.set(c.id, !trava)); atualizar((n) => n + 1) }}>
+        <BotaoMini rotulo={trava ? 'Destravar proporção' : 'Travar proporção'} ativo={trava} onClick={() => { sel.forEach((c) => travas.set(c.id, !trava)); atualizar((n) => n + 1) }}>
           {trava ? <Link2 className="h-3.5 w-3.5" /> : <Unlink2 className="h-3.5 w-3.5" />}
-        </BotaoCampo>
-        <BotaoCampo rotulo="Preencher (metades, terços, grade)" title="Preencher: metades, terços, quartos ou células (Ctrl+Alt+setas)" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); abrirPreencher(r.left - 250, r.bottom + 6) }}>
-          <LayoutPanelLeft className="h-3.5 w-3.5" />
-        </BotaoCampo>
+        </BotaoMini>
       </div>
+      </div>
+      {frame && (
+        <label className="flex h-6 cursor-pointer items-center gap-2 text-[11px] text-texto">
+          <input type="checkbox" checked={frame.clip} onChange={(e) => acoes.atualizarCamadas([frame.id], { clip: e.target.checked } as Partial<Camada>)} className="h-3.5 w-3.5 accent-[rgb(var(--cor-acento))]" />
+          Recortar conteúdo
+        </label>
+      )}
       {sel.length === 1 && l.type === 'text' && (
         <div className="flex items-center justify-between gap-2">
           <span className="text-[11px] text-texto3">Redimensionar</span>

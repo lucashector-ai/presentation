@@ -39,21 +39,8 @@ export function SecaoAutoLayout({ editor }: { editor: Editor }) {
   return (
     <>
       {irmaos && pai?.type === 'frame' && <FilhoDoLayout camadas={sel} pai={pai} editor={editor} />}
-      {unica?.type === 'frame' ? (
-        <PainelLayout frame={unica} editor={editor} podeFill={temAutoLayout(paiDe(unica, mapa))} />
-      ) : (
-        // como no Figma: seção vazia é só o título com "+" (a explicação fica na dica)
-        <Secao
-          titulo="Auto layout"
-          vazia
-          acao={
-            <>
-              <BotaoMini rotulo="Envolver num frame sem auto layout (Ctrl+Alt+G)" onClick={() => acoes.emoldurar(ids)}><Frame className="h-3.5 w-3.5" /></BotaoMini>
-              <BotaoMini rotulo={`Adicionar auto layout (Shift+A): envolve ${sel.length > 1 ? 'a seleção' : 'a camada'} num frame que se ajusta ao conteúdo`} onClick={() => acoes.adicionarAutoLayout(ids)}><IconeAutoLayout direcao={sel.length > 1 ? inferirDirecao(sel) : 'vertical'} /></BotaoMini>
-            </>
-          }
-        />
-      )}
+      {/* sem auto layout, o fluxo, o recorte e os botões de envolver ficam na seção Layout */}
+      {unica?.type === 'frame' && unica.layout && <PainelLayout frame={unica} editor={editor} podeFill={temAutoLayout(paiDe(unica, mapa))} />}
     </>
   )
 }

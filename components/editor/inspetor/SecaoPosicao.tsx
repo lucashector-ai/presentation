@@ -1,10 +1,10 @@
 'use client'
 /** Posição: alinhamento (6 botões + distribuir), X/Y, rotação com girar 90° e espelhar. */
 import type { ReactNode } from 'react'
-import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceAround, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceAround, Crosshair, FlipHorizontal2, FlipVertical2, RotateCw } from 'lucide-react'
+import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceAround, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceAround, Box, Crosshair, FlipHorizontal2, FlipVertical2, RotateCw } from 'lucide-react'
 import type { Alinhamento } from '@/lib/scene/transform'
 import { cx } from '@/components/ui'
-import { BotaoCampo, CampoNum, Menu, Secao } from './controles'
+import { CampoNum, Menu, Rotulo, Secao } from './controles'
 import { IconeAngulo } from './SeletorCor'
 import { comum, useCamadas, type PropsSecao } from './selecao'
 
@@ -53,8 +53,12 @@ export function SecaoPosicao({ editor }: PropsSecao) {
   const x = comum(sel, (c) => Math.round(c.x * 100) / 100)
   const y = comum(sel, (c) => Math.round(c.y * 100) / 100)
   const rot = comum(sel, (c) => c.rotation)
+  const inclinado = comum(sel, (c) => c.rotateX ?? 0) !== 0 || comum(sel, (c) => c.rotateY ?? 0) !== 0
+  const vista3d = VISTAS_3D.find((v) => comum(sel, (c) => c.rotateX ?? 0) === v.rx && comum(sel, (c) => c.rotateY ?? 0) === v.ry)?.nome ?? 'personalizada'
   return (
     <Secao titulo="Posição">
+      <div>
+      <Rotulo>Alinhamento</Rotulo>
       <div className="flex gap-2">
         <GrupoBotoes>
           {ALINHAR.slice(0, 3).map(([m, I, r]) => <BotaoGrupo key={m} rotulo={r} onClick={() => acoes.alinhar(ids, m)}><I className="h-3.5 w-3.5" /></BotaoGrupo>)}
@@ -74,27 +78,34 @@ export function SecaoPosicao({ editor }: PropsSecao) {
           </GrupoBotoes>
         )}
       </div>
-      <div className="grid grid-cols-[1fr_1fr_32px] gap-2">
+      </div>
+      <div>
+      <Rotulo>Posição</Rotulo>
+      <div className="grid grid-cols-2 gap-2">
         <CampoNum prefixo="X" rotulo="Posição X" valor={x} aoMudar={(v) => (multi ? setFn((c) => ({ ...c, x: v })) : set({ x: v }))} aoDelta={(d) => setFn((c) => ({ ...c, x: c.x + d }))} />
         <CampoNum prefixo="Y" rotulo="Posição Y" valor={y} aoMudar={(v) => (multi ? setFn((c) => ({ ...c, y: v })) : set({ y: v }))} aoDelta={(d) => setFn((c) => ({ ...c, y: c.y + d }))} />
       </div>
-      <div className="grid grid-cols-[1fr_1fr_32px] gap-2">
-        <CampoNum prefixo={<IconeAngulo />} rotulo="Rotação" valor={rot} min={-360} max={360} sufixo="°" casas={1} aoMudar={(v) => set({ rotation: normalizarAngulo(v) })} aoDelta={(d) => setFn((c) => ({ ...c, rotation: normalizarAngulo(c.rotation + d) }))} />
-        <div className="flex items-center gap-0.5">
-          <BotaoCampo rotulo="Girar 90° à direita" onClick={() => setFn((c) => ({ ...c, rotation: normalizarAngulo(c.rotation + 90) }))}><RotateCw className="h-3.5 w-3.5" /></BotaoCampo>
-          <BotaoCampo rotulo="Espelhar na horizontal" ativo={comum(sel, (c) => c.flipX) === true} onClick={() => acoes.inverter(ids, 'x')}><FlipHorizontal2 className="h-3.5 w-3.5" /></BotaoCampo>
-          <BotaoCampo rotulo="Espelhar na vertical" ativo={comum(sel, (c) => c.flipY) === true} onClick={() => acoes.inverter(ids, 'y')}><FlipVertical2 className="h-3.5 w-3.5" /></BotaoCampo>
-        </div>
       </div>
-      {/* 3D: um menu com as vistas (como o plugin Isometric do Figma); os ângulos e a perspectiva só aparecem quando há inclinação */}
-      <div className="grid grid-cols-[1fr_32px] gap-2">
-        <Menu
-          rotulo="Vista 3D"
-          variante="campo"
-          itens={VISTAS_3D.map((v) => ({ id: v.nome, rotulo: v.nome, ativo: comum(sel, (c) => c.rotateX ?? 0) === v.rx && comum(sel, (c) => c.rotateY ?? 0) === v.ry, aoClicar: () => set({ rotateX: v.rx || undefined, rotateY: v.ry || undefined, perspective: v.rx || v.ry ? 1200 : undefined }) }))}
-        >
-          {VISTAS_3D.find((v) => comum(sel, (c) => c.rotateX ?? 0) === v.rx && comum(sel, (c) => c.rotateY ?? 0) === v.ry)?.nome ?? 'Vista 3D personalizada'}
-        </Menu>
+      <div>
+      <Rotulo>Rotação</Rotulo>
+      <div className="grid grid-cols-2 gap-2">
+        <CampoNum prefixo={<IconeAngulo />} rotulo="Rotação" valor={rot} min={-360} max={360} sufixo="°" casas={1} aoMudar={(v) => set({ rotation: normalizarAngulo(v) })} aoDelta={(d) => setFn((c) => ({ ...c, rotation: normalizarAngulo(c.rotation + d) }))} />
+        {/* girar, espelhar e 3D num só grupo (como no Figma): sem a caixa grande da vista 3D */}
+        <GrupoBotoes>
+          <BotaoGrupo rotulo="Girar 90° à direita" onClick={() => setFn((c) => ({ ...c, rotation: normalizarAngulo(c.rotation + 90) }))}><RotateCw className="h-3.5 w-3.5" /></BotaoGrupo>
+          <BotaoGrupo rotulo="Espelhar na horizontal" ativo={comum(sel, (c) => c.flipX) === true} onClick={() => acoes.inverter(ids, 'x')}><FlipHorizontal2 className="h-3.5 w-3.5" /></BotaoGrupo>
+          <BotaoGrupo rotulo="Espelhar na vertical" ativo={comum(sel, (c) => c.flipY) === true} onClick={() => acoes.inverter(ids, 'y')}><FlipVertical2 className="h-3.5 w-3.5" /></BotaoGrupo>
+          <Menu
+            rotulo="Vista 3D"
+            titulo={`Vista 3D: ${vista3d}`}
+            ativo={inclinado}
+            className="!h-7 !w-auto min-w-0 flex-1 !rounded-[5px]"
+            itens={VISTAS_3D.map((v) => ({ id: v.nome, rotulo: v.nome, ativo: comum(sel, (c) => c.rotateX ?? 0) === v.rx && comum(sel, (c) => c.rotateY ?? 0) === v.ry, aoClicar: () => set({ rotateX: v.rx || undefined, rotateY: v.ry || undefined, perspective: v.rx || v.ry ? 1200 : undefined }) }))}
+          >
+            <Box className="h-3.5 w-3.5" />
+          </Menu>
+        </GrupoBotoes>
+      </div>
       </div>
       {(comum(sel, (c) => c.rotateX ?? 0) !== 0 || comum(sel, (c) => c.rotateY ?? 0) !== 0) && (
         <div className="grid grid-cols-[1fr_1fr_32px] gap-2">

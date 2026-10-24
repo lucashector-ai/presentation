@@ -19,8 +19,17 @@ import { BotaoGrupo, GrupoBotoes } from './SecaoPosicao'
 import { IconeEntrelinha, IconeEspacamento, IconeTamanho } from './icones'
 import { useCamadas, type PropsSecao } from './selecao'
 import { EnviarImagem } from './EnviarImagem'
+import { useTextoSvg } from '@/components/renderer/svgDoAsset'
 
 type Set = (p: Partial<Camada>) => void
+
+/** Download na apresentação (mídias): perto de Exportar, no fim do painel. */
+export function SecaoDownloadDaMidia({ editor }: PropsSecao) {
+  const { sel, set } = useCamadas(editor)
+  const l = sel[0]
+  if (!l || sel.length > 1 || !['image', 'video', 'svg', 'model3d', 'lottie'].includes(l.type)) return null
+  return <SecaoDownload c={l as Parameters<typeof SecaoDownload>[0]['c']} set={set} editor={editor} />
+}
 
 export function SecoesDoTipo({ editor, assets = [] }: PropsSecao) {
   const { sel, set } = useCamadas(editor)
@@ -30,11 +39,11 @@ export function SecoesDoTipo({ editor, assets = [] }: PropsSecao) {
   if (!l || sel.length > 1) return null
   switch (l.type) {
     case 'text': return <><SecaoTexto c={l} set={set} doDocumento={doDocumento} /><SecaoFundoTexto c={l} set={set} /></>
-    case 'image': return <><SecaoImagem c={l} set={set} assets={assets} /><SecaoDownload c={l} set={set} editor={editor} /></>
-    case 'video': return <><SecaoVideo c={l} set={set} assets={assets} /><SecaoDownload c={l} set={set} editor={editor} /></>
-    case 'svg': return <><SecaoSvg c={l} set={set} /><SecaoDownload c={l} set={set} editor={editor} /></>
-    case 'model3d': return <><SecaoModelo c={l} set={set} assets={assets} /><SecaoDownload c={l} set={set} editor={editor} /></>
-    case 'lottie': return <><SecaoLottie c={l} set={set} /><SecaoDownload c={l} set={set} editor={editor} /></>
+    case 'image': return <SecaoImagem c={l} set={set} assets={assets} />
+    case 'video': return <SecaoVideo c={l} set={set} assets={assets} />
+    case 'svg': return <SecaoSvg c={l} set={set} assets={assets} />
+    case 'model3d': return <SecaoModelo c={l} set={set} assets={assets} />
+    case 'lottie': return <SecaoLottie c={l} set={set} />
     case 'shape':
       // polígono: lados; estrela: pontas e raio interno (como no Figma)
       if (l.shape !== 'polygon' && l.shape !== 'star') return null
@@ -194,11 +203,14 @@ function SecaoVideo({ c, set, assets }: { c: CamadaVideo; set: Set; assets: Asse
 }
 
 /** Vetor colado do Figma/Illustrator: troca de cores sem voltar ao programa de origem. */
-function SecaoSvg({ c, set }: { c: CamadaSvg; set: Set }) {
-  const cores = useMemo(() => (c.markup ? coresDoSvg(c.markup).slice(0, 16) : []), [c.markup])
+function SecaoSvg({ c, set, assets }: { c: CamadaSvg; set: Set; assets: AssetDemo[] }) {
+  // vetor guardado como arquivo (grande ou .svg enviado): baixa o texto para achar e trocar as cores
+  const texto = useTextoSvg(c.markup ? undefined : assets.find((a) => a.id === c.assetId)?.url)
+  const markup = c.markup ?? texto
+  const cores = useMemo(() => (markup ? coresDoSvg(markup).slice(0, 16) : []), [markup])
   return (
     <Secao titulo="Cores do vetor" acao={Object.keys(c.recolor).length ? <button type="button" className="rounded px-1.5 py-0.5 text-[11px] text-acento hover:bg-acentoSuave" onClick={() => set({ recolor: {} } as Partial<Camada>)}>Restaurar</button> : undefined}>
-      {cores.length === 0 ? <p className="text-[11px] text-texto2">Nenhuma cor sólida encontrada (o vetor pode usar imagens ou gradientes).</p> : (
+      {cores.length === 0 ? <p className="text-[11px] text-texto2">{!c.markup && texto === undefined ? 'Lendo as cores do vetor…' : 'Nenhuma cor sólida encontrada (o vetor pode usar imagens ou gradientes).'}</p> : (
         <div className="space-y-2">
           {/* só a cor de destino, editável; a original fica no rótulo e na dica */}
           {cores.map((orig, i) => (

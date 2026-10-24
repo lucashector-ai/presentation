@@ -46,6 +46,7 @@ import { lerDataTransfer } from '@/lib/importar/clipboard'
 import { importarConteudo, type Avisar } from '@/lib/editor/importar'
 import type { AssetDemo } from '@/lib/demo/tipos'
 import { cursorMostra } from '@/lib/editor/cursores'
+import { useEnviosEmCurso } from '@/lib/editor/enviosEmCurso'
 
 /** Cursor de duplicar (seta com uma segunda seta menor), preta com contorno branco; ponta em (3, 2). */
 
@@ -229,6 +230,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
   /** Pan arrastando: um estado por quadro (a tela já anda no evento, por estilo direto). */
   const panPendente = useRef<{ x: number; y: number } | null>(null)
   const quadroPan = useRef(0)
+  const envios = useEnviosEmCurso()
   const vpRef = useRef(vp)
   vpRef.current = vp
   const zoomEmRef = useRef(zoomEm)
@@ -961,6 +963,14 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
       {/* guias de layout (grade, colunas, linhas) da tela e dos frames */}
       {areasGuias.length > 0 && <CamadaGuias areas={areasGuias} vp={vp} largura={tamanho.width} altura={tamanho.height} />}
 
+      {/* imagens sendo enviadas: prévia local no lugar onde a camada vai entrar, com o progresso */}
+      {envios.filter((e) => e.cenaId === cena.id).map((e) => (
+        <div key={e.id} data-testid="envio-em-curso" className="pointer-events-none absolute overflow-hidden" style={{ left: vp.ox + e.x * vp.s, top: vp.oy + e.y * vp.s, width: e.width * vp.s, height: e.height * vp.s }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={e.url} alt="" className="h-full w-full object-cover opacity-80" draggable={false} />
+          <div className="absolute inset-x-0 bottom-0 h-1 bg-black/20"><div className="h-full bg-selecao transition-[width] duration-200" style={{ width: `${Math.max(8, e.progresso)}%` }} /></div>
+        </div>
+      ))}
       {/* hover: UM contorno de 1 px na cor da seleção, sem halo, só na camada sob o cursor (como no Figma); nada
           por cima da seleção — camadas já selecionadas ou dentro da caixa da seleção não ganham hover */}
       {hover && !vetorAtivo && !estado.selecao.includes(hover) && (!g || g.tipo === 'mover') && !editandoTexto && (() => {

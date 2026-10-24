@@ -62,25 +62,26 @@ export function Secao({ titulo, children, acao, aberta = true, vazia, aoAdiciona
   const mostrar = !vazia && (!recolhivel || abrir)
   const recolhida = !vazia && recolhivel && !abrir
   return (
-    <section aria-label={titulo} className={cx('border-b border-borda px-3', mostrar && children !== undefined && 'pb-2')}>
-      <div className="flex h-8 items-center gap-1">
+    // como no Figma: título em negrito, sem caixa; a seta de recolher só aparece no hover (ou recolhida)
+    <section aria-label={titulo} className={cx('border-b border-borda px-4', mostrar && children !== undefined && 'pb-3')}>
+      <div className="flex h-10 items-center gap-1">
         {vazia ? (
           aoAdicionar ? (
-            <button type="button" onClick={aoAdicionar} className="-ml-1 flex h-7 min-w-0 flex-1 items-center rounded-[5px] px-1 text-left text-[11px] font-medium text-texto2 hover:text-texto">
+            <button type="button" onClick={aoAdicionar} className="flex h-7 min-w-0 flex-1 items-center text-left text-[12px] font-semibold text-texto2 transition-colors hover:text-texto">
               <span className="truncate">{titulo}</span>
             </button>
           ) : (
-            <h3 className="min-w-0 flex-1 truncate text-[11px] font-medium text-texto2">{titulo}</h3>
+            <h3 className="min-w-0 flex-1 truncate text-[12px] font-semibold text-texto2">{titulo}</h3>
           )
         ) : recolhivel ? (
           // sem fundo no hover: a linha tem botões próprios à direita, e duas superfícies juntas confundem
-          <button type="button" onClick={alternar} aria-expanded={abrir} className="group -ml-1 flex h-7 min-w-0 flex-1 items-center gap-1 rounded-[5px] px-1 text-left text-[11px] font-medium text-texto">
-            <ChevronRight className={cx('h-3 w-3 shrink-0 text-texto3 transition-transform group-hover:text-texto', abrir && 'rotate-90')} aria-hidden />
+          <button type="button" onClick={alternar} aria-expanded={abrir} className="group relative flex h-7 min-w-0 flex-1 items-center text-left text-[12px] font-semibold text-texto">
+            <ChevronRight className={cx('absolute -left-3.5 h-3 w-3 shrink-0 text-texto3 transition', abrir ? 'rotate-90 opacity-0 group-hover:opacity-100' : 'opacity-100')} aria-hidden />
             <span className="truncate">{titulo}</span>
-            {recolhida && resumo && <span className="ml-auto min-w-0 truncate pl-2 font-normal text-texto3">{resumo}</span>}
+            {recolhida && resumo && <span className="ml-auto min-w-0 truncate pl-2 text-[11px] font-normal text-texto3">{resumo}</span>}
           </button>
         ) : (
-          <h3 className="min-w-0 flex-1 truncate text-[11px] font-medium text-texto">{titulo}</h3>
+          <h3 className="min-w-0 flex-1 truncate text-[12px] font-semibold text-texto">{titulo}</h3>
         )}
         <div className="flex shrink-0 items-center gap-0.5">
           {!recolhida && acao}
@@ -88,7 +89,7 @@ export function Secao({ titulo, children, acao, aberta = true, vazia, aoAdiciona
           {aoRemover && !vazia && !recolhida && <BotaoMini rotulo={rotuloRemover ?? `Remover ${titulo.toLowerCase()}`} onClick={aoRemover}><Minus className="h-3.5 w-3.5" /></BotaoMini>}
         </div>
       </div>
-      {mostrar && children !== undefined && <div className="space-y-2">{children}</div>}
+      {mostrar && children !== undefined && <div className="space-y-2.5">{children}</div>}
     </section>
   )
 }
@@ -129,14 +130,14 @@ export function Menu({ rotulo, itens, children, variante = 'icone', ativo, class
 
 /** Rótulo pequeno acima de um campo ("Opacidade", "Raio"). */
 export function Rotulo({ children }: { children: ReactNode }) {
-  return <span className="mb-1 block truncate text-[11px] text-texto2">{children}</span>
+  return <span className="mb-1.5 block truncate text-[11px] text-texto2">{children}</span>
 }
 
 /** Linha de resumo clicável (ex.: "Animação  Escala · 800ms ›"). */
 export function LinhaResumo({ titulo, valor, aoClicar, destaque }: { titulo: string; valor: string; aoClicar: () => void; destaque?: boolean }) {
   return (
-    <button type="button" onClick={aoClicar} className="flex h-10 w-full items-center justify-between border-b border-borda px-3 text-left text-[11px] hover:bg-hover/50">
-      <span className="font-medium">{titulo}</span>
+    <button type="button" onClick={aoClicar} className="flex h-10 w-full items-center justify-between border-b border-borda px-4 text-left text-[11px] hover:bg-hover/50">
+      <span className="text-[12px] font-semibold">{titulo}</span>
       <span className={cx('flex items-center gap-0.5 truncate pl-3', destaque ? 'text-acento' : 'text-texto2')}>{valor}<ChevronRight className="h-3.5 w-3.5 shrink-0" /></span>
     </button>
   )

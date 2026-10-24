@@ -5,10 +5,10 @@
  * Olho = opacidade 0 ↔ volta à anterior; "−" numa forma deixa o preenchimento transparente (seção vazia com "+").
  */
 import { useState } from 'react'
-import { Eye, EyeOff, Minus } from 'lucide-react'
+import { Eye, EyeOff, Grip, Minus } from 'lucide-react'
 import type { Camada, CamadaForma, CamadaFrame, CamadaTexto } from '@/lib/scene/schema'
 import { alfaDe, comAlfa } from '@/lib/editor/cor'
-import { BotaoMini, CampoNum, MISTO, Secao, SeletorLista } from './controles'
+import { BotaoMini, CampoNum, Menu, MISTO, Secao, SeletorLista } from './controles'
 import { LinhaPintura } from './CampoCor'
 import type { Pintura } from './SeletorCor'
 import { comum, useCamadas, type PropsSecao } from './selecao'
@@ -17,6 +17,7 @@ import { tipoMascara } from '@/lib/scene/mascara'
 import { OPACIDADE_PADRAO_TEXTURA, gradienteCss, padraoCss } from '@/components/renderer/estilos'
 
 /** Opacidade anterior de cores escondidas pelo olho (para restaurar), e linhas mantidas visíveis na sessão. */
+const TEXTURAS: { id: CamadaForma['pattern']; rotulo: string }[] = [{ id: 'none', rotulo: 'Sem textura' }, { id: 'stripes', rotulo: 'Listras (foto)' }, { id: 'dots', rotulo: 'Pontos' }, { id: 'grid', rotulo: 'Grade' }]
 const alfaAnterior = new Map<string, number>()
 const mantidas = new Set<string>()
 
@@ -49,6 +50,7 @@ export function SecaoPreenchimento({ editor }: PropsSecao) {
   const semFill = tipo === 'frame' && camadas.every((c) => c.type === 'frame' && !c.fill && !c.gradient && !c.fillImage)
   const vazia = semFill || (forma && pintura !== MISTO && pintura.tipo === 'solido' && alfaDe(pintura.cor) === 0 && !mantidas.has(chave))
   const oculta = pintura !== MISTO && pintura.tipo === 'solido' && alfaDe(pintura.cor) === 0
+  const padraoAtual = tipo === 'shape' ? comum(camadas, (c) => (c as CamadaForma).pattern) : 'none'
 
   const alternarOlho = () => {
     if (pintura === MISTO || pintura.tipo !== 'solido') return
@@ -60,7 +62,15 @@ export function SecaoPreenchimento({ editor }: PropsSecao) {
   const adicionar = () => setFn((c) => comCor(c, (cor) => comAlfa(cor, 1)))
 
   return (
-    <Secao titulo="Preenchimento" vazia={vazia} aoAdicionar={vazia || pintura === MISTO ? (pintura === MISTO ? () => { const p = pinturaDe(camadas[0]!); setFn((c) => comPintura(c, p)) } : adicionar) : undefined} rotuloAdicionar="Adicionar preenchimento">
+    <Secao
+      titulo="Preenchimento"
+      // textura: um ícone no título (como os estilos no Figma); os controles só aparecem com uma textura escolhida
+      acao={tipo === 'shape' && !vazia ? (
+        <Menu rotulo="Textura" ativo={padraoAtual !== 'none'} itens={TEXTURAS.map((t) => ({ id: t.id, rotulo: t.rotulo, ativo: padraoAtual === t.id, aoClicar: () => setFn((c) => ({ ...c, pattern: t.id }) as Camada) }))}>
+          <Grip className="h-3.5 w-3.5" />
+        </Menu>
+      ) : undefined}
+      vazia={vazia} aoAdicionar={vazia || pintura === MISTO ? (pintura === MISTO ? () => { const p = pinturaDe(camadas[0]!); setFn((c) => comPintura(c, p)) } : adicionar) : undefined} rotuloAdicionar="Adicionar preenchimento">
       {pintura === MISTO ? (
         <LinhaPintura rotulo={forma ? 'Cor de preenchimento (mista)' : 'Cor do texto (mista)'} valor={pinturaDe(camadas[0]!)} vazio placeholder="Misto" tipos={forma ? ['solido', 'linear', 'radial', 'imagem'] : ['solido', 'linear', 'radial']} aoMudar={(p) => setFn((c) => comPintura(c, p))} />
       ) : (
@@ -83,7 +93,7 @@ export function SecaoPreenchimento({ editor }: PropsSecao) {
           }
         />
       )}
-      {tipo === 'shape' && (pintura === MISTO || pintura.tipo !== 'imagem') && <Textura camadas={camadas as CamadaForma[]} setFn={setFn} />}
+      {tipo === 'shape' && padraoAtual !== 'none' && (pintura === MISTO || pintura.tipo !== 'imagem') && <Textura camadas={camadas as CamadaForma[]} setFn={setFn} />}
     </Secao>
   )
 }
@@ -109,11 +119,10 @@ function Textura({ camadas, setFn }: { camadas: CamadaForma[]; setFn: (f: (c: Ca
         prefixo={<span className="block h-3.5 w-3.5 rounded-[3px] shadow-[inset_0_0_0_1px_rgba(0,0,0,.12)]" style={previa ? { ...previa, backgroundSize: previa.backgroundSize ? '7px 7px' : undefined } : { background: 'rgb(var(--cor-texto-3) / .35)' }} />}
         valor={String(padrao)}
         aoMudar={(v) => v !== MISTO && set({ pattern: v as CamadaForma['pattern'] })}
-        opcoes={[...(padrao === MISTO ? [{ id: MISTO, rotulo: 'Textura: mista' }] : []), { id: 'none', rotulo: 'Sem textura' }, { id: 'stripes', rotulo: 'Textura: listras (foto)' }, { id: 'dots', rotulo: 'Textura: pontos' }, { id: 'grid', rotulo: 'Textura: grade' }]}
+        opcoes={[...(padrao === MISTO ? [{ id: MISTO, rotulo: 'Textura: mista' }] : []), ...TEXTURAS.map((t) => ({ id: t.id, rotulo: t.id === 'none' ? 'Sem textura' : `Textura: ${t.rotulo.toLowerCase()}` }))]}
       />
       {previa && (
         <>
-          <div aria-hidden data-testid="previa-textura" className="h-9 w-full rounded-md shadow-[inset_0_0_0_1px_rgba(0,0,0,.08)]" style={{ ...previa, backgroundSize: typeof previa.backgroundSize === 'string' ? previa.backgroundSize.split(' ').map((v) => `calc(${v} / 2)`).join(' ') : undefined }} />
           <div className="grid grid-cols-3 gap-1.5">
             <CampoNum prefixo={<span className="text-[11px]">⤢</span>} rotulo="Escala da textura" titulo="Escala do passo (%)" valor={escala} min={10} max={800} sufixo="%" aoMudar={(v) => set({ patternScale: limitar(v, 10, 800) / 100 })} aoDelta={(d) => setFn((c) => ({ ...c, patternScale: limitar(pct((c as CamadaForma).patternScale) + d, 10, 800) / 100 }) as Camada)} />
             <CampoNum prefixo={<span className="text-[11px]">≡</span>} rotulo="Espessura da textura" titulo="Espessura do traço/ponto (%)" valor={peso} min={10} max={800} sufixo="%" aoMudar={(v) => set({ patternWeight: limitar(v, 10, 800) / 100 })} aoDelta={(d) => setFn((c) => ({ ...c, patternWeight: limitar(pct((c as CamadaForma).patternWeight) + d, 10, 800) / 100 }) as Camada)} />

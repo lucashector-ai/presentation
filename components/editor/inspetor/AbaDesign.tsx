@@ -16,7 +16,7 @@ import { SecaoBento } from './SecaoBento'
 import { SecaoMockup } from './SecaoMockup'
 import { SecaoAparencia } from './SecaoAparencia'
 import { SecaoMascara } from './SecaoMascara'
-import { SecoesDoTipo } from './SecoesTipo'
+import { SecaoDownloadDaMidia, SecoesDoTipo } from './SecoesTipo'
 import { SecaoPreenchimento } from './SecaoPreenchimento'
 import { SecaoTraco } from './SecaoTraco'
 import { SecaoEfeitos } from './SecaoEfeitos'
@@ -48,6 +48,7 @@ export function AbaDesign({ editor, assets }: { editor: Editor; assets: AssetDem
       <SecaoEfeitos {...p} />
       <SecaoGuiasFrame editor={editor} />
       <SecaoExportar {...p} />
+      <SecaoDownloadDaMidia {...p} />
       <SecaoIA editor={editor} />
       <SecoesPrototipo {...p} />
       <SecaoAcessibilidade {...p} />

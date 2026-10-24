@@ -8,7 +8,8 @@
  * geometria/cor antiga e animam até a nova.
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import type { Animacao, Camada, CamadaForma, Cena, Interacao, CamadaTexto } from '@/lib/scene/schema'
+import type { Animacao, Camada, CamadaForma, CamadaSvg, Cena, Interacao, CamadaTexto } from '@/lib/scene/schema'
+import { useTextoSvg } from './svgDoAsset'
 import { EASING_CSS, camadaVisivel, interacoesDe, type EstadoRuntime } from '@/lib/scene/motor'
 import { ordenarParaRender } from '@/lib/scene/order'
 import { calcularLayout } from '@/lib/editor/autolayout'
@@ -400,6 +401,15 @@ function visualDeOrigem(c: CamadaForma, o: Camada | undefined): CamadaForma {
   return caixa(c.shape) && caixa(o.shape) ? { ...c, shape: o.shape, fill: o.fill, gradient: o.gradient, radius: o.radius, radii: o.radii } : { ...c, fill: o.fill }
 }
 
+/** SVG inline ou arquivo; com cores trocadas, o arquivo é baixado e recolorido aqui (o <img> do arquivo não aceita troca). */
+function VetorSvg({ c, url, filtro }: { c: CamadaSvg; url?: string; filtro?: string }) {
+  const recolorir = !c.markup && Object.keys(c.recolor).length > 0
+  const texto = useTextoSvg(url, recolorir)
+  const markup = c.markup ?? (recolorir ? texto : undefined)
+  const src = markup ? svgParaDataUrl(recolorirSvg(markup, c.recolor)) : url
+  return <img src={src} alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: c.fit === 'fill' ? 'fill' : 'contain', display: 'block', pointerEvents: 'none', filter: filtro }} />
+}
+
 function Conteudo({ camada: c, props, origemMorph, transicaoMorph, morphDuracao, morphEasing, animTexto, rolagemTexto, desenhar }: { camada: Camada; props: SceneRendererProps; origemMorph?: Camada; /** "600ms ease": cor, raio e forma interpolam junto com a geometria no morph. */ transicaoMorph?: string; morphDuracao: number; morphEasing: string; animTexto?: Animacao; rolagemTexto?: string; desenhar?: boolean }) {
   const { assets, modo, mobile = false, registrarVideo, interativoNoEditor } = props
   const e = c.effects
@@ -470,10 +480,8 @@ function Conteudo({ camada: c, props, origemMorph, transicaoMorph, morphDuracao,
         />
       )
     }
-    case 'svg': {
-      const src = c.markup ? svgParaDataUrl(recolorirSvg(c.markup, c.recolor)) : c.assetId ? assets[c.assetId]?.url : undefined
-      return <img src={src} alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: c.fit === 'fill' ? 'fill' : 'contain', display: 'block', pointerEvents: 'none', filter: filtroCss(e, true) }} />
-    }
+    case 'svg':
+      return <VetorSvg c={c} url={c.assetId ? assets[c.assetId]?.url : undefined} filtro={filtroCss(e, true)} />
     case 'model3d': {
       const a = assets[c.assetId]
       const poster = c.posterAssetId ? assets[c.posterAssetId]?.url : undefined

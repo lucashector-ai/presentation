@@ -6,6 +6,7 @@
  * GLB/GLTF do Blender vira 3D; JSON do After Effects (Bodymovin) vira Lottie; links do YouTube/Vimeo/Figma
  * viram incorporação; texto vira caixa de texto; camadas copiadas da Mostra são coladas com IDs novos.
  */
+import { comprimirColado, iniciarEnvio, progressoEnvio, terminarEnvio } from './enviosEmCurso'
 import DOMPurify from 'dompurify'
 import type { Editor } from './useEditor'
 import { interpretar, type ConteudoColado } from '@/lib/importar/clipboard'
@@ -75,12 +76,20 @@ export async function importarArquivos(editor: Editor, arquivos: File[], opcoes:
       const f = (arquivo.type === 'image/svg+xml' || /\.svg$/i.test(arquivo.name)) && arquivo.size < 2_000_000
         ? await arquivo.text().then(async (t) => { const m = /<text\b/i.test(t) ? await comFontesEmbutidas(sanitizarSvgNavegador(t)) : t; return m === t ? arquivo : new File([m], arquivo.name, { type: 'image/svg+xml' }) })
         : arquivo
-      const a = await dados.enviarArquivo(f, (p) => opcoes.aoProgredir?.(f.name, p), { sanitizarSvg: sanitizarSvgNavegador, projetoId: editor.projetoId })
+      const ponto = opcoes.ponto ? { x: opcoes.ponto.x + deslocamento, y: opcoes.ponto.y + deslocamento } : undefined
+      deslocamento += 32
+      // imagem: aparece na hora (prévia local) enquanto sobe; print colado vai comprimido
+      const imagem = /^image\/(png|jpeg|webp|gif|avif)$/.test(f.type) ? await comprimirColado(f) : f
+      const previa = /^image\/(png|jpeg|webp|gif|avif)$/.test(imagem.type) ? await iniciarPrevia(editor, imagem, ponto) : null
+      let a: AssetDemo
+      try {
+        a = await dados.enviarArquivo(imagem, (p) => { opcoes.aoProgredir?.(imagem.name, p); if (previa) progressoEnvio(previa.id, p.progresso) }, { sanitizarSvg: sanitizarSvgNavegador, projetoId: editor.projetoId })
+      } finally {
+        if (previa) terminarEnvio(previa.id)
+      }
       prontos.push(a)
       if (a.erro) opcoes.avisar(a.erro, 'info')
-      const ponto = opcoes.ponto ? { x: opcoes.ponto.x + deslocamento, y: opcoes.ponto.y + deslocamento } : undefined
-      editor.acoes.adicionarAsset(a, ponto)
-      deslocamento += 32
+      editor.acoes.adicionarAsset(a, previa ? previa.centro : ponto)
     } catch (e) {
       opcoes.avisar(e instanceof Error ? e.message : `Não foi possível importar ${arquivo.name}.`, 'erro')
     }
@@ -91,6 +100,24 @@ export async function importarArquivos(editor: Editor, arquivos: File[], opcoes:
     opcoes.avisar(prontos.length === 1 ? `${rotulo[0]!.toUpperCase()}${rotulo.slice(1)} adicionado à tela.` : `${prontos.length} arquivos adicionados à tela.`, 'sucesso')
   }
   return prontos
+}
+
+/** Prévia local da imagem no lugar onde a camada vai entrar (mesmo enquadramento de adicionarAsset). */
+async function iniciarPrevia(editor: Editor, arquivo: File, ponto?: { x: number; y: number }) {
+  const c = editor.cena
+  if (!c) return null
+  try {
+    const bmp = await createImageBitmap(arquivo)
+    const tam = { width: bmp.width, height: bmp.height }
+    bmp.close()
+    const r = enquadrarNaCena(tam, c.size, Math.min(c.size.width, c.size.height) * 0.15)
+    const rect = ponto ? { ...r, x: ponto.x - r.width / 2, y: ponto.y - r.height / 2 } : r
+    const id = `envio-${Math.random().toString(36).slice(2, 9)}`
+    iniciarEnvio({ id, url: URL.createObjectURL(arquivo), cenaId: c.id, ...rect, progresso: 0 })
+    return { id, centro: { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 } }
+  } catch {
+    return null
+  }
 }
 
 async function baixarComoArquivo(url: string): Promise<File> {
