@@ -797,6 +797,8 @@ export const CamadaFrameSchema = CamadaBase.extend({
   guias: GuiasLayoutSchema.optional(),
   /** Bento grid (Blocos): preset, espaço e raio dos cartões; regenerado pela seção Bento do inspetor. */
   bento: z.object({ preset: z.string().max(40), gap: z.number().min(0).max(200), radius: z.number().min(0).max(200) }).optional(),
+  /** Mockup (Blocos): modelo e cor da moldura; regenerado pela seção Mockup do inspetor. */
+  mockup: z.object({ modelo: z.string().max(40), cor: CorSchema }).optional(),
 })
 
 export const CamadaSchema = z.discriminatedUnion('type', [

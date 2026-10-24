@@ -11,6 +11,7 @@ import { SecaoPosicao } from './SecaoPosicao'
 import { SecaoLayout } from './SecaoLayout'
 import { SecaoAutoLayout } from './SecaoAutoLayout'
 import { SecaoBento } from './SecaoBento'
+import { SecaoMockup } from './SecaoMockup'
 import { SecaoAparencia } from './SecaoAparencia'
 import { SecaoMascara } from './SecaoMascara'
 import { SecoesDoTipo } from './SecoesTipo'
@@ -36,6 +37,7 @@ export function AbaDesign({ editor, assets }: { editor: Editor; assets: AssetDem
       <SecaoLayout {...p} />
       <SecaoAutoLayout {...p} />
       <SecaoBento {...p} />
+      <SecaoMockup {...p} />
       <SecaoRestricoes {...p} />
       <SecaoAparencia {...p} />
       <SecaoMascara {...p} />

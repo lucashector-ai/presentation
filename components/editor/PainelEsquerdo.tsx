@@ -1,7 +1,7 @@
 'use client'
 import { useMemo, useRef, useState, type JSX } from 'react'
 import { createPortal } from 'react-dom'
-import { Box, ChevronDown, ChevronRight, Code2, Copy, Crosshair, Eye, EyeOff, Film, GalleryHorizontal, Group, Image as ImageIcon, LayoutGrid, Lock, LockOpen, MousePointerClick, PenTool, Quote, Sparkles, Square, Tag, Trash2, Type, Upload, Video, ArrowRight } from 'lucide-react'
+import { Box, ChevronDown, ChevronRight, Code2, Copy, Crosshair, Eye, EyeOff, Film, GalleryHorizontal, Group, Image as ImageIcon, LayoutGrid, Smartphone, Lock, LockOpen, MousePointerClick, PenTool, Quote, Sparkles, Square, Tag, Trash2, Type, Upload, Video, ArrowRight } from 'lucide-react'
 import { IconeAutoLayout, IconeMascara } from './inspetor/icones'
 import { NOMES_TIPO_MASCARA, ehMascara, tipoMascara } from '@/lib/scene/mascara'
 import type { Camada } from '@/lib/scene/schema'
@@ -341,6 +341,7 @@ export const BLOCOS = [
   { id: 'hotspot', rotulo: 'Hotspot', icone: Crosshair },
   { id: 'galeria', rotulo: 'Galeria', icone: GalleryHorizontal },
   { id: 'bento', rotulo: 'Bento grid', icone: LayoutGrid },
+  { id: 'mockup', rotulo: 'Mockup', icone: Smartphone },
   { id: 'embed', rotulo: 'Embed', icone: Code2 },
   { id: 'modelo3d', rotulo: 'Modelo 3D', icone: Box },
   { id: 'lottie', rotulo: 'Lottie', icone: Sparkles },

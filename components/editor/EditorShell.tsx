@@ -35,6 +35,7 @@ import { Atrasado, Botao, BotaoIcone, Carregando, Modal, Simbolo, cx } from '@/c
 import { useToast } from '@/components/ui/toast'
 import { MAX_HTML_EMBED } from '@/lib/scene/schema'
 import { gerarBento } from '@/lib/editor/bento'
+import { gerarMockup } from '@/lib/editor/mockups'
 import { novoId } from '@/lib/scene/order'
 
 /**
@@ -220,6 +221,15 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
         return
       }
       case 'embed': return setEmbed({ ponto })
+      case 'mockup': {
+        // celular por padrão; o modelo e a cor mudam na seção Mockup do inspetor
+        const larg = Math.round((W * 0.2) / 8) * 8
+        const camadas = gerarMockup('celular', { x: (ponto?.x ?? W / 2) - larg / 2, y: (ponto?.y ?? H / 2) - larg, largura: larg }, {}, novoId('mockup', cena.layers))
+        acoes.inserirCamadas(camadas)
+        setTimeout(() => acoes.selecionar([camadas[0]!.id]), 0)
+        avisar('Mockup criado. Solte uma imagem na "Tela" e troque o modelo na seção Mockup.', 'info')
+        return
+      }
       case 'bento': {
         // frame externo com auto layout → linhas/colunas → cartões (frames com recorte), tudo na grade de 8
         const larg = Math.round((W * 0.72) / 8) * 8
