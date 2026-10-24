@@ -33,7 +33,7 @@ export function SecaoMascara({ editor }: PropsSecao) {
         acao={<BotaoMini rotulo={desligada ? 'Ligar máscara' : 'Desligar máscara'} onClick={() => set({ hidden: !desligada })}>{desligada ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}</BotaoMini>}
       >
         <Segmentado<TipoMascara> rotulo="Tipo de máscara" valor={tipo === MISTO ? MISTO : tipo} opcoes={TIPOS_MASCARA.map((t) => ({ id: t, rotulo: NOMES_TIPO_MASCARA[t] }))} aoMudar={(t) => set({ maskType: t })} />
-        <p className="text-[12px] text-texto3">
+        <p className="text-[11px] text-texto3">
           {tipo === MISTO ? 'Tipos diferentes na seleção.' : DICA[tipo]} {desligada ? 'Desligada: as camadas aparecem inteiras.' : `Recorta ${recortadas} ${recortadas === 1 ? 'camada' : 'camadas'}.`}
         </p>
       </Secao>
@@ -47,7 +47,7 @@ export function SecaoMascara({ editor }: PropsSecao) {
   return (
     <Secao titulo="Máscara" aoRemover={remover} rotuloRemover="Remover máscara">
       <Linha rotulo="Recortada por">
-        <button type="button" onClick={() => editor.acoes.selecionarExato([m.id])} title="Selecionar a máscara" className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md bg-superficie2 px-2 text-left text-[12px] text-texto hover:ring-1 hover:ring-inset hover:ring-bordaForte">
+        <button type="button" onClick={() => editor.acoes.selecionarExato([m.id])} title="Selecionar a máscara" className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md bg-superficie2 px-2 text-left text-[11px] text-texto hover:ring-1 hover:ring-inset hover:ring-bordaForte">
           <span className="flex shrink-0 text-acento"><IconeMascara /></span>
           <span className="min-w-0 flex-1 truncate">{nome}</span>
           <span className="rotulo-mono shrink-0 !text-[9px]">{NOMES_TIPO_MASCARA[tipoMascara(m)]}</span>

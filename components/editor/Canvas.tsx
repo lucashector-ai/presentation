@@ -67,8 +67,7 @@ function cursorDaAlca(a: Alca, rot: number): string {
 /** Zona de girar fora de cada canto (px de tela além da alça) e lado dela. */
 const ZONA_GIRAR = 16
 const FOLGA_GIRAR = 3
-/** Cursor de girar (seta curva em volta do canto), orientado pelo canto e pela rotação da camada, como no Figma. */
-/** Cursores de girar já montados (por canto e ângulo em passos de 5°): trocar a URL do cursor recalcula estilo. */
+/** Cursor de girar orientado pelo canto e pela rotação da camada. Já montados (por canto e ângulo em passos de 5°): trocar a URL do cursor recalcula estilo. */
 const cursoresGirar = new Map<string, string>()
 function cursorGirar(canto: Alca, rot: number): string {
   const base = { ne: 0, se: 90, sw: 180, nw: 270 }[canto as 'ne' | 'se' | 'sw' | 'nw'] ?? 0
@@ -76,9 +75,12 @@ function cursorGirar(canto: Alca, rot: number): string {
   const chave = `${canto}:${ang}`
   const pronto = cursoresGirar.get(chave)
   if (pronto) return pronto
-  const tinta = (cor: string, w: number) => `fill="none" stroke="${cor}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"`
-  const forma = 'M10 8A6 6 0 0 1 16 14M12.5 5.5L10 8l2.5 2.5M13.5 11.5L16 14l2.5-2.5'
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><g transform="rotate(${ang} 12 12)"><path d="${forma}" ${tinta('#fff', 3.6)}/><path d="${forma}" ${tinta('#171717', 1.6)}/></g></svg>`
+  // como o do Figma: um quarto de arco preenchido, convexo para o canto, com uma ponta de seta cheia em cada lado,
+  // preto com contorno branco (legível em qualquer fundo)
+  const arco = 'M7 5A12 12 0 0 1 19 17L17 17A10 10 0 0 0 7 7Z'
+  const pontas = 'M2.6 6L7.6 1.9L7.6 10.1ZM18 21.4L13.9 16.4L22.1 16.4Z'
+  const desenho = (d: string) => `<path d="${d}" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round" paint-order="stroke"/>`
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><g transform="rotate(${ang} 12 12)">${desenho(arco)}${desenho(pontas)}</g></svg>`
   const cursor = `url("data:image/svg+xml,${encodeURIComponent(svg)}") 12 12, grab`
   cursoresGirar.set(chave, cursor)
   return cursor
@@ -240,6 +242,9 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
 
   // roda: pan; Ctrl/⌘ (e pinça do trackpad): zoom no cursor. Os eventos da roda chegam mais rápido que os
   // quadros: ficam acumulados e viram um único estado por quadro (rAF), em vez de um render por evento
+  /** Pan arrastando: um estado por quadro (a tela já anda no evento, por estilo direto). */
+  const panPendente = useRef<{ x: number; y: number } | null>(null)
+  const quadroPan = useRef(0)
   const vpRef = useRef(vp)
   vpRef.current = vp
   const zoomEmRef = useRef(zoomEm)
@@ -271,7 +276,12 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
           el.style.transform = `scale(${s2 / escalaDesenhoRef.current})`
         }
         zoomEmRef.current(s2, ponto)
-      } else if (dx || dy) acoes.ui({ pan: { x: est.pan.x - dx, y: est.pan.y - dy }, zoom: est.zoom || v.s })
+      } else if (dx || dy) {
+        // a tela anda já neste evento; o React confirma o pan logo depois (as camadas não re-renderizam)
+        const el = telaRef.current
+        if (el) { el.style.left = `${v.ox - dx}px`; el.style.top = `${v.oy - dy}px` }
+        acoes.ui({ pan: { x: est.pan.x - dx, y: est.pan.y - dy }, zoom: est.zoom || v.s })
+      }
       fator = 1
       dx = 0
       dy = 0
@@ -635,9 +645,14 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
     const semEncaixe = !estado.snap || ev.metaKey || ev.ctrlKey
     if (!gestoAvisado.current) { gestoAvisado.current = true; aoGesto?.(true) }
     switch (g.tipo) {
-      case 'pan':
-        acoes.ui({ pan: { x: g.panInicial.x + (p.x - g.inicio.x), y: g.panInicial.y + (p.y - g.inicio.y) } })
+      case 'pan': {
+        const pan = { x: g.panInicial.x + (p.x - g.inicio.x), y: g.panInicial.y + (p.y - g.inicio.y) }
+        const el = telaRef.current
+        if (el) { el.style.left = `${vp.ox + pan.x - estado.pan.x}px`; el.style.top = `${vp.oy + pan.y - estado.pan.y}px` }
+        panPendente.current = pan
+        if (!quadroPan.current) quadroPan.current = requestAnimationFrame(() => { quadroPan.current = 0; if (panPendente.current) acoes.ui({ pan: panPendente.current }) })
         break
+      }
       case 'mover': {
         let dx = pc.x - g.inicio.x
         let dy = pc.y - g.inicio.y
@@ -953,7 +968,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
         {String(indiceCena + 1).padStart(2, '0')} — {cena.title || 'Sem título'}
       </div>
 
-      <div ref={telaRef} data-testid="canvas" className="absolute shadow-[0_1px_3px_rgba(0,0,0,.06),0_20px_50px_-30px_rgba(0,0,0,.35)]" style={{ left: telaCena.x, top: telaCena.y, width: telaDesenho.width, height: telaDesenho.height, transform: zoomEmCurso ? `scale(${vp.s / escalaDesenho})` : undefined, transformOrigin: '0 0', willChange: zoomEmCurso ? 'transform' : undefined }}>
+      <div ref={telaRef} data-testid="canvas" className="absolute shadow-[0_1px_3px_rgba(0,0,0,.06),0_20px_50px_-30px_rgba(0,0,0,.35)]" style={{ left: telaCena.x, top: telaCena.y, width: telaDesenho.width, height: telaDesenho.height, transform: zoomEmCurso ? `scale(${vp.s / escalaDesenho})` : undefined, transformOrigin: '0 0', willChange: 'transform' }}>
         <CenaCanvas key={`${cena.id}-${previaAtiva ? estado.previa : 0}`} cena={cena} assets={assets} escala={escalaDesenho} modo={previaAtiva ? 'viewer' : 'editor'} interativoNoEditor={interagir3d} chaveEntrada={`${estado.previa}`} ocultar={ocultarTexto} />
         {estado.grade && <div aria-hidden data-testid="grade" className="grade-editor pointer-events-none absolute inset-0 z-[1]" style={{ backgroundSize: `${passoTela}px ${passoTela}px` }} />}
         {estado.documento.mode === 'story' && <div aria-hidden className="pointer-events-none absolute border border-dashed border-texto3/60" style={{ left: '6%', right: '6%', top: '8%', bottom: '10%' }} />}
@@ -1208,7 +1223,7 @@ function FluxoInteracao({ camada, editor, assets, r }: { camada: Camada; editor:
       <div className="pointer-events-none absolute flex items-center gap-3 rounded-[10px] border border-selecao bg-superficie p-2 pr-3 shadow-[0_12px_30px_-12px_rgba(13,153,255,.45)]" style={{ left: r.x + 16, top: topo + 64 }}>
         <MiniaturaCena cena={alvo} assets={assets} largura={78} className="border-0" />
         <div className="whitespace-nowrap">
-          <div className="text-[13px] font-medium text-acento">{gatilho} → {String(idx + 1).padStart(2, '0')} {alvo.title}</div>
+          <div className="text-[12px] font-medium text-acento">{gatilho} → {String(idx + 1).padStart(2, '0')} {alvo.title}</div>
           <div className="text-[11px] text-texto2">{tr ? `${{ none: 'Instantânea', fade: 'Fade', slide: 'Slide', scale: 'Scale', morph: 'Morph', push: 'Empurrar' }[tr.type]} · ${tr.duration}ms · ${curva}` : 'Fade · 400ms'}</div>
         </div>
       </div>

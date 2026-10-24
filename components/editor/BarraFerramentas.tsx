@@ -45,7 +45,7 @@ export function BarraFerramentas({ ferramenta, aoFerramenta, aoMidia, className,
         {menu && (
           <div role="menu" aria-label="Formas" className={cx('absolute left-0 z-40 w-48 rounded-lg border border-borda bg-superficie p-1 shadow-painel', menuAcima ? 'bottom-9' : 'top-9')}>
             {FORMAS.map((f) => (
-              <button key={f.id} role="menuitemradio" aria-checked={ferramenta === f.id} type="button" onClick={() => { aoFerramenta(f.id); setMenu(false) }} className={cx('flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] hover:bg-hover', ferramenta === f.id && 'text-acento')}>
+              <button key={f.id} role="menuitemradio" aria-checked={ferramenta === f.id} type="button" onClick={() => { aoFerramenta(f.id); setMenu(false) }} className={cx('flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[12px] hover:bg-hover', ferramenta === f.id && 'text-acento')}>
                 {f.icone}<span className="flex-1">{f.rotulo}</span><span className="mono text-[11px] text-texto3">{f.tecla}</span>
               </button>
             ))}

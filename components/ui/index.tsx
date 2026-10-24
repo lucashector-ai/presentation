@@ -10,7 +10,7 @@ export function cx(...c: Array<string | false | null | undefined>) {
 
 // ---------- Botão ----------
 type Variante = 'primario' | 'secundario' | 'fantasma' | 'perigo' | 'destaque' | 'acento'
-type TamanhoBotao = 'sm' | 'md' | 'lg'
+type TamanhoBotao = 'xs' | 'sm' | 'md' | 'lg'
 export interface BotaoProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variante?: Variante
   tamanho?: TamanhoBotao
@@ -26,7 +26,7 @@ const variantes: Record<Variante, string> = {
   acento: 'bg-acento text-acentoTexto border-transparent hover:bg-acentoHover',
 }
 // alturas 32/40/48 (T.controle) e raio de controle 8. O sm segue com padding de 12: a barra do editor não tem folga a 1024 px
-const tamanhos: Record<TamanhoBotao, string> = { sm: 'h-8 px-3 text-[13px] gap-1.5 rounded-controle', md: 'h-10 px-4 text-sm gap-2 rounded-controle', lg: 'h-12 px-6 text-[15px] gap-2 rounded-controle' }
+const tamanhos: Record<TamanhoBotao, string> = { xs: 'h-8 px-2.5 text-[12px] gap-1.5 rounded-controle', sm: 'h-8 px-3 text-[13px] gap-1.5 rounded-controle', md: 'h-10 px-4 text-sm gap-2 rounded-controle', lg: 'h-12 px-6 text-[15px] gap-2 rounded-controle' }
 
 export const Botao = forwardRef<HTMLButtonElement, BotaoProps>(function Botao({ variante = 'primario', tamanho = 'md', carregando, icone, className, children, disabled, ...rest }, ref) {
   return (

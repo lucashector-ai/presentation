@@ -4,8 +4,8 @@
  * Texto (tipografia + fundo da caixa), Imagem (+ Recorte e Ajustes recolhidos), Vídeo, Vetor, Modelo 3D
  * (+ Câmera e Luz recolhidas), Lottie, Incorporado e Hotspot.
  */
-import { useMemo } from 'react'
-import { AlignCenter, AlignJustify, AlignLeft, AlignRight, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, Italic, Link2, Minus, Underline } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { ImagePlus, Loader2, AlignCenter, AlignJustify, AlignLeft, AlignRight, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, Italic, Link2, Minus, Underline } from 'lucide-react'
 import type { Camada, CamadaImagem, CamadaLottie, CamadaModelo3d, CamadaSvg, CamadaTexto, CamadaVideo } from '@/lib/scene/schema'
 import { SeletorFonte, useCatalogoFontes } from '@/components/fontes/SeletorFonte'
 import { fontesDoDocumento } from '@/components/renderer/fontes'
@@ -18,6 +18,9 @@ import { BotaoOpcoesTexto } from './OpcoesTexto'
 import { BotaoGrupo, GrupoBotoes } from './SecaoPosicao'
 import { IconeEntrelinha, IconeEspacamento, IconeTamanho } from './icones'
 import { useCamadas, type PropsSecao } from './selecao'
+import { dados, mensagemDeErro } from '@/lib/dados'
+import { sanitizarSvgNavegador } from '@/lib/editor/importar'
+import { useToast } from '@/components/ui/toast'
 
 type Set = (p: Partial<Camada>) => void
 
@@ -50,12 +53,12 @@ export function SecoesDoTipo({ editor, assets = [] }: PropsSecao) {
         <Secao titulo="Incorporado">
           {l.html != null ? (
             <>
-              <textarea aria-label="HTML incorporado" defaultValue={l.html} spellCheck={false} onBlur={(ev) => { const v = ev.target.value; if (v.trim() && v !== l.html) set({ html: v } as Partial<Camada>) }} className="mono min-h-[160px] w-full resize-y rounded-lg border border-borda bg-superficie px-2.5 py-2 text-[12px] leading-5 text-texto outline-none focus:border-acento" />
+              <textarea aria-label="HTML incorporado" defaultValue={l.html} spellCheck={false} onBlur={(ev) => { const v = ev.target.value; if (v.trim() && v !== l.html) set({ html: v } as Partial<Camada>) }} className="mono min-h-[160px] w-full resize-y rounded-lg border border-borda bg-superficie px-2.5 py-2 text-[11px] leading-5 text-texto outline-none focus:border-acento" />
             </>
           ) : (
             <>
               <CampoTexto rotulo="URL incorporada" prefixo={<Link2 className="h-3.5 w-3.5" />} valor={l.url ?? ''} aoConfirmar={(v) => { try { if (new URL(v).protocol === 'https:') set({ url: v } as Partial<Camada>) } catch { /* inválida */ } }} />
-              <p className="text-[12px] text-texto3">YouTube, Vimeo, Figma, Loom, Spline, Sketchfab, Spotify.</p>
+              <p className="text-[11px] text-texto3">YouTube, Vimeo, Figma, Loom, Spline, Sketchfab, Spotify.</p>
             </>
           )}
         </Secao>
@@ -63,9 +66,9 @@ export function SecoesDoTipo({ editor, assets = [] }: PropsSecao) {
     case 'hotspot':
       return (
         <Secao titulo="Hotspot">
-          <input aria-label="Descrição do hotspot" placeholder="Ex.: Ver aplicações da marca" value={l.ariaLabel} onChange={(e) => set({ ariaLabel: e.target.value || 'Área clicável' } as Partial<Camada>)} className="h-8 w-full rounded-md bg-superficie2 px-2 text-[12px] outline-none ring-inset hover:ring-1 hover:ring-bordaForte focus:!ring-1 focus:!ring-acento" />
+          <input aria-label="Descrição do hotspot" placeholder="Ex.: Ver aplicações da marca" value={l.ariaLabel} onChange={(e) => set({ ariaLabel: e.target.value || 'Área clicável' } as Partial<Camada>)} className="h-8 w-full rounded-md bg-superficie2 px-2 text-[11px] outline-none ring-inset hover:ring-1 hover:ring-bordaForte focus:!ring-1 focus:!ring-acento" />
           <Linha rotulo="Dica visual"><Interruptor rotulo="Contorno ao passar o mouse" ativo={l.hint} aoMudar={(hint) => set({ hint } as Partial<Camada>)} /></Linha>
-          <p className="text-[12px] text-texto3">Área invisível e clicável. A ação fica na aba Interações.</p>
+          <p className="text-[11px] text-texto3">Área invisível e clicável. A ação fica na aba Interações.</p>
         </Secao>
       )
     default: return null
@@ -95,7 +98,7 @@ function SecaoTexto({ c, set, doDocumento }: { c: CamadaTexto; set: Set; doDocum
   const opcoesPeso = [...(pesos.includes(c.fontWeight) ? [] : [c.fontWeight]), ...pesos].map((v) => ({ id: String(v), rotulo: NOMES_PESO[v] ? `${NOMES_PESO[v]}${pesos.includes(v) ? '' : ' (indisponível)'}` : String(v) }))
   return (
     <Secao titulo="Texto">
-      <textarea aria-label="Conteúdo do texto" title="Conteúdo (também dá para editar com duplo clique no texto)" rows={1} value={c.text} onChange={(e) => s({ text: e.target.value })} className="block h-7 w-full resize-none overflow-hidden rounded-md bg-superficie2 px-2 py-[5px] text-[12px] leading-snug outline-none ring-inset transition-[height] hover:ring-1 hover:ring-bordaForte focus:h-16 focus:overflow-auto focus:!ring-1 focus:!ring-acento" />
+      <textarea aria-label="Conteúdo do texto" title="Conteúdo (também dá para editar com duplo clique no texto)" rows={1} value={c.text} onChange={(e) => s({ text: e.target.value })} className="block h-7 w-full resize-none overflow-hidden rounded-md bg-superficie2 px-2 py-[5px] text-[11px] leading-snug outline-none ring-inset transition-[height] hover:ring-1 hover:ring-bordaForte focus:h-16 focus:overflow-auto focus:!ring-1 focus:!ring-acento" />
       <SeletorFonte rotulo="Fonte" valor={c.fontFamily} doDocumento={doDocumento} aoMudar={(fontFamily, f) => s({ fontFamily, ...(f ? { fontWeight: varianteReal(f, c.fontWeight, c.italic).peso } : {}) })} />
       <div className="grid grid-cols-2 gap-2">
         <SeletorLista rotulo="Peso" valor={String(c.fontWeight)} aoMudar={(v) => s({ fontWeight: Number(v) })} opcoes={opcoesPeso} />
@@ -144,6 +147,24 @@ function SeletorAsset({ valor, assets, aoMudar, rotulo }: { valor: string; asset
 
 const ENCAIXES = [{ id: 'cover', rotulo: 'Cobrir' }, { id: 'contain', rotulo: 'Conter' }, { id: 'fill', rotulo: 'Esticar' }] as const
 
+/** Botão "Adicionar imagem": envia um arquivo do computador e já o coloca na camada (troca a imagem). */
+function EnviarImagem({ aoEnviada }: { aoEnviada: (assetId: string) => void }) {
+  const entrada = useRef<HTMLInputElement>(null)
+  const [enviando, setEnviando] = useState(false)
+  const { mostrar } = useToast()
+  const enviar = async (f: File | undefined) => {
+    if (!f) return
+    setEnviando(true)
+    try { const a = await dados.enviarArquivo(f, () => undefined, { sanitizarSvg: sanitizarSvgNavegador }); aoEnviada(a.id) } catch (e) { mostrar(mensagemDeErro(e, 'Não foi possível enviar a imagem.'), 'erro') } finally { setEnviando(false); if (entrada.current) entrada.current.value = '' }
+  }
+  return (
+    <>
+      <BotaoMini rotulo="Adicionar imagem do computador" onClick={() => entrada.current?.click()}>{enviando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}</BotaoMini>
+      <input ref={entrada} type="file" accept=".png,.jpg,.jpeg,.webp,.gif,.avif,.svg" className="hidden" onChange={(e) => void enviar(e.target.files?.[0])} />
+    </>
+  )
+}
+
 function SecaoImagem({ c, set, assets }: { c: CamadaImagem; set: Set; assets: AssetDemo[] }) {
   const s = (p: Partial<CamadaImagem>) => set(p as Partial<Camada>)
   const adj = c.adjust ?? { brightness: 1, contrast: 1, saturate: 1, grayscale: 0 }
@@ -151,7 +172,10 @@ function SecaoImagem({ c, set, assets }: { c: CamadaImagem; set: Set; assets: As
   return (
     <>
       <Secao titulo="Imagem">
-        <SeletorAsset rotulo="Arquivo de imagem" valor={c.assetId} assets={assets.filter((a) => a.tipo === 'image' || a.tipo === 'gif' || a.tipo === 'svg')} aoMudar={(assetId) => s({ assetId })} />
+        <div className="flex items-center gap-1.5">
+          <div className="min-w-0 flex-1"><SeletorAsset rotulo="Arquivo de imagem" valor={c.assetId} assets={assets.filter((a) => a.tipo === 'image' || a.tipo === 'gif' || a.tipo === 'svg')} aoMudar={(assetId) => s({ assetId })} /></div>
+          <EnviarImagem aoEnviada={(assetId) => s({ assetId })} />
+        </div>
         <Segmentado rotulo="Ajuste" valor={c.fit} aoMudar={(fit) => s({ fit })} opcoes={[...ENCAIXES]} />
         <Linha rotulo="Máscara"><SeletorLista rotulo="Máscara" valor={c.mask} aoMudar={(v) => s({ mask: v as CamadaImagem['mask'] })} opcoes={[{ id: 'none', rotulo: 'Nenhuma' }, { id: 'ellipse', rotulo: 'Círculo' }, { id: 'arch', rotulo: 'Arco' }, { id: 'triangle', rotulo: 'Triângulo' }]} /></Linha>
       </Secao>
@@ -193,7 +217,7 @@ function SecaoSvg({ c, set }: { c: CamadaSvg; set: Set }) {
   const cores = useMemo(() => (c.markup ? coresDoSvg(c.markup).slice(0, 16) : []), [c.markup])
   return (
     <Secao titulo="Cores do vetor" acao={Object.keys(c.recolor).length ? <button type="button" className="rounded px-1.5 py-0.5 text-[11px] text-acento hover:bg-acentoSuave" onClick={() => set({ recolor: {} } as Partial<Camada>)}>Restaurar</button> : undefined}>
-      {cores.length === 0 ? <p className="text-[12px] text-texto2">Nenhuma cor sólida encontrada (o vetor pode usar imagens ou gradientes).</p> : (
+      {cores.length === 0 ? <p className="text-[11px] text-texto2">Nenhuma cor sólida encontrada (o vetor pode usar imagens ou gradientes).</p> : (
         <div className="space-y-2">
           {/* só a cor de destino, editável; a original fica no rótulo e na dica */}
           {cores.map((orig, i) => (
@@ -219,7 +243,7 @@ function SecaoModelo({ c, set, assets }: { c: CamadaModelo3d; set: Set; assets: 
         {c.autoRotate && <Linha rotulo="Velocidade"><Deslizante rotulo="Velocidade de rotação" valor={c.rotationSpeed} max={180} aoMudar={(rotationSpeed) => s({ rotationSpeed })} formatar={(v) => `${v}°/s`} /></Linha>}
         <Linha rotulo="Convidado gira"><Interruptor rotulo="Convidado pode girar e dar zoom" ativo={c.cameraControls} aoMudar={(cameraControls) => s({ cameraControls })} /></Linha>
         <Linha rotulo="Realidade aum."><Interruptor rotulo="Ver em realidade aumentada no celular" ativo={c.ar} aoMudar={(ar) => s({ ar })} /></Linha>
-        <p className="text-[12px] text-texto3">Do Blender: exportar glTF 2.0 (.glb).</p>
+        <p className="text-[11px] text-texto3">Do Blender: exportar glTF 2.0 (.glb).</p>
       </Secao>
       <Secao titulo="Câmera" recolhivel aberta={false}>
         <Linha rotulo="Órbita"><CampoTexto mono rotulo="Órbita inicial da câmera" valor={c.cameraOrbit} aoConfirmar={(v) => s({ cameraOrbit: v || '0deg 75deg 105%' })} /></Linha>

@@ -200,7 +200,7 @@ export function SeletorCor({ ancora, valor, aoMudar, aoFechar, tipos = ['solido'
       <div className="flex h-10 items-center gap-1 border-b border-borda pl-2 pr-1.5">
         <div role="tablist" aria-label="Origem da cor" className="flex flex-1 gap-0.5">
           {(['personalizado', 'paleta'] as const).map((a) => (
-            <button key={a} type="button" role="tab" aria-selected={aba === a} onClick={() => setAba(a)} className={cx('rounded-md px-2 py-1 text-[12px] transition-colors', aba === a ? 'bg-hover font-medium text-texto' : 'text-texto2 hover:text-texto')}>
+            <button key={a} type="button" role="tab" aria-selected={aba === a} onClick={() => setAba(a)} className={cx('rounded-md px-2 py-1 text-[11px] transition-colors', aba === a ? 'bg-hover font-medium text-texto' : 'text-texto2 hover:text-texto')}>
               {a === 'personalizado' ? 'Personalizado' : 'Paleta'}
             </button>
           ))}
@@ -213,7 +213,7 @@ export function SeletorCor({ ancora, valor, aoMudar, aoFechar, tipos = ['solido'
           {estiloEd && (
             <div className="flex items-center gap-1.5 rounded-md bg-acentoSuave px-2 py-1.5">
               <span className="text-[11px] text-acento">Estilo</span>
-              <input aria-label="Nome do estilo" defaultValue={estiloEd.name} key={estiloEd.id} maxLength={60} onBlur={(e) => e.target.value.trim() && e.target.value !== estiloEd.name && estilos?.atualizar(estiloEd.id, { name: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }} className="h-6 min-w-0 flex-1 rounded bg-superficie px-1.5 text-[12px] outline-none focus:ring-1 focus:ring-acento" />
+              <input aria-label="Nome do estilo" defaultValue={estiloEd.name} key={estiloEd.id} maxLength={60} onBlur={(e) => e.target.value.trim() && e.target.value !== estiloEd.name && estilos?.atualizar(estiloEd.id, { name: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }} className="h-6 min-w-0 flex-1 rounded bg-superficie px-1.5 text-[11px] outline-none focus:ring-1 focus:ring-acento" />
               <BotaoMini rotulo="Concluir edição do estilo" onClick={() => { setEditando(null); setAba('paleta') }}><Check className="h-3.5 w-3.5" /></BotaoMini>
             </div>
           )}
@@ -256,11 +256,11 @@ export function SeletorCor({ ancora, valor, aoMudar, aoFechar, tipos = ['solido'
           {!estiloEd && valor.tipo === 'solido' && estilos && (
             salvando !== null ? (
               <form className="flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); const novo = estilos.criar(salvando, corAtiva); aoEstilo?.(novo); setSalvando(null) }}>
-                <input aria-label="Nome do novo estilo" autoFocus value={salvando} maxLength={60} onChange={(e) => setSalvando(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setSalvando(null) } }} className="h-7 min-w-0 flex-1 rounded-md bg-superficie2 px-2 text-[12px] outline-none focus:ring-1 focus:ring-acento" />
-                <button type="submit" className="h-7 rounded-md bg-acento px-2.5 text-[12px] font-medium text-acentoTexto hover:opacity-90">Salvar</button>
+                <input aria-label="Nome do novo estilo" autoFocus value={salvando} maxLength={60} onChange={(e) => setSalvando(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setSalvando(null) } }} className="h-7 min-w-0 flex-1 rounded-md bg-superficie2 px-2 text-[11px] outline-none focus:ring-1 focus:ring-acento" />
+                <button type="submit" className="h-7 rounded-md bg-acento px-2.5 text-[11px] font-medium text-acentoTexto hover:opacity-90">Salvar</button>
               </form>
             ) : (
-              <button type="button" onClick={() => setSalvando(proximoNome(estilos.lista))} className="flex h-7 w-full items-center justify-center gap-1.5 rounded-md text-[12px] text-texto2 hover:bg-hover hover:text-texto"><Plus className="h-3.5 w-3.5" /> Salvar como estilo</button>
+              <button type="button" onClick={() => setSalvando(proximoNome(estilos.lista))} className="flex h-7 w-full items-center justify-center gap-1.5 rounded-md text-[11px] text-texto2 hover:bg-hover hover:text-texto"><Plus className="h-3.5 w-3.5" /> Salvar como estilo</button>
             )
           )}
           {!estiloEd && valor.tipo !== 'imagem' && coresDocumento.length > 0 && (
@@ -419,7 +419,7 @@ function CampoHex({ cor, aoHex }: { cor: string; aoHex: (hex: string) => void })
   }
   return (
     <div className="flex h-7 min-w-0 flex-1 items-center rounded-md bg-superficie2 pl-2 ring-inset hover:ring-1 hover:ring-bordaForte focus-within:!ring-1 focus-within:!ring-acento">
-      <input aria-label="Hexadecimal" value={texto} spellCheck={false} maxLength={32} onFocus={(e) => { focado.current = true; e.currentTarget.select() }} onChange={(e) => setTexto(e.target.value)} onBlur={() => { focado.current = false; confirmar() }} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setTexto(exibido) }} className="h-full w-full min-w-0 bg-transparent text-[12px] uppercase tabular-nums outline-none" />
+      <input aria-label="Hexadecimal" value={texto} spellCheck={false} maxLength={32} onFocus={(e) => { focado.current = true; e.currentTarget.select() }} onChange={(e) => setTexto(e.target.value)} onBlur={() => { focado.current = false; confirmar() }} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setTexto(exibido) }} className="h-full w-full min-w-0 bg-transparent text-[11px] uppercase tabular-nums outline-none" />
     </div>
   )
 }
@@ -452,7 +452,7 @@ function ListaEstilos({ estilos, ligado, aoEscolher, aoEditar, aoRemover, aoNovo
         <ul role="list" aria-label="Estilos de cor do documento" className="-mx-1 max-h-[180px] overflow-y-auto rolagem-fina">
           {estilos.map((e) => (
             <li key={e.id} className={cx('group flex items-center gap-1 rounded-md pr-1', ligado === e.id ? 'bg-acentoSuave' : 'hover:bg-hover')}>
-              <button type="button" aria-label={`Aplicar estilo ${e.name}`} aria-pressed={ligado === e.id} onClick={() => aoEscolher(e)} className="flex h-7 min-w-0 flex-1 items-center gap-2 px-1 text-left text-[12px] outline-none focus-visible:ring-1 focus-visible:ring-acento">
+              <button type="button" aria-label={`Aplicar estilo ${e.name}`} aria-pressed={ligado === e.id} onClick={() => aoEscolher(e)} className="flex h-7 min-w-0 flex-1 items-center gap-2 px-1 text-left text-[11px] outline-none focus-visible:ring-1 focus-visible:ring-acento">
                 <span className="h-4 w-4 shrink-0 rounded-[4px] shadow-[inset_0_0_0_1px_rgba(0,0,0,.12)]" style={{ background: alfaDe(e.color) < 1 ? `linear-gradient(${e.color}, ${e.color}), ${XADREZ}` : e.color }} />
                 <span className="min-w-0 flex-1 truncate">{e.name}</span>
                 <span className="mono text-[10px] uppercase text-texto3">{(normalizarHex(e.color) ?? e.color).slice(1, 7)}</span>
@@ -473,7 +473,7 @@ function ListaEstilos({ estilos, ligado, aoEscolher, aoEditar, aoRemover, aoNovo
 
 function EscolhaImagem({ valor, aoMudar }: { valor: Extract<Pintura, { tipo: 'imagem' }>; aoMudar: (p: Pintura) => void }) {
   const { imagens } = useInspetor()
-  if (!imagens.length) return <p className="py-6 text-center text-[12px] text-texto2">Envie imagens na aba Arquivos para usá-las como preenchimento.</p>
+  if (!imagens.length) return <p className="py-6 text-center text-[11px] text-texto2">Envie imagens na aba Arquivos para usá-las como preenchimento.</p>
   return (
     <div className="space-y-2.5">
       <div role="radiogroup" aria-label="Imagem" className="grid max-h-[220px] grid-cols-3 gap-1.5 overflow-y-auto rolagem-fina">
@@ -486,7 +486,7 @@ function EscolhaImagem({ valor, aoMudar }: { valor: Extract<Pintura, { tipo: 'im
       </div>
       <div role="radiogroup" aria-label="Encaixe da imagem" className="flex h-7 rounded-md bg-superficie2 p-[2px]">
         {([['cover', 'Cobrir'], ['contain', 'Conter'], ['fill', 'Esticar']] as const).map(([id, r]) => (
-          <button key={id} type="button" role="radio" aria-checked={(valor.encaixe ?? 'cover') === id} onClick={() => aoMudar({ ...valor, encaixe: id })} className={cx('flex-1 rounded-[5px] text-[12px]', (valor.encaixe ?? 'cover') === id ? 'bg-superficie text-texto shadow-[0_1px_2px_rgba(0,0,0,.08)]' : 'text-texto2 hover:text-texto')}>{r}</button>
+          <button key={id} type="button" role="radio" aria-checked={(valor.encaixe ?? 'cover') === id} onClick={() => aoMudar({ ...valor, encaixe: id })} className={cx('flex-1 rounded-[5px] text-[11px]', (valor.encaixe ?? 'cover') === id ? 'bg-superficie text-texto shadow-[0_1px_2px_rgba(0,0,0,.08)]' : 'text-texto2 hover:text-texto')}>{r}</button>
         ))}
       </div>
     </div>

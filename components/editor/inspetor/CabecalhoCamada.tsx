@@ -35,7 +35,7 @@ export function CabecalhoCamada({ editor }: PropsSecao) {
             {titulo}
           </MenuSuspenso>
         ) : (
-          <span className="min-w-0 truncate text-[13px] font-medium">{titulo}</span>
+          <span className="min-w-0 truncate text-[12px] font-medium">{titulo}</span>
         )}
         {travada && <button type="button" aria-label="Destravar" title="Travada — clique para destravar (Ctrl+L)" onClick={() => set({ locked: false })} className="shrink-0 text-texto3 hover:text-texto"><Lock className="h-3 w-3" /></button>}
         <span className="flex-1" />

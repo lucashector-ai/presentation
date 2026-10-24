@@ -211,11 +211,11 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
       <div className="border-b border-borda px-3 pb-2 pt-2.5">
         <div className="flex h-8 items-center gap-1.5">
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px] bg-acentoSuave text-acento"><Icone className="h-3.5 w-3.5" strokeWidth={1.75} /></span>
-          <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{multi ? `${sel.length} camadas` : nomeCamada(l)}</span>
+          <span className="min-w-0 flex-1 truncate text-[12px] font-medium">{multi ? `${sel.length} camadas` : nomeCamada(l)}</span>
           {temAlguma && <BotaoPrevia aoClicar={() => tocar({ loop: !!loop })} />}
           {mais}
         </div>
-        <p className="mt-0.5 truncate text-[12px] text-texto3">{multi ? sel.map(nomeCamada).join(', ') : temAlguma ? [a.type !== 'none' ? resumoEntrada : null, loop ? nomeLoop(loop.type) : null, saida ? `sai: ${nomeAnimacao(saida.type)}` : null].filter(Boolean).join(' · ') : 'Sem animação'}</p>
+        <p className="mt-0.5 truncate text-[11px] text-texto3">{multi ? sel.map(nomeCamada).join(', ') : temAlguma ? [a.type !== 'none' ? resumoEntrada : null, loop ? nomeLoop(loop.type) : null, saida ? `sai: ${nomeAnimacao(saida.type)}` : null].filter(Boolean).join(' · ') : 'Sem animação'}</p>
       </div>
 
       {/* a Prévia da entrada é a do cabeçalho (uma só à vista); Ênfase e Saída têm a própria */}
@@ -230,7 +230,7 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
           rotulo="Efeito de entrada"
           extra={<CartaoPreset rotulo="Nenhuma" selecionado={a.type === 'none'} aoClicar={() => escolherEntrada('none')}>{() => <MiniPrevia tocando={false} cor="#C9C6C0" />}</CartaoPreset>}
         />
-        {!todasTexto && ehAnimacaoDeTexto(a.type) && <p className="text-[12px] text-texto2">{nomeAnimacao(a.type)} só funciona em texto; nas outras camadas vira fade.</p>}
+        {!todasTexto && ehAnimacaoDeTexto(a.type) && <p className="text-[11px] text-texto2">{nomeAnimacao(a.type)} só funciona em texto; nas outras camadas vira fade.</p>}
 
         {a.type !== 'none' && (
           <div className="space-y-2 pt-1">
@@ -353,7 +353,7 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
 
       {multi && (
         <Secao key={`${chaveSel}-sequencia`} titulo="Em sequência" chave="anim.sequencia" resumo={emSequencia ? `a cada ${intervalo} ms` : 'Juntas'} acao={<Interruptor rotulo="Animar em sequência" ativo={emSequencia} aoMudar={(v) => (a.type === 'none' ? undefined : v ? setEntrada(a, { restaggerar: true }) : patchEntrada({ delay: Math.min(...atrasos) }))} />}>
-          {a.type === 'none' && <p className="text-[12px] text-texto3">Escolha uma entrada primeiro.</p>}
+          {a.type === 'none' && <p className="text-[11px] text-texto3">Escolha uma entrada primeiro.</p>}
           {emSequencia && (
             <>
               <Rotulo>Intervalo</Rotulo>

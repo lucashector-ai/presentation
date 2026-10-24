@@ -69,7 +69,7 @@ export function SecaoTraco({ editor }: PropsSecao) {
   return (
     <Secao titulo="Traço" vazia={vazia} aoAdicionar={tracos.length < MAX_TRACOS ? adicionar : undefined} rotuloAdicionar="Adicionar traço">
       {misto ? (
-        <p className="text-[12px] text-texto2">Traços diferentes na seleção. Clique em + para usar os mesmos em todas.</p>
+        <p className="text-[11px] text-texto2">Traços diferentes na seleção. Clique em + para usar os mesmos em todas.</p>
       ) : (
         tracos.map((t, i) => (
           <LinhaPintura

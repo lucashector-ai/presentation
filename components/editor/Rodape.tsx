@@ -41,13 +41,13 @@ export const MenuZoom = memo(function MenuZoom({ acoes, temSelecao, className }:
     return () => { document.removeEventListener('pointerdown', fora); document.removeEventListener('keydown', esc, true) }
   }, [aberto])
   const item = (rotulo: string, atalho: string, acao: () => void, desativado = false) => (
-    <button type="button" role="menuitem" disabled={desativado} onClick={() => { setAberto(false); acao() }} className="flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-1.5 text-left text-[13px] hover:bg-hover disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent">
+    <button type="button" role="menuitem" disabled={desativado} onClick={() => { setAberto(false); acao() }} className="flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-1.5 text-left text-[12px] hover:bg-hover disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent">
       {rotulo}<span className="mono text-[11px] text-texto3">{atalho}</span>
     </button>
   )
   return (
     <div ref={ref} className={cx('relative', className)}>
-      <button type="button" aria-label="Zoom" aria-haspopup="menu" aria-expanded={aberto} title="Zoom" onClick={() => setAberto((v) => !v)} className={cx('mono inline-flex h-8 items-center gap-0.5 rounded-md px-2 text-[12px] tabular-nums text-textoCorpo hover:bg-hover hover:text-texto', aberto && 'bg-hover text-texto')}>
+      <button type="button" aria-label="Zoom" aria-haspopup="menu" aria-expanded={aberto} title="Zoom" onClick={() => setAberto((v) => !v)} className={cx('mono inline-flex h-8 items-center gap-0.5 rounded-md px-2 text-[11px] tabular-nums text-textoCorpo hover:bg-hover hover:text-texto', aberto && 'bg-hover text-texto')}>
         {Math.round(escala * 100)}%<ChevronDown className="h-3 w-3 text-texto3" />
       </button>
       {aberto && (
@@ -73,7 +73,7 @@ export const Rodape = memo(function Rodape({ editor, interagir3d, aoInteragir3d,
   const { mostrar } = useToast()
   const total = estado.documento.scenes.length
   return (
-    <footer className="hidden h-9 shrink-0 items-center gap-1 border-t border-borda bg-superficie px-3 text-[12px] text-texto2 md:flex">
+    <footer className="hidden h-9 shrink-0 items-center gap-1 border-t border-borda bg-superficie px-3 text-[11px] text-texto2 md:flex">
       <ControleZoom acoes={acoes} />
       <span className="mx-1 h-4 w-px bg-borda" />
       <BotaoIcone rotulo="Grade (Shift + ')" ativo={estado.grade} className="h-6 w-6" onClick={() => acoes.ui({ grade: !estado.grade })}><Grid3X3 className="h-3.5 w-3.5" /></BotaoIcone>

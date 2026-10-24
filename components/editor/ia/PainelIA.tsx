@@ -216,7 +216,7 @@ export function PainelIA({ editor, nomeProjeto, aba, aoMudarAba, aoFechar }: { e
   const custoBotao = (n: number) => <span className="mono text-[10px] font-normal text-texto3">{n} créditos</span>
 
   return (
-    <div ref={ref} role="dialog" aria-label="IA nesta tela" className="fixed right-[300px] top-[60px] z-40 flex max-h-[calc(100dvh-120px)] w-[360px] flex-col overflow-hidden rounded-xl border border-borda bg-superficie text-[13px] shadow-painel">
+    <div ref={ref} role="dialog" aria-label="IA nesta tela" className="fixed right-[300px] top-[60px] z-40 flex max-h-[calc(100dvh-120px)] w-[360px] flex-col overflow-hidden rounded-xl border border-borda bg-superficie text-[12px] shadow-painel">
       <div className="flex items-center gap-2 border-b border-borda px-3.5 py-2.5">
         <Sparkles className="h-4 w-4 text-acento" />
         <span className="font-medium">IA nesta tela</span>
@@ -232,7 +232,7 @@ export function PainelIA({ editor, nomeProjeto, aba, aoMudarAba, aoFechar }: { e
         <>
           <div role="tablist" aria-label="Ações de IA" className="flex gap-1 border-b border-borda px-2 py-1.5">
             {([['texto', 'Reescrever'], ['tela', 'Refazer tela'], ['imagem', 'Imagem']] as const).map(([id, rotulo]) => (
-              <button key={id} role="tab" type="button" aria-selected={aba === id} onClick={() => aoMudarAba(id)} className={cx('flex flex-1 items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[12px]', aba === id ? 'bg-hover font-medium text-texto' : 'text-texto2 hover:text-texto')}>
+              <button key={id} role="tab" type="button" aria-selected={aba === id} onClick={() => aoMudarAba(id)} className={cx('flex flex-1 items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px]', aba === id ? 'bg-hover font-medium text-texto' : 'text-texto2 hover:text-texto')}>
                 {rotulo}{id === 'imagem' && <span className="mono rounded-full bg-hover px-1 text-[8px] uppercase text-texto3">breve</span>}
               </button>
             ))}
@@ -241,7 +241,7 @@ export function PainelIA({ editor, nomeProjeto, aba, aoMudarAba, aoFechar }: { e
           <div role="tabpanel" aria-label={{ texto: 'Reescrever texto', tela: 'Refazer tela', imagem: 'Gerar imagem' }[aba]} className="min-h-0 overflow-y-auto p-3.5">
             {aba === 'texto' && (
               <div className="space-y-3">
-                <div className="flex items-center justify-between gap-2 text-[12px] text-texto2">
+                <div className="flex items-center justify-between gap-2 text-[11px] text-texto2">
                   <span>{alvoTexto.length ? `${usarSelecao ? 'Seleção' : 'Toda a tela'} · ${alvoTexto.length} ${alvoTexto.length === 1 ? 'texto' : 'textos'}` : 'Nenhum texto nesta tela'}</span>
                   {selecaoTexto.length > 0 && (
                     <span role="radiogroup" aria-label="O que reescrever" className="flex rounded-md bg-superficie2 p-0.5">
@@ -251,7 +251,7 @@ export function PainelIA({ editor, nomeProjeto, aba, aoMudarAba, aoFechar }: { e
                 </div>
                 {traduzir ? (
                   <div className="space-y-2">
-                    <button type="button" onClick={() => setTraduzir(false)} className="flex items-center gap-1 text-[12px] text-texto2 hover:text-texto"><ChevronLeft className="h-3.5 w-3.5" /> Traduzir para</button>
+                    <button type="button" onClick={() => setTraduzir(false)} className="flex items-center gap-1 text-[11px] text-texto2 hover:text-texto"><ChevronLeft className="h-3.5 w-3.5" /> Traduzir para</button>
                     <div className="grid grid-cols-3 gap-1.5">
                       {IDIOMAS.map((i, k) => (
                         <BotaoAcao key={i} foco={k === 0} rotulo={NOMES_IDIOMA[i]} custo={custoBotao(CUSTO_CREDITOS.reescrever)} carregando={carregando === `traduzir-${i}`} desativado={!!carregando || !alvoTexto.length} aoClicar={() => void reescrever('traduzir', i)} />
@@ -275,11 +275,11 @@ export function PainelIA({ editor, nomeProjeto, aba, aoMudarAba, aoFechar }: { e
                   <>
                     <div className="rounded-lg bg-superficie2 px-3 py-2.5">
                       <div className="font-medium">{cena?.title || `Tela ${numeroTela}`}</div>
-                      <div className="mt-0.5 text-[12px] text-texto2">{NOMES_TIPO[mapeada.mapa.tipo]} · {resumoMapa(mapeada.mapa, mapeada.atual)}</div>
+                      <div className="mt-0.5 text-[11px] text-texto2">{NOMES_TIPO[mapeada.mapa.tipo]} · {resumoMapa(mapeada.mapa, mapeada.atual)}</div>
                     </div>
                     <label className="block">
-                      <span className="mb-1 block text-[12px] text-texto2">Instrução (opcional)</span>
-                      <textarea data-foco value={instrucao} maxLength={400} rows={2} onChange={(e) => setInstrucao(e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void refazer() }} placeholder="Ex.: deixe mais direto, foque em números" className="block w-full resize-none rounded-md bg-superficie2 px-2.5 py-2 text-[13px] leading-snug outline-none ring-inset hover:ring-1 hover:ring-bordaForte focus:!ring-1 focus:!ring-acento" />
+                      <span className="mb-1 block text-[11px] text-texto2">Instrução (opcional)</span>
+                      <textarea data-foco value={instrucao} maxLength={400} rows={2} onChange={(e) => setInstrucao(e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void refazer() }} placeholder="Ex.: deixe mais direto, foque em números" className="block w-full resize-none rounded-md bg-superficie2 px-2.5 py-2 text-[12px] leading-snug outline-none ring-inset hover:ring-1 hover:ring-bordaForte focus:!ring-1 focus:!ring-acento" />
                     </label>
                     <div className="flex flex-wrap gap-1.5">
                       {SUGESTOES.map((s) => <button key={s} type="button" onClick={() => setInstrucao(s)} className="rounded-full border border-borda px-2.5 py-1 text-[11px] text-texto2 hover:border-bordaForte hover:text-texto">{s}</button>)}
@@ -301,7 +301,7 @@ export function PainelIA({ editor, nomeProjeto, aba, aoMudarAba, aoFechar }: { e
                   <ImageIcon className="mt-0.5 h-4 w-4 shrink-0 text-texto3" />
                   <div>
                     <div className="font-medium">Gerar imagem para uma tela</div>
-                    <p className="mt-0.5 text-[12px] leading-relaxed text-texto2">Foto, textura ou ilustração no estilo da apresentação. Em breve. Por enquanto, arraste suas imagens para o canvas ou cole do Figma.</p>
+                    <p className="mt-0.5 text-[11px] leading-relaxed text-texto2">Foto, textura ou ilustração no estilo da apresentação. Em breve. Por enquanto, arraste suas imagens para o canvas ou cole do Figma.</p>
                   </div>
                 </div>
                 <Botao className="w-full" variante="secundario" disabled>Em breve <span className="font-normal opacity-70">· {CUSTO_CREDITOS.imagem} créditos</span></Botao>
@@ -345,7 +345,7 @@ function PreviaResultado({ resultado, aoAplicar, aoDescartar }: { resultado: Res
             : <span className="mono rounded-full bg-acentoSuave px-1.5 py-0.5 text-[9px] uppercase text-acento">escrito pela IA</span>}
           <span className="mono ml-auto text-[10px] text-texto3">{resultado.custo ? `${resultado.custo} créditos usados` : 'sem cobrança'}</span>
         </div>
-        {resultado.aviso && <p className="rounded-md bg-aviso/10 px-2.5 py-2 text-[12px] leading-relaxed text-texto">{resultado.aviso}</p>}
+        {resultado.aviso && <p className="rounded-md bg-aviso/10 px-2.5 py-2 text-[11px] leading-relaxed text-texto">{resultado.aviso}</p>}
         <ul className="space-y-2.5" aria-label="Antes e depois">
           {resultado.mudancas.map((m) => (
             <li key={m.id} className="rounded-lg border border-borda p-2.5">
@@ -353,15 +353,15 @@ function PreviaResultado({ resultado, aoAplicar, aoDescartar }: { resultado: Res
                 <span className="rotulo-mono !text-[10px]">{m.papel}</span>
                 {m.naoCabe && <span className="flex items-center gap-1 text-[11px] text-avisoTexto"><TriangleAlert className="h-3 w-3" /> não cabe na caixa</span>}
               </div>
-              <p className="whitespace-pre-line text-[12px] leading-snug text-texto3 line-through decoration-texto3/40">{m.antes}</p>
-              <p className="mt-1 flex gap-1.5 whitespace-pre-line text-[13px] leading-snug text-texto"><ArrowRight className="mt-0.5 h-3 w-3 shrink-0 text-acento" /><span>{m.depois}</span></p>
+              <p className="whitespace-pre-line text-[11px] leading-snug text-texto3 line-through decoration-texto3/40">{m.antes}</p>
+              <p className="mt-1 flex gap-1.5 whitespace-pre-line text-[12px] leading-snug text-texto"><ArrowRight className="mt-0.5 h-3 w-3 shrink-0 text-acento" /><span>{m.depois}</span></p>
             </li>
           ))}
           {resultado.tipo === 'tela' && resultado.notas && (
             <li className="rounded-lg border border-borda p-2.5">
               <div className="rotulo-mono mb-1 !text-[10px]">Notas do apresentador</div>
-              {resultado.notas.antes && <p className="whitespace-pre-line text-[12px] leading-snug text-texto3 line-through decoration-texto3/40">{resultado.notas.antes}</p>}
-              <p className="mt-1 flex gap-1.5 whitespace-pre-line text-[13px] leading-snug"><ArrowRight className="mt-0.5 h-3 w-3 shrink-0 text-acento" /><span>{resultado.notas.depois}</span></p>
+              {resultado.notas.antes && <p className="whitespace-pre-line text-[11px] leading-snug text-texto3 line-through decoration-texto3/40">{resultado.notas.antes}</p>}
+              <p className="mt-1 flex gap-1.5 whitespace-pre-line text-[12px] leading-snug"><ArrowRight className="mt-0.5 h-3 w-3 shrink-0 text-acento" /><span>{resultado.notas.depois}</span></p>
             </li>
           )}
         </ul>

@@ -61,7 +61,7 @@ export function SecaoGuias({ guias, area, aoMudar }: { guias: readonly GuiaLayou
             <button type="button" aria-label={`Abrir guia: ${resumo}`} title={resumo} onClick={() => setAberta(aberto === i ? null : i)} className={cx('flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors', aberto === i ? 'bg-acentoSuave text-acento' : 'bg-superficie2 text-texto2 hover:text-texto', !g.visible && 'opacity-50')}>
               <Icone />
             </button>
-            <button type="button" aria-label={`Editar guia: ${resumo}`} aria-haspopup="dialog" aria-expanded={aberto === i} onClick={() => setAberta(aberto === i ? null : i)} className={cx('flex h-7 min-w-0 flex-1 items-center justify-between gap-1 rounded-md bg-superficie2 pl-2 pr-1.5 text-left text-[12px] ring-inset hover:ring-1 hover:ring-bordaForte', aberto === i && '!ring-1 !ring-acento', g.visible ? 'text-texto' : 'text-texto3')}>
+            <button type="button" aria-label={`Editar guia: ${resumo}`} aria-haspopup="dialog" aria-expanded={aberto === i} onClick={() => setAberta(aberto === i ? null : i)} className={cx('flex h-7 min-w-0 flex-1 items-center justify-between gap-1 rounded-md bg-superficie2 pl-2 pr-1.5 text-left text-[11px] ring-inset hover:ring-1 hover:ring-bordaForte', aberto === i && '!ring-1 !ring-acento', g.visible ? 'text-texto' : 'text-texto3')}>
               <span className="truncate">{resumo}</span>
               <ChevronDown className="h-3 w-3 shrink-0 text-texto3" aria-hidden />
             </button>
@@ -104,7 +104,7 @@ function Predefinicoes({ aoEscolher }: { aoEscolher: (id: string) => void }) {
           {PREDEFINICOES_GUIA.map((p) => {
             const Icone = ICONE_GUIA[p.id.startsWith('grade') ? 'grid' : 'columns']
             return (
-              <button key={p.id} type="button" role="menuitem" onClick={() => { setAberto(false); aoEscolher(p.id) }} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] hover:bg-hover">
+              <button key={p.id} type="button" role="menuitem" onClick={() => { setAberto(false); aoEscolher(p.id) }} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[11px] hover:bg-hover">
                 <span className="text-texto2"><Icone /></span>{p.rotulo}
               </button>
             )

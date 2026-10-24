@@ -634,7 +634,7 @@ export function EditorVetor({ editor, camadaId, vp, ferramentaInicial = 'mover',
             </button>
           ))}
           <span className="mx-1 h-5 w-px bg-borda" />
-          <button type="button" aria-label="Concluir edição do vetor" title="Concluir (Esc ou Enter)" onClick={() => aoSair(camadaId)} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-acento px-2.5 text-[12px] font-medium text-acentoTexto hover:bg-acento/90">
+          <button type="button" aria-label="Concluir edição do vetor" title="Concluir (Esc ou Enter)" onClick={() => aoSair(camadaId)} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-acento px-2.5 text-[11px] font-medium text-acentoTexto hover:bg-acento/90">
             <Check className="h-3.5 w-3.5" /> Concluir
           </button>
         </div>

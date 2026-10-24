@@ -167,7 +167,7 @@ export function LinhaDoTempo({ editor }: { editor: Editor }) {
         </div>
         <CursorPrevia total={total} />
       </div>
-      {!linhas.length && <p className="py-2 text-[12px] text-texto3">Nenhuma camada nesta tela.</p>}
+      {!linhas.length && <p className="py-2 text-[11px] text-texto3">Nenhuma camada nesta tela.</p>}
     </div>
   )
 }

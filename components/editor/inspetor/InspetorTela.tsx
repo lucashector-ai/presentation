@@ -34,7 +34,7 @@ export function InspetorTela({ editor, assets }: { editor: Editor; assets: Asset
     <div className="pb-6">
       <div className="border-b border-borda px-3 pb-2 pt-3">
         <div className="rotulo-mono">Tela {String(editor.indiceCena + 1).padStart(2, '0')}</div>
-        <input aria-label="Título da tela" value={cena.title} placeholder="Sem título" onChange={(e) => acoes.atualizarCena({ title: e.target.value }, false)} onBlur={() => acoes.atualizarCena({})} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} className="-mx-1 mt-0.5 h-8 w-[calc(100%+8px)] rounded-[5px] bg-transparent px-1 text-[14px] font-medium outline-none placeholder:text-texto3 hover:bg-hover/60 focus:bg-superficie2" />
+        <input aria-label="Título da tela" value={cena.title} placeholder="Sem título" onChange={(e) => acoes.atualizarCena({ title: e.target.value }, false)} onBlur={() => acoes.atualizarCena({})} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} className="-mx-1 mt-0.5 h-8 w-[calc(100%+8px)] rounded-[5px] bg-transparent px-1 text-[13px] font-medium outline-none placeholder:text-texto3 hover:bg-hover/60 focus:bg-superficie2" />
       </div>
 
       <Secao titulo="Formato">
@@ -86,7 +86,7 @@ export function InspetorTela({ editor, assets }: { editor: Editor; assets: Asset
       )}
 
       <Secao titulo="Notas do apresentador">
-        <textarea aria-label="Notas do apresentador" rows={5} value={cena.notes} placeholder="O que falar nesta tela. Só você vê, na visão do apresentador." onChange={(e) => acoes.atualizarCena({ notes: e.target.value }, false)} onBlur={() => acoes.atualizarCena({})} className="block w-full resize-y rounded-md bg-superficie2 px-2 py-1.5 text-[12px] leading-relaxed outline-none ring-inset placeholder:text-texto3 hover:ring-1 hover:ring-bordaForte focus:!ring-1 focus:!ring-acento" />
+        <textarea aria-label="Notas do apresentador" rows={5} value={cena.notes} placeholder="O que falar nesta tela. Só você vê, na visão do apresentador." onChange={(e) => acoes.atualizarCena({ notes: e.target.value }, false)} onBlur={() => acoes.atualizarCena({})} className="block w-full resize-y rounded-md bg-superficie2 px-2 py-1.5 text-[11px] leading-relaxed outline-none ring-inset placeholder:text-texto3 hover:ring-1 hover:ring-bordaForte focus:!ring-1 focus:!ring-acento" />
       </Secao>
       <Problemas editor={editor} />
     </div>
@@ -96,13 +96,13 @@ export function InspetorTela({ editor, assets }: { editor: Editor; assets: Asset
 export function Problemas({ editor }: { editor: Editor }) {
   const { validacao, acoes, estado } = editor
   const lista = [...validacao.erros, ...validacao.avisos]
-  if (!lista.length) return <Secao titulo="Verificação"><p className="flex items-center gap-1.5 text-[12px] text-sucesso"><CircleCheck className="h-3.5 w-3.5" /> Tudo certo para publicar.</p></Secao>
+  if (!lista.length) return <Secao titulo="Verificação"><p className="flex items-center gap-1.5 text-[11px] text-sucesso"><CircleCheck className="h-3.5 w-3.5" /> Tudo certo para publicar.</p></Secao>
   return (
     <Secao titulo="Verificação" acao={<span className={cx('rounded-full px-1.5 py-0.5 text-[11px] tabular-nums', validacao.erros.length ? 'bg-perigo/10 text-perigo' : 'bg-aviso/20 text-texto2')}>{validacao.erros.length ? `${validacao.erros.length} erro(s)` : `${validacao.avisos.length} aviso(s)`}</span>}>
       <ul className="-mx-1.5 space-y-0.5">
         {lista.slice(0, 30).map((p, i) => (
           <li key={i}>
-            <button type="button" onClick={() => { if (p.sceneId && p.sceneId !== estado.cenaId) acoes.irParaCena(p.sceneId); if (p.layerId) setTimeout(() => acoes.selecionarExato([p.layerId!]), 0) }} className={cx('flex w-full items-start gap-1.5 rounded-md px-1.5 py-1 text-left text-[12px] hover:bg-hover', p.gravidade === 'erro' ? 'text-perigo' : 'text-texto2')}>
+            <button type="button" onClick={() => { if (p.sceneId && p.sceneId !== estado.cenaId) acoes.irParaCena(p.sceneId); if (p.layerId) setTimeout(() => acoes.selecionarExato([p.layerId!]), 0) }} className={cx('flex w-full items-start gap-1.5 rounded-md px-1.5 py-1 text-left text-[11px] hover:bg-hover', p.gravidade === 'erro' ? 'text-perigo' : 'text-texto2')}>
               <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" /> {p.mensagem}
             </button>
           </li>

@@ -148,7 +148,7 @@ export function CampoNum({ prefixo, valor: valorBruto, aoMudar, aoDelta, min, ma
             somar((e.key === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 10 : 1) * passo)
           }
         }}
-        className="h-full w-full min-w-0 bg-transparent pr-1 text-[12px] tabular-nums text-texto outline-none placeholder:text-texto2 disabled:cursor-not-allowed"
+        className="h-full w-full min-w-0 bg-transparent pr-1 text-[11px] tabular-nums text-texto outline-none placeholder:text-texto2 disabled:cursor-not-allowed"
       />
       {sufixo && <span className="pr-2 text-[11px] text-texto3">{sufixo}</span>}
     </div>

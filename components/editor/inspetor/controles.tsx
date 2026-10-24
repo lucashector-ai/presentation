@@ -66,21 +66,21 @@ export function Secao({ titulo, children, acao, aberta = true, vazia, aoAdiciona
       <div className="flex h-8 items-center gap-1">
         {vazia ? (
           aoAdicionar ? (
-            <button type="button" onClick={aoAdicionar} className="-ml-1 flex h-7 min-w-0 flex-1 items-center rounded-[5px] px-1 text-left text-[12px] font-medium text-texto2 hover:text-texto">
+            <button type="button" onClick={aoAdicionar} className="-ml-1 flex h-7 min-w-0 flex-1 items-center rounded-[5px] px-1 text-left text-[11px] font-medium text-texto2 hover:text-texto">
               <span className="truncate">{titulo}</span>
             </button>
           ) : (
-            <h3 className="min-w-0 flex-1 truncate text-[12px] font-medium text-texto2">{titulo}</h3>
+            <h3 className="min-w-0 flex-1 truncate text-[11px] font-medium text-texto2">{titulo}</h3>
           )
         ) : recolhivel ? (
           // sem fundo no hover: a linha tem botões próprios à direita, e duas superfícies juntas confundem
-          <button type="button" onClick={alternar} aria-expanded={abrir} className="group -ml-1 flex h-7 min-w-0 flex-1 items-center gap-1 rounded-[5px] px-1 text-left text-[12px] font-medium text-texto">
+          <button type="button" onClick={alternar} aria-expanded={abrir} className="group -ml-1 flex h-7 min-w-0 flex-1 items-center gap-1 rounded-[5px] px-1 text-left text-[11px] font-medium text-texto">
             <ChevronRight className={cx('h-3 w-3 shrink-0 text-texto3 transition-transform group-hover:text-texto', abrir && 'rotate-90')} aria-hidden />
             <span className="truncate">{titulo}</span>
             {recolhida && resumo && <span className="ml-auto min-w-0 truncate pl-2 font-normal text-texto3">{resumo}</span>}
           </button>
         ) : (
-          <h3 className="min-w-0 flex-1 truncate text-[12px] font-medium text-texto">{titulo}</h3>
+          <h3 className="min-w-0 flex-1 truncate text-[11px] font-medium text-texto">{titulo}</h3>
         )}
         <div className="flex shrink-0 items-center gap-0.5">
           {!recolhida && acao}
@@ -129,13 +129,13 @@ export function Menu({ rotulo, itens, children, variante = 'icone', ativo, class
 
 /** Rótulo pequeno acima de um campo ("Opacidade", "Raio"). */
 export function Rotulo({ children }: { children: ReactNode }) {
-  return <span className="mb-1 block truncate text-[12px] text-texto2">{children}</span>
+  return <span className="mb-1 block truncate text-[11px] text-texto2">{children}</span>
 }
 
 /** Linha de resumo clicável (ex.: "Animação  Escala · 800ms ›"). */
 export function LinhaResumo({ titulo, valor, aoClicar, destaque }: { titulo: string; valor: string; aoClicar: () => void; destaque?: boolean }) {
   return (
-    <button type="button" onClick={aoClicar} className="flex h-10 w-full items-center justify-between border-b border-borda px-3 text-left text-[12px] hover:bg-hover/50">
+    <button type="button" onClick={aoClicar} className="flex h-10 w-full items-center justify-between border-b border-borda px-3 text-left text-[11px] hover:bg-hover/50">
       <span className="font-medium">{titulo}</span>
       <span className={cx('flex items-center gap-0.5 truncate pl-3', destaque ? 'text-acento' : 'text-texto2')}>{valor}<ChevronRight className="h-3.5 w-3.5 shrink-0" /></span>
     </button>
@@ -145,7 +145,7 @@ export function LinhaResumo({ titulo, valor, aoClicar, destaque }: { titulo: str
 export function Linha({ rotulo, children }: { rotulo: string; children: ReactNode }) {
   return (
     <label className="flex min-h-[28px] items-center justify-between gap-2">
-      <span className="w-[84px] shrink-0 truncate text-[12px] text-texto2">{rotulo}</span>
+      <span className="w-[84px] shrink-0 truncate text-[11px] text-texto2">{rotulo}</span>
       <span className="flex min-w-0 flex-1 items-center justify-end gap-1.5">{children}</span>
     </label>
   )
@@ -166,7 +166,7 @@ export function CampoTexto({ valor, aoConfirmar, rotulo, placeholder, prefixo, m
         onChange={(e) => setTexto(e.target.value)}
         onBlur={() => { if (texto !== valor) aoConfirmar(texto) }}
         onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { e.stopPropagation(); setTexto(valor); requestAnimationFrame(() => (e.target as HTMLInputElement).blur()) } }}
-        className={cx('h-full w-full min-w-0 bg-transparent pr-2 text-[12px] text-texto outline-none placeholder:text-texto3', mono && 'mono')}
+        className={cx('h-full w-full min-w-0 bg-transparent pr-2 text-[11px] text-texto outline-none placeholder:text-texto3', mono && 'mono')}
       />
     </div>
   )
@@ -182,7 +182,7 @@ export function Deslizante({ valor, aoMudar, min = 0, max = 100, passo = 1, rotu
   return (
     <span className="flex h-7 w-full items-center gap-3">
       <input type="range" aria-label={rotulo} min={min} max={max} step={passo} value={valor} onPointerDown={iniciar} onChange={(e) => aoMudar(Number(e.target.value))} className="deslizante h-1 min-w-0 flex-1" />
-      <span className="w-11 shrink-0 text-right text-[12px] tabular-nums text-texto">{formatar ? formatar(valor) : valor}</span>
+      <span className="w-11 shrink-0 text-right text-[11px] tabular-nums text-texto">{formatar ? formatar(valor) : valor}</span>
     </span>
   )
 }
@@ -191,7 +191,7 @@ export function Segmentado<T extends string>({ valor, opcoes, aoMudar, rotulo, i
   return (
     <div role="radiogroup" aria-label={rotulo} className="flex h-7 w-full min-w-0 rounded-md bg-superficie2 p-[2px]">
       {opcoes.map((o) => (
-        <button key={o.id} type="button" role="radio" aria-checked={valor === o.id} title={o.rotulo} aria-label={icones ? o.rotulo : undefined} onClick={() => aoMudar(o.id)} className={cx('flex h-6 min-w-0 flex-1 items-center justify-center rounded-[5px] text-[12px] transition-colors', valor === o.id ? 'bg-superficie text-texto shadow-[0_1px_2px_rgba(0,0,0,.08),0_0_0_.5px_rgba(0,0,0,.06)]' : 'text-texto2 hover:text-texto')}>
+        <button key={o.id} type="button" role="radio" aria-checked={valor === o.id} title={o.rotulo} aria-label={icones ? o.rotulo : undefined} onClick={() => aoMudar(o.id)} className={cx('flex h-6 min-w-0 flex-1 items-center justify-center rounded-[5px] text-[11px] transition-colors', valor === o.id ? 'bg-superficie text-texto shadow-[0_1px_2px_rgba(0,0,0,.08),0_0_0_.5px_rgba(0,0,0,.06)]' : 'text-texto2 hover:text-texto')}>
           {icones ? o.icone : o.rotulo}
         </button>
       ))}
@@ -217,7 +217,7 @@ export function GradeCartoes<T extends string>({ valor, opcoes, aoMudar, rotulo,
   return (
     <div role="radiogroup" aria-label={rotulo} className="grid gap-2" style={{ gridTemplateColumns: `repeat(${colunas}, minmax(0,1fr))` }}>
       {opcoes.map((o) => (
-        <button key={o.id} type="button" role="radio" aria-checked={valor === o.id} onClick={() => aoMudar(o.id)} className={cx('flex flex-col items-center justify-center gap-2 rounded-lg border py-3 text-[12px] transition-colors', valor === o.id ? 'border-acento bg-acentoSuave text-acento' : 'border-borda bg-superficie text-texto2 hover:border-bordaHover hover:text-texto')}>
+        <button key={o.id} type="button" role="radio" aria-checked={valor === o.id} onClick={() => aoMudar(o.id)} className={cx('flex flex-col items-center justify-center gap-2 rounded-lg border py-3 text-[11px] transition-colors', valor === o.id ? 'border-acento bg-acentoSuave text-acento' : 'border-borda bg-superficie text-texto2 hover:border-bordaHover hover:text-texto')}>
           <span className="flex h-5 items-center justify-center">{o.icone}</span>
           {o.rotulo}
         </button>

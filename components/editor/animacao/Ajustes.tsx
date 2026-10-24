@@ -78,7 +78,7 @@ export function Galeria({ presets, atual, textoPermitido, saida, sugestoes = [],
     <div className="space-y-2">
       <label className="flex h-8 items-center gap-2 rounded-md bg-superficie2 px-2 text-texto3 focus-within:ring-1 focus-within:ring-acento">
         <Search className="h-3.5 w-3.5 shrink-0" />
-        <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar efeito" aria-label={`Buscar em ${rotulo}`} className="h-full min-w-0 flex-1 bg-transparent text-[12px] text-texto outline-none placeholder:text-texto3" />
+        <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar efeito" aria-label={`Buscar em ${rotulo}`} className="h-full min-w-0 flex-1 bg-transparent text-[11px] text-texto outline-none placeholder:text-texto3" />
       </label>
       {termo ? (
         <>
@@ -92,7 +92,7 @@ export function Galeria({ presets, atual, textoPermitido, saida, sugestoes = [],
               </div>
             )
           })}
-          {!visiveis.length && <p className="py-2 text-center text-[12px] text-texto3">Nenhum efeito com “{busca}”.</p>}
+          {!visiveis.length && <p className="py-2 text-center text-[11px] text-texto3">Nenhum efeito com “{busca}”.</p>}
         </>
       ) : (
         <>
@@ -147,7 +147,7 @@ function Grade3({ rotulo, itens, valor, aoMudar }: { rotulo: string; itens: { id
       {itens.map((i, k) =>
         i.id === '' ? <span key={`v${k}`} className="h-7 w-7" /> : (
           <button key={i.id} type="button" role="radio" aria-checked={valor === i.id} aria-label={i.rotulo} title={i.rotulo} disabled={i.desativado} onClick={() => aoMudar(i.id)}
-            className={cx('flex h-7 w-7 items-center justify-center rounded-md border text-[12px] transition-colors disabled:opacity-25', valor === i.id ? 'border-acento bg-acentoSuave text-acento' : 'border-borda bg-superficie text-texto2 hover:border-bordaForte hover:text-texto')}>
+            className={cx('flex h-7 w-7 items-center justify-center rounded-md border text-[11px] transition-colors disabled:opacity-25', valor === i.id ? 'border-acento bg-acentoSuave text-acento' : 'border-borda bg-superficie text-texto2 hover:border-bordaForte hover:text-texto')}>
             {i.icone ?? <span className={cx('block h-1.5 w-1.5 rounded-full', valor === i.id ? 'bg-acento' : 'bg-texto3')} />}
           </button>
         )
@@ -232,7 +232,7 @@ export function PainelAjustes({ anim, camada, camadasDaTela, saida, aoMudar, aoP
             </>
           )}
           {quando !== 'enter' && (
-            <p className="text-[12px] text-texto3">
+            <p className="text-[11px] text-texto3">
               {quando === 'after' && 'Começa quando a entrada da outra camada termina (mais o atraso).'}
               {(quando === 'click' || quando === 'hover') && 'A camada espera escondida até o público agir. Na prévia do editor ela toca direto.'}
               {quando === 'scroll' && 'No Story, o efeito avança e volta junto com a rolagem. Nos slides e no Explorar, toca ao entrar na tela.'}
@@ -281,7 +281,7 @@ export function PainelAjustes({ anim, camada, camadasDaTela, saida, aoMudar, aoP
           {anim.progress && (
             <>
               <div className="flex items-center justify-between pt-1">
-                <span className="text-[12px] text-texto2">Cor do indicador</span>
+                <span className="text-[11px] text-texto2">Cor do indicador</span>
                 <BotaoCor rotulo="Cor do indicador" cor={anim.progressColor ?? (camada.type === 'text' ? camada.color : '#5965F2')} aoMudar={(progressColor) => mudar({ progressColor })} />
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -294,14 +294,14 @@ export function PainelAjustes({ anim, camada, camadasDaTela, saida, aoMudar, aoP
                   <CampoNum rotulo="Espessura do indicador em px" valor={anim.progressWidth ?? null} vazio="Auto" min={1} max={80} passo={1} sufixo="px" aoMudar={(v) => mudar({ progressWidth: v })} aoLimpar={() => mudar({}, ['progressWidth'])} />
                 </div>
               </div>
-              <p className="text-[12px] text-texto3">Enche junto com o número. “Auto”: 100 quando o texto tem %, senão o próprio número.</p>
+              <p className="text-[11px] text-texto3">Enche junto com o número. “Auto”: 100 quando o texto tem %, senão o próprio número.</p>
             </>
           )}
         </>
       )}
       {tem('color') && (
         <div className="flex items-center justify-between pt-1">
-          <span className="text-[12px] text-texto2">{anim.type === 'highlight' ? 'Cor do marcador' : 'Cor da linha'}</span>
+          <span className="text-[11px] text-texto2">{anim.type === 'highlight' ? 'Cor do marcador' : 'Cor da linha'}</span>
           <BotaoCor rotulo={anim.type === 'highlight' ? 'Cor do marcador' : 'Cor da linha'} cor={anim.color ?? (anim.type === 'highlight' ? '#FFD60A' : camada.type === 'text' ? camada.color : '#171717')} aoMudar={(color) => mudar({ color: anim.type === 'highlight' ? `${color}8C` : color })} />
         </div>
       )}
@@ -312,7 +312,7 @@ export function PainelAjustes({ anim, camada, camadasDaTela, saida, aoMudar, aoP
             <CampoNum prefixo="De" rotulo="Da palavra" valor={(anim.range?.[0] ?? 0) + 1} min={1} max={palavras.length} passo={1} aoMudar={(v) => mudar({ range: [v - 1, Math.max(v - 1, anim.range?.[1] ?? palavras.length - 1)] })} />
             <CampoNum prefixo="Até" rotulo="Até a palavra" valor={(anim.range?.[1] ?? palavras.length - 1) + 1} min={1} max={palavras.length} passo={1} aoMudar={(v) => mudar({ range: [Math.min(anim.range?.[0] ?? 0, v - 1), v - 1] })} />
           </div>
-          <p className="truncate text-[12px] text-texto3">“{palavras.slice(anim.range?.[0] ?? 0, (anim.range?.[1] ?? palavras.length - 1) + 1).join(' ')}”</p>
+          <p className="truncate text-[11px] text-texto3">“{palavras.slice(anim.range?.[0] ?? 0, (anim.range?.[1] ?? palavras.length - 1) + 1).join(' ')}”</p>
         </>
       )}
 
@@ -365,7 +365,7 @@ export function PainelAjustes({ anim, camada, camadasDaTela, saida, aoMudar, aoP
                 <>
                   <Rotulo acao={<button type="button" onClick={() => (anim.stagger === undefined ? mudar({ stagger: 80 }) : mudar({}, ['stagger']))} className="text-[11px] text-texto2 hover:text-texto">{anim.stagger === undefined ? 'Definir' : 'Automático'}</button>}>Intervalo entre partes</Rotulo>
                   {anim.stagger === undefined
-                    ? <p className="text-[12px] text-texto3">Automático: as partes se distribuem pela duração.</p>
+                    ? <p className="text-[11px] text-texto3">Automático: as partes se distribuem pela duração.</p>
                     : <Deslizante rotulo="Intervalo entre partes em ms" valor={anim.stagger} min={0} max={300} passo={5} aoMudar={(v) => mudar({ stagger: v })} formatar={(v) => `${v}ms`} />}
                 </>
               )}

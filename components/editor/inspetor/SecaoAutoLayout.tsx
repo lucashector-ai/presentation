@@ -89,14 +89,14 @@ function FilhoDoLayout({ camadas, pai, editor }: { camadas: Camada[]; pai: Camad
       {!absoluta && pos >= 0 && (
         <div className="flex items-center gap-1">
           <BotaoCampo rotulo={`Mover para antes (${ant})`} disabled={pos <= 0} onClick={() => mover(-1)}><ChevronLeft className={cx('h-3.5 w-3.5', direcao === 'vertical' && 'rotate-90')} /></BotaoCampo>
-          <span className="min-w-0 flex-1 text-center text-[12px] tabular-nums text-texto2" title={`Use ${ant} ${prox} para mudar a ordem`}>
+          <span className="min-w-0 flex-1 text-center text-[11px] tabular-nums text-texto2" title={`Use ${ant} ${prox} para mudar a ordem`}>
             {um ? `${pos + 1} de ${fluxo.length}` : `${camadas.length} itens`} <span className="rotulo-mono !text-[10px] text-texto3">· {ant} {prox}</span>
           </span>
           <BotaoCampo rotulo={`Mover para depois (${prox})`} disabled={pos >= fluxo.length - camadas.length} onClick={() => mover(1)}><ChevronRight className={cx('h-3.5 w-3.5', direcao === 'vertical' && 'rotate-90')} /></BotaoCampo>
         </div>
       )}
       <label className="flex h-7 items-center justify-between gap-2">
-        <span className="text-[12px] text-texto2">Posição absoluta</span>
+        <span className="text-[11px] text-texto2">Posição absoluta</span>
         <Interruptor rotulo="Posição absoluta (ignorar auto layout)" ativo={absoluta} aoMudar={(v) => acoes.atualizarCamadas(ids, { absolute: v || undefined })} />
       </label>
     </Secao>
@@ -109,7 +109,7 @@ function PainelLayout({ frame: f, editor, podeFill }: { frame: CamadaFrame; edit
   const setFrame = (p: Partial<CamadaFrame>) => acoes.atualizarCamadas([f.id], p as Partial<Camada>)
   const recortar = (
     <label className="flex h-7 items-center justify-between gap-2">
-      <span className="text-[12px] text-texto2">Recortar conteúdo</span>
+      <span className="text-[11px] text-texto2">Recortar conteúdo</span>
       <Interruptor rotulo="Recortar conteúdo" ativo={f.clip} aoMudar={(clip) => setFrame({ clip })} />
     </label>
   )
@@ -154,7 +154,7 @@ function PainelLayout({ frame: f, editor, podeFill }: { frame: CamadaFrame; edit
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex gap-1" {...realce(f.id, 'gap')}>
             {L.gapAuto ? (
-              <button type="button" aria-label="Espaço entre itens: automático (clique para usar número)" onClick={() => setGapAuto(false)} className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md bg-superficie2 px-2 text-left text-[12px] text-texto">
+              <button type="button" aria-label="Espaço entre itens: automático (clique para usar número)" onClick={() => setGapAuto(false)} className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md bg-superficie2 px-2 text-left text-[11px] text-texto">
                 <IconeEspaco horizontal={horizontal} /> Auto
               </button>
             ) : (

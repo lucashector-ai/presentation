@@ -23,7 +23,7 @@ export function PainelEsquerdo({ editor, assets, avisar, aoBloco }: { editor: Ed
     <aside aria-label="Painel esquerdo" className="flex h-full flex-col border-r border-borda bg-superficie">
       <div role="tablist" aria-label="Painel esquerdo" className="flex shrink-0 gap-0.5 border-b border-borda p-2">
         {abas.map((a) => (
-          <button key={a.id} role="tab" aria-selected={estado.abaEsquerda === a.id} onClick={() => acoes.ui({ abaEsquerda: a.id })} className={cx('flex-1 rounded-md px-1.5 py-1.5 text-[13px] transition-colors', estado.abaEsquerda === a.id ? 'bg-hover font-medium text-texto' : 'text-texto2 hover:text-texto')}>
+          <button key={a.id} role="tab" aria-selected={estado.abaEsquerda === a.id} onClick={() => acoes.ui({ abaEsquerda: a.id })} className={cx('flex-1 rounded-md px-1.5 py-1.5 text-[12px] transition-colors', estado.abaEsquerda === a.id ? 'bg-hover font-medium text-texto' : 'text-texto2 hover:text-texto')}>
             {a.rotulo}
           </button>
         ))}
@@ -81,7 +81,7 @@ function Telas({ editor, assets }: { editor: Editor; assets: AssetDemo[] }) {
                   <QuemEstaNaTela sala={editor.sala} cenaId={c.id} />
                 </div>
                 <div className="mt-1.5 flex items-center justify-between">
-                  <span className="truncate text-[13px]">{c.title || 'Sem título'}</span>
+                  <span className="truncate text-[12px]">{c.title || 'Sem título'}</span>
                   {c.notes && <span className="rotulo-mono !text-[9px]" title="Tem notas do apresentador">notas</span>}
                 </div>
               </div>
@@ -93,7 +93,7 @@ function Telas({ editor, assets }: { editor: Editor; assets: AssetDemo[] }) {
           )
         })}
       </ol>
-      <button type="button" onClick={() => acoes.adicionarCena(editor.indiceCena)} className="mt-4 h-9 w-full rounded-lg border border-dashed border-bordaHover text-[13px] text-texto2 hover:border-acento hover:text-acento">+ Nova tela</button>
+      <button type="button" onClick={() => acoes.adicionarCena(editor.indiceCena)} className="mt-4 h-9 w-full rounded-lg border border-dashed border-bordaHover text-[12px] text-texto2 hover:border-acento hover:text-acento">+ Nova tela</button>
     </div>
   )
 }
@@ -113,7 +113,7 @@ function Camadas({ editor }: { editor: Editor }) {
   const [renomeando, setRenomeando] = useState<string | null>(null)
   const [fechados, setFechados] = useState<ReadonlySet<string>>(new Set())
   if (!cena) return null
-  if (!cena.layers.length) return <p className="p-4 text-[13px] text-texto2">Esta tela ainda não tem camadas. Cole algo (Ctrl+V), arraste arquivos ou use a aba Blocos.</p>
+  if (!cena.layers.length) return <p className="p-4 text-[12px] text-texto2">Esta tela ainda não tem camadas. Cole algo (Ctrl+V), arraste arquivos ou use a aba Blocos.</p>
   const mapa = mapaDe(cena.layers)
   const filhos = new Map<string | undefined, Camada[]>()
   for (const l of cena.layers) {
@@ -138,7 +138,7 @@ function Camadas({ editor }: { editor: Editor }) {
     const recortada = ehMascara(recortadaPor)
     const recuo = 8 + nivel * 14 + (recortada ? 12 : 0)
     return (
-      <li key={l.id} role="treeitem" aria-label={nomeCamada(l)} aria-selected={sel} aria-level={nivel + 1} aria-expanded={ehFrame ? aberto : undefined}>
+      <li key={l.id} role="treeitem" aria-label={nomeCamada(l)} aria-selected={sel} aria-level={nivel + 1} aria-expanded={ehFrame && sub.length > 0 ? aberto : undefined}>
         <div
           draggable
           onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.effectAllowed = 'move'; setArrastando(l.id) }}
@@ -162,7 +162,7 @@ function Camadas({ editor }: { editor: Editor }) {
           onDoubleClick={() => setRenomeando(l.id)}
           style={{ paddingLeft: recuo }}
           className={cx(
-            'group relative flex h-8 cursor-default items-center gap-1.5 rounded-md pr-2 text-[13px]',
+            'group relative flex h-8 cursor-default items-center gap-1.5 rounded-md pr-2 text-[12px]',
             sel ? 'bg-acentoSuave text-texto' : 'hover:bg-hover',
             l.hidden && 'opacity-50',
             alvo === 'dentro' && 'ring-[1.5px] ring-inset ring-acento',
@@ -171,11 +171,11 @@ function Camadas({ editor }: { editor: Editor }) {
         >
           {alvo === 'acima' && <span className="pointer-events-none absolute -top-px right-1 h-0.5 rounded bg-acento" style={{ left: recuo }} />}
           {alvo === 'abaixo' && <span className="pointer-events-none absolute -bottom-px right-1 h-0.5 rounded bg-acento" style={{ left: recuo }} />}
-          {ehFrame ? (
+          {ehFrame && sub.length > 0 ? (
             <button type="button" aria-label={aberto ? 'Recolher frame' : 'Expandir frame'} onClick={(e) => { e.stopPropagation(); alternar(l.id) }} className="-ml-1 flex h-4 w-4 shrink-0 items-center justify-center text-texto3 hover:text-texto">
               <ChevronRight className={cx('h-3 w-3 transition-transform', aberto && 'rotate-90')} />
             </button>
-          ) : nivel > 0 ? <span className="w-3 shrink-0" /> : null}
+          ) : <span className="w-3 shrink-0" />}
           {recortada && (
             <span title={`Recortada pela máscara${recortadaPor.hidden ? ' (desligada)' : ''}`} data-recortada="" className={cx('-ml-3 flex w-3 shrink-0 justify-center text-texto3', recortadaPor.hidden && 'opacity-40')}>
               <svg viewBox="0 0 8 12" className="h-3 w-2" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden><path d="M1.5 1v6.5a2 2 0 0 0 2 2H7M5 7.5l2 2-2 2" /></svg>
@@ -225,7 +225,7 @@ function Camadas({ editor }: { editor: Editor }) {
       const recuo = 8 + nivel * 14
       saida.push(
         <li key={chave} role="treeitem" aria-label={`Grupo (${membros.length})`} aria-selected={selG} aria-level={nivel + 1} aria-expanded={abertoG}>
-          <div onClick={(e) => (e.shiftKey ? acoes.selecionarExato([...new Set([...estado.selecao, ...ids])]) : acoes.selecionarExato(ids))} style={{ paddingLeft: recuo }} className={cx('group relative flex h-8 cursor-default items-center gap-1.5 rounded-md pr-2 text-[13px]', selG ? 'bg-acentoSuave text-texto' : 'hover:bg-hover', ocultoG && 'opacity-50')}>
+          <div onClick={(e) => (e.shiftKey ? acoes.selecionarExato([...new Set([...estado.selecao, ...ids])]) : acoes.selecionarExato(ids))} style={{ paddingLeft: recuo }} className={cx('group relative flex h-8 cursor-default items-center gap-1.5 rounded-md pr-2 text-[12px]', selG ? 'bg-acentoSuave text-texto' : 'hover:bg-hover', ocultoG && 'opacity-50')}>
             <button type="button" aria-label={abertoG ? 'Recolher grupo' : 'Expandir grupo'} onClick={(e) => { e.stopPropagation(); alternar(chave) }} className="-ml-1 flex h-4 w-4 shrink-0 items-center justify-center text-texto3 hover:text-texto">
               <ChevronRight className={cx('h-3 w-3 transition-transform', abertoG && 'rotate-90')} />
             </button>
@@ -284,7 +284,7 @@ function Arquivos({ editor, assets, avisar }: { editor: Editor; assets: AssetDem
   return (
     <div className="p-3" onDragOver={(e) => { e.preventDefault(); setArrastando(true) }} onDragLeave={() => setArrastando(false)} onDrop={(e) => { e.preventDefault(); setArrastando(false); if (e.dataTransfer.files.length) void enviar(Array.from(e.dataTransfer.files)) }}>
       <input ref={entrada} type="file" multiple accept={EXTENSOES_ACEITAS} className="hidden" onChange={(e) => { void enviar(Array.from(e.target.files ?? [])); e.target.value = '' }} />
-      <button type="button" onClick={() => entrada.current?.click()} className={cx('flex w-full flex-col items-center gap-1 rounded-lg border border-dashed px-3 py-4 text-center text-[12px] text-texto2 hover:border-acento hover:text-acento', arrastando ? 'border-acento bg-acentoSuave text-acento' : 'border-bordaHover')}>
+      <button type="button" onClick={() => entrada.current?.click()} className={cx('flex w-full flex-col items-center gap-1 rounded-lg border border-dashed px-3 py-4 text-center text-[11px] text-texto2 hover:border-acento hover:text-acento', arrastando ? 'border-acento bg-acentoSuave text-acento' : 'border-bordaHover')}>
         <Upload className="h-4 w-4" />
         <span className="font-medium">Enviar ou soltar arquivos</span>
         <span className="text-[11px] text-texto3">PNG, JPG, SVG, MP4, GLB (Blender), Lottie</span>
@@ -312,9 +312,9 @@ function Arquivos({ editor, assets, avisar }: { editor: Editor; assets: AssetDem
           </li>
         ))}
       </ul>
-      {!lista.length && <p className="mt-4 text-center text-[12px] text-texto2">Nada aqui ainda.</p>}
+      {!lista.length && <p className="mt-4 text-center text-[11px] text-texto2">Nada aqui ainda.</p>}
       {assets.length > 1 && filtro !== 'model3d' && filtro !== 'lottie' && (
-        <button type="button" onClick={() => editor.acoes.cenasDeAssets(lista.filter((a) => a.tipo === 'image' || a.tipo === 'svg').slice(0, 30))} className="mt-4 h-8 w-full rounded-md border border-borda text-[12px] hover:border-bordaHover">Uma tela por imagem ({lista.filter((a) => a.tipo === 'image' || a.tipo === 'svg').length})</button>
+        <button type="button" onClick={() => editor.acoes.cenasDeAssets(lista.filter((a) => a.tipo === 'image' || a.tipo === 'svg').slice(0, 30))} className="mt-4 h-8 w-full rounded-md border border-borda text-[11px] hover:border-bordaHover">Uma tela por imagem ({lista.filter((a) => a.tipo === 'image' || a.tipo === 'svg').length})</button>
       )}
       {/* no <body>: o painel é uma camada própria (will-change), que prenderia o diálogo fixo dentro dele */}
       {excluindo && createPortal(
@@ -359,14 +359,14 @@ function Blocos({ aoBloco }: { aoBloco: (id: string) => void }) {
       <ul className="grid grid-cols-3 gap-2">
         {BLOCOS.map((b) => (
           <li key={b.id}>
-            <button type="button" draggable onDragStart={(e) => { e.dataTransfer.setData('application/x-mostra-bloco', b.id); e.dataTransfer.effectAllowed = 'copy' }} onClick={() => aoBloco(b.id)} className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-lg border border-borda text-[12px] text-textoCorpo hover:border-acento hover:text-acento">
+            <button type="button" draggable onDragStart={(e) => { e.dataTransfer.setData('application/x-mostra-bloco', b.id); e.dataTransfer.effectAllowed = 'copy' }} onClick={() => aoBloco(b.id)} className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-lg border border-borda text-[11px] text-textoCorpo hover:border-acento hover:text-acento">
               <b.icone className="h-4 w-4" strokeWidth={1.6} />
               {b.rotulo}
             </button>
           </li>
         ))}
       </ul>
-      <div className="mt-5 rounded-lg bg-superficie2 p-3 text-[12px] leading-relaxed text-texto2">
+      <div className="mt-5 rounded-lg bg-superficie2 p-3 text-[11px] leading-relaxed text-texto2">
         <div className="mb-1 flex items-center gap-1 font-medium text-texto"><ChevronDown className="h-3 w-3" /> Colar de outros programas</div>
         <p><b>Figma:</b> botão direito › Copiar como › SVG (ou PNG) e Ctrl+V aqui.</p>
         <p><b>Illustrator:</b> selecione e Ctrl+C (com Clipboard SVG ativo) e cole.</p>

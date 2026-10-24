@@ -145,7 +145,7 @@ function CamposFaixas({ guia, area, set, cor }: { guia: GuiaFaixas; area: Area; 
 function Campo({ rotulo, primeiro, children }: { rotulo: string; primeiro?: boolean; children: ReactNode }) {
   return (
     <div className="flex min-h-[32px] items-center gap-2" data-primeiro={primeiro || undefined}>
-      <span className="w-[84px] shrink-0 truncate text-[12px] text-texto2">{rotulo}</span>
+      <span className="w-[84px] shrink-0 truncate text-[11px] text-texto2">{rotulo}</span>
       <div className="flex min-w-0 flex-1">{children}</div>
     </div>
   )

@@ -60,7 +60,7 @@ export function SeletorFonte({ valor, aoMudar, doDocumento = [], rotulo = 'Fonte
         onClick={() => setAberto((v) => !v)}
         className={cx(
           variante === 'campo'
-            ? 'relative flex h-7 w-full min-w-0 items-center rounded-md bg-superficie2 pl-2 pr-7 text-left text-[12px] text-texto ring-inset hover:ring-1 hover:ring-bordaForte focus-visible:outline-none focus-visible:!ring-1 focus-visible:!ring-acento'
+            ? 'relative flex h-7 w-full min-w-0 items-center rounded-md bg-superficie2 pl-2 pr-7 text-left text-[11px] text-texto ring-inset hover:ring-1 hover:ring-bordaForte focus-visible:outline-none focus-visible:!ring-1 focus-visible:!ring-acento'
             : 'relative flex h-10 w-full min-w-0 items-center rounded-[10px] border-[1.5px] border-bordaForte bg-superficie pl-3 pr-8 text-left text-[15px] text-texto hover:border-tinta',
           aberto && '!ring-1 !ring-acento',
           className,
@@ -204,7 +204,7 @@ function PainelFontes({ valor, doDocumento, ancora, rotulo, aoFechar, aoEscolher
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           placeholder={cat ? `Buscar entre ${cat.fontes.length.toLocaleString('pt-BR')} fontes` : 'Carregando o catálogo…'}
-          className="h-7 min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-texto3"
+          className="h-7 min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-texto3"
         />
         {busca && <button type="button" aria-label="Limpar busca" onClick={() => setBusca('')} className="flex h-6 w-6 items-center justify-center rounded text-texto3 hover:bg-superficie2 hover:text-texto"><X className="h-3.5 w-3.5" /></button>}
       </div>
@@ -216,7 +216,7 @@ function PainelFontes({ valor, doDocumento, ancora, rotulo, aoFechar, aoEscolher
         ))}
       </div>
       <div ref={lista} id="lista-fontes" role="listbox" aria-label="Fontes" onScroll={(e) => setRolagem(e.currentTarget.scrollTop)} className="relative overflow-y-auto overscroll-contain" style={{ height: alturaVista }}>
-        {!cat && <div className="flex h-full items-center justify-center text-[12px] text-texto3">Carregando o catálogo…</div>}
+        {!cat && <div className="flex h-full items-center justify-center text-[11px] text-texto3">Carregando o catálogo…</div>}
         <div style={{ height: linhas.length * ALTURA, position: 'relative' }}>
           {visiveis.map((l, k) => {
             const i = inicio + k

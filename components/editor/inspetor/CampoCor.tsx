@@ -52,7 +52,7 @@ export function LinhaPintura({ rotulo, valor, aoMudar, tipos = ['solido'], acoes
         />
         {estilo && valor.tipo === 'solido' ? (
           <>
-            <button type="button" title={`Estilo de cor: ${estilo.name}`} onClick={() => setAberto((v) => !v)} className="h-full min-w-0 flex-1 truncate pl-2 text-left text-[12px] text-texto">{estilo.name}</button>
+            <button type="button" title={`Estilo de cor: ${estilo.name}`} onClick={() => setAberto((v) => !v)} className="h-full min-w-0 flex-1 truncate pl-2 text-left text-[11px] text-texto">{estilo.name}</button>
             <button type="button" aria-label="Desvincular estilo" title="Desvincular estilo (mantém a cor)" onClick={() => aoMudar({ tipo: 'solido', cor: valor.cor })} className="mr-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px] text-texto2 hover:text-texto"><Link2Off className="h-3.5 w-3.5" /></button>
           </>
         ) : valor.tipo === 'solido' ? (
@@ -66,7 +66,7 @@ export function LinhaPintura({ rotulo, valor, aoMudar, tipos = ['solido'], acoes
             )}
           </>
         ) : (
-          <button type="button" onClick={() => setAberto((v) => !v)} className="h-full min-w-0 flex-1 truncate pl-2 pr-2 text-left text-[12px] text-texto">
+          <button type="button" onClick={() => setAberto((v) => !v)} className="h-full min-w-0 flex-1 truncate pl-2 pr-2 text-left text-[11px] text-texto">
             {valor.tipo === 'gradiente' ? NOME_GRADIENTE[valor.gradiente.type] : imagem?.nome ?? 'Imagem'}
           </button>
         )}
@@ -106,7 +106,7 @@ function CampoHexLinha({ rotulo, cor, aoMudar, placeholder, aoLimpar }: { rotulo
         if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
         if (e.key === 'Escape') { e.stopPropagation(); cancelar.current = true; (e.target as HTMLInputElement).blur() }
       }}
-      className="h-full w-full min-w-0 bg-transparent pl-2 text-[12px] uppercase tabular-nums text-texto outline-none placeholder:normal-case placeholder:text-texto3"
+      className="h-full w-full min-w-0 bg-transparent pl-2 text-[11px] uppercase tabular-nums text-texto outline-none placeholder:normal-case placeholder:text-texto3"
     />
   )
 }

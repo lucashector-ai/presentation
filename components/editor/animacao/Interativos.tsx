@@ -74,7 +74,7 @@ export function AbaInterativa({ editor, sel }: { editor: Editor; sel: Camada[] }
           </CartaoPreset>
         ))}
       </GradeCartoesPreset>
-      {!algum && <p className="text-[12px] text-texto3">Sugestão: {sugestaoInterativa(l).map((k) => CARTOES.find((x) => x.id === k)!.rotulo).join(', ')}.</p>}
+      {!algum && <p className="text-[11px] text-texto3">Sugestão: {sugestaoInterativa(l).map((k) => CARTOES.find((x) => x.id === k)!.rotulo).join(', ')}.</p>}
 
       {e?.parallax?.depth ? <AjustesParallax p={e.parallax} aoMudar={(p) => mudar((a) => ({ ...a, parallax: p }), false)} aoPrevia={previa} /> : null}
       {e?.tilt ? <AjustesTilt t={e.tilt} aoMudar={(t) => mudar((a) => ({ ...a, tilt: t }), false)} aoPrevia={previa} /> : null}
@@ -101,7 +101,7 @@ function useDepois(aoPrevia: () => void) {
 }
 
 function Titulo({ children }: { children: ReactNode }) {
-  return <div className="pt-2 text-[12px] font-medium text-texto">{children}</div>
+  return <div className="pt-2 text-[11px] font-medium text-texto">{children}</div>
 }
 
 function AjustesParallax({ p, aoMudar, aoPrevia }: { p: NonNullable<EfeitosInterativos['parallax']>; aoMudar: (p: NonNullable<EfeitosInterativos['parallax']>) => void; aoPrevia: () => void }) {
@@ -161,7 +161,7 @@ function AjustesLuz({ l, aoMudar, aoPrevia }: { l: NonNullable<EfeitosInterativo
       <Chips rotulo="Intensidade da luz" cheio valor={INTENSIDADES_INTERATIVAS.find((i) => i.luz === d.intensity)?.id ?? null} opcoes={INTENSIDADES_INTERATIVAS.map((i) => ({ id: i.id, rotulo: i.rotulo }))} aoMudar={(id) => set({ intensity: INTENSIDADES_INTERATIVAS.find((i) => i.id === id)!.luz })} />
       {!lanterna && (
         <div className="flex items-center justify-between pt-1">
-          <span className="text-[12px] text-texto2">Cor da luz</span>
+          <span className="text-[11px] text-texto2">Cor da luz</span>
           <BotaoCor rotulo="Cor da luz" cor={d.color} aoMudar={(color) => set({ color })} />
         </div>
       )}

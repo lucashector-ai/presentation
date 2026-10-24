@@ -91,15 +91,15 @@ export function SecaoExportar({ editor, assets = [] }: PropsSecao) {
         <SeletorLista rotulo="Escala da exportação" valor={String(escala)} aoMudar={(v) => setEscala(Number(v))} opcoes={ESCALAS.map((e) => ({ id: String(e), rotulo: `${e}×` }))} />
         <SeletorLista rotulo="Formato da exportação" valor={formato} aoMudar={(v) => setFormato(v as FormatoImagem)} opcoes={[{ id: 'png', rotulo: 'PNG' }, { id: 'jpg', rotulo: 'JPG' }]} />
       </div>
-      <button type="button" disabled={!!exp.ocupado} onClick={() => void exp.exportarSelecao(formato, escala)} className="flex h-8 w-full items-center justify-center gap-2 rounded-md bg-superficie2 text-[12px] font-medium hover:bg-hover disabled:opacity-50">
+      <button type="button" disabled={!!exp.ocupado} onClick={() => void exp.exportarSelecao(formato, escala)} className="flex h-8 w-full items-center justify-center gap-2 rounded-md bg-superficie2 text-[11px] font-medium hover:bg-hover disabled:opacity-50">
         {exp.ocupado ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5 text-texto2" />} Exportar {sel.length === 1 ? (l.name || 'camada') : `${sel.length} camadas`}
       </button>
       <div className="grid grid-cols-2 gap-2">
-        <button type="button" onClick={() => void copiar()} className="flex h-8 items-center justify-center gap-2 rounded-md bg-superficie2 text-[12px] hover:bg-hover"><Clipboard className="h-3.5 w-3.5 text-texto2" /> Copiar CSS</button>
+        <button type="button" onClick={() => void copiar()} className="flex h-8 items-center justify-center gap-2 rounded-md bg-superficie2 text-[11px] hover:bg-hover"><Clipboard className="h-3.5 w-3.5 text-texto2" /> Copiar CSS</button>
         {!sel[1] && l.type === 'svg' && l.markup ? (
-          <button type="button" onClick={() => baixar(`${l.name || l.id}.svg`, URL.createObjectURL(new Blob([l.markup ?? ''], { type: 'image/svg+xml' })))} className="flex h-8 items-center justify-center gap-2 rounded-md bg-superficie2 text-[12px] hover:bg-hover"><Download className="h-3.5 w-3.5 text-texto2" /> Baixar SVG</button>
+          <button type="button" onClick={() => baixar(`${l.name || l.id}.svg`, URL.createObjectURL(new Blob([l.markup ?? ''], { type: 'image/svg+xml' })))} className="flex h-8 items-center justify-center gap-2 rounded-md bg-superficie2 text-[11px] hover:bg-hover"><Download className="h-3.5 w-3.5 text-texto2" /> Baixar SVG</button>
         ) : !sel[1] && asset ? (
-          <button type="button" onClick={() => baixar(asset.nome, asset.url)} className="flex h-8 items-center justify-center gap-2 rounded-md bg-superficie2 text-[12px] hover:bg-hover"><Download className="h-3.5 w-3.5 text-texto2" /> Baixar original</button>
+          <button type="button" onClick={() => baixar(asset.nome, asset.url)} className="flex h-8 items-center justify-center gap-2 rounded-md bg-superficie2 text-[11px] hover:bg-hover"><Download className="h-3.5 w-3.5 text-texto2" /> Baixar original</button>
         ) : <span />}
       </div>
     </Secao>

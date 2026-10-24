@@ -23,7 +23,7 @@ export function Chips<T extends string>({ valor, opcoes, aoMudar, rotulo, cheio 
           title={o.titulo}
           onClick={() => aoMudar(o.id)}
           className={cx(
-            'h-[26px] whitespace-nowrap rounded-full border px-2.5 text-[12px] transition-colors',
+            'h-[26px] whitespace-nowrap rounded-full border px-2.5 text-[11px] transition-colors',
             valor === o.id ? 'border-acento bg-acentoSuave font-medium text-acento' : 'border-borda bg-superficie text-texto2 hover:border-bordaForte hover:text-texto'
           )}
         >
@@ -37,7 +37,7 @@ export function Chips<T extends string>({ valor, opcoes, aoMudar, rotulo, cheio 
 export function Rotulo({ children, acao }: { children: ReactNode; acao?: ReactNode }) {
   return (
     <div className="flex min-h-[20px] items-center justify-between pt-1">
-      <span className="text-[12px] text-texto2">{children}</span>
+      <span className="text-[11px] text-texto2">{children}</span>
       {acao}
     </div>
   )
@@ -48,7 +48,7 @@ export function BotaoPrevia({ aoClicar, tocando, rotulo = 'Prévia', aoParar }: 
     <button
       type="button"
       onClick={tocando && aoParar ? aoParar : aoClicar}
-      className="flex h-6 items-center gap-1 rounded-full bg-acentoSuave px-2.5 text-[12px] font-medium text-acento transition-colors hover:bg-acento hover:text-acentoTexto"
+      className="flex h-6 items-center gap-1 rounded-full bg-acentoSuave px-2.5 text-[11px] font-medium text-acento transition-colors hover:bg-acento hover:text-acentoTexto"
     >
       {tocando && aoParar ? <Square className="h-2.5 w-2.5 fill-current" /> : <Play className="h-2.5 w-2.5 fill-current" />}
       {tocando && aoParar ? 'Parar' : rotulo}
@@ -63,13 +63,13 @@ export function Finos({ children, resumo, aoPadrao, aberto: abertoInicial = fals
     // sem caixa em volta: uma linha de 32 px (seta · título · resumo · Padrão) e o conteúdo com um fio à esquerda
     <div>
       <div className="flex h-8 items-center gap-1">
-        <button type="button" aria-expanded={aberto} onClick={() => setAberto((v) => !v)} className="group flex h-full min-w-0 flex-1 items-center gap-1 text-left text-[12px] font-medium text-texto">
+        <button type="button" aria-expanded={aberto} onClick={() => setAberto((v) => !v)} className="group flex h-full min-w-0 flex-1 items-center gap-1 text-left text-[11px] font-medium text-texto">
           <ChevronRight className={cx('h-3 w-3 shrink-0 text-texto3 transition-transform group-hover:text-texto', aberto && 'rotate-90')} aria-hidden />
           {rotulo}
           {!aberto && resumo && <span className="ml-auto min-w-0 truncate pl-2 font-normal text-texto3">{resumo}</span>}
         </button>
         {aoPadrao && (
-          <button type="button" onClick={aoPadrao} title="Voltar aos valores do efeito" className="flex shrink-0 items-center gap-1 pl-2 text-[12px] text-texto2 hover:text-texto">
+          <button type="button" onClick={aoPadrao} title="Voltar aos valores do efeito" className="flex shrink-0 items-center gap-1 pl-2 text-[11px] text-texto2 hover:text-texto">
             <RotateCcw className="h-3 w-3" aria-hidden /> Padrão
           </button>
         )}
@@ -90,7 +90,7 @@ export function AbasInternas<T extends string>({ valor, opcoes, aoMudar }: { val
           role="tab"
           aria-selected={valor === o.id}
           onClick={() => aoMudar(o.id)}
-          className={cx('flex h-[26px] flex-1 items-center justify-center gap-1.5 rounded-[5px] text-[12px] transition-colors', valor === o.id ? 'bg-superficie font-medium text-texto shadow-[0_1px_2px_rgba(0,0,0,.08)]' : 'text-texto2 hover:text-texto')}
+          className={cx('flex h-[26px] flex-1 items-center justify-center gap-1.5 rounded-[5px] text-[11px] transition-colors', valor === o.id ? 'bg-superficie font-medium text-texto shadow-[0_1px_2px_rgba(0,0,0,.08)]' : 'text-texto2 hover:text-texto')}
         >
           {o.rotulo}
           {o.ativo && <span className="h-1.5 w-1.5 rounded-full bg-acento" aria-label="(com animação)" />}

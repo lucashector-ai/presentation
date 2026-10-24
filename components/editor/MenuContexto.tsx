@@ -94,7 +94,7 @@ export function MenuContexto({ editor, x, y, aoFechar, avisar }: { editor: Edito
   useLayoutEffect(() => { if (ref.current) setAltura(ref.current.offsetHeight) }, [])
   const top = Math.max(8, Math.min(y, window.innerHeight - altura - 8))
   return (
-    <div ref={ref} role="menu" aria-label="Ações" className="fixed z-50 max-h-[calc(100dvh-16px)] overflow-y-auto rounded-lg border border-borda bg-superficie p-1 text-[13px] shadow-painel" style={{ left, top, width: larg }}>
+    <div ref={ref} role="menu" aria-label="Ações" className="fixed z-50 max-h-[calc(100dvh-16px)] overflow-y-auto rounded-lg border border-borda bg-superficie p-1 text-[12px] shadow-painel" style={{ left, top, width: larg }}>
       {grupos.map((g, i) => (
         <div key={i} className={i ? 'mt-1 border-t border-borda pt-1' : ''}>
           {g.map((it) => (

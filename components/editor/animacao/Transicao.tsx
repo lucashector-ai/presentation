@@ -65,14 +65,14 @@ export function TransicaoTela({ editor }: { editor: Editor }) {
         ))}
       </GradeCartoesPreset>
       {tr.type === 'morph' && (
-        <p className="rounded-md bg-acentoSuave px-2.5 py-2 text-[12px] leading-snug text-acento">
+        <p className="rounded-md bg-acentoSuave px-2.5 py-2 text-[11px] leading-snug text-acento">
           Camadas com o <strong className="font-medium">mesmo nome</strong> nas duas telas se transformam de uma para a outra.
           {!anterior && ' Nesta primeira tela, o morph acontece ao chegar por um link.'}
         </p>
       )}
       {tr.type !== 'none' && (
         <>
-          <Rotulo acao={<button type="button" onClick={() => setAvancado((v) => !v)} className="text-[12px] text-texto2 hover:text-texto" aria-expanded={avancado}>{avancado ? 'Menos' : 'Avançado'}</button>}>Duração</Rotulo>
+          <Rotulo acao={<button type="button" onClick={() => setAvancado((v) => !v)} className="text-[11px] text-texto2 hover:text-texto" aria-expanded={avancado}>{avancado ? 'Menos' : 'Avançado'}</button>}>Duração</Rotulo>
           <Chips rotulo="Duração da transição" cheio valor={duracaoChip} opcoes={DURACOES.map((d) => ({ id: d.id, rotulo: d.rotulo, titulo: `${d.ms} ms` }))} aoMudar={(id) => setTr({ duration: DURACOES.find((d) => d.id === id)!.ms })} />
           {avancado && (
             <div className="space-y-2 pt-1">

@@ -445,10 +445,10 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
     <div className="flex h-dvh flex-col bg-fundo">
       <input ref={arquivoRef} type="file" multiple accept={EXTENSOES_ACEITAS} className="hidden" onChange={(e) => { const fs = Array.from(e.target.files ?? []); e.target.value = ''; if (arquivoRef.current) arquivoRef.current.accept = EXTENSOES_ACEITAS; void importarArquivos(editor, fs, { avisar, ponto: pontoArquivo.current }); pontoArquivo.current = undefined }} />
 
-      <Cabecalho editor={editorFixo} projetoId={projetoId} nomeProjeto={projeto.nome} aoMidia={aoMidia} aoPreview={abrirPreview} aoApresentar={apresentar} aoAtalhos={abrirAtalhos} aoConvidar={abrirConvidar} aoCompartilhar={abrirCompartilhar} />
+      <Cabecalho editor={editorFixo} ferramenta={estado.ferramenta} projetoId={projetoId} nomeProjeto={projeto.nome} aoMidia={aoMidia} aoPreview={abrirPreview} aoApresentar={apresentar} aoAtalhos={abrirAtalhos} aoConvidar={abrirConvidar} aoCompartilhar={abrirCompartilhar} />
       {estado.salvamento === 'conflito' && <AvisoConflito editor={editor} />}
       {estado.somenteLeitura && (
-        <div role="status" className="flex shrink-0 items-center gap-2 border-b border-borda bg-superficie2 px-4 py-1.5 text-[13px] text-texto2">
+        <div role="status" className="flex shrink-0 items-center gap-2 border-b border-borda bg-superficie2 px-4 py-1.5 text-[12px] text-texto2">
           <Eye className="h-4 w-4 shrink-0" /> Você pode ver este projeto e acompanhar quem está editando, mas não pode alterá-lo.
         </div>
       )}
@@ -481,7 +481,7 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
 
       <Modal aberto={compartilhar} aoFechar={() => setCompartilhar(false)} titulo="Compartilhar" descricao="Links privados, não listados. Atualize o projeto e o cliente vê a nova versão — sem reenviar nada." largura="lg">
         <div className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-borda bg-superficie2 p-4">
-          <div className="text-[13px]">
+          <div className="text-[12px]">
             <div className="font-medium">{naoPublicado ? 'Há mudanças não publicadas' : 'Publicado e atualizado'}</div>
             <div className="text-texto2">Rascunho na revisão {estado.revisao} · {projeto.revisaoPublicada ? `convidados veem a revisão ${projeto.revisaoPublicada}` : 'ainda não publicado'}</div>
           </div>
@@ -495,8 +495,8 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
       </Modal>
 
       <Modal aberto={atalhos} aoFechar={() => setAtalhos(false)} titulo="Atalhos de teclado" largura="lg">
-        <dl className="grid grid-cols-1 gap-x-8 gap-y-1.5 text-[13px] sm:grid-cols-2">
-          {ATALHOS.map(([k, d]) => <div key={k} className="flex justify-between gap-4 border-b border-borda py-1.5"><dt className="text-texto2">{d}</dt><dd className="mono whitespace-nowrap text-[12px]">{k}</dd></div>)}
+        <dl className="grid grid-cols-1 gap-x-8 gap-y-1.5 text-[12px] sm:grid-cols-2">
+          {ATALHOS.map(([k, d]) => <div key={k} className="flex justify-between gap-4 border-b border-borda py-1.5"><dt className="text-texto2">{d}</dt><dd className="mono whitespace-nowrap text-[11px]">{k}</dd></div>)}
         </dl>
       </Modal>
 
@@ -539,15 +539,15 @@ function ModalEmbed({ aberto, aoFechar, aoConfirmar }: { aberto: boolean; aoFech
   const confirmar = () => { aoConfirmar(aba === 'link' ? { url } : { html }); setUrl(''); setHtml('') }
   return (
     <Modal aberto={aberto} aoFechar={aoFechar} titulo="Incorporar conteúdo" descricao={aba === 'link' ? 'Cole um link do YouTube, Vimeo, Figma, Loom, Spline, Sketchfab ou Spotify.' : 'Cole HTML, CSS e JavaScript. Roda isolado: sem acesso à sua conta, aos cookies nem ao resto da página.'} largura={aba === 'html' ? 'lg' : 'md'} rodape={<><Botao variante="secundario" onClick={aoFechar}>Cancelar</Botao><Botao onClick={confirmar} disabled={!pronto}>Incorporar</Botao></>}>
-      <div role="tablist" aria-label="Tipo de incorporação" className="mb-3 inline-flex h-9 items-center gap-1 rounded-lg bg-hover p-1 text-[13px]">
+      <div role="tablist" aria-label="Tipo de incorporação" className="mb-3 inline-flex h-9 items-center gap-1 rounded-lg bg-hover p-1 text-[12px]">
         {(['link', 'html'] as const).map((t) => <button key={t} type="button" role="tab" aria-selected={aba === t} onClick={() => setAba(t)} className={cx('h-7 rounded-md px-3', aba === t ? 'bg-superficie shadow-sm' : 'text-texto2')}>{t === 'link' ? 'Link' : 'HTML'}</button>)}
       </div>
       {aba === 'link' ? (
         <input aria-label="Link para incorporar" autoFocus value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://www.youtube.com/watch?v=…" className="h-11 w-full rounded-lg border border-bordaForte bg-superficie px-3.5 text-sm text-texto outline-none focus:border-acento" />
       ) : (
         <>
-          <textarea aria-label="HTML para incorporar" autoFocus value={html} onChange={(e) => setHtml(e.target.value)} spellCheck={false} placeholder={'<style>body{margin:0;font-family:sans-serif}</style>\n<div>Olá</div>\n<script>/* seu código */</script>'} className="mono min-h-[320px] w-full resize-y rounded-lg border border-bordaForte bg-superficie px-3.5 py-3 text-[13px] leading-5 text-texto outline-none focus:border-acento" />
-          <div className="mt-2 flex justify-between text-[12px] text-texto3"><span>Imagens e fontes externas precisam de https.</span><span className="mono">{html.length.toLocaleString('pt-BR')} / {MAX_HTML_EMBED.toLocaleString('pt-BR')}</span></div>
+          <textarea aria-label="HTML para incorporar" autoFocus value={html} onChange={(e) => setHtml(e.target.value)} spellCheck={false} placeholder={'<style>body{margin:0;font-family:sans-serif}</style>\n<div>Olá</div>\n<script>/* seu código */</script>'} className="mono min-h-[320px] w-full resize-y rounded-lg border border-bordaForte bg-superficie px-3.5 py-3 text-[12px] leading-5 text-texto outline-none focus:border-acento" />
+          <div className="mt-2 flex justify-between text-[11px] text-texto3"><span>Imagens e fontes externas precisam de https.</span><span className="mono">{html.length.toLocaleString('pt-BR')} / {MAX_HTML_EMBED.toLocaleString('pt-BR')}</span></div>
         </>
       )}
     </Modal>
@@ -571,7 +571,7 @@ function AvisoConflito({ editor }: { editor: ReturnType<typeof useEditor> }) {
     }
   }
   return (
-    <div role="alert" className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-aviso/40 bg-aviso/15 px-4 py-2 text-[13px] text-texto">
+    <div role="alert" className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-aviso/40 bg-aviso/15 px-4 py-2 text-[12px] text-texto">
       <TriangleAlert className="h-4 w-4 shrink-0 text-avisoTexto" />
       <span className="min-w-0 flex-1">
         <strong className="font-medium">Este projeto mudou em outra aba ou dispositivo.</strong>{' '}

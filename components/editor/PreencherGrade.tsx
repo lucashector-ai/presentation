@@ -139,9 +139,9 @@ export function PainelPreencher({ editor, x, y, aoFechar }: { editor: Editor; x:
   const sel = arrasto ? celulasDoArrasto(arrasto.a, arrasto.b) : null
 
   return (
-    <div ref={ref} role="dialog" aria-label="Preencher em grade" data-testid="painel-preencher" className="fixed z-50 rounded-lg border border-borda bg-superficie p-2.5 text-[12px] shadow-painel" style={{ left, top, width: larg }} onMouseLeave={() => mostrar(null)}>
+    <div ref={ref} role="dialog" aria-label="Preencher em grade" data-testid="painel-preencher" className="fixed z-50 rounded-lg border border-borda bg-superficie p-2.5 text-[11px] shadow-painel" style={{ left, top, width: larg }} onMouseLeave={() => mostrar(null)}>
       <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-[13px] font-medium">Preencher</span>
+        <span className="text-[12px] font-medium">Preencher</span>
         <button type="button" aria-label="Fechar" onClick={aoFechar} className="rounded p-1 text-texto3 hover:bg-hover hover:text-texto"><X className="h-3.5 w-3.5" /></button>
       </div>
       {!ids.length && <p className="mb-2 rounded-md bg-superficie2 px-2 py-1.5 text-texto2">Selecione uma camada fora do auto layout.</p>}
