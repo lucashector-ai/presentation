@@ -423,7 +423,7 @@ await passo('Tema escuro: Plano e conta → Preferências, campos legíveis, can
   // Editor: a moldura escurece, a tela do documento não
   await page.goto(`${BASE}/app/projects/pr-atlas/edit`)
   await page.getByRole('button', { name: 'Compartilhar' }).waitFor()
-  const cena = page.locator('[data-testid="canvas"] > div > div').first()
+  const cena = page.locator('[data-testid="canvas"] > div').first()
   const fundoCena = await cena.evaluate((el) => getComputedStyle(el).backgroundColor)
   if (fundoCena !== 'rgb(238, 231, 219)') throw new Error(`a tela mudou de cor no escuro: ${fundoCena} (documento: #EEE7DB)`)
   const fundoCanvas = await page.locator('[data-testid="canvas-area"]').evaluate((el) => getComputedStyle(el).backgroundColor)
@@ -759,7 +759,9 @@ await passo('Fonte do Google: catálogo completo no seletor (busca, categoria, p
   if (!folha) throw new Error(`folha da Playfair não pedida só com o peso usado: ${pedidosFontes.filter((u) => u.includes('Playfair')).join(' ')}`)
   if (pedidosFontes.some((u) => /fonts\.(googleapis|gstatic)\.com/.test(u))) throw new Error('o navegador falou direto com o Google (deveria ser pela mesma origem)')
   // pesos que a família tem (400–900)
-  const pesos = await page.getByLabel('Peso').locator('option').allTextContents()
+  await page.getByLabel('Peso', { exact: true }).click()
+  const pesos = await page.getByRole('listbox', { name: 'Peso' }).getByRole('option').allTextContents()
+  await page.keyboard.press('Escape')
   if (pesos.includes('Light') || !pesos.includes('Black')) throw new Error(`pesos oferecidos: ${pesos.join(', ')}`)
   // "Fontes do documento" no topo do seletor
   await gatilho.click()

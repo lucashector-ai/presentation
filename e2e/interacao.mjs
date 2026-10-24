@@ -254,7 +254,7 @@ await clique('abrir Compartilhar', () => page.getByRole('button', { name: 'Compa
 await clique('fechar Compartilhar (Esc)', () => page.keyboard.press('Escape'))
 await page.mouse.click(camada.x, camada.y)
 await page.waitForTimeout(300)
-const campoX = page.getByRole('complementary', { name: 'Propriedades' }).getByLabel('X', { exact: true }).first()
+const campoX = page.getByRole('complementary', { name: 'Propriedades' }).getByLabel('Posição X', { exact: true }).first()
 if (await campoX.count()) {
   await campoX.click()
   await clique('seta ↑ no campo X do inspetor', () => page.keyboard.press('ArrowUp'))
