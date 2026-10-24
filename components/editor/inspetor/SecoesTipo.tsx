@@ -200,11 +200,11 @@ function SecaoSvg({ c, set }: { c: CamadaSvg; set: Set }) {
     <Secao titulo="Cores do vetor" acao={Object.keys(c.recolor).length ? <button type="button" className="rounded px-1.5 py-0.5 text-[11px] text-acento hover:bg-acentoSuave" onClick={() => set({ recolor: {} } as Partial<Camada>)}>Restaurar</button> : undefined}>
       {cores.length === 0 ? <p className="text-[12px] text-texto2">Nenhuma cor sólida encontrada (o vetor pode usar imagens ou gradientes).</p> : (
         <div className="space-y-1.5">
-          {cores.map((orig) => (
-            <div key={orig} className="flex items-center gap-1.5">
-              <span className="h-5 w-5 shrink-0 rounded-[4px] shadow-[inset_0_0_0_1px_rgba(0,0,0,.12)]" style={{ background: orig }} title={`Original ${orig}`} />
-              <span className="text-[11px] text-texto3" aria-hidden>→</span>
-              <CampoCor rotulo={`Substituir ${orig}`} valor={c.recolor[orig] ?? orig.toUpperCase()} aoMudar={(nova) => nova && set({ recolor: { ...c.recolor, [orig]: nova } } as Partial<Camada>)} />
+          {/* só a cor de destino, editável; a original fica no rótulo e na dica */}
+          {cores.map((orig, i) => (
+            <div key={orig} className="flex items-center gap-2" title={`Cor ${i + 1} · original ${orig.toUpperCase()}`}>
+              <span className="w-[40px] shrink-0 text-[11px] text-texto2">Cor {i + 1}</span>
+              <CampoCor rotulo={`Cor ${i + 1} do vetor (original ${orig.toUpperCase()})`} valor={c.recolor[orig] ?? orig.toUpperCase()} aoMudar={(nova) => nova && set({ recolor: { ...c.recolor, [orig]: nova } } as Partial<Camada>)} />
             </div>
           ))}
         </div>

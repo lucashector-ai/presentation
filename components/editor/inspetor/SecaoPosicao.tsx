@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceAround, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceAround, Crosshair, FlipHorizontal2, FlipVertical2, RotateCw } from 'lucide-react'
 import type { Alinhamento } from '@/lib/scene/transform'
 import { cx } from '@/components/ui'
-import { BotaoCampo, CampoNum, Secao, SeletorLista } from './controles'
+import { BotaoCampo, CampoNum, Menu, Secao } from './controles'
 import { IconeAngulo } from './SeletorCor'
 import { comum, useCamadas, type PropsSecao } from './selecao'
 
@@ -23,6 +23,16 @@ const ALINHAR: [Alinhamento, typeof AlignStartVertical, string][] = [
   ['base', AlignEndHorizontal, 'Alinhar à base'],
 ]
 
+/** Vistas 3D prontas (como os presets do plugin Isometric do Figma), num menu em vez de fileira de chips. */
+const VISTAS_3D = [
+  { nome: 'Plano', rx: 0, ry: 0 },
+  { nome: 'Esquerda', rx: 0, ry: -35 },
+  { nome: 'Direita', rx: 0, ry: 35 },
+  { nome: 'Superior esquerda', rx: 30, ry: -35 },
+  { nome: 'Superior direita', rx: 30, ry: 35 },
+  { nome: 'Isométrico', rx: 45, ry: -30 },
+] as const
+
 export function GrupoBotoes({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={cx('flex h-8 min-w-0 flex-1 items-center rounded-md bg-superficie2 p-[2px]', className)}>{children}</div>
 }
@@ -34,18 +44,6 @@ export function BotaoGrupo({ rotulo, onClick, children, ativo }: { rotulo: strin
     </button>
   )
 }
-
-/** Vistas 3D prontas (rx, ry em graus). */
-const VISTAS_3D = [
-  { id: 'plano', nome: 'Plano', rx: 0, ry: 0 },
-  { id: 'esquerda', nome: 'Esquerda', rx: 0, ry: -35 },
-  { id: 'direita', nome: 'Direita', rx: 0, ry: 35 },
-  { id: 'sup-esquerda', nome: 'Superior esquerda', rx: 30, ry: -35 },
-  { id: 'sup-direita', nome: 'Superior direita', rx: 30, ry: 35 },
-  { id: 'isometrico', nome: 'Isométrico', rx: 45, ry: -30 },
-  { id: 'personalizado', nome: 'Personalizado', rx: NaN, ry: NaN },
-] as const
-const vista3d = (rx: unknown, ry: unknown) => VISTAS_3D.find((v) => v.rx === rx && v.ry === ry)?.id ?? 'personalizado'
 
 export function SecaoPosicao({ editor }: PropsSecao) {
   const { acoes } = editor
@@ -88,14 +86,16 @@ export function SecaoPosicao({ editor }: PropsSecao) {
           <BotaoCampo rotulo="Espelhar na vertical" ativo={comum(sel, (c) => c.flipY) === true} onClick={() => acoes.inverter(ids, 'y')}><FlipVertical2 className="h-3.5 w-3.5" /></BotaoCampo>
         </div>
       </div>
-      {/* 3D: um menu com as vistas (como o plugin Isometric do Figma); os ângulos só aparecem quando há inclinação */}
-      <SeletorLista
-        rotulo="Vista 3D"
-        prefixo={<span className="mono text-[10px] text-texto3">3D</span>}
-        valor={vista3d(comum(sel, (c) => c.rotateX ?? 0), comum(sel, (c) => c.rotateY ?? 0))}
-        opcoes={VISTAS_3D.map((v) => ({ id: v.id, rotulo: v.nome }))}
-        aoMudar={(id) => { const v = VISTAS_3D.find((x) => x.id === id); if (v && v.id !== 'personalizado') set({ rotateX: v.rx || undefined, rotateY: v.ry || undefined, perspective: v.rx || v.ry ? 1200 : undefined }) }}
-      />
+      {/* 3D: um menu com as vistas (como o plugin Isometric do Figma); os ângulos e a perspectiva só aparecem quando há inclinação */}
+      <div className="grid grid-cols-[1fr_32px] gap-2">
+        <Menu
+          rotulo="Vista 3D"
+          variante="campo"
+          itens={VISTAS_3D.map((v) => ({ id: v.nome, rotulo: v.nome, descricao: v.rx || v.ry ? `${v.rx}° · ${v.ry}°` : 'Sem inclinação', ativo: comum(sel, (c) => c.rotateX ?? 0) === v.rx && comum(sel, (c) => c.rotateY ?? 0) === v.ry, aoClicar: () => set({ rotateX: v.rx || undefined, rotateY: v.ry || undefined, perspective: v.rx || v.ry ? 1200 : undefined }) }))}
+        >
+          {VISTAS_3D.find((v) => comum(sel, (c) => c.rotateX ?? 0) === v.rx && comum(sel, (c) => c.rotateY ?? 0) === v.ry)?.nome ?? 'Vista 3D personalizada'}
+        </Menu>
+      </div>
       {(comum(sel, (c) => c.rotateX ?? 0) !== 0 || comum(sel, (c) => c.rotateY ?? 0) !== 0) && (
         <div className="grid grid-cols-[1fr_1fr_32px] gap-2">
           <CampoNum prefixo="X" rotulo="Inclinação 3D no eixo X" valor={comum(sel, (c) => c.rotateX ?? 0)} min={-180} max={180} sufixo="°" aoMudar={(v) => set({ rotateX: v || undefined })} aoDelta={(d) => setFn((c) => ({ ...c, rotateX: ((c.rotateX ?? 0) + d) || undefined }))} />

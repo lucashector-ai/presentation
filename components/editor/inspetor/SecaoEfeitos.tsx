@@ -12,8 +12,8 @@ import { EFEITOS_BASE, comSombras, sombrasDe } from '@/lib/scene/efeitos'
 import { PREDEFINICOES_REALISTA, REALISTA_PADRAO, comSombraRealista, gerarSombrasRealistas } from '@/lib/scene/sombrasRealistas'
 import { boxShadowCss } from '@/lib/scene/efeitos'
 import { cx } from '@/components/ui'
-import { BotaoMini, CampoCor, CampoNum, Secao, SeletorLista } from './controles'
-import { IconeAjustes, IconeDesfoque, IconeLuz, IconeSombra, IconeSombraInterna, IconeSombraRealista, IconeVidro } from './icones'
+import { BotaoMini, CampoCor, CampoNum, Menu, Secao, SeletorLista } from './controles'
+import { IconeAjustes, IconeDesfoque, IconeLuz, IconePredefinicoes, IconeSombra, IconeSombraInterna, IconeSombraRealista, IconeVidro } from './icones'
 import { comum, useCamadas, type PropsSecao } from './selecao'
 import { useInspetor } from './contexto'
 import { MISTO } from './campos'
@@ -122,31 +122,33 @@ export function SecaoEfeitos({ editor }: PropsSecao) {
     return { ...ef0(x), backdropBlurHidden: x?.backdropBlurHidden ? undefined : true }
   })
 
+  const grao = (e?.noise ?? 0) > 0
+  // predefinições: efeitos "difíceis" em um clique (ajustáveis depois nas linhas), num menu em vez de fileira de chips
+  const predefinicoes = (
+    <Menu
+      rotulo="Predefinições de efeito"
+      ativo={grao}
+      itens={[
+        { id: 'realista', rotulo: 'Sombra realista', descricao: 'Luz e elevação, várias camadas suaves', desativado: temRealista, aoClicar: () => { ef((x) => comSombraRealista(x, REALISTA_PADRAO)); setAberto('realista') } },
+        { id: 'vidro', rotulo: 'Vidro fosco', descricao: 'Desfoque do fundo, brilho na borda e sombra', aoClicar: () => ef((x) => comSombras({ ...ef0(x), backdropBlur: 24, backdropBlurHidden: undefined }, [{ x: 0, y: 0, blur: 0, spread: 1, color: '#FFFFFF66', inner: true }, { x: 0, y: 12, blur: 32, spread: -6, color: '#00000029' }])) },
+        { id: 'brilho', rotulo: 'Brilho', descricao: 'Halo na cor do acento', aoClicar: () => ef((x) => comSombras(ef0(x), [{ x: 0, y: 0, blur: 56, spread: 6, color: '#5965F2A6' }, ...sombrasDe(x).filter((s) => s.inner)])) },
+        { id: 'grao', rotulo: 'Grão', descricao: 'Textura de ruído por cima', ativo: grao, aoClicar: () => ef((x) => ({ ...ef0(x), noise: (x?.noise ?? 0) > 0 ? undefined : 0.22 })) },
+      ]}
+    >
+      <IconePredefinicoes />
+    </Menu>
+  )
+
   return (
     <Secao
       titulo="Efeitos"
       vazia={!linhas.length}
+      resumo={linhas.map((x) => NOMES[x.tipo]).join(', ')}
       aoAdicionar={!cheio || misto ? adicionar : undefined}
       rotuloAdicionar="Adicionar efeito"
-      acao={!misto && !temRealista ? (
-        <BotaoMini rotulo="Sombra realista (luz e elevação)" onClick={() => { ef((x) => comSombraRealista(x, REALISTA_PADRAO)); setAberto('realista') }}><IconeSombraRealista /></BotaoMini>
-      ) : undefined}
+      acao={!misto ? predefinicoes : undefined}
     >
       {misto && <p className="text-[11px] text-texto2">Efeitos diferentes na seleção. Clique em + para usar os da primeira camada em todas.</p>}
-      {/* predefinições: efeitos "difíceis" em um clique (ajustáveis depois nas linhas) */}
-      {!misto && (
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Predefinições de efeito">
-          {([
-            // borda translúcida de 1 px por dentro (sombra interna com expansão 1) + sombra macia sem expansão negativa
-            // exagerada (ficava um halo escuro descolado da borda); o desfoque do fundo satura um pouco (renderizador)
-            ['Vidro fosco', () => comSombras({ ...ef0(e), backdropBlur: 24, backdropBlurHidden: undefined }, [{ x: 0, y: 0, blur: 0, spread: 1, color: '#FFFFFF66', inner: true }, { x: 0, y: 12, blur: 32, spread: -6, color: '#00000029' }])],
-            ['Brilho', () => comSombras(ef0(e), [{ x: 0, y: 0, blur: 56, spread: 6, color: '#5965F2A6' }, ...sombrasDe(e).filter((s) => s.inner)])],
-            ['Grão', () => ({ ...ef0(e), noise: (e?.noise ?? 0) > 0 ? undefined : 0.22 })],
-          ] as const).map(([nome, fn]) => (
-            <button key={nome} type="button" onClick={() => ef(() => fn())} className={cx('h-7 rounded-full border px-2.5 text-[11px]', nome === 'Grão' && (e?.noise ?? 0) > 0 ? 'border-acento text-acento' : 'border-borda text-textoCorpo hover:border-bordaHover')}>{nome}</button>
-          ))}
-        </div>
-      )}
       {!misto && linhas.map((linha) => {
         const k = chaveLinha(linha)
         const Icone = ICONES[linha.tipo]

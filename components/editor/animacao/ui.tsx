@@ -1,7 +1,7 @@
 'use client'
 /** Peças visuais da aba Animação: chips, cartões de preset com prévia animada (keyframes reais) e área de transferência. */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
-import { Play, Square } from 'lucide-react'
+import { ChevronRight, Play, RotateCcw, Square } from 'lucide-react'
 import type { Animacao, Loop, Transicao } from '@/lib/scene/schema'
 import { PRESETS_LOOP, animacaoDoPreset, ehAnimacaoDeTexto, type PresetEntrada, type TipoAnimacao, type TipoLoop } from '@/lib/scene/animacoes'
 import { EASING_CSS } from '@/lib/scene/motor'
@@ -53,6 +53,28 @@ export function BotaoPrevia({ aoClicar, tocando, rotulo = 'Prévia', aoParar }: 
       {tocando && aoParar ? <Square className="h-2.5 w-2.5 fill-current" /> : <Play className="h-2.5 w-2.5 fill-current" />}
       {tocando && aoParar ? 'Parar' : rotulo}
     </button>
+  )
+}
+
+/** "Ajustes finos" recolhidos (sempre começam fechados, a não ser que já haja um valor que só se mexe lá), com resumo e "Padrão". */
+export function Finos({ children, resumo, aoPadrao, aberto: abertoInicial = false, rotulo = 'Ajustes finos' }: { children: ReactNode; resumo?: string; aoPadrao?: () => void; aberto?: boolean; rotulo?: string }) {
+  const [aberto, setAberto] = useState(abertoInicial)
+  return (
+    <div className="rounded-lg border border-borda">
+      <div className="flex h-8 items-center gap-1 pl-1 pr-2">
+        <button type="button" aria-expanded={aberto} onClick={() => setAberto((v) => !v)} className="flex h-full min-w-0 flex-1 items-center gap-1 rounded-md px-1 text-left text-[12px] font-medium text-texto hover:bg-hover">
+          <ChevronRight className={cx('h-3.5 w-3.5 shrink-0 text-texto3 transition-transform', aberto && 'rotate-90')} aria-hidden />
+          {rotulo}
+          {!aberto && resumo && <span className="ml-1 truncate font-normal text-texto3">{resumo}</span>}
+        </button>
+        {aoPadrao && (
+          <button type="button" onClick={aoPadrao} title="Voltar aos valores do efeito" className="flex shrink-0 items-center gap-1 text-[11px] text-texto2 hover:text-texto">
+            <RotateCcw className="h-3 w-3" aria-hidden /> Padrão
+          </button>
+        )}
+      </div>
+      {aberto && <div className="space-y-2 border-t border-borda px-2.5 pb-2.5 pt-2">{children}</div>}
+    </div>
   )
 }
 

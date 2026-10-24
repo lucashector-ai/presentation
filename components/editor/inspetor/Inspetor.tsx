@@ -8,9 +8,12 @@ import { AbaAnimacao } from './AbaAnimacao'
 import { AbaInteracoes } from './AbaInteracoes'
 import { InspetorTela } from './InspetorTela'
 import { ProvedorInspetor } from './contexto'
+import { useColarLink } from './SecoesMostra'
 
 export function Inspetor({ editor, assets }: { editor: Editor; assets: AssetDemo[] }) {
   const { estado, acoes, camadasSelecionadas, cena } = editor
+  // Ctrl+V com uma URL e camadas selecionadas = link nelas (a seção Link aparece no Design)
+  useColarLink(editor)
   const mapa = useMemo(() => Object.fromEntries(assets.map((a) => [a.id, a])), [assets])
   const totalInter = cena?.layers.filter((l) => l.interactions.length > 0).length ?? 0
   const abas: { id: AbaDireita; rotulo: string }[] = [{ id: 'design', rotulo: 'Design' }, { id: 'animacao', rotulo: 'Animação' }, { id: 'interacoes', rotulo: 'Interações' }]
