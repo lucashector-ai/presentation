@@ -132,11 +132,12 @@ function reducer(e: EstadoEditor, a: Acao): EstadoEditor {
 }
 
 /** Clona camadas com IDs novos, preservando referências internas (grupos e interações entre elas). */
-export function clonarCamadas(camadas: Camada[], existentes: { id: string }[], deslocamento = 0): Camada[] {
+export function clonarCamadas(camadas: Camada[], existentes: { id: string }[], deslocamento = 0, manterIdsLivres = false): Camada[] {
   const mapa = new Map<string, string>()
   const usados = [...existentes]
   for (const c of camadas) {
-    const id = novoId(c.type, usados)
+    // colar em outra tela mantém o ID (é o mesmo objeto: anima entre as telas); na mesma tela, ID novo
+    const id = manterIdsLivres && !usados.some((u) => u.id === c.id) ? c.id : novoId(c.type, usados)
     usados.push({ id })
     mapa.set(c.id, id)
   }
@@ -792,7 +793,7 @@ export function useEditor(projetoId: string, abertura: AberturaEditor | null) {
         }
         if (!validas.length) return
         const sobrepoe = validas.some((v) => c.layers.some((l) => l.x === v.x && l.y === v.y && l.width === v.width))
-        inserirCamadas(clonarCamadas(validas, c.layers, sobrepoe ? 24 : 0))
+        inserirCamadas(clonarCamadas(validas, c.layers, sobrepoe ? 24 : 0, true))
       },
       copiarEstilo: (camada: Camada) => {
         const { id: _i, x: _x, y: _y, width: _w, height: _h, z: _z, name: _n, interactions: _it, groupId: _g, parentId: _p, absolute: _a, ...estilo } = camada as Camada & Record<string, unknown>

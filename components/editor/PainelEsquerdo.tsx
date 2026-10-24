@@ -1,7 +1,7 @@
 'use client'
 import { useMemo, useRef, useState, type JSX } from 'react'
 import { createPortal } from 'react-dom'
-import { Box, ChevronDown, ChevronRight, Code2, Copy, Crosshair, Eye, EyeOff, Film, GalleryHorizontal, Group, Image as ImageIcon, Instagram, LayoutGrid, Smartphone, Lock, LockOpen, MousePointerClick, PenTool, Quote, Sparkles, Square, Tag, Trash2, Type, Upload, Video, ArrowRight } from 'lucide-react'
+import { Box, ChevronDown, ChevronRight, Code2, Copy, Crosshair, Eye, EyeOff, Film, GalleryHorizontal, Group, Image as ImageIcon, Instagram, LayoutGrid, Smartphone, Lock, LockOpen, MousePointerClick, PenTool, Quote, Sparkles, Square, Tag, Trash2, Type, Upload, Video, ArrowRight, Map as IconeMapa } from 'lucide-react'
 import { IconeAutoLayout, IconeMascara } from './inspetor/icones'
 import { NOMES_TIPO_MASCARA, ehMascara, tipoMascara } from '@/lib/scene/mascara'
 import type { Camada } from '@/lib/scene/schema'
@@ -94,6 +94,9 @@ function Telas({ editor, assets }: { editor: Editor; assets: AssetDemo[] }) {
         })}
       </ol>
       <button type="button" onClick={() => acoes.adicionarCena(editor.indiceCena)} className="mt-4 h-9 w-full rounded-lg border border-dashed border-bordaHover text-[12px] text-texto2 hover:border-acento hover:text-acento">+ Nova tela</button>
+      {editor.estado.documento.mode === 'explorar' && (
+        <button type="button" onClick={() => window.dispatchEvent(new Event('mostra:abrir-mapa'))} className="mt-2 flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-superficie2 text-[12px] font-medium text-texto transition-colors hover:bg-hover"><IconeMapa className="h-3.5 w-3.5" />Mapa das telas</button>
+      )}
     </div>
   )
 }

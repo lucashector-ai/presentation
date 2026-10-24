@@ -4,7 +4,7 @@
  * Contêiner interno no tamanho de referência com `transform: scale(escala)`: tipografia, raios e sombras
  * ficam idênticos em qualquer tamanho (reprodutibilidade).
  *
- * Morph: quando `morphDe` é passado, camadas com o mesmo nome (ou ID) na tela anterior começam com a
+ * Morph: quando `morphDe` é passado, o mesmo objeto na tela anterior (mesmo ID ou nome único, lib/scene/morph.ts) começa com a
  * geometria/cor antiga e animam até a nova.
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
@@ -16,6 +16,7 @@ import { sangrar, type Sangria } from '@/lib/scene/sangria'
 import { costurar } from '@/lib/scene/costura'
 import { ancestrais, mapaDe } from '@/lib/scene/arvore'
 import { recolorirSvg, svgParaDataUrl } from '@/lib/importar/svg'
+import { pareamentoMorph } from '@/lib/scene/morph'
 import { MASCARAS, filtroCss, fundoImagemCss, gradienteCss, raioCss, sombraCss, transformCss } from './estilos'
 import { boxShadowCss, desfoqueDe, internas, projetadas, textShadowCss, vidroDe } from '@/lib/scene/efeitos'
 import { caminhoCantos, raiosDaCamada, temSuavizacao } from '@/lib/scene/cantos'
@@ -81,11 +82,6 @@ export interface SceneRendererProps {
 /** Props internas: prévia de animação pedida pelo inspetor (só no modo editor). */
 type PropsInternas = SceneRendererProps & { previa?: PedidoPrevia | null; classeTransicao?: string }
 
-/** Chave usada para casar camadas entre telas no morph. */
-export function chaveMorph(c: Camada): string {
-  return c.name?.trim() ? `n:${c.name.trim().toLowerCase()}` : `i:${c.id}`
-}
-
 /**
  * Memorizado: quem o usa re-renderiza por outros motivos (o visualizador ao tirar a tela que saiu do DOM, ao
  * trocar o estado dos controles) e a tela com as entradas tocando não precisa ser reconciliada de novo — com
@@ -123,7 +119,7 @@ function CenaRender(props: PropsInternas) {
     const m = mapaDe(camadas)
     return new Map(camadas.filter((c) => c.maskId).map((c) => [c.id, estiloMascara(c, m, recursosMascara, assets)]))
   }, [camadas, recursosMascara, assets])
-  const mapaMorph = useMemo(() => (morphDe ? new Map(morphDe.layers.map((l) => [chaveMorph(l), l])) : null), [morphDe])
+  const mapaMorph = useMemo(() => (morphDe ? pareamentoMorph(morphDe, cena) : null), [morphDe, cena])
   const fundoCss = cena.backgroundGradient ? gradienteCss(cena.backgroundGradient) : cena.background
   const [fundoAtual, setFundoAtual] = useState(morphDe ? (morphDe.backgroundGradient ? gradienteCss(morphDe.backgroundGradient) : morphDe.background) : fundoCss)
   useEffect(() => {
@@ -140,7 +136,7 @@ function CenaRender(props: PropsInternas) {
     <div className={[className, classeTransicao, cortina ? 'sob-a-anterior' : ''].filter(Boolean).join(' ') || undefined} style={{ colorScheme: 'light', forcedColorAdjust: 'none', width: cena.size.width * escala, height: cena.size.height * escala, position: 'relative', overflow: sangria ? 'visible' : 'hidden', background: morphDe ? fundoAtual : fundoCss, transition: morphDe ? `background ${props.morphDuracao ?? 600}ms ${props.morphEasing ?? 'ease'}` : undefined, ...(classeTransicao ? { ['--dur' as string]: `${props.morphDuracao ?? 500}ms` } : {}), ...style }}>
       <div style={{ width: cena.size.width, height: cena.size.height, transform: `scale(${escala})`, transformOrigin: '0 0', position: 'absolute', left: 0, top: 0 }}>
         {fundo && <img src={modo === 'miniatura' ? fundo.thumbUrl || fundo.url : fundo.url} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: cena.backgroundFit, pointerEvents: 'none' }} />}
-        {camadas.map((c) => (props.ocultar?.has(c.id) ? null : <LayerView key={c.id} camada={c} props={props} origemMorph={mapaMorph?.get(chaveMorph(c))} heranca={herdado.get(c.id)} gatilhos={gatilhos} mascara={mascaras?.get(c.id)} />))}
+        {camadas.map((c) => (props.ocultar?.has(c.id) ? null : <LayerView key={c.id} camada={c} props={props} origemMorph={mapaMorph?.get(c.id)} heranca={herdado.get(c.id)} gatilhos={gatilhos} mascara={mascaras?.get(c.id)} />))}
         {children}
       </div>
       {cortina && <div aria-hidden className="cena-cortina" />}

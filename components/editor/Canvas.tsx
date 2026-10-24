@@ -1208,7 +1208,7 @@ function FluxoInteracao({ camada, editor, assets, r }: { camada: Camada; editor:
         <MiniaturaCena cena={alvo} assets={assets} largura={78} className="border-0" />
         <div className="whitespace-nowrap">
           <div className="text-[12px] font-medium text-acento">{gatilho} → {String(idx + 1).padStart(2, '0')} {alvo.title}</div>
-          <div className="text-[11px] text-texto2">{tr ? `${{ none: 'Instantânea', fade: 'Fade', slide: 'Slide', scale: 'Scale', morph: 'Morph', push: 'Empurrar' }[tr.type]} · ${tr.duration}ms · ${curva}` : 'Fade · 400ms'}</div>
+          <div className="text-[11px] text-texto2">{tr ? `${{ none: 'Instantânea', fade: 'Fade', slide: 'Slide', scale: 'Scale', morph: 'Morph', push: 'Empurrar', auto: 'Automática' }[tr.type]} · ${tr.duration}ms · ${curva}` : 'Fade · 400ms'}</div>
         </div>
       </div>
     </>

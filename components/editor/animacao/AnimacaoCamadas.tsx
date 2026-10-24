@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Hourglass, Layers, MoreHorizontal, Timer } from 'lucide-react'
 import type { Animacao, Camada, Loop } from '@/lib/scene/schema'
 import type { Editor } from '@/lib/editor/useEditor'
+import { EntreTelas } from './EntreTelas'
 import {
   CURVAS,
   ORDENS_TELA,
@@ -347,6 +348,8 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
         )}
       </Secao>
 
+      <EntreTelas key={`${chaveSel}-entre-telas`} editor={editor} sel={sel} />
+
       <Secao key={`${chaveSel}-interativo`} titulo="Interativo" chave="anim.interativo" aberta={temInterativo(l)} resumo={resumoInterativo(l)}>
         <AbaInterativa editor={editor} sel={sel} />
       </Secao>
@@ -373,4 +376,4 @@ export function AnimacaoCamadas({ editor }: { editor: Editor }) {
   )
 }
 
-const transicaoAtiva = (editor: Editor) => (editor.cena?.transition?.type ?? 'fade') !== 'none'
+const transicaoAtiva = (editor: Editor) => (editor.cena?.transition?.type ?? 'auto') !== 'none'

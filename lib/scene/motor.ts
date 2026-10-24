@@ -3,6 +3,7 @@
  * Recebe (documento, estado, interação) e devolve novo estado + efeitos colaterais
  * que a UI executa (abrir link, tocar vídeo). Nunca executa código do autor.
  */
+import { resolverTransicao } from './morph'
 import { ANIMACOES_DE_SAIDA, type Animacao, type Camada, type DocumentoProjeto, type Interacao, type Transicao } from './schema'
 
 export interface AnimacaoPendente {
@@ -48,7 +49,8 @@ export function irPara(doc: DocumentoProjeto, e: EstadoRuntime, indice: number, 
     indice: alvo,
     visiveis: {},
     animacoes: {},
-    transicao: transicao ?? cena?.transition ?? { type: 'fade', duration: 400, easing: 'easeInOut' },
+    // automática (padrão): morph se o mesmo objeto mudou entre as telas, senão fade (lib/scene/morph.ts)
+    transicao: cena ? resolverTransicao(doc.scenes[e.indice], cena, transicao ?? cena.transition) : { type: 'fade', duration: 400, easing: 'easeInOut' },
     historico: [...e.historico.slice(-50), e.indice],
   }
 }

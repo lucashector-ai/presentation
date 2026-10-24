@@ -212,11 +212,13 @@ export function MiniPrevia({ tipo: tipoProp, preset, loop, saida, texto, tocando
   )
 }
 
-const KEYFRAME_TRANSICAO: Record<Transicao['type'], string> = { none: 'cena-fade', fade: 'cena-fade', slide: 'cena-slide', scale: 'cena-scale', morph: '', push: 'cena-push' }
+const KEYFRAME_TRANSICAO: Record<Transicao['type'], string> = { none: 'cena-fade', fade: 'cena-fade', slide: 'cena-slide', scale: 'cena-scale', morph: '', push: 'cena-push', auto: '' }
 const CURVA_TRANSICAO: Partial<Record<Transicao['type'], string>> = { scale: 'cubic-bezier(.2,.8,.2,1)', push: 'cubic-bezier(.65,0,.35,1)' }
 
 /** Miniatura de transição de tela: a tela B entra sobre a A com os keyframes reais do visualizador. */
-export function MiniTransicao({ tipo, tocando, duracao }: { tipo: Transicao['type']; tocando: boolean; duracao: number }) {
+export function MiniTransicao({ tipo: tipoPedido, tocando, duracao }: { tipo: Transicao['type']; tocando: boolean; duracao: number }) {
+  // automática: a prévia mostra o caso em que ela vira morph (o mesmo objeto andando)
+  const tipo = tipoPedido === 'auto' ? 'morph' : tipoPedido
   const { reduzirMovimento } = usePreferencias()
   const ativo = tocando && !reduzirMovimento
   const ciclo = useCiclo(ativo, duracao + 1000)

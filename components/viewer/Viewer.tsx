@@ -7,6 +7,7 @@
  * Proporção diferente da tela: "Ajustar" (padrão) mostra a cena inteira e estende o fundo dela pelas faixas;
  * "Preencher tela" cobre a tela cortando o mínimo das bordas (escolha lembrada neste navegador).
  */
+import { pareamentoMorph } from '@/lib/scene/morph'
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, LayoutGrid, Maximize2, Minimize2, Proportions, X } from 'lucide-react'
 import type { Camada, Cena, DocumentoProjeto, Interacao } from '@/lib/scene/schema'
@@ -469,9 +470,7 @@ function AposSaida({ ms, children }: { ms: number; children: ReactNode }) {
 
 /** IDs das camadas da tela que sai que têm par na tela que entra (ficam ocultas na saída durante o morph). */
 function idsCasados(sai: Cena, entra: Cena): Set<string> {
-  const chave = (c: Camada) => (c.name?.trim() ? `n:${c.name.trim().toLowerCase()}` : `i:${c.id}`)
-  const destino = new Set(entra.layers.map(chave))
-  return new Set(sai.layers.filter((l) => destino.has(chave(l))).map((l) => l.id))
+  return new Set([...pareamentoMorph(sai, entra).values()].map((l) => l.id))
 }
 
 // ---------- pré-carregamento controlado ----------

@@ -7,10 +7,12 @@ import { useState } from 'react'
 import type { Cena, Transicao } from '@/lib/scene/schema'
 import type { Editor } from '@/lib/editor/useEditor'
 import { pedirPrevia } from '@/components/renderer/animacao'
+import { resolverTransicao, TRANSICAO_PADRAO } from '@/lib/scene/morph'
 import { Deslizante } from '@/components/editor/inspetor/controles'
 import { CartaoPreset, Chips, GradeCartoesPreset, MiniTransicao, Rotulo } from './ui'
 
 export const TRANSICOES: { id: Transicao['type']; rotulo: string }[] = [
+  { id: 'auto', rotulo: 'Automática' },
   { id: 'none', rotulo: 'Nenhuma' },
   { id: 'fade', rotulo: 'Fade' },
   { id: 'slide', rotulo: 'Deslizar' },
@@ -29,7 +31,7 @@ const CURVAS: { id: Transicao['easing']; rotulo: string }[] = [
   { id: 'spring', rotulo: 'Elástica' },
   { id: 'linear', rotulo: 'Linear' },
 ]
-const PADRAO: Transicao = { type: 'fade', duration: 500, easing: 'easeInOut' }
+const PADRAO: Transicao = TRANSICAO_PADRAO
 
 export const transicaoDa = (cena: Cena): Transicao => cena.transition ?? PADRAO
 export const nomeTransicao = (t: Transicao['type']) => TRANSICOES.find((x) => x.id === t)?.rotulo ?? t
@@ -40,7 +42,9 @@ export const resumoTransicao = (cena: Cena) => { const t = transicaoDa(cena); re
 export function previaTransicao(editor: Editor, t = editor.cena ? transicaoDa(editor.cena) : PADRAO) {
   if (t.type === 'none') return
   const anterior = editor.estado.documento.scenes[editor.indiceCena - 1]
-  pedirPrevia({ transicao: t, morphDe: anterior, duracao: t.duration + 100 })
+  // automática: a prévia mostra o que vai acontecer de fato (morph se algum objeto anda, senão fade)
+  const real = editor.cena ? resolverTransicao(anterior, editor.cena, t) : t
+  pedirPrevia({ transicao: real, morphDe: anterior, duracao: real.duration + 100 })
 }
 
 export function TransicaoTela({ editor }: { editor: Editor }) {
@@ -64,10 +68,11 @@ export function TransicaoTela({ editor }: { editor: Editor }) {
           </CartaoPreset>
         ))}
       </GradeCartoesPreset>
-      {tr.type === 'morph' && (
+      {(tr.type === 'morph' || tr.type === 'auto') && (
         <p className="rounded-md bg-acentoSuave px-2.5 py-2 text-[11px] leading-snug text-acento">
-          Camadas com o <strong className="font-medium">mesmo nome</strong> nas duas telas se transformam de uma para a outra.
-          {!anterior && ' Nesta primeira tela, o morph acontece ao chegar por um link.'}
+          {tr.type === 'auto' ? <>O <strong className="font-medium">mesmo objeto</strong> que mudou de lugar, tamanho ou cor anda até a nova posição; se nada mudou, a tela entra com fade.</> : <>O <strong className="font-medium">mesmo objeto</strong> nas duas telas se transforma de uma para a outra.</>}
+          {' '}Mesmo objeto = copiado ou de tela duplicada, ou com o mesmo nome. Para um objeto ficar parado, desligue &ldquo;Animar entre telas&rdquo; nele.
+          {!anterior && ' Nesta primeira tela, isso acontece ao chegar por um link.'}
         </p>
       )}
       {tr.type !== 'none' && (

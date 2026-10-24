@@ -1,4 +1,5 @@
 'use client'
+import { MapaExplorar } from './MapaExplorar'
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -118,6 +119,13 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
   const [gaveta, setGaveta] = useState<'esquerda' | 'direita' | null>(null)
   const [embed, setEmbed] = useState<{ ponto?: { x: number; y: number } } | null>(null)
   const [interagir3d, setInteragir3d] = useState(false)
+  const [mapa, setMapa] = useState(false)
+  // Explorar: o mapa das telas abre do inspetor da tela ou do painel de telas (evento, para não passar props por tudo)
+  useEffect(() => {
+    const abrir = () => setMapa(true)
+    window.addEventListener('mostra:abrir-mapa', abrir)
+    return () => window.removeEventListener('mostra:abrir-mapa', abrir)
+  }, [])
   const arquivoRef = useRef<HTMLInputElement>(null)
   const pontoArquivo = useRef<{ x: number; y: number } | undefined>(undefined)
   const sel = estado.selecao
@@ -500,6 +508,7 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
         </dl>
       </Modal>
 
+      {mapa && <MapaExplorar editor={editor} assets={assets} aoFechar={() => setMapa(false)} />}
       <ModalEmbed aberto={!!embed} aoFechar={() => setEmbed(null)} aoConfirmar={(v) => {
         const p = embed?.ponto
         setEmbed(null)

@@ -187,7 +187,8 @@ export type Loop = z.infer<typeof LoopSchema>
 
 /** Transições entre telas. `morph` anima camadas com o mesmo nome/ID entre a tela de origem e a de destino. */
 /** `push`: a tela nova empurra a anterior para fora (as duas andam juntas). */
-export const TIPOS_TRANSICAO = ['none', 'fade', 'slide', 'scale', 'morph', 'push'] as const
+/** `auto`: morph quando o mesmo objeto (mesmo ID ou nome único) mudou entre as telas, senão fade (lib/scene/morph.ts). */
+export const TIPOS_TRANSICAO = ['none', 'fade', 'slide', 'scale', 'morph', 'push', 'auto'] as const
 export const TransicaoSchema = z.object({
   type: z.enum(TIPOS_TRANSICAO).default('fade'),
   duration: z.number().int().min(DURACAO_MIN_MS).max(DURACAO_MAX_MS).default(500),
@@ -473,6 +474,8 @@ export type TipoMascara = (typeof TIPOS_MASCARA)[number]
 const CamadaBase = z.object({
   id: IdSchema,
   name: z.string().max(80).optional(),
+  /** false = não anima entre telas (o mesmo objeto aparece parado nas outras telas, sem Magic Move). */
+  morph: z.boolean().optional(),
   x: z.number(),
   y: z.number(),
   width: z.number().min(1),

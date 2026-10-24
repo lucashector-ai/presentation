@@ -3,6 +3,7 @@
 import { Minus, TriangleAlert, CircleCheck } from 'lucide-react'
 import { FORMATOS, type Cena, type Tamanho, type Transicao } from '@/lib/scene/schema'
 import { converterFormato } from '@/lib/scene/restricoes'
+import { TRANSICAO_PADRAO } from '@/lib/scene/morph'
 import type { Editor } from '@/lib/editor/useEditor'
 import type { AssetDemo } from '@/lib/demo/tipos'
 import { cx } from '@/components/ui'
@@ -20,7 +21,7 @@ export function InspetorTela({ editor, assets }: { editor: Editor; assets: Asset
   if (!cena) return null
   const set = (p: Partial<Cena>) => acoes.atualizarCena(p, historico())
   const formato = (Object.entries(FORMATOS).find(([, s]) => s.width === cena.size.width && s.height === cena.size.height)?.[0] ?? 'personalizado') as string
-  const tr: Transicao = cena.transition ?? { type: 'fade', duration: 500, easing: 'easeInOut' }
+  const tr: Transicao = cena.transition ?? TRANSICAO_PADRAO
   const imagens = assets.filter((a) => a.tipo === 'image' || a.tipo === 'svg' || a.tipo === 'gif')
   const base: Pintura = cena.backgroundGradient ? { tipo: 'gradiente', gradiente: cena.backgroundGradient } : { tipo: 'solido', cor: cena.background }
   const aplicarBase = (p: Pintura) => {
@@ -67,7 +68,7 @@ export function InspetorTela({ editor, assets }: { editor: Editor; assets: Asset
       <SecaoGuiasTela editor={editor} />
 
       <Secao titulo="Transição de entrada">
-        <SeletorLista rotulo="Transição da tela" valor={tr.type} aoMudar={(type) => set({ transition: { ...tr, type: type as Transicao['type'] } })} opcoes={[{ id: 'none', rotulo: 'Instantânea' }, { id: 'fade', rotulo: 'Fade' }, { id: 'slide', rotulo: 'Slide' }, { id: 'scale', rotulo: 'Scale' }, { id: 'morph', rotulo: 'Morph (Magic Move)' }]} />
+        <SeletorLista rotulo="Transição da tela" valor={tr.type} aoMudar={(type) => set({ transition: { ...tr, type: type as Transicao['type'] } })} opcoes={[{ id: 'auto', rotulo: 'Automática (mesmo objeto anda)' }, { id: 'none', rotulo: 'Instantânea' }, { id: 'fade', rotulo: 'Fade' }, { id: 'slide', rotulo: 'Slide' }, { id: 'scale', rotulo: 'Scale' }, { id: 'morph', rotulo: 'Morph (Magic Move)' }, { id: 'push', rotulo: 'Empurrar' }]} />
         {tr.type !== 'none' && <Linha rotulo="Duração"><Deslizante rotulo="Duração da transição" valor={tr.duration} min={100} max={2000} passo={50} aoMudar={(duration) => set({ transition: { ...tr, duration } })} formatar={(v) => `${v}ms`} /></Linha>}
         {estado.documento.mode === 'slides' && (
           <Linha rotulo="Auto-avanço">
@@ -82,6 +83,7 @@ export function InspetorTela({ editor, assets }: { editor: Editor; assets: Asset
             <CampoNum prefixo="X" rotulo="Mapa X" valor={cena.map?.x ?? 0} aoMudar={(x) => set({ map: { x, y: cena.map?.y ?? 0 } })} />
             <CampoNum prefixo="Y" rotulo="Mapa Y" valor={cena.map?.y ?? 0} aoMudar={(y) => set({ map: { x: cena.map?.x ?? 0, y } })} />
           </div>
+          <button type="button" onClick={() => window.dispatchEvent(new Event('mostra:abrir-mapa'))} className="h-8 w-full rounded-md bg-superficie2 text-[11px] font-medium text-texto transition-colors hover:bg-hover">Abrir mapa das telas</button>
         </Secao>
       )}
 
