@@ -23,7 +23,7 @@ export type FerramentaVetor = 'mover' | 'laco' | 'caneta' | 'curvar' | 'cortar' 
 const FERRAMENTAS: { id: FerramentaVetor; rotulo: string; tecla: string; dica: string; icone: JSX.Element }[] = [
   { id: 'mover', rotulo: 'Mover', tecla: 'V', dica: 'Arraste nós, alças e segmentos; Shift soma à seleção; duplo clique num segmento cria um nó', icone: <MousePointer2 className="h-4 w-4" /> },
   { id: 'laco', rotulo: 'Laço', tecla: 'Q', dica: 'Desenhe à mão livre em volta dos nós para selecioná-los', icone: <Lasso className="h-4 w-4" /> },
-  { id: 'caneta', rotulo: 'Caneta', tecla: 'P', dica: 'Clique = canto, arraste = curva; clique no primeiro nó para fechar; Enter termina', icone: <PenTool className="h-4 w-4" /> },
+  { id: 'caneta', rotulo: 'Caneta', tecla: 'P', dica: 'Clique = canto, arraste = curva; clique no primeiro nó para fechar (arraste nele para fechar em curva); Enter termina', icone: <PenTool className="h-4 w-4" /> },
   { id: 'curvar', rotulo: 'Curvar', tecla: 'B', dica: 'Arraste um segmento para curvá-lo ou um nó para puxar alças (Alt quebra a simetria); clique num nó alterna canto/suave', icone: <Spline className="h-4 w-4" /> },
   { id: 'cortar', rotulo: 'Cortar', tecla: 'X', dica: 'Clique num segmento para cortar o caminho ali, ou num nó para abri-lo', icone: <Scissors className="h-4 w-4" /> },
   { id: 'apagar', rotulo: 'Apagar', tecla: 'E', dica: 'Clique num nó para apagá-lo ou num segmento para removê-lo', icone: <Eraser className="h-4 w-4" /> },
@@ -275,11 +275,13 @@ export function EditorVetor({ editor, camadaId, vp, ferramentaInicial = 'mover',
       const cam = v.caminhos[desenho.c]
       const outraPonta = cam ? (desenho.inicio ? cam.nos.length - 1 : 0) : -1
       if (cam && a?.tipo === 'no' && a.ref.c === desenho.c && a.ref.i === outraPonta && cam.nos.length >= 2) {
-        // clicar no primeiro nó fecha o caminho
-        gravar(camada, fecharCaminho(v, desenho.c), true)
-        historico(antes)
+        // clicar no primeiro nó fecha o caminho; segurar e arrastar ali fecha já puxando a curva desse canto
+        // (como no Figma). O gesto da caneta grava e entra no histórico ao soltar.
+        const fechado = fecharCaminho(v, desenho.c)
+        gravar(camada, fechado, false)
         setDesenho(null)
         setSel([a.ref])
+        gesto.current = { tipo: 'caneta', ref: a.ref, base: fechado, caixa: camada, antes, inverter: desenho.inicio, inicio: pc, moveu: false }
         return
       }
       const r = adicionarNo(v, desenho.c, local, undefined, desenho.inicio)
