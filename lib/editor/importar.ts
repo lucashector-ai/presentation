@@ -11,7 +11,8 @@ import DOMPurify from 'dompurify'
 import type { Editor } from './useEditor'
 import { interpretar, type ConteudoColado } from '@/lib/importar/clipboard'
 import { dimensoesSvg, normalizarSvg, sanitizarSvg } from '@/lib/importar/svg'
-import { MAX_SVG_INLINE } from '@/lib/scene/schema'
+import { MAX_SVG_INLINE, type Camada } from '@/lib/scene/schema'
+import { telaDoMockup } from './mockups'
 import { enquadrarNaCena } from '@/lib/scene/transform'
 import { dados, type AssetDemo, type ProgressoUpload } from '@/lib/dados'
 import { colarDoFigma } from './colarFigma'
@@ -70,6 +71,7 @@ export async function inserirSvg(editor: Editor, markupBruto: string, opcoes: Op
 export async function importarArquivos(editor: Editor, arquivos: File[], opcoes: OpcoesImportacao): Promise<AssetDemo[]> {
   const prontos: AssetDemo[] = []
   let deslocamento = 0
+  let naSelecao = false
   for (const arquivo of arquivos) {
     try {
       // SVG com textos: as fontes do Google vão embutidas no arquivo (o <img> do SVG não carrega fontes de fora)
@@ -80,7 +82,9 @@ export async function importarArquivos(editor: Editor, arquivos: File[], opcoes:
       deslocamento += 32
       // imagem: aparece na hora (prévia local) enquanto sobe; print colado vai comprimido
       const imagem = /^image\/(png|jpeg|webp|gif|avif)$/.test(f.type) ? await comprimirColado(f) : f
-      const previa = /^image\/(png|jpeg|webp|gif|avif)$/.test(imagem.type) ? await iniciarPrevia(editor, imagem, ponto) : null
+      // colar com uma caixa, frame, mockup ou imagem selecionados: a imagem entra neles (não vira camada solta)
+      const alvo = !opcoes.ponto && arquivos.length === 1 && /^image\/(png|jpeg|webp|gif|avif)$/.test(imagem.type) ? alvoDaImagem(editor) : null
+      const previa = /^image\/(png|jpeg|webp|gif|avif)$/.test(imagem.type) ? await iniciarPrevia(editor, imagem, ponto, alvo?.caixa) : null
       let a: AssetDemo
       try {
         a = await dados.enviarArquivo(imagem, (p) => { opcoes.aoProgredir?.(imagem.name, p); if (previa) progressoEnvio(previa.id, p.progresso) }, { sanitizarSvg: sanitizarSvgNavegador, projetoId: editor.projetoId })
@@ -89,7 +93,8 @@ export async function importarArquivos(editor: Editor, arquivos: File[], opcoes:
       }
       prontos.push(a)
       if (a.erro) opcoes.avisar(a.erro, 'info')
-      editor.acoes.adicionarAsset(a, previa ? previa.centro : ponto)
+      if (alvo) { alvo.aplicar(a.id); naSelecao = true }
+      else editor.acoes.adicionarAsset(a, previa ? previa.centro : ponto)
     } catch (e) {
       opcoes.avisar(e instanceof Error ? e.message : `Não foi possível importar ${arquivo.name}.`, 'erro')
     }
@@ -97,13 +102,40 @@ export async function importarArquivos(editor: Editor, arquivos: File[], opcoes:
   if (prontos.length) {
     const tipos = new Set(prontos.map((p) => p.tipo))
     const rotulo = tipos.has('model3d') ? 'modelo 3D' : tipos.has('svg') ? 'vetor' : tipos.has('lottie') ? 'animação' : tipos.has('video') ? 'vídeo' : 'imagem'
-    opcoes.avisar(prontos.length === 1 ? `${rotulo[0]!.toUpperCase()}${rotulo.slice(1)} adicionado à tela.` : `${prontos.length} arquivos adicionados à tela.`, 'sucesso')
+    const feminino = rotulo === 'imagem' || rotulo === 'animação'
+    opcoes.avisar(naSelecao ? 'Imagem colocada na seleção.' : prontos.length === 1 ? `${rotulo[0]!.toUpperCase()}${rotulo.slice(1)} ${feminino ? 'adicionada' : 'adicionado'} à tela.` : `${prontos.length} arquivos adicionados à tela.`, 'sucesso')
   }
   return prontos
 }
 
-/** Prévia local da imagem no lugar onde a camada vai entrar (mesmo enquadramento de adicionarAsset). */
-async function iniciarPrevia(editor: Editor, arquivo: File, ponto?: { x: number; y: number }) {
+type Caixa = { x: number; y: number; width: number; height: number }
+
+/**
+ * Onde a imagem colada entra quando há uma seleção: imagem → troca o arquivo; mockup → dentro da tela do
+ * aparelho (troca a imagem que já estiver lá); forma ou frame → preenchimento com imagem (cobrir).
+ */
+function alvoDaImagem(editor: Editor): { caixa: Caixa; aplicar: (assetId: string) => void } | null {
+  const sel = editor.camadasSelecionadas
+  const camadas = editor.cena?.layers ?? []
+  if (sel.length !== 1) return null
+  const l = sel[0]!
+  const { acoes } = editor
+  const caixa = (c: Caixa) => ({ x: c.x, y: c.y, width: c.width, height: c.height })
+  if (l.type === 'image') return { caixa: caixa(l), aplicar: (assetId) => acoes.atualizarCamadas([l.id], { assetId } as Partial<Camada>) }
+  if (l.type === 'frame' && l.mockup) {
+    const tela = telaDoMockup(l.id, camadas)
+    if (!tela) return null
+    const atual = camadas.find((c) => c.parentId === tela.id && c.type === 'image')
+    if (atual) return { caixa: caixa(tela), aplicar: (assetId) => acoes.atualizarCamadas([atual.id], { assetId, fit: 'cover' } as Partial<Camada>) }
+    return { caixa: caixa(tela), aplicar: (assetId) => acoes.criarCamada({ type: 'image', assetId, fit: 'cover', parentId: tela.id, name: 'Imagem' }, caixa(tela)) }
+  }
+  const preenchivel = l.type === 'frame' || (l.type === 'shape' && !l.isMask && !l.vetor && l.shape !== 'line' && l.shape !== 'arrow')
+  if (preenchivel) return { caixa: caixa(l), aplicar: (assetId) => acoes.atualizarCamadas([l.id], (c) => ({ ...c, fillImage: { assetId, fit: 'cover' }, gradient: undefined }) as Camada) }
+  return null
+}
+
+/** Prévia local da imagem no lugar onde a camada vai entrar (mesmo enquadramento de adicionarAsset), ou sobre o alvo. */
+async function iniciarPrevia(editor: Editor, arquivo: File, ponto?: { x: number; y: number }, sobre?: Caixa) {
   const c = editor.cena
   if (!c) return null
   try {
@@ -111,7 +143,7 @@ async function iniciarPrevia(editor: Editor, arquivo: File, ponto?: { x: number;
     const tam = { width: bmp.width, height: bmp.height }
     bmp.close()
     const r = enquadrarNaCena(tam, c.size, Math.min(c.size.width, c.size.height) * 0.15)
-    const rect = ponto ? { ...r, x: ponto.x - r.width / 2, y: ponto.y - r.height / 2 } : r
+    const rect = sobre ?? (ponto ? { ...r, x: ponto.x - r.width / 2, y: ponto.y - r.height / 2 } : r)
     const id = `envio-${Math.random().toString(36).slice(2, 9)}`
     iniciarEnvio({ id, url: URL.createObjectURL(arquivo), cenaId: c.id, ...rect, progresso: 0 })
     return { id, centro: { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 } }

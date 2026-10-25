@@ -47,7 +47,8 @@ import { importarConteudo, type Avisar } from '@/lib/editor/importar'
 import type { AssetDemo } from '@/lib/demo/tipos'
 import { cursorMostra } from '@/lib/editor/cursores'
 import { useEnviosEmCurso } from '@/lib/editor/enviosEmCurso'
-import { definirSelecaoTexto, lerSelecaoTexto } from '@/lib/editor/selecaoTexto'
+import { definirSelecaoTexto, lerSelecaoTexto, useSelecaoTexto } from '@/lib/editor/selecaoTexto'
+import { RealceTrecho } from './RealceTrecho'
 import { ajustarTrechos } from '@/lib/scene/trechos'
 
 /** Cursor de duplicar (seta com uma segunda seta menor), preta com contorno branco; ponta em (3, 2). */
@@ -233,6 +234,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
   const panPendente = useRef<{ x: number; y: number } | null>(null)
   const quadroPan = useRef(0)
   const envios = useEnviosEmCurso()
+  const selTexto = useSelecaoTexto()
   // trecho selecionado no texto em edição (mouse, Shift+setas, Ctrl+A): guardado para o painel
   const guardarSelecao = (t: HTMLTextAreaElement, id: string) => definirSelecaoTexto({ id, inicio: t.selectionStart, fim: t.selectionEnd })
   // trecho de texto guardado: vale só enquanto a camada dele continua selecionada
@@ -972,6 +974,8 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
       {/* guias de layout (grade, colunas, linhas) da tela e dos frames */}
       {areasGuias.length > 0 && <CamadaGuias areas={areasGuias} vp={vp} largura={tamanho.width} altura={tamanho.height} />}
 
+      {/* trecho de texto guardado (rich text): continua marcado enquanto a pessoa usa o painel */}
+      {selTexto && editandoTexto !== selTexto.id && <RealceTrecho id={selTexto.id} inicio={selTexto.inicio} fim={selTexto.fim} versao={`${vp.s}:${vp.ox}:${vp.oy}:${JSON.stringify(camadas.find((l) => l.id === selTexto.id) ?? null)}`} />}
       {/* imagens sendo enviadas: prévia local no lugar onde a camada vai entrar, com o progresso */}
       {envios.filter((e) => e.cenaId === cena.id).map((e) => (
         <div key={e.id} data-testid="envio-em-curso" className="pointer-events-none absolute overflow-hidden" style={{ left: vp.ox + e.x * vp.s, top: vp.oy + e.y * vp.s, width: e.width * vp.s, height: e.height * vp.s }}>
