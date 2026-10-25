@@ -1,7 +1,7 @@
 'use client'
 /**
  * Controles que somem durante a apresentação.
- * - Aparecem ao mover o mouse perto deles (faixa de baixo / canto do selo), ao passar o mouse, ao focar
+ * - Aparecem ao mover o mouse perto deles (cantos de baixo / canto do selo), ao passar o mouse, ao focar
  *   pelo teclado (Tab) e, no toque, por alguns segundos depois de um toque.
  * - Somem assim que quem apresenta clica na cena ou avança pelo teclado, e depois de ~2 s sem movimento.
  * - Nunca somem com o mouse em cima, com foco de teclado dentro deles ou com um painel aberto (`fixar`).
@@ -72,8 +72,10 @@ export function useControles({ fixar = false, zonaTopo = false }: { fixar?: bool
       ultimo.current = { x: e.clientX, y: e.clientY }
       acordarCursor()
       const r = e.currentTarget.getBoundingClientRect()
-      const faixa = Math.max(120, r.height * 0.22)
-      const perto = e.clientY >= r.bottom - faixa || (zonaTopo && e.clientY <= r.top + 90 && e.clientX <= r.left + 320)
+      // só perto dos próprios controles (cantos de baixo): mexer no conteúdo interativo no meio da tela, como os
+      // posts de um feed, não faz os controles aparecerem
+      const cantos = e.clientY >= r.bottom - 96 && (e.clientX <= r.left + 320 || e.clientX >= r.right - 320)
+      const perto = cantos || (zonaTopo && e.clientY <= r.top + 90 && e.clientX <= r.left + 320)
       if (perto) mostrar()
     },
     onMouseLeave: () => { if (!foco.current && !fixarRef.current) agendar(600) },

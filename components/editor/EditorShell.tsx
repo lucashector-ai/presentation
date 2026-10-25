@@ -155,7 +155,9 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
     if (alvo && alvo.id !== editor.cena?.id) acoes.irParaCena(alvo.id)
   }, [editor.estado.documento.scenes, editor.cena?.id, acoes])
   const abrirPreview = useCallback(() => {
-    focoAntesPreview.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    // o foco só volta para o botão se ele veio do teclado: aberto com o mouse, voltar com o Esc não acende o anel
+    const ativo = document.activeElement
+    focoAntesPreview.current = ativo instanceof HTMLElement && ativo.matches(':focus-visible') ? ativo : null
     telaPreview.current = Math.max(0, editor.indiceCena)
     window.history.pushState({ mostraPreview: true }, '')
     previewNoHistorico.current = true

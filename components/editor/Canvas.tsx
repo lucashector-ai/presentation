@@ -402,6 +402,20 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edicao?.id])
 
+  // texto que passa da caixa (tamanho fixo, ou antes da altura automática acompanhar): a área de edição cresce
+  // para baixo até caber tudo, em vez de rolar e esconder as primeiras linhas (como no Figma, o excesso aparece embaixo)
+  const [alturaEdicao, setAlturaEdicao] = useState(0)
+  useLayoutEffect(() => {
+    const ta = textareaRef.current
+    if (!editandoTexto || !ta) { setAlturaEdicao(0); return }
+    const antes = ta.style.height
+    ta.style.height = '0px'
+    const h = Math.ceil(ta.scrollHeight)
+    ta.style.height = antes
+    ta.scrollTop = 0
+    setAlturaEdicao(h)
+  }, [editandoTexto, cena?.layers, escalaVp])
+
   // ---------- editar vetor ----------
   const entrarVetor = useCallback(async (l: Camada | undefined) => {
     if (!editavelComoVetor(l)) return
@@ -1171,7 +1185,7 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
             wrap={hug ? 'off' : 'soft'}
             className="absolute z-20 resize-none overflow-hidden bg-transparent caret-selecao selection:bg-selecao/25"
             // sem contorno próprio (o estilo global de foco desenharia outro por fora): o da caixa, logo acima
-            style={{ outline: 'none', left: r.x - f, top: r.y - f, width: r.width + (hug ? 2 : 0) + 2 * f, height: r.height + 2 * f, whiteSpace: hug ? 'pre' : 'pre-wrap', wordBreak: 'break-word', fontFamily: pilhaFonte(textoEmEdicao.fontFamily), fontSize: textoEmEdicao.fontSize * vp.s, fontWeight: textoEmEdicao.fontWeight, fontStyle: textoEmEdicao.italic ? 'italic' : undefined, ...deco, textDecorationThickness: typeof deco.textDecorationThickness === 'number' ? deco.textDecorationThickness * vp.s : undefined, textUnderlineOffset: typeof deco.textUnderlineOffset === 'number' ? deco.textUnderlineOffset * vp.s : undefined, color: textoEmEdicao.color, textAlign: textoEmEdicao.align === 'justify' ? 'justify' : textoEmEdicao.align, lineHeight: textoEmEdicao.lineHeight, letterSpacing: textoEmEdicao.letterSpacing * vp.s, padding: pad, paddingLeft: recuo ? `calc(${pad}px + ${recuo})` : pad, ...caixaCss(textoEmEdicao.transform), fontVariantNumeric: textoEmEdicao.tabularNums ? 'tabular-nums' : undefined, fontVariantLigatures: textoEmEdicao.ligatures === false ? 'none' : undefined, transform: textoEmEdicao.rotation ? `rotate(${textoEmEdicao.rotation}deg)` : undefined, transformOrigin: 'center' }}
+            style={{ outline: 'none', left: r.x - f, top: r.y - f, width: r.width + (hug ? 2 : 0) + 2 * f, height: Math.max(r.height + 2 * f, alturaEdicao), whiteSpace: hug ? 'pre' : 'pre-wrap', wordBreak: 'break-word', fontFamily: pilhaFonte(textoEmEdicao.fontFamily), fontSize: textoEmEdicao.fontSize * vp.s, fontWeight: textoEmEdicao.fontWeight, fontStyle: textoEmEdicao.italic ? 'italic' : undefined, ...deco, textDecorationThickness: typeof deco.textDecorationThickness === 'number' ? deco.textDecorationThickness * vp.s : undefined, textUnderlineOffset: typeof deco.textUnderlineOffset === 'number' ? deco.textUnderlineOffset * vp.s : undefined, color: textoEmEdicao.color, textAlign: textoEmEdicao.align === 'justify' ? 'justify' : textoEmEdicao.align, lineHeight: textoEmEdicao.lineHeight, letterSpacing: textoEmEdicao.letterSpacing * vp.s, padding: pad, paddingLeft: recuo ? `calc(${pad}px + ${recuo})` : pad, ...caixaCss(textoEmEdicao.transform), fontVariantNumeric: textoEmEdicao.tabularNums ? 'tabular-nums' : undefined, fontVariantLigatures: textoEmEdicao.ligatures === false ? 'none' : undefined, transform: textoEmEdicao.rotation ? `rotate(${textoEmEdicao.rotation}deg)` : undefined, transformOrigin: 'center' }}
           />
           </>
         )

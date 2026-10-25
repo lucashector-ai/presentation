@@ -8,7 +8,7 @@
  * geometria/cor antiga e animam até a nova.
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import type { Animacao, Camada, CamadaForma, CamadaSvg, Cena, Interacao, CamadaTexto } from '@/lib/scene/schema'
+import type { Animacao, Camada, CamadaForma, CamadaFrame, CamadaSvg, Cena, Interacao, CamadaTexto } from '@/lib/scene/schema'
 import { useTextoSvg } from './svgDoAsset'
 import { EASING_CSS, camadaVisivel, interacoesDe, type EstadoRuntime } from '@/lib/scene/motor'
 import { ordenarParaRender } from '@/lib/scene/order'
@@ -145,8 +145,12 @@ function CenaRender(props: PropsInternas) {
   )
 }
 
-/** O que um filho herda dos frames ancestrais: ocultação, opacidade e recorte (clip). */
-interface Heranca { oculta: boolean; opacidade: number; clip?: string }
+/**
+ * O que um filho herda dos frames ancestrais: ocultação, opacidade, recorte (clip) e o clique — como no Figma,
+ * clicar numa imagem ou texto dentro de um frame com interação de clique dispara a do frame (as camadas são
+ * irmãs no DOM, então o clique não sobe sozinho).
+ */
+interface Heranca { oculta: boolean; opacidade: number; clip?: string; clique?: CamadaFrame }
 function herancaDeFrames(camadas: readonly Camada[]): Map<string, Heranca> {
   const r = new Map<string, Heranca>()
   if (!camadas.some((c) => c.parentId)) return r
@@ -174,7 +178,7 @@ function herancaDeFrames(camadas: readonly Camada[]): Map<string, Heranca> {
       const comRaio = !!raio && clips.length === 1
       if (t > 0 || l > 0 || b > 0 || d > 0 || comRaio) clip = `inset(${t}px ${d}px ${b}px ${l}px${comRaio ? ` round ${raio}` : ''})`
     }
-    r.set(c.id, { oculta: anc.some((a) => a.hidden), opacidade: anc.reduce((o, a) => o * a.opacity, 1), clip })
+    r.set(c.id, { oculta: anc.some((a) => a.hidden), opacidade: anc.reduce((o, a) => o * a.opacity, 1), clip, clique: anc.find((a) => a.interactions.some((i) => i.trigger === 'click')) })
   }
   return r
 }
@@ -290,7 +294,10 @@ const LayerView = memo(function LayerView({ camada: c, props, origemMorph, heran
   if (viewer && mobile && c.mobile?.hidden) return null
 
   const virtuais = gatilhos.inter.get(c.id)
-  const cliques = viewer ? [...interacoesDe(c, 'click'), ...(virtuais?.click ?? []), ...(semHover ? [...interacoesDe(c, 'hover'), ...(virtuais?.hover ?? [])] : [])] : []
+  const proprios = viewer ? [...interacoesDe(c, 'click'), ...(virtuais?.click ?? []), ...(semHover ? [...interacoesDe(c, 'hover'), ...(virtuais?.hover ?? [])] : [])] : []
+  // sem clique próprio, o clique é o do frame ancestral mais próximo que tem um (a imagem dentro de um post)
+  const dono = !proprios.length && viewer && heranca?.clique ? heranca.clique : c
+  const cliques = dono === c ? proprios : interacoesDe(dono, 'click')
   const hovers = viewer && !semHover ? [...interacoesDe(c, 'hover'), ...(virtuais?.hover ?? [])] : []
   const clicavel = cliques.length > 0
   const animRuntime = runtime?.animacoes[c.id]
@@ -348,16 +355,17 @@ const LayerView = memo(function LayerView({ camada: c, props, origemMorph, heran
     ...plano.estilo,
   }
   const classes = [plano.classe ?? '', c.type === 'hotspot' && viewer && c.hint ? 'hotspot-dica' : ''].filter(Boolean).join(' ')
-  const rotulo = c.ariaLabel || (c.type === 'text' ? c.text : undefined)
+  const rotulo = c.ariaLabel || (c.type === 'text' ? c.text : undefined) || (dono !== c ? dono.ariaLabel : undefined)
 
   const eventos =
     clicavel || hovers.length
       ? {
           role: clicavel ? 'button' : undefined,
-          tabIndex: clicavel ? 0 : undefined,
+          // o clique herdado do frame não vira mais uma parada do Tab (o frame já é uma)
+          tabIndex: clicavel ? (dono === c ? 0 : -1) : undefined,
           'aria-label': rotulo,
-          onClick: clicavel ? (ev: React.MouseEvent) => { ev.stopPropagation(); aoInteragir?.(c, cliques, 'click') } : undefined,
-          onKeyDown: clicavel ? (ev: React.KeyboardEvent) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ev.stopPropagation(); aoInteragir?.(c, cliques, 'click') } } : undefined,
+          onClick: clicavel ? (ev: React.MouseEvent) => { ev.stopPropagation(); aoInteragir?.(dono, cliques, 'click') } : undefined,
+          onKeyDown: clicavel ? (ev: React.KeyboardEvent) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ev.stopPropagation(); aoInteragir?.(dono, cliques, 'click') } } : undefined,
           onPointerEnter: hovers.length ? () => aoInteragir?.(c, hovers, 'hoverEnter') : undefined,
           onPointerLeave: hovers.length ? () => aoInteragir?.(c, hovers, 'hoverLeave') : undefined,
           onFocus: hovers.length ? () => aoInteragir?.(c, hovers, 'hoverEnter') : undefined,
