@@ -43,7 +43,7 @@ import { EditorVetor, type FerramentaVetor } from './vetor/EditorVetor'
 import { editavelComoVetor, formasDoSvg } from '@/lib/editor/vetor/camadas'
 import { normalizarZ } from '@/lib/scene/order'
 import { lerDataTransfer } from '@/lib/importar/clipboard'
-import { importarConteudo, type Avisar } from '@/lib/editor/importar'
+import { alvoNoPonto, importarConteudo, type Avisar } from '@/lib/editor/importar'
 import type { AssetDemo } from '@/lib/demo/tipos'
 import { cursorMostra } from '@/lib/editor/cursores'
 import { useEnviosEmCurso } from '@/lib/editor/enviosEmCurso'
@@ -900,7 +900,11 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
     const ponto = paraCena(local(ev))
     if (assetId) {
       const a = assets[assetId]
-      if (a) acoes.adicionarAsset(a, ponto)
+      if (!a) return
+      // em cima de um post, destaque ou foto do perfil de um feed: a imagem entra nele (recortada)
+      const alvo = a.tipo === 'image' || a.tipo === 'gif' ? alvoNoPonto(editor, ponto) : null
+      if (alvo) alvo.aplicar(a.id)
+      else acoes.adicionarAsset(a, ponto)
       return
     }
     const bloco = ev.dataTransfer.getData('application/x-mostra-bloco')

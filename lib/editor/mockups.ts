@@ -10,8 +10,8 @@ import { parseCamada, type Camada, type CamadaFrame, type Gradiente, type Intera
 import { comDescendentes, descendentes } from '@/lib/scene/arvore'
 import { aplicarRestricao } from '@/lib/scene/restricoes'
 import {
-  CARTAO_POST, CELULAR, GRADIENTES_SUAVES, NAVEGADOR, NOTEBOOK, PERFIL, STORY, TABLET,
-  svgCartaoPost, svgCelular, svgIlha, svgNavegador, svgNotch, svgNotebook, svgPerfil, svgReflexo, svgStory, svgTablet,
+  CARTAO_POST, CELULAR, GRADIENTES_SUAVES, NAVEGADOR, NOTEBOOK, PERFIL, SELO_PERFIL, STORY, TABLET,
+  svgCartaoPost, svgCelular, svgIlha, svgNavegador, svgNotch, svgNotebook, svgPerfil, svgReflexo, svgSeloPerfil, svgStory, svgTablet,
   temaInsta, temaJanela, temaMoldura,
 } from './mockupsSvg'
 
@@ -56,6 +56,7 @@ const SOMBRA_CARTAO = [
 /** Fundo da tela quando não há imagem: gradiente suave em vez de cinza. */
 const FUNDO_TELA: Gradiente = { type: 'linear', angle: 155, stops: [{ color: '#F6F7F5', pos: 0 }, { color: '#B5D8C2', pos: 58 }, { color: '#D9F99D', pos: 100 }] }
 
+const GRAD_AVATAR: Gradiente = { type: 'linear', angle: 135, stops: [{ color: '#2E3B49', pos: 0 }, { color: '#0E141B', pos: 100 }] }
 const gradienteSuave = (i: number, angle = 145): Gradiente => {
   const [a, b] = GRADIENTES_SUAVES[i % GRADIENTES_SUAVES.length]!
   return { type: 'linear', angle, stops: [{ color: a, pos: 0 }, { color: b, pos: 100 }] }
@@ -225,7 +226,10 @@ export function gerarFeedInstagram(pos: { x: number; y: number; largura: number 
   const cabecalho = ph(CARTAO_POST.cabecalho)
   const fotoH = Math.round(cartaoW * 1.25)
   const cartao = add({ type: 'frame', id: id('cartao'), name: 'Post em destaque', parentId: raizId, x, y, width: cartaoW, height: h, radius: px(20), clip: true, fill: t.fundo, effects: { shadows: SOMBRA_CARTAO }, enterAnimation: { type: 'slideUp', duration: 700, easing: 'easeOut' } })
-  add({ type: 'svg', id: id('svg'), name: 'Interface do post', parentId: cartao.id, x, y, width: cartaoW, height: h, markup: svgCartaoPost(FEED.cartao, Math.round((fotoH * FEED.cartao) / cartaoW), t, 20, Math.round(((h - cabecalho - fotoH) * FEED.cartao) / cartaoW)), fit: 'fill', locked: true })
+  add({ type: 'svg', id: id('svg'), name: 'Interface do post', parentId: cartao.id, x, y, width: cartaoW, height: h, markup: svgCartaoPost(FEED.cartao, Math.round((fotoH * FEED.cartao) / cartaoW), t, 20, Math.round(((h - cabecalho - fotoH) * FEED.cartao) / cartaoW), false), fit: 'fill', locked: true })
+  // a foto do perfil no cabeçalho do post (a mesma do perfil; ver aplicarFotoFeed)
+  const rAvatarPost = px(15)
+  add({ type: 'shape', shape: 'ellipse', id: id('avatar'), name: 'Foto do perfil no post', parentId: cartao.id, x: x + px(34) - rAvatarPost, y: y + Math.round(cabecalho / 2) - rAvatarPost, width: rAvatarPost * 2, height: rAvatarPost * 2, fill: '#0E141B', gradient: GRAD_AVATAR, locked: true })
   const rFoto = { x, y: y + cabecalho, width: cartaoW, height: fotoH }
   const foto = add({ type: 'frame', id: id('foto'), name: 'Foto em destaque', parentId: cartao.id, ...rFoto, clip: true, fill: t.separador }) as CamadaFrame
   const imagens = op.imagens ?? []
@@ -253,10 +257,16 @@ export function gerarFeedInstagram(pos: { x: number; y: number; largura: number 
   add({ type: 'svg', id: id('svg'), name: 'Interface do Instagram', parentId: telaId, x: tx, y: ty, width: celTela.width, height: celTela.height, markup: svgPerfil(t), fit: 'fill', locked: true })
   const tp: Texto = (nomeCamada, text, r, extra = {}) => texto(nomeCamada, text, r, { ...extra, parentId: telaId })
   const na = (nx: number, ny: number, nw: number, nh: number): Retangulo => ({ x: tx + sp(nx), y: ty + sv(ny), width: sp(nw), height: sv(nh) })
+  // círculo no centro (cx, cy) do perfil, sempre redondo (a escala horizontal define o diâmetro)
+  const circulo = (cx: number, cy: number, raio: number): Retangulo => ({ x: tx + sp(cx) - sp(raio), y: ty + sv(cy) - sp(raio), width: sp(raio) * 2, height: sp(raio) * 2 })
+  // foto do perfil e capas dos destaques: camadas redondas por cima do desenho (aceitam imagem)
+  const { avatar: av, destaques: dq } = PERFIL
+  add({ type: 'shape', shape: 'ellipse', id: id('avatar'), name: 'Foto do perfil', parentId: telaId, ...circulo(av.cx, av.cy, av.d / 2 - 5), fill: '#0E141B', gradient: GRAD_AVATAR })
+  for (let i = 0; i < 4; i++) add({ type: 'shape', shape: 'ellipse', id: id('capa'), name: `Capa do destaque ${i + 1}`, parentId: telaId, ...circulo(dq.x0 + i * dq.passo, dq.y, dq.d / 2 - 5), fill: GRADIENTES_SUAVES[(i * 2 + 1) % GRADIENTES_SUAVES.length]![0], gradient: gradienteSuave(i * 2 + 1, 135) })
+  add({ type: 'svg', id: id('svg'), name: 'Selo do perfil', parentId: telaId, ...circulo(av.cx + SELO_PERFIL.dx, av.cy + SELO_PERFIL.dy, SELO_PERFIL.d / 2), markup: svgSeloPerfil(t), fit: 'fill', locked: true })
   tp('Hora', '9:41', na(26, 15, 50, 20), { fontSize: fp(15), fontWeight: 600, color: t.texto })
   tp('Arroba', arroba, na(16, 52, 200, 24), { fontSize: fp(17), fontWeight: 700, color: t.texto })
-  const { avatar } = PERFIL
-  tp('Inicial do perfil', nome.charAt(0).toUpperCase(), na(avatar.cx - 20, avatar.cy - 16, 40, 32), { fontSize: fp(26), fontWeight: 700, color: '#D9F99D', align: 'center', valign: 'middle' })
+  tp('Inicial do perfil', nome.charAt(0).toUpperCase(), na(av.cx - 20, av.cy - 16, 40, 32), { fontSize: fp(26), fontWeight: 700, color: '#D9F99D', align: 'center', valign: 'middle' })
   const contadores: [string, string][] = [['128', 'posts'], ['12,4 mil', 'seguidores'], ['310', 'seguindo']]
   contadores.forEach(([v, r], i) => {
     tp(`Número ${r}`, v, na(108 + i * 72, 108, 68, 22), { fontSize: fp(16), fontWeight: 700, color: t.texto, align: 'center' })
@@ -279,9 +289,9 @@ export function gerarFeedInstagram(pos: { x: number; y: number; largura: number 
     const lin = Math.floor(i / 3)
     const r = { x: gx + col * (lado + gap), y: gy + lin * (lado + gap), width: lado, height: lado }
     const img = imagens[i]
-    const post = add({ type: 'frame', id: id('post'), name: `Post ${i + 1}`, parentId: telaId, ...r, clip: true, fill: GRADIENTES_SUAVES[i % GRADIENTES_SUAVES.length]![1], gradient: img ? undefined : gradienteSuave(i), ariaLabel: `Ver post ${i + 1}`, enterAnimation: { type: 'scaleIn', duration: 500, delay: 360 + 70 * i, easing: 'easeOut' }, interactions: interacoesDoPost(i, destaques.map((c) => c.id)) })
-    if (img) add({ type: 'image', id: id('imagem'), name: `Imagem do post ${i + 1}`, parentId: post.id, assetId: img.id, fit: 'cover', ...r })
-  }
+    // a foto é o preenchimento do próprio frame: fica sempre recortada na célula (cobrir)
+    add({ type: 'frame', id: id('post'), name: `Post ${i + 1}`, parentId: telaId, ...r, clip: true, fill: GRADIENTES_SUAVES[i % GRADIENTES_SUAVES.length]![1], gradient: img ? undefined : gradienteSuave(i), fillImage: img ? { assetId: img.id, fit: 'cover' } : undefined, ariaLabel: `Ver post ${i + 1}`, enterAnimation: { type: 'scaleIn', duration: 500, delay: 360 + 70 * i, easing: 'easeOut' }, interactions: interacoesDoPost(i, destaques.map((c) => c.id)) })
+    }
   return saida
 }
 

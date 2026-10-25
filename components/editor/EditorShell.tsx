@@ -234,7 +234,7 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
         const camadas = acimaDe(gerarFeedInstagram({ x: (ponto?.x ?? W / 2) - larg / 2, y: (ponto?.y ?? H / 2) - alt / 2, largura: larg }, { imagens: imagensMockup }, novoId('insta', cena.layers)), cena.layers)
         acoes.inserirCamadas(camadas)
         setTimeout(() => acoes.selecionar([camadas[0]!.id]), 0)
-        avisar('Feed criado. Solte as artes nos posts e no destaque; nome, @, números e legenda ficam na seção Mockup. Na apresentação, clicar num post mostra ele em destaque.', 'info')
+        avisar('Feed criado. Troque as fotos (perfil, destaques e posts), o nome e os números à direita, ou solte uma imagem direto num post.', 'info')
         return
       }
       case 'mockup': {

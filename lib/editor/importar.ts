@@ -13,6 +13,7 @@ import { interpretar, type ConteudoColado } from '@/lib/importar/clipboard'
 import { dimensoesSvg, normalizarSvg, sanitizarSvg } from '@/lib/importar/svg'
 import { MAX_SVG_INLINE, type Camada } from '@/lib/scene/schema'
 import { telaDoMockup } from './mockups'
+import { aplicarFotoFeed, lugarDaCamada, lugarNoPonto, raizDoFeed, type LugarFoto } from './feedFotos'
 import { enquadrarNaCena } from '@/lib/scene/transform'
 import { dados, type AssetDemo, type ProgressoUpload } from '@/lib/dados'
 import { colarDoFigma } from './colarFigma'
@@ -83,7 +84,9 @@ export async function importarArquivos(editor: Editor, arquivos: File[], opcoes:
       // imagem: aparece na hora (prévia local) enquanto sobe; print colado vai comprimido
       const imagem = /^image\/(png|jpeg|webp|gif|avif)$/.test(f.type) ? await comprimirColado(f) : f
       // colar com uma caixa, frame, mockup ou imagem selecionados: a imagem entra neles (não vira camada solta)
-      const alvo = !opcoes.ponto && arquivos.length === 1 && /^image\/(png|jpeg|webp|gif|avif)$/.test(imagem.type) ? alvoDaImagem(editor) : null
+      // soltar em cima de um post, destaque ou foto do perfil de um feed: a imagem entra nele
+      const soImagem = arquivos.length === 1 && /^image\/(png|jpeg|webp|gif|avif)$/.test(imagem.type)
+      const alvo = !soImagem ? null : opcoes.ponto ? alvoNoPonto(editor, opcoes.ponto) : alvoDaImagem(editor)
       const previa = /^image\/(png|jpeg|webp|gif|avif)$/.test(imagem.type) ? await iniciarPrevia(editor, imagem, ponto, alvo?.caixa) : null
       let a: AssetDemo
       try {
@@ -103,7 +106,7 @@ export async function importarArquivos(editor: Editor, arquivos: File[], opcoes:
     const tipos = new Set(prontos.map((p) => p.tipo))
     const rotulo = tipos.has('model3d') ? 'modelo 3D' : tipos.has('svg') ? 'vetor' : tipos.has('lottie') ? 'animação' : tipos.has('video') ? 'vídeo' : 'imagem'
     const feminino = rotulo === 'imagem' || rotulo === 'animação'
-    opcoes.avisar(naSelecao ? 'Imagem colocada na seleção.' : prontos.length === 1 ? `${rotulo[0]!.toUpperCase()}${rotulo.slice(1)} ${feminino ? 'adicionada' : 'adicionado'} à tela.` : `${prontos.length} arquivos adicionados à tela.`, 'sucesso')
+    opcoes.avisar(naSelecao ? (opcoes.ponto ? 'Imagem colocada no feed.' : 'Imagem colocada na seleção.') : prontos.length === 1 ? `${rotulo[0]!.toUpperCase()}${rotulo.slice(1)} ${feminino ? 'adicionada' : 'adicionado'} à tela.` : `${prontos.length} arquivos adicionados à tela.`, 'sucesso')
   }
   return prontos
 }
@@ -121,6 +124,9 @@ function alvoDaImagem(editor: Editor): { caixa: Caixa; aplicar: (assetId: string
   const l = sel[0]!
   const { acoes } = editor
   const caixa = (c: Caixa) => ({ x: c.x, y: c.y, width: c.width, height: c.height })
+  const lugar = lugarDaCamada(l)
+  const feed = lugar && raizDoFeed(l, camadas)
+  if (lugar && feed) return { caixa: caixa(l), aplicar: (assetId) => aplicarFotoNoFeed(editor, feed.id, lugar, assetId) }
   if (l.type === 'image') return { caixa: caixa(l), aplicar: (assetId) => acoes.atualizarCamadas([l.id], { assetId } as Partial<Camada>) }
   if (l.type === 'frame' && l.mockup) {
     const tela = telaDoMockup(l.id, camadas)
@@ -132,6 +138,21 @@ function alvoDaImagem(editor: Editor): { caixa: Caixa; aplicar: (assetId: string
   const preenchivel = l.type === 'frame' || (l.type === 'shape' && !l.isMask && !l.vetor && l.shape !== 'line' && l.shape !== 'arrow')
   if (preenchivel) return { caixa: caixa(l), aplicar: (assetId) => acoes.atualizarCamadas([l.id], (c) => ({ ...c, fillImage: { assetId, fit: 'cover' }, gradient: undefined }) as Camada) }
   return null
+}
+
+/** Põe a foto num lugar do feed (post + destaque dele, perfil + cabeçalho do post…) num único passo do histórico. */
+export function aplicarFotoNoFeed(editor: Editor, raizId: string, lugar: LugarFoto, assetId: string | null) {
+  const novas = new Map(aplicarFotoFeed(raizId, editor.cena?.layers ?? [], lugar, assetId).map((c) => [c.id, c]))
+  if (novas.size) editor.acoes.atualizarCamadas([...novas.keys()], (l) => novas.get(l.id) ?? l)
+}
+
+/** Alvo de uma imagem solta num ponto: um lugar de foto de feed embaixo do cursor (senão, camada solta). */
+export function alvoNoPonto(editor: Editor, ponto: { x: number; y: number }): { caixa: Caixa; aplicar: (assetId: string) => void } | null {
+  const camadas = editor.cena?.layers ?? []
+  const achado = lugarNoPonto(camadas, ponto)
+  if (!achado) return null
+  const { camada: c } = achado
+  return { caixa: { x: c.x, y: c.y, width: c.width, height: c.height }, aplicar: (assetId) => aplicarFotoNoFeed(editor, achado.raiz.id, achado.lugar, assetId) }
 }
 
 /** Prévia local da imagem no lugar onde a camada vai entrar (mesmo enquadramento de adicionarAsset), ou sobre o alvo. */

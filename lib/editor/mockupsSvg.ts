@@ -243,17 +243,21 @@ function reticencias(x: number, y: number, cor: string, r = 1.6, passo = 6): str
 }
 
 /** Avatar com anel de story (gradiente do Instagram) e miolo escuro; `d` é o diâmetro externo. */
-function avatar(cx: number, cy: number, d: number, anel = true): string {
+function avatar(cx: number, cy: number, d: number, anel = true, miolo = true): string {
   const r = d / 2
   return (anel ? `<circle cx="${cx}" cy="${cy}" r="${r - 1.25}" fill="none" stroke="url(#ig)" stroke-width="2.5"/>` : '') +
-    `<circle cx="${cx}" cy="${cy}" r="${r - 5}" fill="url(#avt)"/>`
+    (miolo ? `<circle cx="${cx}" cy="${cy}" r="${r - 5}" fill="url(#avt)"/>` : '')
 }
 
-/** Fundo redondo dos destaques do perfil: gradiente suave em tons da marca com aro cinza. */
-function destaque(cx: number, cy: number, d: number, cores: [string, string], borda: string, n: number): string {
-  const r = d / 2
-  return `<defs><linearGradient id="d${n}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${cores[0]}"/><stop offset="1" stop-color="${cores[1]}"/></linearGradient></defs>` +
-    `<circle cx="${cx}" cy="${cy}" r="${r - 1}" fill="none" stroke="${borda}" stroke-width="1"/><circle cx="${cx}" cy="${cy}" r="${r - 5}" fill="url(#d${n})"/>`
+/** Aro cinza dos destaques do perfil (a capa redonda é uma camada por cima, editável). */
+function destaque(cx: number, cy: number, d: number, borda: string): string {
+  return `<circle cx="${cx}" cy="${cy}" r="${d / 2 - 1}" fill="none" stroke="${borda}" stroke-width="1"/>`
+}
+
+/** Selo azul de "+" do avatar do perfil (fica por cima da foto, numa camada própria). */
+export const SELO_PERFIL = { d: 24, dx: 28, dy: 28 } as const
+export function svgSeloPerfil(t: TemaInsta): string {
+  return svg(24, 24, `<circle cx="12" cy="12" r="11" fill="#0095F6" stroke="${t.fundo}" stroke-width="2"/><path d="M12 7.5v9M7.5 12h9" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/>`)
 }
 
 export const CARTAO_POST = { w: 560, cabecalho: 56, rodape: 120, raio: 16 } as const
@@ -263,13 +267,13 @@ export const CARTAO_POST = { w: 560, cabecalho: 56, rodape: 120, raio: 16 } as c
  * `fotoH` é a altura da área da foto; a altura total é cabeçalho + foto + rodapé. O nome, as curtidas e a
  * legenda são camadas de texto por cima (editáveis).
  */
-export function svgCartaoPost(w: number, fotoH: number, t: TemaInsta, raio: number = CARTAO_POST.raio, rodape: number = CARTAO_POST.rodape): string {
+export function svgCartaoPost(w: number, fotoH: number, t: TemaInsta, raio: number = CARTAO_POST.raio, rodape: number = CARTAO_POST.rodape, mioloAvatar = true): string {
   const { cabecalho } = CARTAO_POST
   const h = cabecalho + fotoH + rodape
   const yIcones = cabecalho + fotoH + 12
   return svg(w, h, `<defs>${GRAD_INSTA}${GRAD_AVATAR}</defs>` +
     `<rect width="${w}" height="${h}" rx="${raio}" fill="${t.fundo}"/>` +
-    avatar(34, cabecalho / 2, 40) +
+    avatar(34, cabecalho / 2, 40, true, mioloAvatar) +
     reticencias(w - 36, cabecalho / 2, t.texto) +
     icone('coracao', 16, yIcones, t.texto) + icone('comentario', 56, yIcones, t.texto) + icone('enviar', 96, yIcones, t.texto) + icone('salvar', w - 40, yIcones, t.texto) +
     `<rect x=".5" y=".5" width="${w - 1}" height="${h - 1}" rx="${raio - 0.5}" fill="none" stroke="${t.borda}" stroke-width="1"/>`)
@@ -299,9 +303,9 @@ export const GRADIENTES_SUAVES: [string, string][] = [
 ]
 
 /**
- * Interface do perfil do Instagram na tela do celular (324×724): barra de status, ícones do topo, avatar com
- * anel, botões, destaques, abas com a aba da grade ativa. Textos (hora, @, números, nome, bio, rótulos) são
- * camadas de texto por cima.
+ * Interface do perfil do Instagram na tela do celular (324×724): barra de status, ícones do topo, anel do avatar,
+ * botões, aros dos destaques, abas com a aba da grade ativa. Textos (hora, @, números, nome, bio, rótulos), a foto
+ * do perfil e as capas dos destaques são camadas por cima (editáveis).
  */
 export function svgPerfil(t: TemaInsta): string {
   const { w, h, avatar: av, botoes, destaques, abas } = PERFIL
@@ -313,13 +317,12 @@ export function svgPerfil(t: TemaInsta): string {
     `<rect x="${w - 36}" y="19" width="22" height="11" rx="3" fill="none" stroke="${t.texto}" stroke-opacity=".45" stroke-width="1"/><rect x="${w - 34.5}" y="20.5" width="18" height="8" rx="1.8" fill="${t.texto}"/><rect x="${w - 13}" y="22.5" width="1.6" height="4" rx=".8" fill="${t.texto}" fill-opacity=".45"/>` +
     // topo: novo post e menu
     icone('novo', w - 72, 52, t.texto) + icone('menu', w - 36, 52, t.texto) +
-    // avatar com anel
-    avatar(av.cx, av.cy, av.d) +
-    `<circle cx="${av.cx + 28}" cy="${av.cy + 28}" r="10" fill="#0095F6" stroke="${t.fundo}" stroke-width="2"/><path d="M${av.cx + 28} ${av.cy + 23.5}v9M${av.cx + 23.5} ${av.cy + 28}h9" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/>` +
+    // anel do avatar (a foto e o selo "+" são camadas por cima)
+    avatar(av.cx, av.cy, av.d, true, false) +
     // botões Seguir / Mensagem (rótulos são textos)
     `<rect x="${botoes.x1}" y="${botoes.y}" width="${botoes.w}" height="${botoes.h}" rx="8" fill="#0095F6"/><rect x="${botoes.x2}" y="${botoes.y}" width="${botoes.w}" height="${botoes.h}" rx="8" fill="${t.separador}"/>` +
     // destaques
-    [0, 1, 2, 3].map((i) => destaque(d.x0 + i * d.passo, d.y, d.d, GRADIENTES_SUAVES[(i * 2 + 1) % GRADIENTES_SUAVES.length]!, t.borda, i)).join('') +
+    [0, 1, 2, 3].map((i) => destaque(d.x0 + i * d.passo, d.y, d.d, t.borda)).join('') +
     // abas: grade (ativa), reels, marcados
     `<rect x="0" y="${abas.y}" width="${w}" height="1" fill="${t.separador}"/>` +
     icone('grade', w / 6 - 12, abas.y + 8, t.texto) + icone('reels', w / 2 - 12, abas.y + 8, t.texto2) + icone('marcado', (w * 5) / 6 - 12, abas.y + 8, t.texto2) +

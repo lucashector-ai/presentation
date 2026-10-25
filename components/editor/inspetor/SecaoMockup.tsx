@@ -9,13 +9,27 @@ import { descendentes } from '@/lib/scene/arvore'
 import { CAMPOS_FEED, CORES_MOLDURA, editarCampoFeed, MODELO_FEED, MODELOS_MOCKUP, regenerarMoldura, valorCampoFeed, type MockupMeta } from '@/lib/editor/mockups'
 import { svgCelular, temaMoldura } from '@/lib/editor/mockupsSvg'
 import { BotaoCor } from './CampoCor'
-import { CampoTexto, Linha, Secao, SeletorLista } from './controles'
+import { CampoTexto, LinhaCampos, Secao, SeletorLista } from './controles'
+import { FotosDoFeed } from './FotosDoFeed'
+import { chaveDoLugar, lugarDaCamada, raizDoFeed } from '@/lib/editor/feedFotos'
 import { useCamadas, type PropsSecao } from './selecao'
+
+const NUMEROS: readonly string[] = ['posts', 'seguidores', 'seguindo']
 
 export function SecaoMockup({ editor }: PropsSecao) {
   const { sel } = useCamadas(editor)
   const { cena, acoes } = editor
   const raiz = sel.length === 1 && sel[0]!.type === 'frame' && sel[0]!.mockup ? (sel[0] as CamadaFrame) : null
+  // uma foto do feed selecionada (post, destaque, foto do perfil): o mesmo seletor de fotos, já nela
+  const lugar = !raiz && cena && sel.length === 1 ? lugarDaCamada(sel[0]!) : null
+  const feedDaFoto = lugar && cena ? raizDoFeed(sel[0]!, cena.layers) : undefined
+  if (feedDaFoto && lugar) {
+    return (
+      <Secao titulo="Foto do feed">
+        <FotosDoFeed key={sel[0]!.id} editor={editor} raizId={feedDaFoto.id} inicial={chaveDoLugar(lugar)} />
+      </Secao>
+    )
+  }
   if (!raiz || !cena) return null
   const meta = raiz.mockup!
   const camadas = cena.layers
@@ -42,6 +56,9 @@ export function SecaoMockup({ editor }: PropsSecao) {
     if (corpo) acoes.atualizarCamadas([corpo.id], { markup: svgCelular(temaMoldura(cor)) } as Partial<Camada>, false)
     acoes.atualizarCamadas([raiz.id], { mockup: { ...meta, cor } } as Partial<Camada>)
   }
+  const campo = (c: (typeof CAMPOS_FEED)[number]) => (
+    <CampoTexto key={c.id} rotulo={c.rotulo} valor={valorCampoFeed(raiz.id, camadas, c.id)} aoConfirmar={(v) => { for (const m of editarCampoFeed(raiz.id, camadas, c.id, v)) acoes.atualizarCamadas([m.id], { text: m.text } as Partial<Camada>) }} />
+  )
   const mudarCor = (cor: string) => (feed ? corDoFeed(cor) : regenerar({ cor }))
   const predefinida = CORES_MOLDURA.find((c) => c.id.toLowerCase() === meta.cor.toLowerCase())
 
@@ -56,12 +73,15 @@ export function SecaoMockup({ editor }: PropsSecao) {
       </div>
       {feed ? (
         <>
-          {CAMPOS_FEED.map((c) => (
-            <Linha key={c.id} rotulo={c.rotulo}>
-              <CampoTexto rotulo={c.rotulo} valor={valorCampoFeed(raiz.id, camadas, c.id)} aoConfirmar={(v) => { for (const m of editarCampoFeed(raiz.id, camadas, c.id, v)) acoes.atualizarCamadas([m.id], { text: m.text } as Partial<Camada>) }} />
-            </Linha>
+          {CAMPOS_FEED.filter((c) => !NUMEROS.includes(c.id)).map((c) => (
+            <LinhaCampos key={c.id} rotulo={c.rotulo}>{campo(c)}</LinhaCampos>
           ))}
-          <p className="text-[11px] leading-relaxed text-texto2">Solte uma imagem em cada &ldquo;Post&rdquo; e em &ldquo;Destaque&rdquo; com o mesmo número. Na apresentação, clicar num post mostra o destaque dele à esquerda.</p>
+          {/* posts, seguidores e seguindo lado a lado, como no perfil */}
+          <LinhaCampos rotulo="Números">
+            <div className="flex gap-1">{CAMPOS_FEED.filter((c) => NUMEROS.includes(c.id)).map(campo)}</div>
+          </LinhaCampos>
+          <FotosDoFeed editor={editor} raizId={raiz.id} />
+          <p className="text-[11px] leading-relaxed text-texto3">Também dá para soltar uma imagem direto num post ou destaque. Na apresentação, clicar num post abre ele em destaque ao lado.</p>
         </>
       ) : (
         <p className="text-[11px] leading-relaxed text-texto2">Arraste uma imagem ou vídeo para dentro de &ldquo;Tela&rdquo;: ela fica recortada no formato do aparelho. Trocar o modelo ou a cor mantém o conteúdo.</p>
