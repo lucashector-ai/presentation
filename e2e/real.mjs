@@ -118,7 +118,7 @@ await passo('Criar projeto (POST /api/projects) abre o editor; renomear grava no
 })
 
 await passo('Editar e salvar uma tela (PUT /api/projects/:id/scenes com revisão)', async () => {
-  await page.getByRole('tab', { name: 'Blocos' }).click()
+  await page.getByRole('tab', { name: 'Adicionar' }).click()
   await page.getByRole('button', { name: 'Texto', exact: true }).click()
   await page.getByLabel('Conteúdo do texto').fill('Olá do banco real')
   await page.evaluate(() => document.activeElement?.blur())
@@ -134,7 +134,7 @@ await passo('Recarregar mostra a edição vinda do servidor', async () => {
 })
 
 await passo('Enviar imagem (POST /api/assets/upload) e vê-la no canvas por /api/midias/:id', async () => {
-  await page.getByRole('tab', { name: 'Arquivos' }).click()
+  await page.getByRole('tab', { name: 'Adicionar' }).click()
   await page.getByRole('complementary', { name: 'Painel esquerdo' }).locator('input[type=file]').setInputFiles([`${SHOTS}/imagem.png`])
   await page.getByText(/adicionad[ao] à tela/).first().waitFor({ timeout: 30000 })
   const img = page.getByTestId('canvas').locator('img[src*="/api/midias/"]').first()
@@ -143,7 +143,7 @@ await passo('Enviar imagem (POST /api/assets/upload) e vê-la no canvas por /api
   // a imagem continua no canvas depois de recarregar (a cena referencia o asset do workspace)
   await page.reload()
   await imagemCarregada(page.getByTestId('canvas').locator('img[src*="/api/midias/"]').first())
-  await page.getByRole('tab', { name: 'Arquivos' }).click()
+  await page.getByRole('tab', { name: 'Adicionar' }).click()
   await page.getByRole('complementary', { name: 'Painel esquerdo' }).getByText('imagem.png').first().waitFor()
   await page.screenshot({ path: `${SHOTS}/02-editor-imagem.png` })
 })
@@ -174,7 +174,7 @@ await passo('Duas abas: a edição de uma aparece na outra em tempo real (sala d
   await esperarSalvo(outra)
   await outra.close()
   // e continua gravando normalmente: a sala grava com a revisão certa (nenhum 409)
-  await page.getByRole('tab', { name: 'Blocos' }).click()
+  await page.getByRole('tab', { name: 'Adicionar' }).click()
   await page.getByRole('button', { name: 'Forma', exact: true }).click()
   await esperarSalvo(page)
   await page.screenshot({ path: `${SHOTS}/03-duas-abas.png` })

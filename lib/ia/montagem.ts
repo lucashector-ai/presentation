@@ -302,7 +302,10 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Inter
     L.push(l)
     return { l, h, tamanho, linhas, fim: l.y + h }
   }
+  const oito = (v: number) => Math.round(v / 8) * 8
   const forma = (papel: string, shape: string, x: number, y: number, w: number, h: number, extra: Record<string, unknown> = {}) => {
+    // enfeite (motivo) na grade de 8: a distância até o conteúdo vizinho também fica múltipla de 8
+    if (papel === 'motivo') { x = oito(x); y = oito(y); w = Math.max(8, oito(w)); h = Math.max(8, oito(h)) }
     const l: Camada = { id: c.uid(papel), type: 'shape', shape, x: Math.round(x), y: Math.round(y), width: Math.max(1, Math.round(w)), height: Math.max(1, Math.round(h)), fill: forte, ...extra }
     L.push(l)
     return l
@@ -1992,7 +1995,7 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Inter
         const alt = formaMotivo === 'semicircle' ? lado / 2 : lado
         if (t.motivo === 'formas') forma('motivo', formaMotivo, W / 2 - lado / 2, yT - alt - 56, lado, alt, { name: 'motivo', fill: corMotivo, enterAnimation: animForma() })
         else if (t.motivo === 'brilho') motivo(W / 2 - (st ? 400 : 520), H / 2 - (st ? 400 : 420), st ? 800 : 1040, st ? 800 : 840, 'pequeno')
-        else linha(W / 2 - 40, yT - 64, 80, 6, corMotivo, { name: 'motivo', radius: 3 })
+        else linha(W / 2 - 40, yT - 70, 80, 6, corMotivo, { name: 'motivo', radius: 3 }) // 64 px (regra do 8) entre o fio e o texto
       }
       break
     }

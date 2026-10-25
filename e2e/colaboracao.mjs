@@ -113,7 +113,7 @@ await passo('Ana cria a conta e um projeto com um texto e uma forma (salvos pela
   await ana.getByRole('button', { name: 'Criar projeto' }).click()
   await ana.waitForURL(/\/app\/projects\/[0-9a-f-]{36}\/edit/, { timeout: 30000 })
   idProjeto = ana.url().match(/projects\/([0-9a-f-]{36})\//)[1]
-  await ana.getByRole('tab', { name: 'Blocos' }).click()
+  await ana.getByRole('tab', { name: 'Adicionar' }).click()
   await ana.getByRole('button', { name: 'Texto', exact: true }).click()
   await ana.getByLabel('Conteúdo do texto').fill('Título da Ana')
   await ana.evaluate(() => document.activeElement?.blur())
@@ -279,7 +279,7 @@ await passo('Bruno cai da rede: vê "offline", continua editando; a Ana edita ta
     await bruno.locator('[data-testid=presenca] [role=status]', { hasText: 'Offline' }).waitFor({ timeout: 10000 })
     // a Ana vê o Bruno sair da sala
     await ana.getByRole('list', { name: 'Pessoas neste projeto' }).getByRole('button', { name: /^Bruno Colab/ }).waitFor({ state: 'detached', timeout: 15000 })
-    await bruno.getByRole('tab', { name: 'Blocos' }).click()
+    await bruno.getByRole('tab', { name: 'Adicionar' }).click()
     await bruno.getByRole('button', { name: 'Texto', exact: true }).click()
     await bruno.getByLabel('Conteúdo do texto').fill('Feito offline pelo Bruno')
     await bruno.evaluate(() => document.activeElement?.blur())

@@ -1,6 +1,6 @@
 'use client'
 /**
- * Ferramentas da barra superior (modelo do Figma): Mover V · Frame F · Formas (R O L ⇧L, num menu) ·
+ * Ferramentas (trilho vertical na lateral do canvas; barra no celular): Mover V · Frame F · Formas (R O L ⇧L, num menu) ·
  * Caneta P · Texto T · Mídia · Hotspot S · Mão H.
  */
 import { useEffect, useRef, useState, type JSX } from 'react'
@@ -17,7 +17,7 @@ const FORMAS: { id: Ferramenta; rotulo: string; tecla: string; icone: JSX.Elemen
   { id: 'estrela', rotulo: 'Estrela', tecla: '', icone: <Star className="h-4 w-4" /> },
 ]
 
-export function BarraFerramentas({ ferramenta, aoFerramenta, aoMidia, className, menuAcima }: { ferramenta: Ferramenta; aoFerramenta: (f: Ferramenta) => void; aoMidia: () => void; className?: string; menuAcima?: boolean }) {
+export function BarraFerramentas({ ferramenta, aoFerramenta, aoMidia, className, menuAcima, vertical }: { ferramenta: Ferramenta; aoFerramenta: (f: Ferramenta) => void; aoMidia: () => void; className?: string; menuAcima?: boolean; /** trilho na lateral do canvas: em coluna, menu de formas abre para o lado */ vertical?: boolean }) {
   const [menu, setMenu] = useState(false)
   // o botão de formas lembra a última forma usada (como no Figma)
   const [ultima, setUltima] = useState<Ferramenta>('forma')
@@ -34,16 +34,16 @@ export function BarraFerramentas({ ferramenta, aoFerramenta, aoMidia, className,
   const forma = FORMAS.find((f) => f.id === ultima) ?? FORMAS[0]!
   const formaAtiva = FORMAS.some((f) => f.id === ferramenta)
   return (
-    <div className={cx('items-center gap-0.5', className)} role="toolbar" aria-label="Ferramentas">
+    <div className={cx('items-center gap-0.5', vertical && 'flex-col', className)} role="toolbar" aria-label="Ferramentas" aria-orientation={vertical ? 'vertical' : 'horizontal'}>
       <BotaoIcone rotulo="Mover (V)" destaque ativo={ferramenta === 'mover'} onClick={() => aoFerramenta('mover')}><MousePointer2 className="h-4 w-4" /></BotaoIcone>
       <BotaoIcone rotulo="Frame (F)" destaque ativo={ferramenta === 'frame'} onClick={() => aoFerramenta('frame')}><Frame className="h-4 w-4" /></BotaoIcone>
-      <div ref={ref} className="relative flex">
-        <BotaoIcone rotulo={forma.tecla ? `${forma.rotulo} (${forma.tecla})` : forma.rotulo}  destaque ativo={formaAtiva} className="rounded-r-none" onClick={() => aoFerramenta(forma.id)}>{forma.icone}</BotaoIcone>
-        <button type="button" aria-label="Mais formas" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((v) => !v)} className={cx('inline-flex h-8 w-4 items-center justify-center rounded-r-md text-texto2 hover:bg-hover hover:text-texto', formaAtiva && 'bg-acento text-white hover:bg-acentoHover hover:text-white')}>
-          <ChevronDown className="h-3 w-3" />
+      <div ref={ref} className={cx('relative flex', vertical && 'flex-col')}>
+        <BotaoIcone rotulo={forma.tecla ? `${forma.rotulo} (${forma.tecla})` : forma.rotulo}  destaque ativo={formaAtiva} className={vertical ? 'rounded-b-none' : 'rounded-r-none'} onClick={() => aoFerramenta(forma.id)}>{forma.icone}</BotaoIcone>
+        <button type="button" aria-label="Mais formas" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((v) => !v)} className={cx('inline-flex items-center justify-center text-texto2 hover:bg-hover hover:text-texto', vertical ? 'h-3.5 w-8 rounded-b-md' : 'h-8 w-4 rounded-r-md', formaAtiva && 'bg-acento text-white hover:bg-acentoHover hover:text-white')}>
+          <ChevronDown className={cx('h-3 w-3', vertical && '-rotate-90')} />
         </button>
         {menu && (
-          <div role="menu" aria-label="Formas" className={cx('absolute left-0 z-40 w-48 rounded-lg border border-borda bg-superficie p-1 shadow-painel', menuAcima ? 'bottom-9' : 'top-9')}>
+          <div role="menu" aria-label="Formas" className={cx('absolute z-40 w-48 rounded-lg border border-borda bg-superficie p-1 shadow-painel', vertical ? 'left-10 top-0' : menuAcima ? 'bottom-9 left-0' : 'top-9 left-0')}>
             {FORMAS.map((f) => (
               <button key={f.id} role="menuitemradio" aria-checked={ferramenta === f.id} type="button" onClick={() => { aoFerramenta(f.id); setMenu(false) }} className={cx('flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[12px] hover:bg-hover', ferramenta === f.id && 'text-acento')}>
                 {f.icone}<span className="flex-1">{f.rotulo}</span><span className="mono text-[11px] text-texto3">{f.tecla}</span>

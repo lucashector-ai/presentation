@@ -1063,6 +1063,18 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
                   <div data-testid="etiqueta-medidas" className="mono pointer-events-none absolute whitespace-nowrap rounded-[4px] bg-selecao px-1.5 py-[3px] text-[11px] font-medium leading-none text-white" style={{ left: cx, top: baixo + 8, transform: 'translateX(-50%)', boxShadow: `0 0 0 1px ${HALO_SELECAO}` }}>
                     {girando ? `${anguloEtiqueta}°` : `${rotuloTamanho(caixaSel.width, unica?.sizingW)} × ${rotuloTamanho(caixaSel.height, unica?.sizingH)}${anguloEtiqueta ? ` · ${anguloEtiqueta}°` : ''}`}
                   </div>
+                  {/* barra rápida embaixo da seleção: o modo do painel e o menu, sem atravessar a tela até o painel */}
+                  {!g && (
+                    <div role="toolbar" aria-label="Ações da seleção" data-testid="barra-selecao" className="pointer-events-auto absolute z-20 flex items-center gap-0.5 whitespace-nowrap rounded-lg border border-borda bg-superficie p-0.5 text-[11px] shadow-[0_8px_24px_-12px_rgba(0,0,0,.3)]" style={{ left: cx, top: baixo + 34, transform: 'translateX(-50%)' }} onPointerDown={(e) => e.stopPropagation()}>
+                      {([['design', 'Estilo', 'bg-acento'], ['animacao', 'Animar', 'bg-[#AEB4FA]'], ['interacoes', 'Ação', 'bg-lima']] as const).map(([id, rotulo, cor]) => (
+                        <button key={id} type="button" onClick={() => acoes.ui({ abaDireita: id })} className={`flex h-6 items-center gap-1.5 rounded-md px-2 transition-colors ${estado.abaDireita === id ? 'bg-hover text-texto' : 'text-texto2 hover:bg-hover hover:text-texto'}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${cor}`} aria-hidden />{rotulo}
+                        </button>
+                      ))}
+                      <span className="mx-0.5 h-4 w-px bg-borda" aria-hidden />
+                      <button type="button" aria-label="Mais ações" title="Mais ações (botão direito)" onClick={(e) => { const b = e.currentTarget.getBoundingClientRect(); window.dispatchEvent(new CustomEvent('mostra:menu', { detail: { x: b.left, y: b.bottom + 4 } })) }} className="flex h-6 w-6 items-center justify-center rounded-md text-texto2 hover:bg-hover hover:text-texto">⋯</button>
+                    </div>
+                  )}
                 </>
               )
             })()}

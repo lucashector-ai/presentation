@@ -130,7 +130,7 @@ function EditorInteracoes({ camada, editor, assets }: { camada: Camada; editor: 
               {it.do.action === 'goToScene' && (
                 <>
                   <div className="pt-2 text-[12px] text-texto2">Destino</div>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-3 gap-1">
                     {estado.documento.scenes.map((s, i) => {
                       const ativo = it.do.action === 'goToScene' && it.do.targetSceneId === s.id
                       if (s.id === cena?.id) return null
@@ -145,7 +145,7 @@ function EditorInteracoes({ camada, editor, assets }: { camada: Camada; editor: 
                 </>
               )}
               {it.do.action === 'openLink' && (
-                <input aria-label="URL do link" defaultValue={it.do.url} placeholder="https://" onBlur={(e) => { try { const u = new URL(e.target.value); if (u.protocol === 'http:' || u.protocol === 'https:') setAcao({ action: 'openLink', url: e.target.value, newTab: true }) } catch { /* inválida */ } }} className="h-8 w-full rounded-md border border-borda px-2 text-[12px] outline-none focus:border-acento" />
+                <input aria-label="URL do link" defaultValue={it.do.url} placeholder="https://" onBlur={(e) => { try { const u = new URL(e.target.value); if (u.protocol === 'http:' || u.protocol === 'https:') setAcao({ action: 'openLink', url: e.target.value, newTab: true }) } catch { /* inválida */ } }} className="h-6 w-full rounded-md border border-borda px-2 text-[11px] outline-none focus:border-acento" />
               )}
               {(it.do.action === 'toggleLayer' || it.do.action === 'toggleVideo' || it.do.action === 'animate') && (
                 <Linha rotulo="Elemento">
@@ -169,7 +169,7 @@ function EditorInteracoes({ camada, editor, assets }: { camada: Camada; editor: 
             )}
             {it.do.action === 'animate' && (
               <Secao titulo="Animação do elemento">
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className="grid grid-cols-2 gap-1">
                   <CampoNum prefixo="Duração" rotulo="Duração da animação" valor={it.do.animation.duration} min={100} max={3000} passo={50} sufixo="ms" aoMudar={(duration) => it.do.action === 'animate' && setAcao({ ...it.do, animation: { ...it.do.animation, duration } })} />
                   <SeletorLista rotulo="Efeito" valor={it.do.animation.type} aoMudar={(type) => it.do.action === 'animate' && setAcao({ ...it.do, animation: { ...it.do.animation, type: type as never } })} opcoes={[['fadeIn', 'Fade'], ['scaleIn', 'Escala'], ['slideUp', 'Subir'], ['blurIn', 'Desfoque'], ['rotateIn', 'Girar'], ['reveal', 'Máscara']].map(([id, rotulo]) => ({ id: id!, rotulo: rotulo! }))} />
                 </div>
@@ -179,8 +179,8 @@ function EditorInteracoes({ camada, editor, assets }: { camada: Camada; editor: 
         )
       })}
       <div className="flex gap-2 px-4 py-4">
-        <button type="button" onClick={adicionar} className="flex h-8 flex-1 items-center justify-center gap-1 rounded-md border border-borda text-[12px] hover:border-bordaHover"><Plus className="h-3.5 w-3.5" /> Outra interação</button>
-        <button type="button" onClick={() => salvar([])} className="h-8 rounded-md px-3 text-[12px] text-texto2 hover:text-perigo">Remover</button>
+        <button type="button" onClick={adicionar} className="flex h-6 flex-1 items-center justify-center gap-1 rounded-md border border-borda text-[11px] hover:border-bordaHover"><Plus className="h-3.5 w-3.5" /> Outra interação</button>
+        <button type="button" onClick={() => salvar([])} className="h-6 rounded-md px-3 text-[11px] text-texto2 hover:text-perigo">Remover</button>
       </div>
     </>
   )

@@ -135,10 +135,10 @@ function Textura({ camadas, setFn }: { camadas: CamadaForma[]; setFn: (f: (c: Ca
       />
       {previa && (
         <>
-          <div className="grid grid-cols-3 gap-1.5">
-            <CampoNum prefixo={<span className="text-[11px]">⤢</span>} rotulo="Escala da textura" titulo="Escala do passo (%)" valor={escala} min={10} max={800} sufixo="%" aoMudar={(v) => set({ patternScale: limitar(v, 10, 800) / 100 })} aoDelta={(d) => setFn((c) => ({ ...c, patternScale: limitar(pct((c as CamadaForma).patternScale) + d, 10, 800) / 100 }) as Camada)} />
-            <CampoNum prefixo={<span className="text-[11px]">≡</span>} rotulo="Espessura da textura" titulo="Espessura do traço/ponto (%)" valor={peso} min={10} max={800} sufixo="%" aoMudar={(v) => set({ patternWeight: limitar(v, 10, 800) / 100 })} aoDelta={(d) => setFn((c) => ({ ...c, patternWeight: limitar(pct((c as CamadaForma).patternWeight) + d, 10, 800) / 100 }) as Camada)} />
-            <CampoNum prefixo={<span className="text-[11px]">◐</span>} rotulo="Opacidade da textura" titulo="Opacidade da textura (%)" valor={opacidade} min={0} max={100} sufixo="%" aoMudar={(v) => set({ patternOpacity: limitar(v, 0, 100) / 100 })} aoDelta={(d) => setFn((c) => { const f = c as CamadaForma; return { ...c, patternOpacity: limitar(pct(f.patternOpacity, OPACIDADE_PADRAO_TEXTURA[f.pattern] ?? 1) + d, 0, 100) / 100 } as Camada })} />
+          <div className="grid grid-cols-3 gap-1">
+            <CampoNum prefixo={<span className="text-[11px]">⤢</span>} rotulo="Escala da textura" titulo="Escala do passo (%)" valor={escala} min={10} max={800} aoMudar={(v) => set({ patternScale: limitar(v, 10, 800) / 100 })} aoDelta={(d) => setFn((c) => ({ ...c, patternScale: limitar(pct((c as CamadaForma).patternScale) + d, 10, 800) / 100 }) as Camada)} />
+            <CampoNum prefixo={<span className="text-[11px]">≡</span>} rotulo="Espessura da textura" titulo="Espessura do traço/ponto (%)" valor={peso} min={10} max={800} aoMudar={(v) => set({ patternWeight: limitar(v, 10, 800) / 100 })} aoDelta={(d) => setFn((c) => ({ ...c, patternWeight: limitar(pct((c as CamadaForma).patternWeight) + d, 10, 800) / 100 }) as Camada)} />
+            <CampoNum prefixo={<span className="text-[11px]">◐</span>} rotulo="Opacidade da textura" titulo="Opacidade da textura (%)" valor={opacidade} min={0} max={100} aoMudar={(v) => set({ patternOpacity: limitar(v, 0, 100) / 100 })} aoDelta={(d) => setFn((c) => { const f = c as CamadaForma; return { ...c, patternOpacity: limitar(pct(f.patternOpacity, OPACIDADE_PADRAO_TEXTURA[f.pattern] ?? 1) + d, 0, 100) / 100 } as Camada })} />
           </div>
         </>
       )}

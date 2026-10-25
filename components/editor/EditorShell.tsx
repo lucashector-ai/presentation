@@ -1,5 +1,6 @@
 'use client'
 import { MapaExplorar } from './MapaExplorar'
+import { Roteiro } from './Roteiro'
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -453,7 +454,7 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
     <div className="flex h-dvh flex-col bg-fundo">
       <input ref={arquivoRef} type="file" multiple accept={EXTENSOES_ACEITAS} className="hidden" onChange={(e) => { const fs = Array.from(e.target.files ?? []); e.target.value = ''; if (arquivoRef.current) arquivoRef.current.accept = EXTENSOES_ACEITAS; void importarArquivos(editor, fs, { avisar, ponto: pontoArquivo.current }); pontoArquivo.current = undefined }} />
 
-      <Cabecalho editor={editorFixo} ferramenta={estado.ferramenta} projetoId={projetoId} nomeProjeto={projeto.nome} aoMidia={aoMidia} aoPreview={abrirPreview} aoApresentar={apresentar} aoAtalhos={abrirAtalhos} aoConvidar={abrirConvidar} aoCompartilhar={abrirCompartilhar} />
+      <Cabecalho editor={editorFixo} ferramenta={estado.ferramenta} aba={estado.abaDireita} projetoId={projetoId} nomeProjeto={projeto.nome} aoMidia={aoMidia} aoPreview={abrirPreview} aoApresentar={apresentar} aoAtalhos={abrirAtalhos} aoConvidar={abrirConvidar} aoCompartilhar={abrirCompartilhar} />
       {estado.salvamento === 'conflito' && <AvisoConflito editor={editor} />}
       {estado.somenteLeitura && (
         <div role="status" className="flex shrink-0 items-center gap-2 border-b border-borda bg-superficie2 px-4 py-1.5 text-[12px] text-texto2">
@@ -462,14 +463,22 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
       )}
 
       <div className="relative flex min-h-0 flex-1">
-        <div className="hidden w-[248px] shrink-0 md:block"><PainelEsquerdoM editor={editorFixo} assets={assetsLista} avisar={avisar} aoBloco={aoBloco} /></div>
+        <div className="hidden w-[216px] shrink-0 md:block"><PainelEsquerdoM editor={editorFixo} assets={assetsLista} avisar={avisar} aoBloco={aoBloco} /></div>
         <main className="relative min-w-0 flex-1">
           <CanvasM editor={editor} assets={assets} avisar={avisar} interagir3d={interagir3d} aoEscala={definirEscala} aoGesto={setGestoCanvas} />
+          {/* ferramentas num trilho flutuante na lateral do canvas (o topo fica com os modos) */}
+          <div className="absolute left-3 top-3 z-20 hidden rounded-xl border border-borda bg-superficie p-1 shadow-[0_8px_24px_-12px_rgba(0,0,0,.25)] lg:block">
+            <BarraFerramentas vertical className="flex" ferramenta={estado.ferramenta} aoFerramenta={acoes.setFerramenta} aoMidia={aoMidia} />
+          </div>
           <BarraMovel ferramenta={estado.ferramenta} aoFerramenta={acoes.setFerramenta} aoMidia={aoMidia} gaveta={gaveta} aoGaveta={setGaveta} />
         </main>
-        <div className="hidden w-[288px] shrink-0 lg:block"><InspetorM editor={editorPaineis} assets={assetsLista} /></div>
+        {/* painel de propriedades como um cartão flutuante sobre o fundo do canvas */}
+        <div className="hidden w-[244px] shrink-0 bg-canvas p-2 pl-0 lg:block">
+          <div className="h-full overflow-hidden rounded-xl border border-borda shadow-[0_8px_24px_-14px_rgba(0,0,0,.22)]"><InspetorM editor={editorPaineis} assets={assetsLista} /></div>
+        </div>
       </div>
-      <Gaveta lado="esquerda" aberta={gaveta === 'esquerda'} aoFechar={() => setGaveta(null)} rotulo="Telas e camadas">
+      <Roteiro editor={editorFixo} assets={assetsLista} />
+      <Gaveta lado="esquerda" aberta={gaveta === 'esquerda'} aoFechar={() => setGaveta(null)} rotulo="Adicionar e camadas">
         <PainelEsquerdoM editor={editorFixo} assets={assetsLista} avisar={avisar} aoBloco={aoBlocoGaveta} />
       </Gaveta>
       <Gaveta lado="direita" aberta={gaveta === 'direita'} aoFechar={() => setGaveta(null)} rotulo="Propriedades">
@@ -529,7 +538,7 @@ const BarraMovel = memo(function BarraMovel({ ferramenta, aoFerramenta, aoMidia,
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center px-3 lg:hidden">
       <div className="pointer-events-auto flex max-w-full items-center gap-0.5 rounded-xl border border-borda bg-superficie p-1 shadow-painel">
-        <BotaoIcone rotulo="Telas e camadas" className="md:hidden" onClick={() => aoGaveta('esquerda')}><PanelLeft className="h-4 w-4" /></BotaoIcone>
+        <BotaoIcone rotulo="Adicionar e camadas" className="md:hidden" onClick={() => aoGaveta('esquerda')}><PanelLeft className="h-4 w-4" /></BotaoIcone>
         <span className="mx-0.5 h-5 w-px bg-borda md:hidden" />
         <BarraFerramentas className="flex lg:hidden" menuAcima ferramenta={ferramenta} aoFerramenta={aoFerramenta} aoMidia={aoMidia} />
         <span className="mx-0.5 h-5 w-px bg-borda" />

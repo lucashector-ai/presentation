@@ -95,12 +95,12 @@ export function SecaoTraco({ editor }: PropsSecao) {
         <>
           {soLinhas && (
             // linhas e setas: ponta de início e de fim, como no Figma ("Start point" / "End point")
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-1">
               <SeletorLista rotulo="Ponta de início" prefixo={<span className="text-[11px]">⇤</span>} valor={String(comum(sel, (c) => pontaInicio(c, tracosDe(c)[0] ?? TRACO_PADRAO)))} aoMudar={(v) => v !== MISTO && todos({ startArrow: v as Traco['startArrow'] })} opcoes={[...(comum(sel, (c) => pontaInicio(c, tracosDe(c)[0] ?? TRACO_PADRAO)) === MISTO ? [{ id: MISTO, rotulo: 'Misto' }] : []), ...PONTAS]} />
               <SeletorLista rotulo="Ponta de fim" prefixo={<span className="text-[11px]">⇥</span>} valor={String(comum(sel, (c) => pontaFim(c, tracosDe(c)[0] ?? TRACO_PADRAO)))} aoMudar={(v) => v !== MISTO && todos({ endArrow: v as Traco['endArrow'] })} opcoes={[...(comum(sel, (c) => pontaFim(c, tracosDe(c)[0] ?? TRACO_PADRAO)) === MISTO ? [{ id: MISTO, rotulo: 'Misto' }] : []), ...PONTAS]} />
             </div>
           )}
-          <div className="grid grid-cols-[1fr_1fr_28px_28px] gap-2">
+          <div className="grid grid-cols-[1fr_1fr_24px_24px] gap-1">
             {soLinhas ? (
               <SeletorLista rotulo="Pontas do traço" prefixo={<span className="text-[11px]">⌐</span>} valor={String(valor((t) => t.cap) ?? 'none')} aoMudar={(cap) => todos({ cap: cap as Traco['cap'] })} opcoes={[{ id: 'none', rotulo: 'Sem ponta' }, { id: 'round', rotulo: 'Redonda' }, { id: 'square', rotulo: 'Quadrada' }]} />
             ) : (
@@ -127,7 +127,7 @@ export function SecaoTraco({ editor }: PropsSecao) {
             <BotaoCampo rotulo="Mais opções do traço" ativo={mais} aria-expanded={mais} onClick={() => setMais((v) => !v)}><Settings2 className="h-3.5 w-3.5" /></BotaoCampo>
           </div>
           {ladosAbertos && (
-            <div className="grid grid-cols-4 gap-2" role="group" aria-label="Espessura por lado">
+            <div className="grid grid-cols-4 gap-1" role="group" aria-label="Espessura por lado">
               {LADOS.map(([lado, nome, seta]) => (
                 <CampoNum
                   key={lado}
@@ -151,14 +151,14 @@ export function SecaoTraco({ editor }: PropsSecao) {
                 opcoes={[{ id: 'solid', rotulo: 'Contínuo' }, { id: 'dashed', rotulo: 'Tracejado' }, { id: 'dotted', rotulo: 'Pontilhado' }]}
               />
               {estilo === 'dashed' && (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-1">
                   <CampoNum prefixo={<IconeTracejado />} rotulo="Comprimento do traço" titulo="Traço (px)" valor={valor((t) => t.dash) as number} min={0} max={500} aoMudar={(dash) => todos({ dash })} />
                   <CampoNum prefixo="↔" rotulo="Espaço entre traços" titulo="Espaço (px)" valor={valor((t) => t.gap) as number} min={0} max={500} aoMudar={(gap) => todos({ gap })} />
                 </div>
               )}
               {estilo === 'dotted' && <CampoNum prefixo="↔" rotulo="Espaço entre pontos" titulo="Espaço entre pontos (px)" valor={valor((t) => t.gap) as number} min={0} max={500} aoMudar={(gap) => todos({ gap })} />}
               {algumaLinha && (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-1">
                   {!soLinhas && <SeletorLista rotulo="Pontas do traço" valor={String(valor((t) => t.cap) ?? 'none')} aoMudar={(cap) => todos({ cap: cap as Traco['cap'] })} opcoes={[{ id: 'none', rotulo: 'Ponta: nenhuma' }, { id: 'round', rotulo: 'Ponta: redonda' }, { id: 'square', rotulo: 'Ponta: quadrada' }]} />}
                   <SeletorLista rotulo="Junção do traço" valor={String(valor((t) => t.join) ?? 'miter')} aoMudar={(join) => todos({ join: join as Traco['join'] })} opcoes={[{ id: 'miter', rotulo: 'Junção: quina' }, { id: 'round', rotulo: 'Junção: redonda' }, { id: 'bevel', rotulo: 'Junção: chanfro' }]} />
                 </div>

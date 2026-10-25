@@ -39,21 +39,21 @@ export function LinhaPintura({ rotulo, valor, aoMudar, tipos = ['solido'], acoes
   const solido = valor.tipo === 'solido' ? valor.cor : undefined
   const transparente = solido !== undefined && alfaDe(solido) < 1
   return (
-    <div className="flex items-center gap-0.5">
-      <div ref={caixa} className={cx('flex h-8 min-w-0 flex-1 items-center rounded-md bg-superficie2 ring-inset transition-shadow hover:ring-1 hover:ring-bordaForte focus-within:!ring-1 focus-within:!ring-acento', aberto && '!ring-1 !ring-acento')}>
+    <div className="flex items-center gap-1">
+      <div ref={caixa} className={cx('flex h-6 min-w-0 flex-1 items-center rounded-md bg-superficie2 ring-inset transition-shadow hover:ring-1 hover:ring-bordaForte focus-within:!ring-1 focus-within:!ring-acento', aberto && '!ring-1 !ring-acento')}>
         <button
           type="button"
           aria-label={`${rotulo}: escolher cor`}
           aria-haspopup="dialog"
           aria-expanded={aberto}
           onClick={() => setAberto((v) => !v)}
-          className="ml-1.5 h-5 w-5 shrink-0 rounded-[4px] shadow-[inset_0_0_0_1px_rgba(0,0,0,.12)] outline-none focus-visible:ring-2 focus-visible:ring-acento"
+          className="ml-[5px] h-3.5 w-3.5 shrink-0 rounded-[3px] shadow-[inset_0_0_0_1px_rgba(0,0,0,.12)] outline-none focus-visible:ring-2 focus-visible:ring-acento"
           style={{ background: !css ? XADREZ : transparente ? `linear-gradient(90deg, ${comAlfa(solido!, 1)} 50%, transparent 50%), linear-gradient(${solido}, ${solido}), ${XADREZ}` : css }}
         />
         {estilo && valor.tipo === 'solido' ? (
           <>
             <button type="button" title={`Estilo de cor: ${estilo.name}`} onClick={() => setAberto((v) => !v)} className="h-full min-w-0 flex-1 truncate pl-2 text-left text-[11px] text-texto">{estilo.name}</button>
-            <button type="button" aria-label="Desvincular estilo" title="Desvincular estilo (mantém a cor)" onClick={() => aoMudar({ tipo: 'solido', cor: valor.cor })} className="mr-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px] text-texto2 hover:text-texto"><Link2Off className="h-3.5 w-3.5" /></button>
+            <button type="button" aria-label="Desvincular estilo" title="Desvincular estilo (mantém a cor)" onClick={() => aoMudar({ tipo: 'solido', cor: valor.cor })} className="mr-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] text-texto2 hover:text-texto"><Link2Off className="h-3 w-3" /></button>
           </>
         ) : valor.tipo === 'solido' ? (
           <>
@@ -136,7 +136,7 @@ export function BotaoCor({ rotulo, cor, aoMudar, className }: { rotulo: string; 
   const caixa = useRef<HTMLButtonElement>(null)
   return (
     <>
-      <button ref={caixa} type="button" aria-label={rotulo} title={rotulo} onClick={() => setAberto((a) => !a)} className={`relative h-7 w-10 shrink-0 overflow-hidden rounded border border-borda ${className ?? ''}`} style={{ backgroundImage: XADREZ, backgroundSize: '8px 8px' }}>
+      <button ref={caixa} type="button" aria-label={rotulo} title={rotulo} onClick={() => setAberto((a) => !a)} className={`relative h-6 w-8 shrink-0 overflow-hidden rounded-md border border-borda ${className ?? ''}`} style={{ backgroundImage: XADREZ, backgroundSize: '8px 8px' }}>
         <span className="absolute inset-0" style={{ background: cor }} />
       </button>
       {aberto && <SeletorCor ancora={caixa.current} titulo={rotulo} valor={{ tipo: 'solido', cor }} aoMudar={(p) => { if (p.tipo === 'solido') aoMudar(p.cor) }} aoFechar={() => setAberto(false)} />}

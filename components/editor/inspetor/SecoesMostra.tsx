@@ -91,7 +91,7 @@ function LinkRapido({ camada, editor }: { camada: Camada; editor: Editor }) {
   }
   return (
     <Secao titulo="Link" resumo={valor} aoRemover={() => aplicar('')} rotuloRemover="Remover link">
-      <div className="flex h-8 items-center gap-1 rounded-md bg-superficie2 pr-2 ring-inset hover:ring-1 hover:ring-bordaForte focus-within:!ring-1 focus-within:!ring-acento">
+      <div className="flex h-6 items-center gap-1 rounded-md bg-superficie2 pr-2 ring-inset hover:ring-1 hover:ring-bordaForte focus-within:!ring-1 focus-within:!ring-acento">
         <span className="flex h-full w-7 items-center justify-center text-texto3"><Link2 className="h-3.5 w-3.5" /></span>
         <input key={valor} aria-label="Link" list="mostra-telas" defaultValue={valor} placeholder="https:// ou escolha uma tela" onBlur={(e) => e.target.value !== valor && aplicar(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} className="h-full min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-texto3" />
         <datalist id="mostra-telas">{telas.map((t, i) => <option key={t.id} value={`→ ${t.title || `Tela ${i + 1}`}`} />)}</datalist>
@@ -125,7 +125,7 @@ export function SecaoAcessibilidade({ editor }: PropsSecao) {
   const falta = l.interactions.length > 0 && !l.ariaLabel && l.type !== 'text'
   return (
     <Secao titulo="Acessibilidade" recolhivel aberta={falta || !!l.ariaLabel}>
-      <input aria-label="Descrição para leitores de tela" placeholder="Descrição para leitores de tela" value={l.ariaLabel ?? ''} onChange={(e) => editor.acoes.atualizarCamadas(ids, { ariaLabel: e.target.value || undefined }, false)} onBlur={() => editor.acoes.atualizarCamadas(ids, (c) => c)} className="h-8 w-full rounded-md bg-superficie2 px-2 text-[11px] outline-none ring-inset placeholder:text-texto3 hover:ring-1 hover:ring-bordaForte focus:!ring-1 focus:!ring-acento" />
+      <input aria-label="Descrição para leitores de tela" placeholder="Descrição para leitores de tela" value={l.ariaLabel ?? ''} onChange={(e) => editor.acoes.atualizarCamadas(ids, { ariaLabel: e.target.value || undefined }, false)} onBlur={() => editor.acoes.atualizarCamadas(ids, (c) => c)} className="h-6 w-full rounded-md bg-superficie2 px-2 text-[11px] outline-none ring-inset placeholder:text-texto3 hover:ring-1 hover:ring-bordaForte focus:!ring-1 focus:!ring-acento" />
       {falta && <p className="text-[11px] text-perigo">Elemento interativo precisa de descrição.</p>}
     </Secao>
   )

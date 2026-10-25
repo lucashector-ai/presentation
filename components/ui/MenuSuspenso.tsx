@@ -268,7 +268,7 @@ export function MenuSuspenso({ rotulo, valor = '', opcoes, aoMudar, modo = 'opco
         {aparencia === 'campo' && prefixo && <span className="pointer-events-none flex h-full w-7 shrink-0 items-center justify-center text-texto3" aria-hidden>{prefixo}</span>}
         {aparencia === 'icone' ? children : (
           <>
-            <span className={cx('min-w-0 flex-1 truncate text-left', aparencia === 'texto' && 'flex-none')}>{children ?? texto}</span>
+            <span className={cx('min-w-0 flex-1 truncate text-left', aparencia === 'texto' && 'flex-initial')}>{children ?? texto}</span>
             <ChevronDown className={cx('shrink-0 text-texto3', aparencia === 'grande' ? 'mx-2.5 h-4 w-4' : aparencia === 'texto' ? 'h-3 w-3' : 'mx-2 h-3 w-3')} aria-hidden />
           </>
         )}

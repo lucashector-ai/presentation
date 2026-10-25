@@ -20,7 +20,7 @@ export function EnviarImagem({ aoEnviada, largo = false }: { aoEnviada: (assetId
   return (
     <>
       {largo ? (
-        <button type="button" disabled={enviando} onClick={() => entrada.current?.click()} className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-borda text-[11px] font-medium text-texto2 transition-colors hover:border-acento hover:bg-acentoSuave hover:text-acento disabled:opacity-60">
+        <button type="button" disabled={enviando} onClick={() => entrada.current?.click()} className="flex h-6 w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-borda text-[11px] font-medium text-texto2 transition-colors hover:border-acento hover:bg-acentoSuave hover:text-acento disabled:opacity-60">
           {icone}
           {enviando ? 'Enviando…' : 'Enviar imagem do computador'}
         </button>

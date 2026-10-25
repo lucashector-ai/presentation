@@ -18,7 +18,7 @@ import { Botao, BotaoIcone, Modal, cx } from '@/components/ui'
 
 export function PainelEsquerdo({ editor, assets, avisar, aoBloco }: { editor: Editor; assets: AssetDemo[]; avisar: Avisar; aoBloco: (id: string) => void }) {
   const { estado, acoes } = editor
-  const abas: { id: AbaEsquerda; rotulo: string }[] = [{ id: 'telas', rotulo: 'Telas' }, { id: 'camadas', rotulo: 'Camadas' }, { id: 'arquivos', rotulo: 'Arquivos' }, { id: 'blocos', rotulo: 'Blocos' }]
+  const abas: { id: AbaEsquerda; rotulo: string }[] = [{ id: 'adicionar', rotulo: 'Adicionar' }, { id: 'camadas', rotulo: 'Camadas' }]
   return (
     <aside aria-label="Painel esquerdo" className="flex h-full flex-col border-r border-borda bg-superficie">
       <div role="tablist" aria-label="Painel esquerdo" className="flex shrink-0 gap-0.5 border-b border-borda p-2">
@@ -28,78 +28,18 @@ export function PainelEsquerdo({ editor, assets, avisar, aoBloco }: { editor: Ed
           </button>
         ))}
       </div>
-      <div className="rolagem-fina min-h-0 flex-1 overflow-y-auto">
-        {estado.abaEsquerda === 'telas' && <Telas editor={editor} assets={assets} />}
-        {estado.abaEsquerda === 'camadas' && <Camadas editor={editor} />}
-        {estado.abaEsquerda === 'arquivos' && <Arquivos editor={editor} assets={assets} avisar={avisar} />}
-        {estado.abaEsquerda === 'blocos' && <Blocos aoBloco={aoBloco} />}
+      <div className="rolagem-painel min-h-0 flex-1 overflow-y-auto">
+        {estado.abaEsquerda === 'camadas' ? <Camadas editor={editor} /> : (
+          <>
+            <Blocos aoBloco={aoBloco} />
+            <div className="border-t border-borda">
+              <h3 className="px-3 pt-3 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-texto3">Seus arquivos</h3>
+              <Arquivos editor={editor} assets={assets} avisar={avisar} />
+            </div>
+          </>
+        )}
       </div>
     </aside>
-  )
-}
-
-function Telas({ editor, assets }: { editor: Editor; assets: AssetDemo[] }) {
-  const { estado, acoes } = editor
-  const [arrastando, setArrastando] = useState<number | null>(null)
-  const [sobre, setSobre] = useState<number | null>(null)
-  // mapa estável: as miniaturas (memo) só re-renderizam quando a própria tela muda
-  const mapa = useMemo(() => Object.fromEntries(assets.map((a) => [a.id, a])), [assets])
-  const cenas = estado.documento.scenes
-  return (
-    <div className="px-3 pb-3">
-      {/* como no Figma: o "+" fica no topo da lista (a tela nova entra logo depois da atual) */}
-      <div className="sticky top-0 z-10 -mx-3 mb-2 flex h-9 items-center gap-0.5 bg-superficie px-3">
-        <span className="min-w-0 flex-1 truncate font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-texto3">{cenas.length} {cenas.length === 1 ? 'tela' : 'telas'}</span>
-        {editor.estado.documento.mode === 'explorar' && <BotaoIcone rotulo="Mapa das telas" className="h-7 w-7" onClick={() => window.dispatchEvent(new Event('mostra:abrir-mapa'))}><IconeMapa className="h-3.5 w-3.5" /></BotaoIcone>}
-        <BotaoIcone rotulo="Nova tela" title="Nova tela (depois da atual)" className="h-7 w-7" onClick={() => acoes.adicionarCena(editor.indiceCena)}><Plus className="h-4 w-4" /></BotaoIcone>
-      </div>
-      <ol role="listbox" aria-label="Telas" className="space-y-3">
-        {cenas.map((c, i) => {
-          const ativa = c.id === estado.cenaId
-          return (
-            <li
-              key={c.id}
-              role="option"
-              aria-selected={ativa}
-              tabIndex={0}
-              draggable
-              onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setArrastando(i) }}
-              onDragOver={(e) => { e.preventDefault(); setSobre(i) }}
-              onDrop={(e) => { e.preventDefault(); if (arrastando != null && arrastando !== i) acoes.moverCena(arrastando, i); setArrastando(null); setSobre(null) }}
-              onDragEnd={() => { setArrastando(null); setSobre(null) }}
-              onClick={() => acoes.irParaCena(c.id)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') acoes.irParaCena(c.id)
-                if (e.altKey && e.key === 'ArrowUp') { e.preventDefault(); acoes.moverCena(i, i - 1) }
-                if (e.altKey && e.key === 'ArrowDown') { e.preventDefault(); acoes.moverCena(i, i + 1) }
-              }}
-              className={cx('group relative flex cursor-pointer gap-2 outline-none', arrastando === i && 'opacity-40')}
-            >
-              {sobre === i && arrastando !== null && arrastando !== i && <span className="absolute -top-2 left-6 right-0 h-0.5 rounded bg-acento" />}
-              <span className="mono w-4 pt-1 text-[10px] text-texto3">{String(i + 1).padStart(2, '0')}</span>
-              <div className="min-w-0 flex-1">
-                {/* w-fit: o contorno abraça a miniatura (largura fixa), não a coluna inteira */}
-                {/* no hover só aparecem as ações (uma superfície); o contorno marca apenas a tela ativa */}
-                <div className={cx('relative w-fit max-w-full overflow-hidden rounded-[7px] outline outline-[1.5px] outline-offset-2', ativa ? 'outline-acento' : 'outline-transparent')}>
-                  {/* fora da área visível do painel, a miniatura não é pintada nem composta (content-visibility): numa
-                      apresentação longa elas eram metade dos elementos da página, refeitos a cada quadro de animação */}
-                  <MiniaturaCena cena={c} assets={mapa} largura={186} className="rounded-[6px] border-0 [content-visibility:auto]" />
-                  <QuemEstaNaTela sala={editor.sala} cenaId={c.id} />
-                </div>
-                <div className="mt-1.5 flex items-center justify-between">
-                  <span className="truncate text-[12px]">{c.title || 'Sem título'}</span>
-                  {c.notes && <span className="rotulo-mono !text-[9px]" title="Tem notas do apresentador">notas</span>}
-                </div>
-              </div>
-              <div className="absolute right-0 top-0 hidden gap-0.5 rounded-md bg-superficie/95 p-0.5 shadow-sm group-hover:flex group-focus-within:flex">
-                <BotaoIcone rotulo="Duplicar tela" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); acoes.duplicarCena(c.id) }}><Copy className="h-3 w-3" /></BotaoIcone>
-                <BotaoIcone rotulo="Apagar tela" className="h-6 w-6" disabled={cenas.length <= 1} onClick={(e) => { e.stopPropagation(); acoes.removerCena(c.id) }}><Trash2 className="h-3 w-3" /></BotaoIcone>
-              </div>
-            </li>
-          )
-        })}
-      </ol>
-    </div>
   )
 }
 
@@ -364,20 +304,20 @@ function Blocos({ aoBloco }: { aoBloco: (id: string) => void }) {
       <ul className="grid grid-cols-3 gap-2">
         {BLOCOS.map((b) => (
           <li key={b.id}>
-            <button type="button" draggable onDragStart={(e) => { e.dataTransfer.setData('application/x-mostra-bloco', b.id); e.dataTransfer.effectAllowed = 'copy' }} onClick={() => aoBloco(b.id)} className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-lg border border-borda text-[11px] text-textoCorpo hover:border-acento hover:text-acento">
+            <button type="button" draggable onDragStart={(e) => { e.dataTransfer.setData('application/x-mostra-bloco', b.id); e.dataTransfer.effectAllowed = 'copy' }} onClick={() => aoBloco(b.id)} className="flex h-[58px] w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-borda px-1 text-center text-[11px] leading-tight text-textoCorpo hover:border-acento hover:text-acento">
               <b.icone className="h-4 w-4" strokeWidth={1.6} />
               {b.rotulo}
             </button>
           </li>
         ))}
       </ul>
-      <div className="mt-5 rounded-lg bg-superficie2 p-3 text-[11px] leading-relaxed text-texto2">
-        <div className="mb-1 flex items-center gap-1 font-medium text-texto"><ChevronDown className="h-3 w-3" /> Colar de outros programas</div>
+      <details className="mt-3 rounded-lg bg-superficie2 px-3 py-2 text-[11px] leading-relaxed text-texto2">
+        <summary className="cursor-pointer select-none font-medium text-texto">Colar de outros programas</summary>
         <p><b>Figma:</b> botão direito › Copiar como › SVG (ou PNG) e Ctrl+V aqui.</p>
         <p><b>Illustrator:</b> selecione e Ctrl+C (com Clipboard SVG ativo) e cole.</p>
         <p><b>Blender:</b> exporte glTF 2.0 (.glb) e arraste o arquivo.</p>
         <p><b>After Effects:</b> exporte Lottie (JSON) e arraste.</p>
-      </div>
+      </details>
     </div>
   )
 }

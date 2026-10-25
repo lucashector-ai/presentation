@@ -368,6 +368,9 @@ aside[aria-label="Propriedades"], aside[aria-label="Painel esquerdo"] { will-cha
 .rolagem-fina { scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: rgb(var(--cor-texto) / .15) transparent; }
 .rolagem-fina::-webkit-scrollbar { width: 8px; height: 8px; }
 .rolagem-fina::-webkit-scrollbar-thumb { background: rgb(var(--cor-texto) / .15); border-radius: 8px; }
+/* painéis laterais do editor: rolam sem reservar calha para a barra (o conteúdo vai até a borda, como no Figma) */
+.rolagem-painel { scrollbar-gutter: auto; scrollbar-width: none; }
+.rolagem-painel::-webkit-scrollbar { display: none; }
 
 /* controle deslizante do inspetor (trilho fino, botão grafite) */
 .deslizante { -webkit-appearance: none; appearance: none; background: transparent; }

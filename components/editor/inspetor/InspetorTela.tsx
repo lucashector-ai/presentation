@@ -40,7 +40,7 @@ export function InspetorTela({ editor, assets }: { editor: Editor; assets: Asset
 
       <Secao titulo="Formato">
         <SeletorLista rotulo="Formato da tela" valor={formato} aoMudar={(v) => { const f = FORMATOS[v as keyof typeof FORMATOS]; if (f) redimensionar({ ...f }) }} opcoes={[...Object.entries(FORMATOS).map(([id, s]) => ({ id, rotulo: `${NOMES_FORMATO[id]} · ${s.width}×${s.height}` })), ...(formato === 'personalizado' ? [{ id: 'personalizado', rotulo: `Personalizado · ${cena.size.width}×${cena.size.height}` }] : [])]} />
-        <div className="grid grid-cols-[1fr_1fr_32px] gap-2">
+        <div className="grid grid-cols-2 gap-1">
           <CampoNum prefixo="W" rotulo="Largura da tela" valor={cena.size.width} min={16} max={8192} aoMudar={(w) => tamanho(w, cena.size.height)} />
           <CampoNum prefixo="H" rotulo="Altura da tela" valor={cena.size.height} min={16} max={8192} aoMudar={(h) => tamanho(cena.size.width, h)} />
         </div>
@@ -79,11 +79,11 @@ export function InspetorTela({ editor, assets }: { editor: Editor; assets: Asset
 
       {estado.documento.mode === 'explorar' && (
         <Secao titulo="Posição no mapa">
-          <div className="grid grid-cols-[1fr_1fr_32px] gap-2">
+          <div className="grid grid-cols-2 gap-1">
             <CampoNum prefixo="X" rotulo="Mapa X" valor={cena.map?.x ?? 0} aoMudar={(x) => set({ map: { x, y: cena.map?.y ?? 0 } })} />
             <CampoNum prefixo="Y" rotulo="Mapa Y" valor={cena.map?.y ?? 0} aoMudar={(y) => set({ map: { x: cena.map?.x ?? 0, y } })} />
           </div>
-          <button type="button" onClick={() => window.dispatchEvent(new Event('mostra:abrir-mapa'))} className="h-8 w-full rounded-md bg-superficie2 text-[11px] font-medium text-texto transition-colors hover:bg-hover">Abrir mapa das telas</button>
+          <button type="button" onClick={() => window.dispatchEvent(new Event('mostra:abrir-mapa'))} className="h-6 w-full rounded-md bg-superficie2 text-[11px] font-medium text-texto transition-colors hover:bg-hover">Abrir mapa das telas</button>
         </Secao>
       )}
 

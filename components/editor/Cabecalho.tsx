@@ -13,11 +13,10 @@
 import { memo, useState } from 'react'
 import Link from 'next/link'
 import { ChevronDown, CloudOff, Eye, Loader2, MonitorPlay, Play, Redo2, TriangleAlert, Undo2, UserPlus } from 'lucide-react'
-import { mesmoEditorForaDoCanvas, type Editor, type Ferramenta } from '@/lib/editor/useEditor'
+import { mesmoEditorForaDoCanvas, type AbaDireita, type Editor, type Ferramenta } from '@/lib/editor/useEditor'
 import { dados, mensagemDeErro, useDados } from '@/lib/dados'
 import { Botao, BotaoIcone, Simbolo, cx } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
-import { BarraFerramentas } from './BarraFerramentas'
 import { MenuEditor } from './MenuEditor'
 import { BotaoIA } from './ia/PainelIA'
 import { PresencaCabecalho } from './Presenca'
@@ -28,9 +27,14 @@ export type OpcoesApresentar = { doInicio?: boolean; telaCheia?: boolean; aprese
 const comEditor = <P extends { editor: Editor }>(C: (p: P) => React.ReactNode) =>
   memo(C, (a, b) => Object.keys(b).every((k) => (k === 'editor' ? mesmoEditorForaDoCanvas(a.editor, b.editor) : a[k as keyof P] === b[k as keyof P])))
 const BotaoIAM = comEditor(BotaoIA)
+const MODOS: { id: AbaDireita; rotulo: string; cor: string }[] = [
+  { id: 'design', rotulo: 'Design', cor: 'bg-acento' },
+  { id: 'animacao', rotulo: 'Animação', cor: 'bg-[#AEB4FA]' },
+  { id: 'interacoes', rotulo: 'Interações', cor: 'bg-lima' },
+]
 const MenuEditorM = comEditor(MenuEditor)
 
-export const Cabecalho = comEditor(function Cabecalho({ editor, ferramenta, projetoId, nomeProjeto, aoMidia, aoPreview, aoApresentar, aoAtalhos, aoConvidar, aoCompartilhar }: { editor: Editor; ferramenta: Ferramenta; projetoId: string; nomeProjeto: string; aoMidia: () => void; aoPreview: () => void; aoApresentar: (opcoes?: OpcoesApresentar) => void; aoAtalhos: () => void; aoConvidar: () => void; aoCompartilhar: () => void }) {
+export const Cabecalho = comEditor(function Cabecalho({ editor, ferramenta: _ferramenta, aba, projetoId, nomeProjeto, aoMidia, aoPreview, aoApresentar, aoAtalhos, aoConvidar, aoCompartilhar }: { editor: Editor; ferramenta: Ferramenta; aba: AbaDireita; projetoId: string; nomeProjeto: string; aoMidia: () => void; aoPreview: () => void; aoApresentar: (opcoes?: OpcoesApresentar) => void; aoAtalhos: () => void; aoConvidar: () => void; aoCompartilhar: () => void }) {
   const { estado, acoes } = editor
   const usuario = useDados((e) => e.usuario)
   const { mostrar } = useToast()
@@ -39,6 +43,7 @@ export const Cabecalho = comEditor(function Cabecalho({ editor, ferramenta, proj
   const renomear = (nome: string) => {
     void dados.atualizarProjeto(projetoId, { nome }).catch((e) => mostrar(mensagemDeErro(e, 'Não foi possível renomear o projeto.'), 'erro'))
   }
+  const totalInter = editor.cena?.layers.filter((l) => l.interactions.length > 0).length ?? 0
   const Separador = () => <span className="mx-1 hidden h-5 w-px shrink-0 bg-borda md:block" aria-hidden />
   return (
     <header className="flex h-[52px] shrink-0 items-center gap-1 border-b border-borda bg-superficie px-2 sm:px-3">
@@ -54,10 +59,17 @@ export const Cabecalho = comEditor(function Cabecalho({ editor, ferramenta, proj
         </span>
       </div>
 
-      {/* centro: ferramentas */}
-      <div className="hidden shrink-0 items-center gap-0.5 lg:flex">
-        <BarraFerramentas className="flex" ferramenta={ferramenta} aoFerramenta={acoes.setFerramenta} aoMidia={aoMidia} />
-        <Separador />
+      {/* centro: os três modos do painel (as ferramentas ficam no trilho da lateral do canvas) */}
+      <div className="hidden shrink-0 items-center gap-1.5 lg:flex">
+        <div role="tablist" aria-label="Modo do painel" className="flex items-center gap-0.5 rounded-lg bg-superficie2 p-[3px]">
+          {MODOS.map((m) => (
+            <button key={m.id} type="button" role="tab" aria-selected={aba === m.id} onClick={() => acoes.ui({ abaDireita: m.id })} className={cx('flex h-7 items-center gap-1.5 rounded-md px-3 text-[12px] transition-colors', aba === m.id ? 'bg-superficie font-medium text-texto shadow-[0_1px_2px_rgba(0,0,0,.08)]' : 'text-texto2 hover:text-texto')}>
+              <span className={cx('h-1.5 w-1.5 rounded-full', m.cor)} aria-hidden />
+              {m.rotulo}
+              {m.id === 'interacoes' && totalInter > 0 && <span className="text-[11px] text-acento">{totalInter}</span>}
+            </button>
+          ))}
+        </div>
         <BotaoIAM editor={editor} nomeProjeto={nomeProjeto} />
       </div>
 

@@ -31,7 +31,8 @@ import { ConexaoSala, type EstadoConexao } from '@/lib/colab/cliente'
 export type EstadoSalvamento = 'salvo' | 'alterado' | 'salvando' | 'offline' | 'falha' | 'conflito'
 import type { Ferramenta } from './atalhos'
 export type { Ferramenta } from './atalhos'
-export type AbaEsquerda = 'telas' | 'camadas' | 'arquivos' | 'blocos'
+/** Telas ficam no roteiro (embaixo); o painel esquerdo é Adicionar (blocos e arquivos) e Camadas. */
+export type AbaEsquerda = 'adicionar' | 'camadas'
 export type AbaDireita = 'design' | 'animacao' | 'interacoes'
 
 /** Um passo de desfazer: as operações da ação e as inversas (aplicadas sobre o documento atual). */
@@ -191,7 +192,7 @@ export function useEditor(projetoId: string, abertura: AberturaEditor | null) {
     guiasLayout: true,
     reguas: false,
     ferramenta: 'mover',
-    abaEsquerda: 'telas',
+    abaEsquerda: 'adicionar',
     abaDireita: 'design',
     mostrarHotspots: true,
     previa: 0,

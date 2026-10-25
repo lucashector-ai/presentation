@@ -144,20 +144,18 @@ await passo('AC-02/AC-03 Upload em lote cria uma tela por imagem', async () => {
 
 await passo('AC-02 Formato inválido mostra erro individual', async () => {
   fs.writeFileSync(`${SHOTS}/ruim.txt`, 'nao e imagem')
-  await page.getByRole('tab', { name: 'Arquivos' }).click()
+  await page.getByRole('tab', { name: 'Adicionar' }).click()
   await page.getByRole('button', { name: 'Enviar ou soltar arquivos' }).waitFor()
   await page.getByRole('complementary', { name: 'Painel esquerdo' }).locator('input[type=file]').setInputFiles([`${SHOTS}/ruim.txt`])
   await page.getByText('Formato .txt não suportado', { exact: false }).first().waitFor({ timeout: 10000 })
   await page.getByText('Falhou', { exact: true }).first().waitFor({ timeout: 3000 })
-  await page.getByRole('tab', { name: 'Telas' }).click()
   await esperarTelas(3)
 })
 
 await passo('AC-04 Texto e hotspot: adicionar, mover por teclado (Shift+→ = 8 px), alinhar, ordenar', async () => {
-  await page.getByRole('tab', { name: 'Telas' }).click()
   await telas().nth(0).click()
   await page.locator('footer').getByText('01 / 03', { exact: true }).waitFor()
-  await page.getByRole('tab', { name: 'Blocos' }).click()
+  await page.getByRole('tab', { name: 'Adicionar' }).click()
   await page.getByRole('button', { name: 'Texto', exact: true }).click()
   await page.getByLabel('Conteúdo do texto').fill('Olá, cliente')
   const campoX = page.getByLabel('Posição X')
@@ -175,7 +173,7 @@ await passo('AC-04 Texto e hotspot: adicionar, mover por teclado (Shift+→ = 8 
   const centro = Math.round((1920 - largura) / 2)
   const xCentro = await esperarValor(campoX, centro)
   if (Math.abs(xCentro - centro) > 1) throw new Error(`centralizar deu x=${xCentro}, esperado ${centro}`)
-  await page.getByRole('button', { name: 'Trazer para frente' }).click()
+  await page.keyboard.press(']') // trazer para frente (os botões saíram do cabeçalho; ficam no menu e nas teclas)
   await page.getByTestId('canvas').getByText('Olá, cliente').waitFor()
   await page.getByRole('button', { name: 'Hotspot', exact: true }).click()
   await page.getByLabel('Descrição do hotspot').fill('Ir para a segunda tela')
@@ -220,7 +218,6 @@ await passo('AC-05/AC-06 Preview: clicar no hotspot navega para a tela 02; tecla
 })
 
 await passo('Undo/redo de adicionar tela', async () => {
-  await page.getByRole('tab', { name: 'Telas' }).click()
   await esperarTelas(3)
   await page.getByRole('button', { name: 'Nova tela', exact: true }).first().click()
   await esperarTelas(4)
@@ -301,7 +298,6 @@ await passo('AC-09/AC-12 Convidado (celular): senha errada mostra erro, senha ce
 })
 
 await passo('AC-11 Mudança no rascunho não aparece no link até publicar', async () => {
-  await page.getByRole('tab', { name: 'Telas' }).click()
   await telas().nth(0).click()
   await page.getByRole('tab', { name: 'Camadas' }).click()
   await page.getByRole('tree', { name: 'Camadas da tela' }).getByRole('treeitem', { name: /Olá, cliente/ }).click()
@@ -488,7 +484,7 @@ await passo('Criar com IA: roteiro de 6 telas → apresentação → editor', as
 
 await passo('Texto: duplo clique na borda de baixo abraça a altura (um desfazer)', async () => {
   await telas().nth(0).click()
-  await page.getByRole('tab', { name: 'Blocos' }).click()
+  await page.getByRole('tab', { name: 'Adicionar' }).click()
   await page.getByRole('button', { name: 'Texto', exact: true }).click()
   await page.getByLabel('Conteúdo do texto').fill('Caixa justa E2E')
   await page.evaluate(() => document.activeElement?.blur())
@@ -536,9 +532,8 @@ await passo('Texto: corte vertical (opções de texto) deixa a caixa justa nas m
 })
 
 await passo('Texto: entrelinha justa não corta descendentes nem acentos (a tinta passa da caixa, como no Figma)', async () => {
-  await page.getByRole('tab', { name: 'Telas' }).click()
   await page.getByRole('button', { name: 'Nova tela', exact: true }).first().click()
-  await page.getByRole('tab', { name: 'Blocos' }).click()
+  await page.getByRole('tab', { name: 'Adicionar' }).click()
   await page.getByRole('button', { name: 'Texto', exact: true }).click()
   await page.getByLabel('Conteúdo do texto').fill('O próximo resultado\ncomeça agora')
   await page.evaluate(() => document.activeElement?.blur())
@@ -566,7 +561,6 @@ await passo('Texto: entrelinha justa não corta descendentes nem acentos (a tint
   })
   const noCanvas = await cortes(page.getByTestId('canvas'))
   if (noCanvas.length) throw new Error(`o texto é recortado no canvas: ${noCanvas.join(' | ')}`)
-  await page.getByRole('tab', { name: 'Telas' }).click()
   const miniatura = telas().filter({ has: page.locator(`[data-layer-id="${id}"]`) })
   await miniatura.waitFor()
   const naMiniatura = await cortes(miniatura)
@@ -607,9 +601,8 @@ async function esperarMascara(id, teste, ms = 6000) {
 const arvoreCamadas = () => page.getByRole('tree', { name: 'Camadas da tela' })
 
 await passo('Máscara: texto como máscara de imagem (foto dentro do título, ⌃⌥M), editável, remover e desfazer', async () => {
-  await page.getByRole('tab', { name: 'Telas' }).click()
   await page.getByRole('button', { name: 'Nova tela', exact: true }).first().click()
-  await page.getByRole('tab', { name: 'Blocos' }).click()
+  await page.getByRole('tab', { name: 'Adicionar' }).click()
   await page.getByRole('button', { name: 'Título', exact: true }).click()
   await page.getByLabel('Conteúdo do texto').fill('FOTO')
   const tam = page.getByLabel('Tamanho da fonte')
@@ -619,7 +612,7 @@ await passo('Máscara: texto como máscara de imagem (foto dentro do título, �
   await page.evaluate(() => document.activeElement?.blur())
   await page.getByRole('button', { name: 'Centralizar na horizontal' }).click()
   // a foto entra por cima do título
-  await page.getByRole('tab', { name: 'Arquivos' }).click()
+  await page.getByRole('tab', { name: 'Adicionar' }).click()
   await page.getByTitle(/Adicionar upload-1/).first().click()
   await page.getByRole('tab', { name: 'Camadas' }).click()
   await arvoreCamadas().getByRole('treeitem', { name: 'upload-1', exact: true }).waitFor()
@@ -671,14 +664,13 @@ const PNG_ALFA = `${SHOTS}/alfa-e2e.png`
 }
 
 await passo('Máscara: PNG com transparência como máscara de alfa, luminância e contorno', async () => {
-  await page.getByRole('tab', { name: 'Telas' }).click()
   await page.getByRole('button', { name: 'Nova tela', exact: true }).first().click()
-  await page.getByRole('tab', { name: 'Arquivos' }).click()
+  await page.getByRole('tab', { name: 'Adicionar' }).click()
   await page.getByRole('complementary', { name: 'Painel esquerdo' }).locator('input[type=file]').setInputFiles([PNG_ALFA])
   await page.getByRole('tab', { name: 'Camadas' }).click()
   await arvoreCamadas().getByRole('treeitem', { name: 'alfa-e2e', exact: true }).waitFor({ timeout: 15000 })
   await geometria([['Largura', 800], ['Altura', 800], ['Posição X', 560], ['Posição Y', 140]])
-  await page.getByRole('tab', { name: 'Arquivos' }).click()
+  await page.getByRole('tab', { name: 'Adicionar' }).click()
   await page.getByTitle(/Adicionar upload-2/).first().click()
   await page.getByRole('tab', { name: 'Camadas' }).click()
   await arvoreCamadas().getByRole('treeitem', { name: 'upload-2', exact: true }).waitFor()
@@ -707,7 +699,6 @@ await passo('Máscara: PNG com transparência como máscara de alfa, luminância
   await tipo.getByRole('radio', { name: 'Alfa' }).click()
   await esperarMascara(idFoto, (m) => m.img.includes('<img src="data:image/'))
   // a miniatura da tela usa o mesmo renderizador
-  await page.getByRole('tab', { name: 'Telas' }).click()
   const mini = page.getByRole('listbox', { name: 'Telas' }).getByRole('option', { selected: true }).locator(`[data-layer-id="${idFoto}"]`)
   const mm = await mini.evaluate((e) => getComputedStyle(e).maskImage)
   if (!mm.includes('data:image/svg+xml')) throw new Error('miniatura sem a máscara')
@@ -722,9 +713,8 @@ const fonteCarregada = (p, fonte) => p.waitForFunction((f) => document.fonts.loa
 const larguraTexto = (p, texto, fonte) => p.evaluate(([t, f]) => { const c = document.createElement('canvas').getContext('2d'); c.font = f; const m = c.measureText(t); return m.actualBoundingBoxLeft + m.actualBoundingBoxRight }, [texto, fonte])
 
 await passo('Fonte do Google: catálogo completo no seletor (busca, categoria, prévias leves) → Playfair Display no canvas', async () => {
-  await page.getByRole('tab', { name: 'Telas' }).click()
   await telas().nth(0).click()
-  await page.getByRole('tab', { name: 'Blocos' }).click()
+  await page.getByRole('tab', { name: 'Adicionar' }).click()
   await page.getByRole('button', { name: 'Texto', exact: true }).click()
   await page.getByLabel('Conteúdo do texto').fill('Google 2026')
   await page.evaluate(() => document.activeElement?.blur())
@@ -1191,7 +1181,6 @@ async function esperarGuias(valor, ms = 3000) {
 await passo('Guias de layout: 12 colunas e grade de 8, editar, ⌃⇧4, encaixe na coluna, fora do /p e do PNG, desfazer', async () => {
   // tela nova e vazia no projeto do começo do fluxo
   await page.goto(urlEditorE2E)
-  await page.getByRole('tab', { name: 'Telas' }).click()
   await esperarTelas(3)
   await telas().nth(2).click() // a tela nova entra depois da atual: fica por último
   await page.getByRole('button', { name: 'Nova tela', exact: true }).first().click()
@@ -1259,7 +1248,7 @@ await passo('Guias de layout: 12 colunas e grade de 8, editar, ⌃⇧4, encaixe 
   await esperarGuias('6 colunas')
   await page.screenshot({ path: `${SHOTS}/22-guias-aviso.png` })
   // arrastar uma camada: a borda encaixa na coluna (408) com a guia vermelha; com Ctrl, fica livre
-  await page.getByRole('tab', { name: 'Blocos' }).click()
+  await page.getByRole('tab', { name: 'Adicionar' }).click()
   await page.getByRole('button', { name: 'Forma', exact: true }).click()
   for (const [campo, v] of [['Largura', '240'], ['Posição X', '200'], ['Posição Y', '400']]) { await page.getByLabel(campo, { exact: true }).fill(v); await page.getByLabel(campo, { exact: true }).press('Enter') }
   const campoX = page.getByLabel('Posição X')

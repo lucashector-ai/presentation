@@ -9,6 +9,13 @@ import { useInspetor } from './contexto'
 export const MISTO = 'misto' as const
 export type Misto = typeof MISTO
 
+/**
+ * PADRÃO DO PAINEL (vale para todo o inspetor):
+ *  - campo, lista, linha de cor, segmentado e grupo de botões: 24 px de altura, raio 6, fundo superficie2, texto 11 px
+ *  - prefixo do campo (letra, ícone ou amostra): coluna de 24 px, centralizado
+ *  - amostra de cor: 14 px, raio 3 · ícone: 12 px · botão de ícone solto: 24 px
+ *  - entre controles da mesma linha: 4 px · entre linhas: 6 px · seção: 10 px de margem, título mono 10 px
+ */
 /** Botão de ícone 24 px das seções e linhas. `ativo` = alternador ligado. */
 export function BotaoMini({ rotulo, ativo, children, className, ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement> & { rotulo: string; ativo?: boolean }) {
   return (
@@ -17,7 +24,7 @@ export function BotaoMini({ rotulo, ativo, children, className, ...rest }: React
       aria-label={rotulo}
       title={rest.title ?? rotulo}
       aria-pressed={ativo}
-      className={cx('inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px] transition-colors disabled:cursor-not-allowed disabled:opacity-35', ativo ? 'bg-acentoSuave text-acento' : 'text-texto2 hover:bg-hover hover:text-texto disabled:hover:bg-transparent', className)}
+      className={cx('inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors [&_svg]:h-3 [&_svg]:w-3 disabled:cursor-not-allowed disabled:opacity-35', ativo ? 'bg-acentoSuave text-acento' : 'text-texto2 hover:bg-hover hover:text-texto disabled:hover:bg-transparent', className)}
       {...rest}
     >
       {children}
@@ -25,7 +32,7 @@ export function BotaoMini({ rotulo, ativo, children, className, ...rest }: React
   )
 }
 
-/** Botão de ícone 32 px alinhado aos campos (rotacionar 90°, espelhar, travar proporção…). */
+/** Botão de ícone 24 px alinhado aos campos (travar proporção, cantos…). */
 export function BotaoCampo({ rotulo, ativo, children, className, ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement> & { rotulo: string; ativo?: boolean }) {
   return (
     <button
@@ -33,7 +40,7 @@ export function BotaoCampo({ rotulo, ativo, children, className, ...rest }: Reac
       aria-label={rotulo}
       title={rest.title ?? rotulo}
       aria-pressed={ativo}
-      className={cx('inline-flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-35', ativo ? 'bg-acentoSuave text-acento' : 'text-texto2 hover:bg-hover hover:text-texto disabled:hover:bg-transparent', className)}
+      className={cx('inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors [&_svg]:h-3 [&_svg]:w-3 disabled:cursor-not-allowed disabled:opacity-35', ativo ? 'bg-acentoSuave text-acento' : 'text-texto2 hover:bg-hover hover:text-texto disabled:hover:bg-transparent', className)}
       {...rest}
     >
       {children}
@@ -124,9 +131,9 @@ export function CampoNum({ prefixo, valor: valorBruto, aoMudar, aoDelta, min, ma
     window.addEventListener('pointerup', soltar)
   }
   return (
-    <div title={titulo ?? rotulo} className={cx('flex min-w-0 flex-1 items-center rounded-md', compacto ? 'h-6' : 'h-[26px]', semMoldura ? 'bg-transparent' : 'bg-superficie2 ring-inset transition-shadow hover:ring-1 hover:ring-bordaForte focus-within:!ring-1 focus-within:!ring-acento', !prefixo && 'pl-2', desativado && 'opacity-50', className)}>
+    <div title={titulo ?? rotulo} className={cx('flex min-w-0 flex-1 items-center rounded-md', compacto ? 'h-[22px]' : 'h-6', semMoldura ? 'bg-transparent' : 'bg-superficie2 ring-inset transition-shadow hover:ring-1 hover:ring-bordaForte focus-within:!ring-1 focus-within:!ring-acento', !prefixo && 'pl-2', desativado && 'opacity-50', className)}>
       {prefixo !== undefined && (
-        <span onPointerDown={arrastar} className={cx('flex h-full w-7 shrink-0 select-none items-center justify-center text-[11px] text-texto3', !desativado && 'cursor-ew-resize hover:text-texto2')} aria-hidden>
+        <span onPointerDown={arrastar} className={cx('flex h-full w-6 shrink-0 select-none items-center justify-center text-[11px] text-texto3', !desativado && 'cursor-ew-resize hover:text-texto2')} aria-hidden>
           {prefixo}
         </span>
       )}

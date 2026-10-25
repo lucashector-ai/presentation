@@ -20,14 +20,14 @@ export function CabecalhoCamada({ editor }: PropsSecao) {
   const forma = formas ? comum(sel, (c) => (c as CamadaForma).shape) : null
   const titulo = multi ? `${sel.length} elementos` : formas && typeof forma === 'string' ? NOME_FORMA[forma] ?? 'Forma' : NOME_TIPO[l.type]
   return (
-    <div className="border-b border-borda px-3 pb-2 pt-2.5">
-      <div className="flex h-8 items-center gap-1.5">
+    <div className="border-b border-borda px-2.5 pb-1.5 pt-2">
+      <div className="flex h-7 items-center gap-1">
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px] bg-acentoSuave text-acento"><Icone className="h-3.5 w-3.5" strokeWidth={1.75} /></span>
         {formas ? (
           <MenuSuspenso
             aparencia="texto"
             rotulo="Forma"
-            className="-ml-0.5 min-w-0"
+            className="-ml-0.5 min-w-0 !text-[12px]"
             valor={typeof forma === 'string' ? forma : ''}
             aoMudar={(v) => v && set({ shape: v as CamadaForma['shape'], vetor: undefined } as Partial<CamadaForma>)}
             opcoes={[...(typeof forma !== 'string' ? [{ id: '', rotulo: 'Misto' }] : []), ...FORMAS.filter((f) => f !== 'path' || forma === 'path').map((f) => ({ id: f, rotulo: NOME_FORMA[f] ?? f }))]}
@@ -42,10 +42,7 @@ export function CabecalhoCamada({ editor }: PropsSecao) {
         {multi ? (
           <BotaoMini rotulo={agrupado ? 'Desagrupar (Ctrl+Shift+G)' : 'Agrupar (Ctrl+G)'} onClick={() => (agrupado ? acoes.desagrupar(ids) : acoes.agrupar(ids))}>{agrupado ? <Ungroup className="h-3.5 w-3.5" /> : <Group className="h-3.5 w-3.5" />}</BotaoMini>
         ) : (
-          <>
-            <BotaoMini rotulo="Trazer para frente" title="Trazer para frente (])" onClick={() => acoes.ordem(l.id, 'frente')}><ArrowUpToLine className="h-3.5 w-3.5" /></BotaoMini>
-            <BotaoMini rotulo="Enviar para trás" title="Enviar para trás ([)" onClick={() => acoes.ordem(l.id, 'tras')}><ArrowDownToLine className="h-3.5 w-3.5" /></BotaoMini>
-          </>
+          null
         )}
         <BotaoMini rotulo="Duplicar (Ctrl+D)" onClick={() => acoes.duplicarCamadas(ids)}><Copy className="h-3.5 w-3.5" /></BotaoMini>
         <BotaoMini rotulo="Excluir (Delete)" onClick={() => acoes.removerCamadas(ids)}><Trash2 className="h-3.5 w-3.5" /></BotaoMini>

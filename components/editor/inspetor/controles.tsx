@@ -63,8 +63,8 @@ export function Secao({ titulo, children, acao, aberta = true, vazia, aoAdiciona
   const recolhida = !vazia && recolhivel && !abrir
   return (
     // como no Figma: título em negrito, sem caixa; a seta de recolher só aparece no hover (ou recolhida)
-    <section aria-label={titulo} className={cx('border-b border-borda px-3', mostrar && children !== undefined && 'pb-2.5')}>
-      <div className="flex h-8 items-center gap-1">
+    <section aria-label={titulo} className={cx('border-b border-borda px-2.5', mostrar && children !== undefined && 'pb-2')}>
+      <div className="flex h-7 items-center gap-0.5">
         {vazia ? (
           aoAdicionar ? (
             <button type="button" onClick={aoAdicionar} className="flex h-6 min-w-0 flex-1 items-center text-left font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-texto3 transition-colors hover:text-texto">
@@ -131,8 +131,8 @@ export function Menu({ rotulo, itens, children, variante = 'icone', ativo, class
 /** Linha compacta: rótulo curto à esquerda e os campos à direita (sem linha extra só para o rótulo). */
 export function LinhaCampos({ rotulo, children }: { rotulo: string; children: ReactNode }) {
   return (
-    <div className="grid grid-cols-[48px_minmax(0,1fr)] items-center gap-1.5">
-      <span className="truncate text-[11px] text-texto3">{rotulo}</span>
+    <div className="grid grid-cols-[46px_minmax(0,1fr)] items-center gap-1">
+      <span className="truncate text-[10px] text-texto3">{rotulo}</span>
       <div className="min-w-0">{children}</div>
     </div>
   )
@@ -140,13 +140,13 @@ export function LinhaCampos({ rotulo, children }: { rotulo: string; children: Re
 
 /** Rótulo pequeno acima de um campo ("Opacidade", "Raio"). */
 export function Rotulo({ children }: { children: ReactNode }) {
-  return <span className="mb-1.5 block truncate text-[11px] text-texto2">{children}</span>
+  return <span className="mb-1 block truncate text-[10px] text-texto3">{children}</span>
 }
 
 /** Linha de resumo clicável (ex.: "Animação  Escala · 800ms ›"). */
 export function LinhaResumo({ titulo, valor, aoClicar, destaque }: { titulo: string; valor: string; aoClicar: () => void; destaque?: boolean }) {
   return (
-    <button type="button" onClick={aoClicar} className="flex h-8 w-full items-center justify-between border-b border-borda px-3 text-left text-[11px] hover:bg-hover/50">
+    <button type="button" onClick={aoClicar} className="flex h-7 w-full items-center justify-between border-b border-borda px-2.5 text-left text-[11px] hover:bg-hover/50">
       <span className="font-mono text-[10px] font-medium uppercase tracking-[0.08em]">{titulo}</span>
       <span className={cx('flex items-center gap-0.5 truncate pl-3', destaque ? 'text-acento' : 'text-texto2')}>{valor}<ChevronRight className="h-3.5 w-3.5 shrink-0" /></span>
     </button>
@@ -167,8 +167,8 @@ export function CampoTexto({ valor, aoConfirmar, rotulo, placeholder, prefixo, m
   const [texto, setTexto] = useState(valor)
   useEffect(() => setTexto(valor), [valor])
   return (
-    <div className={cx('flex h-7 min-w-0 flex-1 items-center rounded-md bg-superficie2 ring-inset hover:ring-1 hover:ring-bordaForte focus-within:!ring-1 focus-within:!ring-acento', !prefixo && 'pl-2')}>
-      {prefixo && <span className="flex h-full w-7 shrink-0 items-center justify-center text-texto3" aria-hidden>{prefixo}</span>}
+    <div className={cx('flex h-6 min-w-0 flex-1 items-center rounded-md bg-superficie2 ring-inset hover:ring-1 hover:ring-bordaForte focus-within:!ring-1 focus-within:!ring-acento', !prefixo && 'pl-2')}>
+      {prefixo && <span className="flex h-full w-6 shrink-0 items-center justify-center text-texto3" aria-hidden>{prefixo}</span>}
       <input
         aria-label={rotulo}
         value={texto}
@@ -191,7 +191,7 @@ export function Deslizante({ valor, aoMudar, min = 0, max = 100, passo = 1, rotu
     window.addEventListener('pointerup', fim)
   }
   return (
-    <span className="flex h-7 w-full items-center gap-3">
+    <span className="flex h-6 w-full items-center gap-3">
       <input type="range" aria-label={rotulo} min={min} max={max} step={passo} value={valor} onPointerDown={iniciar} onChange={(e) => aoMudar(Number(e.target.value))} className="deslizante h-1 min-w-0 flex-1" />
       <span className="w-11 shrink-0 text-right text-[11px] tabular-nums text-texto">{formatar ? formatar(valor) : valor}</span>
     </span>
@@ -200,9 +200,9 @@ export function Deslizante({ valor, aoMudar, min = 0, max = 100, passo = 1, rotu
 
 export function Segmentado<T extends string>({ valor, opcoes, aoMudar, rotulo, icones }: { valor: T | Misto; opcoes: { id: T; rotulo: string; icone?: ReactNode }[]; aoMudar: (v: T) => void; rotulo: string; icones?: boolean }) {
   return (
-    <div role="radiogroup" aria-label={rotulo} className="flex h-7 w-full min-w-0 rounded-md bg-superficie2 p-[2px]">
+    <div role="radiogroup" aria-label={rotulo} className="flex h-6 w-full min-w-0 rounded-md bg-superficie2 p-[2px]">
       {opcoes.map((o) => (
-        <button key={o.id} type="button" role="radio" aria-checked={valor === o.id} title={o.rotulo} aria-label={icones ? o.rotulo : undefined} onClick={() => aoMudar(o.id)} className={cx('flex h-6 min-w-0 flex-1 items-center justify-center rounded-[5px] text-[11px] transition-colors', valor === o.id ? 'bg-superficie text-texto shadow-[0_1px_2px_rgba(0,0,0,.08),0_0_0_.5px_rgba(0,0,0,.06)]' : 'text-texto2 hover:text-texto')}>
+        <button key={o.id} type="button" role="radio" aria-checked={valor === o.id} title={o.rotulo} aria-label={icones ? o.rotulo : undefined} onClick={() => aoMudar(o.id)} className={cx('flex h-5 min-w-0 flex-1 items-center justify-center rounded-[4px] text-[11px] transition-colors [&_svg]:h-3 [&_svg]:w-3', valor === o.id ? 'bg-superficie text-texto shadow-[0_1px_2px_rgba(0,0,0,.08),0_0_0_.5px_rgba(0,0,0,.06)]' : 'text-texto2 hover:text-texto')}>
           {icones ? o.icone : o.rotulo}
         </button>
       ))}
@@ -210,9 +210,9 @@ export function Segmentado<T extends string>({ valor, opcoes, aoMudar, rotulo, i
   )
 }
 
-/** Lista de opções do inspetor (menu suspenso do Mostra, no lugar do <select>): campo de 28 px com prefixo opcional. */
+/** Lista de opções do inspetor (menu suspenso do Mostra, no lugar do <select>): campo de 24 px com prefixo opcional. */
 export function SeletorLista({ valor, aoMudar, opcoes, rotulo, prefixo }: { valor: string; aoMudar: (v: string) => void; opcoes: { id: string; rotulo: string; grupo?: string; desativada?: boolean }[]; rotulo: string; prefixo?: ReactNode }) {
-  return <MenuSuspenso aparencia="campo" rotulo={rotulo} valor={valor} aoMudar={aoMudar} opcoes={opcoes} prefixo={prefixo} />
+  return <MenuSuspenso aparencia="campo" className="!h-6 text-[11px] [&>span:first-child]:!w-6" rotulo={rotulo} valor={valor} aoMudar={aoMudar} opcoes={opcoes} prefixo={prefixo} />
 }
 
 export function Interruptor({ ativo, aoMudar, rotulo }: { ativo: boolean; aoMudar: (v: boolean) => void; rotulo: string }) {

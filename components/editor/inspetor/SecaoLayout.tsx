@@ -67,7 +67,7 @@ export function SecaoLayout({ editor }: PropsSecao) {
         </LinhaCampos>
       )}
       <LinhaCampos rotulo="Tamanho">
-      <div className="grid grid-cols-[1fr_1fr_22px] items-center gap-1.5">
+      <div className="grid grid-cols-[1fr_1fr_22px] items-center gap-1">
         <CampoNum prefixo="W" rotulo="Largura" valor={w} min={1} aoMudar={(v) => largura(() => v)} aoDelta={(d) => largura((c) => c.width + d)} />
         <CampoNum prefixo="H" rotulo="Altura" valor={h} min={1} aoMudar={(v) => altura(() => v)} aoDelta={(d) => altura((c) => c.height + d)} />
         <BotaoMini rotulo={trava ? 'Destravar proporção' : 'Travar proporção'} ativo={trava} onClick={() => { sel.forEach((c) => travas.set(c.id, !trava)); atualizar((n) => n + 1) }}>
@@ -77,7 +77,7 @@ export function SecaoLayout({ editor }: PropsSecao) {
       </LinhaCampos>
       {/* recorte: no frame liga o clip; num retângulo, ele vira um frame que recorta o que for colocado dentro */}
       {(frame || retangulo) && (
-        <label className="ml-[54px] flex h-6 cursor-pointer items-center gap-2 text-[11px] text-texto2 hover:text-texto" title={frame ? 'Esconde o que passar das bordas do frame' : 'Transforma o retângulo num frame (mesma cor, raio e traço) que recorta o que for colocado dentro'}>
+        <label className="ml-[50px] flex h-5 cursor-pointer items-center gap-2 text-[11px] text-texto2 hover:text-texto" title={frame ? 'Esconde o que passar das bordas do frame' : 'Transforma o retângulo num frame (mesma cor, raio e traço) que recorta o que for colocado dentro'}>
           <input type="checkbox" checked={!!frame?.clip} onChange={(e) => (frame ? acoes.atualizarCamadas([frame.id], { clip: e.target.checked } as Partial<Camada>) : retangulo && acoes.atualizarCamadas([retangulo.id], (c) => retanguloEmFrame(c as CamadaForma)))} className="h-3.5 w-3.5 accent-[rgb(var(--cor-acento))]" />
           Recortar conteúdo
         </label>

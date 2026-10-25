@@ -49,7 +49,7 @@ export function SecoesDoTipo({ editor, assets = [] }: PropsSecao) {
       if (l.shape !== 'polygon' && l.shape !== 'star') return null
       return (
         <Secao titulo={l.shape === 'star' ? 'Estrela' : 'Polígono'}>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-1">
             <CampoNum prefixo={l.shape === 'star' ? '✦' : '⬡'} rotulo={l.shape === 'star' ? 'Pontas' : 'Lados'} titulo={l.shape === 'star' ? 'Número de pontas' : 'Número de lados'} valor={l.count ?? (l.shape === 'star' ? 5 : 3)} min={3} max={60} aoMudar={(v) => set({ count: Math.round(v) } as Partial<Camada>)} />
             {l.shape === 'star' && <CampoNum prefixo="◎" rotulo="Raio interno" titulo="Raio interno (% do externo)" valor={Math.round((l.ratio ?? 0.4) * 100)} min={5} max={100} sufixo="%" aoMudar={(v) => set({ ratio: v / 100 } as Partial<Camada>)} />}
           </div>
@@ -73,7 +73,7 @@ export function SecoesDoTipo({ editor, assets = [] }: PropsSecao) {
     case 'hotspot':
       return (
         <Secao titulo="Hotspot">
-          <input aria-label="Descrição do hotspot" placeholder="Ex.: Ver aplicações da marca" value={l.ariaLabel} onChange={(e) => set({ ariaLabel: e.target.value || 'Área clicável' } as Partial<Camada>)} className="h-8 w-full rounded-md bg-superficie2 px-2 text-[11px] outline-none ring-inset hover:ring-1 hover:ring-bordaForte focus:!ring-1 focus:!ring-acento" />
+          <input aria-label="Descrição do hotspot" placeholder="Ex.: Ver aplicações da marca" value={l.ariaLabel} onChange={(e) => set({ ariaLabel: e.target.value || 'Área clicável' } as Partial<Camada>)} className="h-6 w-full rounded-md bg-superficie2 px-2 text-[11px] outline-none ring-inset hover:ring-1 hover:ring-bordaForte focus:!ring-1 focus:!ring-acento" />
           <Linha rotulo="Dica visual"><Interruptor rotulo="Contorno ao passar o mouse" ativo={l.hint} aoMudar={(hint) => set({ hint } as Partial<Camada>)} /></Linha>
           <p className="text-[11px] text-texto3">Área invisível e clicável. A ação fica na aba Interações.</p>
         </Secao>
@@ -105,9 +105,9 @@ function SecaoTexto({ c, set, doDocumento }: { c: CamadaTexto; set: Set; doDocum
   const opcoesPeso = [...(pesos.includes(c.fontWeight) ? [] : [c.fontWeight]), ...pesos].map((v) => ({ id: String(v), rotulo: NOMES_PESO[v] ? `${NOMES_PESO[v]}${pesos.includes(v) ? '' : ' (indisponível)'}` : String(v) }))
   return (
     <Secao titulo="Texto">
-      <textarea aria-label="Conteúdo do texto" title="Conteúdo (também dá para editar com duplo clique no texto)" rows={1} value={c.text} onChange={(e) => s({ text: e.target.value })} className="block h-7 w-full resize-none overflow-hidden rounded-md bg-superficie2 px-2 py-[5px] text-[11px] leading-snug outline-none ring-inset transition-[height] hover:ring-1 hover:ring-bordaForte focus:h-16 focus:overflow-auto focus:!ring-1 focus:!ring-acento" />
+      <textarea aria-label="Conteúdo do texto" title="Conteúdo (também dá para editar com duplo clique no texto)" rows={1} value={c.text} onChange={(e) => s({ text: e.target.value })} className="block min-h-6 w-full resize-none overflow-hidden rounded-md bg-superficie2 px-2 py-[5px] text-[11px] leading-snug outline-none ring-inset transition-[height] hover:ring-1 hover:ring-bordaForte focus:h-16 focus:overflow-auto focus:!ring-1 focus:!ring-acento" />
       <SeletorFonte rotulo="Fonte" valor={c.fontFamily} doDocumento={doDocumento} aoMudar={(fontFamily, f) => s({ fontFamily, ...(f ? { fontWeight: varianteReal(f, c.fontWeight, c.italic).peso } : {}) })} />
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-1">
         <SeletorLista rotulo="Peso" valor={String(c.fontWeight)} aoMudar={(v) => s({ fontWeight: Number(v) })} opcoes={opcoesPeso} />
         <CampoNum prefixo={<IconeTamanho />} rotulo="Tamanho da fonte" valor={c.fontSize} min={6} max={800} aoMudar={(fontSize) => s({ fontSize })} />
         <CampoNum prefixo={<IconeEntrelinha />} rotulo="Entrelinha" titulo="Entrelinha (× tamanho)" valor={c.lineHeight} min={0.6} max={3} passo={0.05} casas={2} aoMudar={(lineHeight) => s({ lineHeight })} />
@@ -139,7 +139,7 @@ function SecaoFundoTexto({ c, set }: { c: CamadaTexto; set: Set }) {
       {c.background && (
         <>
           <LinhaPintura rotulo="Fundo do texto" valor={{ tipo: 'solido', cor: c.background }} aoMudar={(p) => p.tipo === 'solido' && s({ background: p.cor })} acoes={<BotaoMini rotulo="Remover fundo do texto" onClick={() => s({ background: undefined })}><Minus className="h-3.5 w-3.5" /></BotaoMini>} />
-          <div className="grid grid-cols-[1fr_1fr_56px] gap-2">
+          <div className="grid grid-cols-[1fr_1fr_56px] gap-1">
             <CampoNum prefixo={<span className="text-[10px]">⬚</span>} rotulo="Respiro interno" valor={c.padding} min={0} max={200} aoMudar={(padding) => s({ padding })} />
           </div>
         </>
@@ -170,7 +170,7 @@ function SecaoImagem({ c, set, assets }: { c: CamadaImagem; set: Set; assets: As
         <Linha rotulo="Máscara"><SeletorLista rotulo="Máscara" valor={c.mask} aoMudar={(v) => s({ mask: v as CamadaImagem['mask'] })} opcoes={[{ id: 'none', rotulo: 'Nenhuma' }, { id: 'ellipse', rotulo: 'Círculo' }, { id: 'arch', rotulo: 'Arco' }, { id: 'triangle', rotulo: 'Triângulo' }]} /></Linha>
       </Secao>
       <Secao titulo="Recorte" vazia={!c.crop} aoAdicionar={!c.crop ? () => s({ crop: { x: 0.1, y: 0.1, w: 0.8, h: 0.8 } }) : undefined} rotuloAdicionar="Recortar imagem" aoRemover={c.crop ? () => s({ crop: undefined }) : undefined} rotuloRemover="Remover recorte">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-1">
           <CampoNum prefixo="X" rotulo="Recorte X (%)" valor={Math.round(crop.x * 100)} min={0} max={99} sufixo="%" aoMudar={(v) => s({ crop: { ...crop, x: v / 100, w: Math.min(crop.w, 1 - v / 100) } })} />
           <CampoNum prefixo="Y" rotulo="Recorte Y (%)" valor={Math.round(crop.y * 100)} min={0} max={99} sufixo="%" aoMudar={(v) => s({ crop: { ...crop, y: v / 100, h: Math.min(crop.h, 1 - v / 100) } })} />
           <CampoNum prefixo="W" rotulo="Recorte largura (%)" valor={Math.round(crop.w * 100)} min={1} max={100} sufixo="%" aoMudar={(v) => s({ crop: { ...crop, w: Math.min(v / 100, 1 - crop.x) } })} />

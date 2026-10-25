@@ -37,7 +37,7 @@ export function SecaoBento({ editor }: PropsSecao) {
   return (
     <Secao titulo="Bento grid">
       <SeletorLista rotulo="Formato do bento" valor={meta.preset} opcoes={PRESETS_BENTO.map((p) => ({ id: p.id, rotulo: p.nome }))} aoMudar={(preset) => !comConteudo && regenerar({ preset })} />
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-1">
         <CampoNum prefixo="Esp." rotulo="Espaço entre cartões" valor={meta.gap} min={0} max={200} aoMudar={(gap) => !comConteudo && regenerar({ gap: Math.round(gap / 8) * 8 })} />
         <CampoNum prefixo="Marg." rotulo="Margem interna (espaço ao redor)" valor={meta.padding ?? 0} min={0} max={400} aoMudar={(padding) => !comConteudo && regenerar({ padding: Math.round(padding / 8) * 8 })} />
         <CampoNum prefixo="Raio" rotulo="Raio dos cartões" valor={meta.radius} min={0} max={200} aoMudar={(radius) => { acoes.atualizarCamadas([raiz.id], { bento: { ...meta, radius } } as Partial<Camada>, false); acoes.atualizarCamadas(cartoes.map((k) => k.id), { radius } as Partial<Camada>) }} />

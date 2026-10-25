@@ -68,7 +68,7 @@ function FilhoDoLayout({ camadas, pai, editor }: { camadas: Camada[]; pai: Camad
   return (
     <Secao titulo="No auto layout" acao={<IconeAutoLayout direcao={direcao} className="h-3.5 w-3.5 text-texto3" />}>
       {!absoluta && (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-1">
           <SeletorLista rotulo="Dimensionamento horizontal no auto layout" prefixo={<span className="text-[11px]">L</span>} valor={um ? (l.sizingW ?? 'fixed') : 'fixed'} opcoes={opcoes} aoMudar={(v) => acoes.atualizarCamadas(ids, { sizingW: v as Dimensionamento })} />
           <SeletorLista rotulo="Dimensionamento vertical no auto layout" prefixo={<span className="text-[11px]">A</span>} valor={um ? (l.sizingH ?? 'fixed') : 'fixed'} opcoes={opcoes} aoMudar={(v) => acoes.atualizarCamadas(ids, { sizingH: v as Dimensionamento })} />
         </div>
@@ -82,7 +82,7 @@ function FilhoDoLayout({ camadas, pai, editor }: { camadas: Camada[]; pai: Camad
           <BotaoCampo rotulo={`Mover para depois (${prox})`} disabled={pos >= fluxo.length - camadas.length} onClick={() => mover(1)}><ChevronRight className={cx('h-3.5 w-3.5', direcao === 'vertical' && 'rotate-90')} /></BotaoCampo>
         </div>
       )}
-      <label className="flex h-7 items-center justify-between gap-2">
+      <label className="flex h-6 items-center justify-between gap-2">
         <span className="text-[11px] text-texto2">Posição absoluta</span>
         <Interruptor rotulo="Posição absoluta (ignorar auto layout)" ativo={absoluta} aoMudar={(v) => acoes.atualizarCamadas(ids, { absolute: v || undefined })} />
       </label>
@@ -95,7 +95,7 @@ function PainelLayout({ frame: f, editor, podeFill }: { frame: CamadaFrame; edit
   const [porLado, setPorLado] = useState(false)
   const setFrame = (p: Partial<CamadaFrame>) => acoes.atualizarCamadas([f.id], p as Partial<Camada>)
   const recortar = (
-    <label className="flex h-7 items-center justify-between gap-2">
+    <label className="flex h-6 items-center justify-between gap-2">
       <span className="text-[11px] text-texto2">Recortar conteúdo</span>
       <Interruptor rotulo="Recortar conteúdo" ativo={f.clip} aoMudar={(clip) => setFrame({ clip })} />
     </label>
@@ -132,7 +132,7 @@ function PainelLayout({ frame: f, editor, podeFill }: { frame: CamadaFrame; edit
           { id: 'wrap', rotulo: 'Quebrar linha (grade que flui)', icone: <IconeAutoLayout direcao="wrap" /> },
         ]}
       />
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-1">
         <SeletorLista rotulo="Largura do frame" prefixo={<span className="text-[11px]">L</span>} valor={f.sizingW ?? 'fixed'} opcoes={opcoesDim} aoMudar={(v) => acoes.atualizarCamadas([f.id], { sizingW: v as Dimensionamento })} />
         <SeletorLista rotulo="Altura do frame" prefixo={<span className="text-[11px]">A</span>} valor={f.sizingH ?? 'fixed'} opcoes={opcoesDim} aoMudar={(v) => acoes.atualizarCamadas([f.id], { sizingH: v as Dimensionamento })} />
       </div>
@@ -141,7 +141,7 @@ function PainelLayout({ frame: f, editor, podeFill }: { frame: CamadaFrame; edit
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex gap-1" {...realce(f.id, 'gap')}>
             {L.gapAuto ? (
-              <button type="button" aria-label="Espaço entre itens: automático (clique para usar número)" onClick={() => setGapAuto(false)} className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md bg-superficie2 px-2 text-left text-[11px] text-texto">
+              <button type="button" aria-label="Espaço entre itens: automático (clique para usar número)" onClick={() => setGapAuto(false)} className="flex h-6 min-w-0 flex-1 items-center gap-2 rounded-md bg-superficie2 px-2 text-left text-[11px] text-texto">
                 <IconeEspaco horizontal={horizontal} /> Auto
               </button>
             ) : (
@@ -158,7 +158,7 @@ function PainelLayout({ frame: f, editor, podeFill }: { frame: CamadaFrame; edit
           )}
         </div>
       </div>
-      <div className="grid grid-cols-[1fr_1fr_28px] gap-2">
+      <div className="grid grid-cols-[1fr_1fr_24px] gap-1">
         {abertoPorLado ? (
           <>
             <div {...realce(f.id, 'left')}><CampoNum prefixo="←" rotulo="Padding esquerdo" valor={pad.left} min={0} max={2000} aoMudar={(left) => set({ padding: { ...pad, left } })} /></div>
