@@ -6,6 +6,16 @@
 import type { CSSProperties, ReactNode } from 'react'
 import type { CamadaTexto } from '@/lib/scene/schema'
 import { LINHA_VAZIA, corpoTexto, corteVertical } from '@/lib/scene/tipografia'
+import { cssTrecho, segmentar } from '@/lib/scene/trechos'
+import { pilhaFonte } from '@/lib/design-tokens'
+
+/** Trechos com estilo próprio (cor, peso, fonte…) viram <span>s; sem trechos, o texto puro (DOM de sempre). */
+function comTrechos(c: CamadaTexto, inicio: number, tamanho: number): ReactNode {
+  if (!c.trechos?.length) return c.text.slice(inicio, inicio + tamanho)
+  return segmentar(c.text, c.trechos, inicio, inicio + tamanho).map((p, k) => (Object.keys(p.estilo).length ? <span key={k} data-trecho="" style={cssTrecho(p.estilo, pilhaFonte)}>{p.texto}</span> : p.texto))
+}
+/** Posição do parágrafo i no texto (parágrafos separados por uma quebra de linha). */
+const inicioDoParagrafo = (ps: string[], i: number) => ps.slice(0, i).reduce((n, p) => n + p.length + 1, 0)
 
 export function CorpoTexto({ c, gradiente }: { c: CamadaTexto; gradiente?: string }) {
   const t = corpoTexto(c)
@@ -13,7 +23,7 @@ export function CorpoTexto({ c, gradiente }: { c: CamadaTexto; gradiente?: strin
   const estilo = { ...t.estilo, ...pintura }
   return (
     <span className={t.classe} style={Object.keys(estilo).length ? estilo : undefined}>
-      {t.paragrafos ? t.paragrafos.map((p, i) => <span key={i} data-paragrafo={i} style={t.paragrafo(i, p)}>{p || LINHA_VAZIA}</span>) : c.text}
+      {t.paragrafos ? t.paragrafos.map((p, i) => <span key={i} data-paragrafo={i} style={t.paragrafo(i, p)}>{p ? comTrechos(c, inicioDoParagrafo(t.paragrafos!, i), p.length) : LINHA_VAZIA}</span>) : comTrechos(c, 0, c.text.length)}
     </span>
   )
 }

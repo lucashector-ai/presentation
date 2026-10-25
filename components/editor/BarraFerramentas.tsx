@@ -31,15 +31,17 @@ export function BarraFerramentas({ ferramenta, aoFerramenta, aoMidia, className,
     document.addEventListener('keydown', esc)
     return () => { document.removeEventListener('pointerdown', fora); document.removeEventListener('keydown', esc) }
   }, [menu])
+  // clicou, mudou: a ferramenta troca no pointerdown (sem esperar soltar o botão); teclado/Enter seguem pelo click
+  const escolher = (f: Ferramenta) => ({ onPointerDown: (e: React.PointerEvent) => { if (e.button === 0) aoFerramenta(f) }, onClick: (e: React.MouseEvent) => { if (e.detail === 0) aoFerramenta(f) } })
   const forma = FORMAS.find((f) => f.id === ultima) ?? FORMAS[0]!
   const formaAtiva = FORMAS.some((f) => f.id === ferramenta)
   return (
     <div className={cx('items-center gap-0.5', vertical && 'flex-col', className)} role="toolbar" aria-label="Ferramentas" aria-orientation={vertical ? 'vertical' : 'horizontal'}>
-      <BotaoIcone rotulo="Mover (V)" destaque ativo={ferramenta === 'mover'} onClick={() => aoFerramenta('mover')}><MousePointer2 className="h-4 w-4" /></BotaoIcone>
-      <BotaoIcone rotulo="Frame (F)" destaque ativo={ferramenta === 'frame'} onClick={() => aoFerramenta('frame')}><Frame className="h-4 w-4" /></BotaoIcone>
+      <BotaoIcone rotulo="Mover (V)" destaque ativo={ferramenta === 'mover'} {...escolher('mover')}><MousePointer2 className="h-4 w-4" /></BotaoIcone>
+      <BotaoIcone rotulo="Frame (F)" destaque ativo={ferramenta === 'frame'} {...escolher('frame')}><Frame className="h-4 w-4" /></BotaoIcone>
       <div ref={ref} className={cx('relative flex', vertical && 'flex-col')}>
-        <BotaoIcone rotulo={forma.tecla ? `${forma.rotulo} (${forma.tecla})` : forma.rotulo}  destaque ativo={formaAtiva} className={vertical ? 'rounded-b-none' : 'rounded-r-none'} onClick={() => aoFerramenta(forma.id)}>{forma.icone}</BotaoIcone>
-        <button type="button" aria-label="Mais formas" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((v) => !v)} className={cx('inline-flex items-center justify-center text-texto2 hover:bg-hover hover:text-texto', vertical ? 'h-3.5 w-8 rounded-b-md' : 'h-8 w-4 rounded-r-md', formaAtiva && 'bg-acento text-white hover:bg-acentoHover hover:text-white')}>
+        <BotaoIcone rotulo={forma.tecla ? `${forma.rotulo} (${forma.tecla})` : forma.rotulo}  destaque ativo={formaAtiva} className={vertical ? 'rounded-b-none' : 'rounded-r-none'} {...escolher(forma.id)}>{forma.icone}</BotaoIcone>
+        <button type="button" aria-label="Mais formas" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((v) => !v)} className={cx('inline-flex items-center justify-center text-texto2 hover:bg-hover hover:text-texto', vertical ? 'h-3.5 w-8 rounded-b-md' : 'h-8 w-4 rounded-r-md', formaAtiva && 'bg-acento text-white hover:bg-acento hover:text-white')}>
           <ChevronDown className={cx('h-3 w-3', vertical && '-rotate-90')} />
         </button>
         {menu && (
@@ -52,11 +54,11 @@ export function BarraFerramentas({ ferramenta, aoFerramenta, aoMidia, className,
           </div>
         )}
       </div>
-      <BotaoIcone rotulo="Caneta (P)" destaque ativo={ferramenta === 'caneta'} onClick={() => aoFerramenta('caneta')}><PenTool className="h-4 w-4" /></BotaoIcone>
-      <BotaoIcone rotulo="Texto (T)" destaque ativo={ferramenta === 'texto'} onClick={() => aoFerramenta('texto')}><Type className="h-4 w-4" /></BotaoIcone>
+      <BotaoIcone rotulo="Caneta (P)" destaque ativo={ferramenta === 'caneta'} {...escolher('caneta')}><PenTool className="h-4 w-4" /></BotaoIcone>
+      <BotaoIcone rotulo="Texto (T)" destaque ativo={ferramenta === 'texto'} {...escolher('texto')}><Type className="h-4 w-4" /></BotaoIcone>
       <BotaoIcone rotulo="Imagem, vídeo, SVG ou 3D" onClick={aoMidia}><ImageIcon className="h-4 w-4" /></BotaoIcone>
-      <BotaoIcone rotulo="Hotspot (S)" destaque ativo={ferramenta === 'hotspot'} onClick={() => aoFerramenta('hotspot')}><Crosshair className="h-4 w-4" /></BotaoIcone>
-      <BotaoIcone rotulo="Mão (H ou Espaço)" destaque ativo={ferramenta === 'mao'} onClick={() => aoFerramenta('mao')}><Hand className="h-4 w-4" /></BotaoIcone>
+      <BotaoIcone rotulo="Hotspot (S)" destaque ativo={ferramenta === 'hotspot'} {...escolher('hotspot')}><Crosshair className="h-4 w-4" /></BotaoIcone>
+      <BotaoIcone rotulo="Mão (H ou Espaço)" destaque ativo={ferramenta === 'mao'} {...escolher('mao')}><Hand className="h-4 w-4" /></BotaoIcone>
     </div>
   )
 }

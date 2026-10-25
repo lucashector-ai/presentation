@@ -19,6 +19,8 @@ import { BotaoGrupo, GrupoBotoes } from './SecaoPosicao'
 import { IconeEntrelinha, IconeEspacamento, IconeTamanho } from './icones'
 import { useCamadas, type PropsSecao } from './selecao'
 import { EnviarImagem } from './EnviarImagem'
+import { PROPS_TRECHO, aplicarTrecho, ajustarTrechos, limparTrecho, valorNoIntervalo, type EstiloTrecho } from '@/lib/scene/trechos'
+import { definirSelecaoTexto, useSelecaoTexto } from '@/lib/editor/selecaoTexto'
 import { useTextoSvg } from '@/components/renderer/svgDoAsset'
 
 type Set = (p: Partial<Camada>) => void
@@ -96,19 +98,41 @@ function SecaoDownload({ c, set, editor }: { c: Camada; set: Set; editor: PropsS
 const NOMES_PESO: Record<number, string> = { 100: 'Thin', 200: 'Extra light', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'Semibold', 700: 'Bold', 800: 'Extra bold', 900: 'Black' }
 const PESOS_LIVRES = [300, 400, 500, 600, 700, 800]
 
+/** Trecho selecionado neste texto (rich text) ou null: o painel aplica o estilo só nele. */
+export function useTrechoAtivo(c: CamadaTexto) {
+  const sel = useSelecaoTexto()
+  return sel && sel.id === c.id && sel.fim <= c.text.length ? sel : null
+}
+
 function SecaoTexto({ c, set, doDocumento }: { c: CamadaTexto; set: Set; doDocumento: string[] }) {
-  const s = (p: Partial<CamadaTexto>) => set(p as Partial<Camada>)
+  const trecho = useTrechoAtivo(c)
+  // com um trecho selecionado, fonte, peso, itálico e sublinhado valem só para ele; o resto (tamanho, entrelinha,
+  // alinhamento…) continua sendo do texto inteiro
+  const s = (p: Partial<CamadaTexto>) => {
+    const deTrecho = trecho && Object.keys(p).length > 0 && Object.keys(p).every((k) => (PROPS_TRECHO as readonly string[]).includes(k))
+    if (deTrecho) set({ trechos: aplicarTrecho(c.trechos, trecho.inicio, trecho.fim, p as EstiloTrecho, c.text.length) } as Partial<Camada>)
+    else set(p as Partial<Camada>)
+  }
+  // valores mostrados: os do trecho (quando iguais em todo ele), senão os do texto
+  const v = trecho ? { fontFamily: valorNoIntervalo(c, trecho.inicio, trecho.fim, 'fontFamily') ?? c.fontFamily, fontWeight: valorNoIntervalo(c, trecho.inicio, trecho.fim, 'fontWeight') ?? c.fontWeight, italic: valorNoIntervalo(c, trecho.inicio, trecho.fim, 'italic') ?? c.italic, underline: valorNoIntervalo(c, trecho.inicio, trecho.fim, 'underline') ?? c.underline } : c
   // pesos e itálico que a família tem de verdade (catálogo do Google; fontes fora dele: a lista livre)
   const cat = useCatalogoFontes()
-  const fonte = cat?.porNome.get(c.fontFamily)
-  const pesos = fonte ? pesosDisponiveis(c.italic && fonte.italico ? fonte.italico : fonte.pesos) : PESOS_LIVRES
-  const opcoesPeso = [...(pesos.includes(c.fontWeight) ? [] : [c.fontWeight]), ...pesos].map((v) => ({ id: String(v), rotulo: NOMES_PESO[v] ? `${NOMES_PESO[v]}${pesos.includes(v) ? '' : ' (indisponível)'}` : String(v) }))
+  const fonte = cat?.porNome.get(v.fontFamily)
+  const pesos = fonte ? pesosDisponiveis(v.italic && fonte.italico ? fonte.italico : fonte.pesos) : PESOS_LIVRES
+  const opcoesPeso = [...(pesos.includes(v.fontWeight) ? [] : [v.fontWeight]), ...pesos].map((p) => ({ id: String(p), rotulo: NOMES_PESO[p] ? `${NOMES_PESO[p]}${pesos.includes(p) ? '' : ' (indisponível)'}` : String(p) }))
   return (
     <Secao titulo="Texto">
-      <textarea aria-label="Conteúdo do texto" title="Conteúdo (também dá para editar com duplo clique no texto)" rows={1} value={c.text} onChange={(e) => s({ text: e.target.value })} className="block min-h-6 w-full resize-none overflow-hidden rounded-md bg-superficie2 px-2 py-[5px] text-[11px] leading-snug outline-none ring-inset transition-[height] hover:ring-1 hover:ring-bordaForte focus:h-16 focus:overflow-auto focus:!ring-1 focus:!ring-acento" />
-      <SeletorFonte rotulo="Fonte" valor={c.fontFamily} doDocumento={doDocumento} aoMudar={(fontFamily, f) => s({ fontFamily, ...(f ? { fontWeight: varianteReal(f, c.fontWeight, c.italic).peso } : {}) })} />
+      {trecho && (
+        <div className="flex items-center gap-1 rounded-md bg-acentoSuave px-2 py-1 text-[11px] text-acento">
+          <span className="min-w-0 flex-1 truncate">Só no trecho “{c.text.slice(trecho.inicio, trecho.fim)}”</span>
+          <button type="button" title="Tirar o estilo próprio deste trecho" onClick={() => set({ trechos: limparTrecho(c.trechos, trecho.inicio, trecho.fim, c.text.length) } as Partial<Camada>)} className="shrink-0 rounded px-1 hover:bg-acento/10">Limpar</button>
+          <button type="button" title="Voltar a editar o texto inteiro" onClick={() => definirSelecaoTexto(null)} className="shrink-0 rounded px-1 hover:bg-acento/10">Texto todo</button>
+        </div>
+      )}
+      <textarea aria-label="Conteúdo do texto" title="Conteúdo (também dá para editar com duplo clique no texto)" rows={1} value={c.text} onChange={(e) => set({ text: e.target.value, trechos: ajustarTrechos(c.trechos, c.text, e.target.value) } as Partial<Camada>)} className="block min-h-6 w-full resize-none overflow-hidden rounded-md bg-superficie2 px-2 py-[5px] text-[11px] leading-snug outline-none ring-inset transition-[height] hover:ring-1 hover:ring-bordaForte focus:h-16 focus:overflow-auto focus:!ring-1 focus:!ring-acento" />
+      <SeletorFonte rotulo="Fonte" valor={v.fontFamily} doDocumento={doDocumento} aoMudar={(fontFamily, f) => s({ fontFamily, ...(f ? { fontWeight: varianteReal(f, v.fontWeight, v.italic).peso } : {}) })} />
       <div className="grid grid-cols-2 gap-1">
-        <SeletorLista rotulo="Peso" valor={String(c.fontWeight)} aoMudar={(v) => s({ fontWeight: Number(v) })} opcoes={opcoesPeso} />
+        <SeletorLista rotulo="Peso" valor={String(v.fontWeight)} aoMudar={(p) => s({ fontWeight: Number(p) })} opcoes={opcoesPeso} />
         <CampoNum prefixo={<IconeTamanho />} rotulo="Tamanho da fonte" valor={c.fontSize} min={6} max={800} aoMudar={(fontSize) => s({ fontSize })} />
         <CampoNum prefixo={<IconeEntrelinha />} rotulo="Entrelinha" titulo="Entrelinha (× tamanho)" valor={c.lineHeight} min={0.6} max={3} passo={0.05} casas={2} aoMudar={(lineHeight) => s({ lineHeight })} />
         <CampoNum prefixo={<IconeEspacamento />} rotulo="Espaçamento entre letras" valor={c.letterSpacing} min={-100} max={100} passo={0.5} casas={1} aoMudar={(letterSpacing) => s({ letterSpacing })} />
@@ -121,8 +145,8 @@ function SecaoTexto({ c, set, doDocumento }: { c: CamadaTexto; set: Set; doDocum
       </div>
       <div className="flex gap-2">
         <GrupoBotoes className="!flex-none w-[72px]">
-          <BotaoGrupo rotulo="Itálico" ativo={c.italic} onClick={() => s({ italic: !c.italic, ...(fonte && !c.italic && fonte.italico ? { fontWeight: varianteReal(fonte, c.fontWeight, true).peso } : {}) })}><Italic className="h-3.5 w-3.5" /></BotaoGrupo>
-          <BotaoGrupo rotulo="Sublinhado" ativo={c.underline} onClick={() => s({ underline: !c.underline, ...(!c.underline && c.strikethrough ? { strikethrough: undefined } : {}) })}><Underline className="h-3.5 w-3.5" /></BotaoGrupo>
+          <BotaoGrupo rotulo="Itálico" ativo={v.italic} onClick={() => s({ italic: !v.italic, ...(fonte && !v.italic && fonte.italico ? { fontWeight: varianteReal(fonte, v.fontWeight, true).peso } : {}) })}><Italic className="h-3.5 w-3.5" /></BotaoGrupo>
+          <BotaoGrupo rotulo="Sublinhado" ativo={v.underline} onClick={() => s(trecho ? { underline: !v.underline } : { underline: !v.underline, ...(!v.underline && c.strikethrough ? { strikethrough: undefined } : {}) })}><Underline className="h-3.5 w-3.5" /></BotaoGrupo>
         </GrupoBotoes>
         <Segmentado rotulo="Caixa" valor={c.transform} aoMudar={(transform) => s({ transform })} opcoes={[{ id: 'none', rotulo: 'Aa' }, { id: 'uppercase', rotulo: 'AA' }, { id: 'lowercase', rotulo: 'aa' }]} />
         {/* como o "Type settings" do Figma: decoração, caixa, corte vertical, listas, truncar, quebra */}

@@ -47,6 +47,8 @@ import { importarConteudo, type Avisar } from '@/lib/editor/importar'
 import type { AssetDemo } from '@/lib/demo/tipos'
 import { cursorMostra } from '@/lib/editor/cursores'
 import { useEnviosEmCurso } from '@/lib/editor/enviosEmCurso'
+import { definirSelecaoTexto, lerSelecaoTexto } from '@/lib/editor/selecaoTexto'
+import { ajustarTrechos } from '@/lib/scene/trechos'
 
 /** Cursor de duplicar (seta com uma segunda seta menor), preta com contorno branco; ponta em (3, 2). */
 
@@ -231,6 +233,13 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
   const panPendente = useRef<{ x: number; y: number } | null>(null)
   const quadroPan = useRef(0)
   const envios = useEnviosEmCurso()
+  // trecho selecionado no texto em edição (mouse, Shift+setas, Ctrl+A): guardado para o painel
+  const guardarSelecao = (t: HTMLTextAreaElement, id: string) => definirSelecaoTexto({ id, inicio: t.selectionStart, fim: t.selectionEnd })
+  // trecho de texto guardado: vale só enquanto a camada dele continua selecionada
+  useEffect(() => {
+    const t = lerSelecaoTexto()
+    if (t && !estado.selecao.includes(t.id)) definirSelecaoTexto(null)
+  }, [estado.selecao])
   const vpRef = useRef(vp)
   vpRef.current = vp
   const zoomEmRef = useRef(zoomEm)
@@ -1142,7 +1151,11 @@ export function Canvas({ editor, assets, avisar, interagir3d = false, aoEscala, 
             aria-label="Editar texto"
             spellCheck={false}
             defaultValue={textoEmEdicao.text}
-            onChange={(e) => { acoes.atualizarCamadas([textoEmEdicao.id], { text: e.target.value } as Partial<Camada>, false); e.currentTarget.scrollLeft = 0; e.currentTarget.scrollTop = 0 }}
+            onChange={(e) => { const v = e.target.value; acoes.atualizarCamadas([textoEmEdicao.id], (l) => (l.type === 'text' ? { ...l, text: v, trechos: ajustarTrechos(l.trechos, l.text, v) } : l), false); e.currentTarget.scrollLeft = 0; e.currentTarget.scrollTop = 0 }}
+            // trecho selecionado: o painel aplica cor, peso e fonte só nele (fica guardado ao sair da edição)
+            onSelect={(e) => guardarSelecao(e.currentTarget, textoEmEdicao.id)}
+            onMouseUp={(e) => guardarSelecao(e.currentTarget, textoEmEdicao.id)}
+            onKeyUp={(e) => guardarSelecao(e.currentTarget, textoEmEdicao.id)}
             onBlur={finalizarTexto}
             onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Escape' || (e.key === 'Enter' && (e.metaKey || e.ctrlKey))) { e.preventDefault(); (e.target as HTMLTextAreaElement).blur() } }}
             onPointerDown={(e) => e.stopPropagation()}

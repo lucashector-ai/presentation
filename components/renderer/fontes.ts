@@ -30,6 +30,8 @@ function somar(uso: UsoFontes, familia: string, v: Variante) {
 export function usoDasCenas(cenas: readonly Pick<Cena, 'layers'>[]): UsoFontes {
   const uso: UsoFontes = new Map()
   for (const c of cenas) for (const l of c.layers) if (l.type === 'text') somar(uso, l.fontFamily, { peso: l.fontWeight ?? 400, italico: !!l.italic })
+  // fontes, pesos e itálicos usados só em trechos do texto (rich text) também carregam
+  for (const c of cenas) for (const l of c.layers) if (l.type === 'text') for (const t of l.trechos ?? []) somar(uso, t.fontFamily ?? l.fontFamily, { peso: t.fontWeight ?? l.fontWeight ?? 400, italico: t.italic ?? !!l.italic })
   return uso
 }
 
@@ -42,7 +44,7 @@ export function usoDosNomes(nomes: Iterable<string>, pesos: number[] = [400, 700
 
 export function fontesDoDocumento(doc: Pick<DocumentoProjeto, 'scenes'>): string[] {
   const s = new Set<string>()
-  for (const c of doc.scenes) for (const l of c.layers) if (l.type === 'text') s.add(l.fontFamily)
+  for (const c of doc.scenes) for (const l of c.layers) if (l.type === 'text') { s.add(l.fontFamily); for (const t of l.trechos ?? []) if (t.fontFamily) s.add(t.fontFamily) }
   return [...s]
 }
 

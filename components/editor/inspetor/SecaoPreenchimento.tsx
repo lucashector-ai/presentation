@@ -14,6 +14,8 @@ import type { Pintura } from './SeletorCor'
 import { comum, useCamadas, type PropsSecao } from './selecao'
 import { desligarEstilo, gravarCor, ligarEstilo, type PropCor } from '@/lib/editor/estilosCor'
 import { tipoMascara } from '@/lib/scene/mascara'
+import { aplicarTrecho, valorNoIntervalo } from '@/lib/scene/trechos'
+import { useSelecaoTexto } from '@/lib/editor/selecaoTexto'
 import { OPACIDADE_PADRAO_TEXTURA, gradienteCss, padraoCss } from '@/components/renderer/estilos'
 
 /** Opacidade anterior de cores escondidas pelo olho (para restaurar), e linhas mantidas visíveis na sessão. */
@@ -52,12 +54,16 @@ const comCor = (c: Camada, f: (cor: string) => string): Camada => (c.type === 's
 export function SecaoPreenchimento({ editor }: PropsSecao) {
   const { sel, setFn } = useCamadas(editor)
   const [, atualizar] = useState(0)
+  const selTexto = useSelecaoTexto()
   const tipo = sel[0]?.type
   if (!sel.length || (tipo !== 'shape' && tipo !== 'text' && tipo !== 'frame') || !sel.every((c) => c.type === tipo)) return null
   if (tipo === 'shape' && sel.some((c) => c.type === 'shape' && (c.shape === 'line' || c.shape === 'arrow' || (c.isMask && tipoMascara(c) === 'outline')))) return null
   const camadas = sel as ComPreenchimento[]
   const chave = camadas.map((c) => `${c.id}:fill`).join(',')
-  const pintura = comum(camadas, (c) => pinturaDe(c as ComPreenchimento))
+  // texto com um trecho selecionado: a cor vale só para ele (rich text)
+  const textoUnico = camadas.length === 1 && camadas[0]!.type === 'text' ? (camadas[0] as CamadaTexto) : undefined
+  const trecho = textoUnico && selTexto && selTexto.id === textoUnico.id && selTexto.fim <= textoUnico.text.length ? selTexto : null
+  const pintura = trecho && textoUnico ? ({ tipo: 'solido', cor: valorNoIntervalo(textoUnico, trecho.inicio, trecho.fim, 'color') ?? textoUnico.color } as Pintura) : comum(camadas, (c) => pinturaDe(c as ComPreenchimento))
   const forma = tipo === 'shape' || tipo === 'frame'
   const semFill = tipo === 'frame' && camadas.every((c) => c.type === 'frame' && !c.fill && !c.gradient && !c.fillImage)
   const vazia = semFill || (forma && pintura !== MISTO && pintura.tipo === 'solido' && alfaDe(pintura.cor) === 0 && !mantidas.has(chave))
@@ -87,10 +93,10 @@ export function SecaoPreenchimento({ editor }: PropsSecao) {
         <LinhaPintura rotulo={forma ? 'Cor de preenchimento (mista)' : 'Cor do texto (mista)'} valor={pinturaDe(camadas[0]!)} vazio placeholder="Misto" tipos={forma ? ['solido', 'linear', 'radial', 'imagem'] : ['solido', 'linear', 'radial']} aoMudar={(p) => setFn((c) => comPintura(c, p))} />
       ) : (
         <LinhaPintura
-          rotulo={forma ? 'Cor de preenchimento' : 'Cor do texto'}
+          rotulo={forma ? 'Cor de preenchimento' : trecho ? 'Cor do trecho' : 'Cor do texto'}
           valor={pintura}
           tipos={forma ? ['solido', 'linear', 'radial', 'imagem'] : ['solido', 'linear', 'radial']}
-          aoMudar={(p) => setFn((c) => comPintura(c, p))}
+          aoMudar={(p) => (trecho && textoUnico && p.tipo === 'solido' ? setFn((c) => (c.type === 'text' ? { ...c, trechos: aplicarTrecho(c.trechos, trecho.inicio, trecho.fim, { color: p.cor }, c.text.length) } : c)) : setFn((c) => comPintura(c, p)))}
           estiloId={pintura.tipo === 'solido' ? (comum(camadas, (c) => c.colorStyleIds?.[propCor(c)]) as string | undefined) : undefined}
           aoEstilo={(e) => setFn((c) => ligarEstilo(c, propCor(c), e))}
           acoes={

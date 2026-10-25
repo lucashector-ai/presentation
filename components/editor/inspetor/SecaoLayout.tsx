@@ -77,8 +77,8 @@ export function SecaoLayout({ editor }: PropsSecao) {
       </LinhaCampos>
       {/* recorte: no frame liga o clip; num retângulo, ele vira um frame que recorta o que for colocado dentro */}
       {(frame || retangulo) && (
-        <label className="ml-[50px] flex h-5 cursor-pointer items-center gap-2 text-[11px] text-texto2 hover:text-texto" title={frame ? 'Esconde o que passar das bordas do frame' : 'Transforma o retângulo num frame (mesma cor, raio e traço) que recorta o que for colocado dentro'}>
-          <input type="checkbox" checked={!!frame?.clip} onChange={(e) => (frame ? acoes.atualizarCamadas([frame.id], { clip: e.target.checked } as Partial<Camada>) : retangulo && acoes.atualizarCamadas([retangulo.id], (c) => retanguloEmFrame(c as CamadaForma)))} className="h-3.5 w-3.5 accent-[rgb(var(--cor-acento))]" />
+        <label className="ml-[50px] flex h-4 w-fit cursor-pointer items-center gap-1.5 text-[10px] text-texto3 hover:text-texto2" title={frame ? 'Esconde o que passar das bordas do frame' : 'Transforma o retângulo num frame (mesma cor, raio e traço) que recorta o que for colocado dentro'}>
+          <input type="checkbox" checked={!!frame?.clip} onChange={(e) => (frame ? acoes.atualizarCamadas([frame.id], { clip: e.target.checked } as Partial<Camada>) : retangulo && acoes.atualizarCamadas([retangulo.id], (c) => retanguloEmFrame(c as CamadaForma)))} className="m-0 h-3 w-3 accent-[rgb(var(--cor-acento))]" />
           Recortar conteúdo
         </label>
       )}

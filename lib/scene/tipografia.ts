@@ -15,6 +15,7 @@
 import type { CSSProperties } from 'react'
 import type { CamadaTexto } from './schema'
 import { pilhaFonte } from '@/lib/design-tokens'
+import { cssTrecho, segmentar } from './trechos'
 
 export interface MetricasFonte {
   /** Ascendente usado no layout de linha (hhea, ou OS/2 typo quando a fonte pede USE_TYPO_METRICS). */
@@ -245,12 +246,28 @@ export function montarCorpo(doc: Document, c: CamadaTexto): HTMLElement {
       const el = doc.createElement('span')
       el.dataset.paragrafo = String(i)
       aplicarEstilo(el, t.paragrafo(i, p))
-      el.textContent = p || LINHA_VAZIA
+      if (p && c.trechos?.length) preencherComTrechos(doc, el, c, t.paragrafos!.slice(0, i).reduce((n, q) => n + q.length + 1, 0), p.length)
+      else el.textContent = p || LINHA_VAZIA
       corpo.appendChild(el)
     })
+  } else if (c.text && c.trechos?.length) {
+    // trechos com peso/fonte próprios mudam a largura: a medida usa os mesmos <span>s do renderizador
+    preencherComTrechos(doc, corpo, c, 0, c.text.length)
+    if (c.text.endsWith('\n')) corpo.append(LINHA_VAZIA)
   } else {
     // linha vazia (ou terminada em \n) ainda ocupa uma linha
     corpo.textContent = !c.text ? LINHA_VAZIA : c.text.endsWith('\n') ? `${c.text}${LINHA_VAZIA}` : c.text
   }
   return corpo
+}
+
+/** Pedaços com estilo próprio (rich text) como <span>s, iguais aos do renderizador (CorpoTexto). */
+function preencherComTrechos(doc: Document, el: HTMLElement, c: CamadaTexto, inicio: number, tamanho: number) {
+  for (const p of segmentar(c.text, c.trechos, inicio, inicio + tamanho)) {
+    if (!Object.keys(p.estilo).length) { el.append(p.texto); continue }
+    const sp = doc.createElement('span')
+    aplicarEstilo(sp, cssTrecho(p.estilo, pilhaFonte))
+    sp.textContent = p.texto
+    el.appendChild(sp)
+  }
 }

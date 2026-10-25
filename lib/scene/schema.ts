@@ -597,9 +597,23 @@ export const CamadaVideoSchema = CamadaBase.extend({
 export const CAIXAS_TEXTO = ['none', 'uppercase', 'lowercase', 'capitalize', 'smallCaps', 'allSmallCaps'] as const
 export const ESTILOS_DECORACAO = ['solid', 'dotted', 'wavy'] as const
 
+/** Trecho do texto com estilo próprio (rich text): posições de caractere em `text` (fim exclusivo). */
+export const TrechoSchema = z.object({
+  inicio: z.number().int().min(0),
+  fim: z.number().int().min(0),
+  color: CorSchema.optional(),
+  fontWeight: z.number().int().min(100).max(900).optional(),
+  fontFamily: z.string().max(80).optional(),
+  italic: z.boolean().optional(),
+  underline: z.boolean().optional(),
+})
+export type Trecho = z.infer<typeof TrechoSchema>
+
 export const CamadaTextoSchema = CamadaBase.extend({
   type: z.literal('text'),
   text: z.string().max(5000),
+  /** Partes do texto com cor, peso, fonte, itálico ou sublinhado próprios (lib/scene/trechos.ts). */
+  trechos: z.array(TrechoSchema).max(500).optional(),
   fontFamily: z.string().max(80).default('Geist'),
   fontSize: z.number().min(6).max(800).default(48),
   fontWeight: z.number().int().min(100).max(900).default(500),

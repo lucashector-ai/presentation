@@ -44,7 +44,7 @@ export const Botao = forwardRef<HTMLButtonElement, BotaoProps>(function Botao({ 
  */
 export function BotaoIcone({ rotulo, className, children, ativo, destaque, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { rotulo: string; ativo?: boolean; destaque?: boolean }) {
   return (
-    <button aria-label={rotulo} title={rotulo} aria-pressed={ativo} className={cx('inline-flex h-8 w-8 items-center justify-center rounded-md text-textoCorpo hover:bg-hover hover:text-texto disabled:opacity-40', ativo && (destaque ? 'bg-acento text-white hover:bg-acentoHover hover:text-white' : 'bg-acentoSuave text-acento hover:bg-acentoSuave hover:text-acento'), className)} {...rest}>
+    <button aria-label={rotulo} title={rotulo} aria-pressed={ativo} className={cx('inline-flex h-8 w-8 items-center justify-center rounded-md text-textoCorpo disabled:opacity-40', ativo ? (destaque ? 'bg-acento text-white' : 'bg-acentoSuave text-acento') : 'hover:bg-hover hover:text-texto', className)} {...rest}>
       {children}
     </button>
   )
