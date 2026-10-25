@@ -8,6 +8,7 @@
  *  - transição `zoom` vira `scale`
  */
 import { SCHEMA_VERSION, DocumentoProjetoSchema, type DocumentoProjeto } from './schema'
+import { sincronizarDestaques } from './feed'
 
 type Bruto = Record<string, unknown>
 const obj = (v: unknown): v is Bruto => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -46,6 +47,15 @@ export function migrarDocumento(entrada: unknown): unknown {
           : s
       ),
     }
+  }
+  // feeds do Instagram salvos antes da sincronia: o destaque de cada post sem foto recebe a foto do post
+  if (Array.isArray(doc.scenes)) {
+    const scenes = doc.scenes.map((s) => {
+      if (!obj(s) || !Array.isArray(s.layers) || !s.layers.every(obj)) return s
+      const layers = sincronizarDestaques(s.layers as unknown as Parameters<typeof sincronizarDestaques>[0])
+      return layers === s.layers ? s : { ...s, layers }
+    })
+    if (scenes.some((s, i) => s !== (doc.scenes as unknown[])[i])) doc = { ...doc, scenes }
   }
   return doc
 }

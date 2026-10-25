@@ -166,19 +166,41 @@ function herancaDeFrames(camadas: readonly Camada[]): Map<string, Heranca> {
       const y0 = Math.max(...clips.map((a) => a.y))
       const x1 = Math.min(...clips.map((a) => a.x + a.width))
       const y1 = Math.min(...clips.map((a) => a.y + a.height))
-      const f = clips[0]!
-      const raio = f.radii ? f.radii.map((x) => `${x}px`).join(' ') : f.radius ? `${f.radius}px` : ''
       // com sinal: o lado em que o frame fica fora da camada recorta lá na borda do frame (inset negativo), e não na
       // borda da camada — senão um texto que passa do frame só embaixo perdia os acentos em cima
       const t = y0 - c.y
       const l = x0 - c.x
       const b = c.y + c.height - y1
       const d = c.x + c.width - x1
-      // frame com raio recorta sempre (mesmo um filho do tamanho exato dele, como a foto na tela de um mockup)
-      const comRaio = !!raio && clips.length === 1
-      if (t > 0 || l > 0 || b > 0 || d > 0 || comRaio) clip = `inset(${t}px ${d}px ${b}px ${l}px${comRaio ? ` round ${raio}` : ''})`
+      // cantos arredondados dos frames: cada canto do recorte que cai no canto de um frame com raio fica redondo
+      // (a célula de baixo da grade de um feed segue o canto da tela do celular; as de cima continuam retas)
+      const raios = raiosDoRecorte(clips, x0, y0, x1, y1)
+      const comRaio = raios.some((r) => r > 0)
+      if (t > 0 || l > 0 || b > 0 || d > 0 || comRaio) clip = `inset(${t}px ${d}px ${b}px ${l}px${comRaio ? ` round ${raios.map((r) => `${r}px`).join(' ')}` : ''})`
     }
     r.set(c.id, { oculta: anc.some((a) => a.hidden), opacidade: anc.reduce((o, a) => o * a.opacity, 1), clip, clique: anc.find((a) => a.interactions.some((i) => i.trigger === 'click')) })
+  }
+  return r
+}
+
+/**
+ * Raio de cada canto (sup. esq., sup. dir., inf. dir., inf. esq.) do retângulo de recorte (x0, y0, x1, y1):
+ * o canto que fica a menos de um raio do canto correspondente de um frame com raio herda o raio dele, descontada
+ * a distância (uma grade 1 px para dentro da tela ainda acompanha a curva).
+ */
+function raiosDoRecorte(clips: readonly CamadaFrame[], x0: number, y0: number, x1: number, y1: number): [number, number, number, number] {
+  const r: [number, number, number, number] = [0, 0, 0, 0]
+  for (const f of clips) {
+    const rf = f.radii ?? (f.radius ? [f.radius, f.radius, f.radius, f.radius] : null)
+    if (!rf) continue
+    const cantos: [number, number, number, number][] = [
+      [x0, y0, f.x, f.y], [x1, y0, f.x + f.width, f.y], [x1, y1, f.x + f.width, f.y + f.height], [x0, y1, f.x, f.y + f.height],
+    ]
+    cantos.forEach(([cx, cy, fx, fy], i) => {
+      const raio = Math.min(rf[i]!, (x1 - x0) / 2, (y1 - y0) / 2)
+      const dist = Math.max(Math.abs(cx - fx), Math.abs(cy - fy))
+      if (raio > 0 && dist < raio) r[i] = Math.max(r[i]!, raio - dist)
+    })
   }
   return r
 }

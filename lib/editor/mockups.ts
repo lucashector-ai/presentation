@@ -37,7 +37,8 @@ export const MODELOS_MOCKUP: { id: string; nome: string; largura: number; altura
 ]
 
 /** Modelo do frame externo do feed (não aparece no menu de modelos). */
-export const MODELO_FEED = 'feed-instagram'
+export { MODELO_FEED } from '@/lib/scene/feed'
+import { MODELO_FEED } from '@/lib/scene/feed'
 
 const g8 = (v: number) => Math.round(v / 8) * 8
 const ESCALA = { h: 'scale', v: 'scale' } as const

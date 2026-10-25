@@ -19,6 +19,7 @@ import { validarDocumento, type ResultadoValidacao } from '@/lib/scene/validate'
 import { moverCena, normalizarZ, novoId, trazerParaFrente, enviarParaTras, avancarUm, recuarUm } from '@/lib/scene/order'
 import { alinhar as alinharRects, envolvente, enquadrarNaCena, type Alinhamento } from '@/lib/scene/transform'
 import { comDescendentes, ehFrame, filhosDe, mapaDe, paiDe, raizesDaSelecao } from '@/lib/scene/arvore'
+import { sincronizarDestaques } from '@/lib/scene/feed'
 import { LAYOUT_PADRAO, inferirLayout, inserirNoFrame as inserirNoFrameFn, moverNaLista as moverNaListaFn, resolverCamadas, type OpcoesResolver } from './autolayout'
 import { distribuir as distribuirRects } from './guias'
 import { criarMascara, ehMascara, removerMascara } from '@/lib/scene/mascara'
@@ -386,7 +387,8 @@ export function useEditor(projetoId: string, abertura: AberturaEditor | null) {
           if (s.id !== estadoRef.current.cenaId) return s
           const n = fn(s)
           if (n === s) return s
-          const layers = resolverCamadas(s.layers, n.layers, opcoes)
+          // a foto de um post do feed vai também para o destaque que abre ao clicar nele
+          const layers = sincronizarDestaques(resolverCamadas(s.layers, n.layers, opcoes), s.layers)
           return layers === n.layers ? n : { ...n, layers }
         }),
       }), historico),
