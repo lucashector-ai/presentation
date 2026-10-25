@@ -470,7 +470,7 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
         <main className="relative min-w-0 flex-1">
           <CanvasM editor={editor} assets={assets} avisar={avisar} interagir3d={interagir3d} aoEscala={definirEscala} aoGesto={setGestoCanvas} />
           {/* ferramentas num trilho flutuante na lateral do canvas (o topo fica com os modos) */}
-          <div className="absolute left-3 top-3 z-[45] hidden rounded-xl border border-borda bg-superficie p-1 shadow-[0_8px_24px_-12px_rgba(0,0,0,.25)] lg:block">
+          <div className="absolute left-2 top-2 z-[45] hidden rounded-xl border border-borda bg-superficie p-1 shadow-[0_8px_24px_-12px_rgba(0,0,0,.25)] lg:block">
             <BarraFerramentas vertical className="flex" ferramenta={estado.ferramenta} aoFerramenta={acoes.setFerramenta} aoMidia={aoMidia} />
           </div>
           <BarraMovel ferramenta={estado.ferramenta} aoFerramenta={acoes.setFerramenta} aoMidia={aoMidia} gaveta={gaveta} aoGaveta={setGaveta} />
