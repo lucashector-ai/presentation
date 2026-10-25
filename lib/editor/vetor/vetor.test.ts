@@ -331,3 +331,15 @@ describe('caneta: fechar o caminho', () => {
     expect(fechado.semPreenchimento).toBeUndefined()
   })
 })
+
+describe('raio dos cantos em caminhos da caneta', () => {
+  it('cantos retos viram arcos, limitados à metade do lado; com curvas, nada muda', async () => {
+    const { caminhoArredondado, caminhoParaD } = await import('./geometria')
+    const quadrado = { fechado: true, nos: [{ x: 0, y: 0, tipo: 'canto' as const }, { x: 100, y: 0, tipo: 'canto' as const }, { x: 100, y: 100, tipo: 'canto' as const }, { x: 0, y: 100, tipo: 'canto' as const }] }
+    const d = caminhoArredondado(quadrado, 1, 1, 20)
+    expect(d.match(/A20 20/g)?.length).toBe(4)
+    expect(caminhoArredondado(quadrado, 1, 1, 999).match(/A50 50/g)?.length).toBe(4)
+    const curvo = { ...quadrado, nos: quadrado.nos.map((n, i) => (i === 1 ? { ...n, saida: { x: 120, y: 20 } } : n)) }
+    expect(caminhoArredondado(curvo, 1, 1, 20)).toBe(caminhoParaD(curvo))
+  })
+})

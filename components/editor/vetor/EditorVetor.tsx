@@ -613,8 +613,21 @@ export function EditorVetor({ editor, camadaId, vp, ferramentaInicial = 'mover',
               const s = chaves.has(chaveNo({ c, i }))
               const sobre = hover?.tipo === 'no' && hover.ref.c === c && hover.ref.i === i
               const apagar = sobre && ferramenta === 'apagar'
-              const fechar = ferramenta === 'caneta' && desenho?.c === c && sobre
-              return <circle key={`${c}:${i}`} cx={q.x} cy={q.y} r={sobre || fechar ? 5.5 : 4.5} fill={apagar ? 'rgb(var(--cor-guia))' : s ? ACENTO : '#fff'} stroke={apagar ? '#fff' : s ? '#fff' : ACENTO} strokeWidth={1.5} data-no-vetor={`${c}:${i}`} data-selecionado={s || undefined} />
+              // caneta sobre a outra ponta do traçado: clicar ali fecha o caminho — o nó vira um alvo com um ×
+              const fechar = ferramenta === 'caneta' && desenho?.c === c && sobre && cam.nos.length >= 2 && i === (desenho.inicio ? cam.nos.length - 1 : 0)
+              if (fechar) {
+                return (
+                  <g key={`${c}:${i}`} data-no-vetor={`${c}:${i}`} data-fechar="">
+                    <circle cx={q.x} cy={q.y} r={8} fill={ACENTO} stroke="#fff" strokeWidth={1.5} />
+                    <path d={`M${q.x - 3} ${q.y - 3}L${q.x + 3} ${q.y + 3}M${q.x + 3} ${q.y - 3}L${q.x - 3} ${q.y + 3}`} stroke="#fff" strokeWidth={1.75} strokeLinecap="round" />
+                    <g transform={`translate(${q.x + 12} ${q.y - 22})`}>
+                      <rect width={46} height={18} rx={4} fill={ACENTO} />
+                      <text x={23} y={12.5} textAnchor="middle" fontSize={11} fontWeight={500} fill="#fff" style={{ fontFamily: 'var(--font-sans, system-ui)' }}>Fechar</text>
+                    </g>
+                  </g>
+                )
+              }
+              return <circle key={`${c}:${i}`} cx={q.x} cy={q.y} r={sobre ? 5.5 : 4.5} fill={apagar ? 'rgb(var(--cor-guia))' : s ? ACENTO : '#fff'} stroke={apagar ? '#fff' : s ? '#fff' : ACENTO} strokeWidth={1.5} data-no-vetor={`${c}:${i}`} data-selecionado={s || undefined} />
             }))}
           </>
         )}

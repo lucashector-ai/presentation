@@ -68,7 +68,7 @@ export function caminhoDaForma(c: Pick<CamadaForma, 'shape' | 'width' | 'height'
     case 'semicircle':
       return `M 0 ${n(h)} A ${n(w / 2)} ${n(h)} 0 0 1 ${n(w)} ${n(h)} Z`
     case 'path':
-      return c.vetor ? vetorParaD(c.vetor, w / c.vetor.w, h / c.vetor.h) || null : null
+      return c.vetor ? vetorParaD(c.vetor, w / c.vetor.w, h / c.vetor.h, undefined, c.radius ?? 0) || null : null
     default:
       return null
   }

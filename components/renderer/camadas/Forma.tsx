@@ -30,8 +30,9 @@ function FormaVetor({ c, v }: { c: CamadaForma; v: Vetor }) {
   const sx = w / v.w
   const sy = h / v.h
   const gid = `g-${c.id}`
-  const dFill = vetorParaD(v, sx, sy, (k) => !k.semPreenchimento)
-  const dTraco = vetorParaD(v, sx, sy)
+  // raio dos cantos também vale para formas desenhadas com a caneta (cantos retos viram arcos)
+  const dFill = vetorParaD(v, sx, sy, (k) => !k.semPreenchimento, c.radius)
+  const dTraco = vetorParaD(v, sx, sy, undefined, c.radius)
   // com a lista nova (`strokes`) o traço é desenhado em Tracos.tsx
   const sw = c.strokes ? 0 : c.strokeWidth
   return (

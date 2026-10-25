@@ -199,8 +199,44 @@ export function caminhoParaD(cam: CaminhoVetor, sx = 1, sy = 1): string {
   return d
 }
 
-export function vetorParaD(v: Vetor, sx = 1, sy = 1, filtro?: (c: CaminhoVetor) => boolean): string {
-  return v.caminhos.filter((c) => (filtro ? filtro(c) : true)).map((c) => caminhoParaD(c, sx, sy)).filter(Boolean).join(' ')
+export function vetorParaD(v: Vetor, sx = 1, sy = 1, filtro?: (c: CaminhoVetor) => boolean, raio = 0): string {
+  return v.caminhos.filter((c) => (filtro ? filtro(c) : true)).map((c) => (raio > 0 ? caminhoArredondado(c, sx, sy, raio) : caminhoParaD(c, sx, sy))).filter(Boolean).join(' ')
+}
+
+/**
+ * Raio dos cantos num caminho de cantos retos (como o "Corner radius" do Figma em vetores): cada canto vira um arco
+ * tangente aos dois lados, com o raio limitado para não passar da metade do lado mais curto. Caminhos com curvas
+ * (nós com alças) ficam como estão.
+ */
+export function caminhoArredondado(cam: CaminhoVetor, sx: number, sy: number, raio: number): string {
+  const nos = cam.nos
+  if (nos.length < 3 || nos.some((n) => n.entrada || n.saida)) return caminhoParaD(cam, sx, sy)
+  const pts = nos.map((n) => ({ x: n.x * sx, y: n.y * sy }))
+  const n = pts.length
+  const cantos = pts.map((p, i) => {
+    const ehPonta = !cam.fechado && (i === 0 || i === n - 1)
+    if (ehPonta) return { t1: p, t2: p, r: 0, varre: 0 }
+    const a = pts[(i - 1 + n) % n]!, b = pts[(i + 1) % n]!
+    const la = Math.hypot(a.x - p.x, a.y - p.y), lb = Math.hypot(b.x - p.x, b.y - p.y)
+    if (la < 1e-6 || lb < 1e-6) return { t1: p, t2: p, r: 0, varre: 0 }
+    const u = { x: (a.x - p.x) / la, y: (a.y - p.y) / la }, w = { x: (b.x - p.x) / lb, y: (b.y - p.y) / lb }
+    const ang = Math.acos(Math.max(-1, Math.min(1, u.x * w.x + u.y * w.y)))
+    if (ang < 1e-3 || Math.PI - ang < 1e-3) return { t1: p, t2: p, r: 0, varre: 0 }
+    const tg = Math.tan(ang / 2)
+    const t = Math.min(raio / tg, la / 2, lb / 2)
+    const cruz = -(u.x * w.y - u.y * w.x) // sentido da curva (de quem chega para quem sai), com y para baixo
+    return { t1: { x: p.x + u.x * t, y: p.y + u.y * t }, t2: { x: p.x + w.x * t, y: p.y + w.y * t }, r: t * tg, varre: cruz > 0 ? 1 : 0 }
+  })
+  const P = (q: P) => `${f(q.x)} ${f(q.y)}`
+  const canto = (k: (typeof cantos)[number]) => (k.r > 0 ? ` L${P(k.t1)} A${f(k.r)} ${f(k.r)} 0 0 ${k.varre} ${P(k.t2)}` : ` L${P(k.t1)}`)
+  if (!cam.fechado) {
+    let d = `M${P(pts[0]!)}`
+    for (let i = 1; i < n; i++) d += canto(cantos[i]!)
+    return d
+  }
+  let d = `M${P(cantos[0]!.t2)}`
+  for (let i = 1; i < n; i++) d += canto(cantos[i]!)
+  return `${d}${canto(cantos[0]!)} Z`
 }
 
 /** Alças colineares e opostas → nó suave. */
