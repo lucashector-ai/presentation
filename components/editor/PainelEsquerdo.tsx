@@ -20,7 +20,7 @@ export function PainelEsquerdo({ editor, assets, avisar, aoBloco }: { editor: Ed
   const { estado, acoes } = editor
   const abas: { id: AbaEsquerda; rotulo: string }[] = [{ id: 'adicionar', rotulo: 'Adicionar' }, { id: 'camadas', rotulo: 'Camadas' }]
   return (
-    <aside aria-label="Painel esquerdo" className="flex h-full flex-col border-r border-borda bg-superficie">
+    <aside aria-label="Painel esquerdo" className="flex h-full flex-col bg-superficie">
       <div role="tablist" aria-label="Painel esquerdo" className="flex shrink-0 gap-0.5 border-b border-borda p-2">
         {abas.map((a) => (
           <button key={a.id} role="tab" aria-selected={estado.abaEsquerda === a.id} onClick={() => acoes.ui({ abaEsquerda: a.id })} className={cx('flex-1 rounded-md px-1.5 py-1.5 text-[12px] transition-colors', estado.abaEsquerda === a.id ? 'bg-hover font-medium text-texto' : 'text-texto2 hover:text-texto')}>
@@ -247,7 +247,7 @@ function Arquivos({ editor, assets, avisar }: { editor: Editor; assets: AssetDem
         {lista.map((a) => (
           <li key={a.id} className="group relative">
             <button type="button" draggable onDragStart={(e) => { e.dataTransfer.setData('application/x-mostra-asset', a.id); e.dataTransfer.effectAllowed = 'copy' }} onClick={() => editor.acoes.adicionarAsset(a)} title={`Adicionar ${a.nome} à tela`} className="w-full text-left">
-              <span className="flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-md border border-borda bg-superficie2">
+              <span className="flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-md border border-borda bg-superficie2 transition-shadow group-hover:shadow-[0_0_0_2px_rgb(var(--cor-borda-forte))]">
                 {a.thumbUrl ? <img src={a.thumbUrl} alt="" className={cx('h-full w-full', a.tipo === 'svg' ? 'object-contain p-2' : 'object-cover')} /> : <IconeAsset tipo={a.tipo} />}
               </span>
               <span className="mt-1 block truncate text-[11px]">{a.nome}</span>
@@ -304,7 +304,7 @@ function Blocos({ aoBloco }: { aoBloco: (id: string) => void }) {
       <ul className="grid grid-cols-3 gap-2">
         {BLOCOS.map((b) => (
           <li key={b.id}>
-            <button type="button" draggable onDragStart={(e) => { e.dataTransfer.setData('application/x-mostra-bloco', b.id); e.dataTransfer.effectAllowed = 'copy' }} onClick={() => aoBloco(b.id)} className="flex h-[58px] w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-borda px-1 text-center text-[11px] leading-tight text-textoCorpo hover:border-acento hover:text-acento">
+            <button type="button" draggable onDragStart={(e) => { e.dataTransfer.setData('application/x-mostra-bloco', b.id); e.dataTransfer.effectAllowed = 'copy' }} onClick={() => aoBloco(b.id)} className="flex h-[58px] w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-borda px-1 text-center text-[11px] leading-tight text-textoCorpo transition-colors hover:border-bordaHover hover:bg-hover hover:text-texto">
               <b.icone className="h-4 w-4" strokeWidth={1.6} />
               {b.rotulo}
             </button>

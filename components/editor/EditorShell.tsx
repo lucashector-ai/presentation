@@ -463,11 +463,14 @@ function Editor({ projetoId, inicial }: { projetoId: string; inicial: AberturaEd
       )}
 
       <div className="relative flex min-h-0 flex-1">
-        <div className="hidden w-[216px] shrink-0 md:block"><PainelEsquerdoM editor={editorFixo} assets={assetsLista} avisar={avisar} aoBloco={aoBloco} /></div>
+        {/* painel esquerdo como cartão flutuante, igual ao de propriedades */}
+        <div className="hidden w-[224px] shrink-0 bg-canvas p-2 pr-0 md:block">
+          <div className="h-full overflow-hidden rounded-xl border border-borda shadow-[0_8px_24px_-14px_rgba(0,0,0,.22)]"><PainelEsquerdoM editor={editorFixo} assets={assetsLista} avisar={avisar} aoBloco={aoBloco} /></div>
+        </div>
         <main className="relative min-w-0 flex-1">
           <CanvasM editor={editor} assets={assets} avisar={avisar} interagir3d={interagir3d} aoEscala={definirEscala} aoGesto={setGestoCanvas} />
           {/* ferramentas num trilho flutuante na lateral do canvas (o topo fica com os modos) */}
-          <div className="absolute left-3 top-3 z-20 hidden rounded-xl border border-borda bg-superficie p-1 shadow-[0_8px_24px_-12px_rgba(0,0,0,.25)] lg:block">
+          <div className="absolute left-3 top-3 z-[45] hidden rounded-xl border border-borda bg-superficie p-1 shadow-[0_8px_24px_-12px_rgba(0,0,0,.25)] lg:block">
             <BarraFerramentas vertical className="flex" ferramenta={estado.ferramenta} aoFerramenta={acoes.setFerramenta} aoMidia={aoMidia} />
           </div>
           <BarraMovel ferramenta={estado.ferramenta} aoFerramenta={acoes.setFerramenta} aoMidia={aoMidia} gaveta={gaveta} aoGaveta={setGaveta} />
