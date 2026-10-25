@@ -113,7 +113,7 @@ export type ShareLink = z.infer<typeof ShareLinkSchema>
 export const CriarProjetoReq = z.object({
   name: z.string().trim().min(1, 'Dê um nome ao projeto').max(120),
   mode: ModoProjetoSchema,
-  format: z.enum(['slides169', 'slides43', 'story', 'quadrado', 'a4Retrato', 'a4Paisagem', 'a3Retrato', 'a3Paisagem', 'cartaRetrato', 'cartaPaisagem']).optional(),
+  format: z.enum(['slides169', 'slides43', 'story', 'quadrado', 'feed', 'a4Retrato', 'a4Paisagem', 'a3Retrato', 'a3Paisagem', 'cartaRetrato', 'cartaPaisagem']).optional(),
 })
 export type CriarProjetoReq = z.infer<typeof CriarProjetoReq>
 

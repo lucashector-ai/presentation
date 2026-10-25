@@ -34,6 +34,7 @@ export const FORMATOS = {
   slides43: { width: 1600, height: 1200 },
   story: { width: 1080, height: 1920 },
   quadrado: { width: 1080, height: 1080 },
+  feed: { width: 1080, height: 1350 },
   // documentos para PDF (150 dpi): A4, A3 e Carta, retrato e paisagem
   a4Retrato: { width: 1240, height: 1754 },
   a4Paisagem: { width: 1754, height: 1240 },
@@ -54,6 +55,7 @@ export const FORMATOS_INFO: Record<keyof typeof FORMATOS, { nome: string; grupo:
   cartaPaisagem: { nome: 'PDF Carta paisagem', grupo: 'pdf' },
   story: { nome: 'Story 9:16', grupo: 'social' },
   quadrado: { nome: 'Quadrado 1:1', grupo: 'social' },
+  feed: { nome: 'Feed 4:5', grupo: 'social' },
 }
 export type Formato = keyof typeof FORMATOS
 

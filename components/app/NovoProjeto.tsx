@@ -174,7 +174,7 @@ export function NovoProjeto() {
                   <div className="mt-8">
                     <div className="mb-4 text-[13px] font-medium">Tamanho</div>
                     <div role="radiogroup" aria-label="Tamanho" className="flex flex-wrap gap-2">
-                      {(Object.keys(FORMATOS_INFO) as Formato[]).filter((f) => FORMATOS_INFO[f].grupo !== 'social' || f === 'quadrado').map((f) => {
+                      {(Object.keys(FORMATOS_INFO) as Formato[]).filter((f) => FORMATOS_INFO[f].grupo !== 'social' || f === 'quadrado' || f === 'feed').map((f) => {
                         const t = FORMATOS[f]
                         return (
                           <button key={f} type="button" role="radio" aria-checked={formato === f} onClick={() => setFormato(f)} className={cx('flex h-10 items-center gap-2 rounded-controle border-[1.5px] bg-superficie px-4 text-[13px]', formato === f ? 'border-acento' : 'border-borda hover:border-[#D4D4D4]')}>
