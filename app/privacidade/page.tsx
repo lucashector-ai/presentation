@@ -161,7 +161,7 @@ const SECOES: SecaoLegal[] = [
   {
     id: 'contato',
     titulo: 'Contato',
-    corpo: <p>Dúvidas sobre privacidade: {email(E.emailPrivacidade)}. Outros assuntos: {email(E.emailContato)}. Veja também os <a href="/termos" className="text-violeta underline-offset-2 hover:underline">Termos de uso</a>.</p>,
+    corpo: <p>Dúvidas sobre privacidade{(E.emailPrivacidade as string) !== E.emailContato ? <>: {email(E.emailPrivacidade)}. Outros assuntos: {email(E.emailContato)}</> : <> ou qualquer outro assunto: {email(E.emailContato)}</>}. Veja também os <a href="/termos" className="text-violeta underline-offset-2 hover:underline">Termos de uso</a>.</p>,
   },
 ]
 

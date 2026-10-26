@@ -9,8 +9,8 @@ export const EMPRESA = {
   razaoSocial: '',
   cnpj: '',
   endereco: '',
-  emailContato: 'contato@mostra.page',
-  emailPrivacidade: 'privacidade@mostra.page',
+  emailContato: 'suporte@mostra.page',
+  emailPrivacidade: 'suporte@mostra.page',
   /** Encarregado pelo tratamento de dados pessoais (DPO, art. 41 da LGPD). */
   encarregado: '',
   /** Cidade do foro, quando a lei permitir escolher (consumidores têm o próprio domicílio). */
