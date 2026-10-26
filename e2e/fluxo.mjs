@@ -460,20 +460,18 @@ await passo('Tema escuro: Plano e conta → Preferências, campos legíveis, can
   await page.emulateMedia({ colorScheme: null })
 })
 
-const nav = () => page.getByRole('navigation', { name: 'Passos' })
 /** Saldo de créditos mostrado no cabeçalho do Criar com IA. */
 const saldoNoCabecalho = async () => Number((await page.locator('button[title^="Comprar créditos"] .mono').first().innerText()).replace(/\D/g, ''))
 
 await passo('Criar com IA: roteiro de 6 telas → apresentação → editor', async () => {
-  // com o prompt na URL, o briefing chega preenchido e o fluxo abre no passo da marca
+  // com o prompt na URL, o pedido chega já enviado: o agente responde e abre as decisões ao lado
   await page.goto(`${BASE}/criar?prompt=Pitch%20da%20Aurora%2C%20startup%20de%20energia%20solar&formato=slides`)
-  await nav().getByRole('button', { name: /Marca/ }).and(page.locator('[aria-current="step"]')).waitFor({ timeout: 15000 })
-  await nav().getByRole('button', { name: /Tamanho/ }).click()
+  await page.getByRole('heading', { name: 'Decisões antes do plano' }).waitFor({ timeout: 15000 })
+  await page.getByRole('log', { name: 'Conversa com a IA' }).getByText(/^Vou transformar esse pedido/).waitFor()
   await page.getByRole('radio', { name: '6 telas', exact: true }).click()
   if ((await page.getByRole('radio', { name: '6 telas', exact: true }).getAttribute('aria-checked')) !== 'true') throw new Error('6 telas não selecionado')
-  await page.getByRole('button', { name: 'Ir para revisar' }).click()
-  await page.getByRole('button', { name: 'Gerar roteiro →' }).click()
-  await page.getByText('Roteiro · 6 telas').waitFor({ timeout: 30000 })
+  await page.getByRole('button', { name: 'Criar o plano →' }).click()
+  await page.getByText('Plano · 6 telas').waitFor({ timeout: 30000 })
   await page.getByRole('button', { name: 'Gerar apresentação' }).click()
   await page.getByText('Pronto · 6 telas').waitFor({ timeout: 30000 })
   await page.screenshot({ path: `${SHOTS}/12-criar-ia.png` })
@@ -824,7 +822,7 @@ await passo('Criar com IA: atalho do painel (ideia em uma linha) → marca com l
   await page.locator('#painel-ideia').fill('Pitch da Aurora, startup de energia solar por assinatura para pequenos comércios')
   await cartaoIa().getByRole('button', { name: 'Criar com IA' }).click()
   await page.waitForURL(/\/app\/criar\?/)
-  await page.getByRole('heading', { name: 'A sua marca, antes de gerar' }).waitFor()
+  await page.getByRole('heading', { name: 'Decisões antes do plano' }).waitFor({ timeout: 15000 })
   await page.getByLabel('Arquivo do logo').setInputFiles(LOGO)
   await page.getByText('Paletas do seu logo').waitFor({ timeout: 15000 })
   // a 1ª paleta do logo entra sozinha: a cor principal (laranja) é a 1ª cor da marca
@@ -859,10 +857,10 @@ await passo('Criar com IA: qualquer fonte do Google no kit de marca (títulos e 
   await page.screenshot({ path: `${SHOTS}/13b-criar-marca-fontes.png` })
 })
 
-await passo('Criar com IA: material (números), galeria de estilos com filtro e busca, tamanho e revisão com custo', async () => {
-  await page.getByRole('button', { name: 'Continuar →' }).click()
+await passo('Criar com IA: material (números), galeria de estilos com filtro e busca, tamanho e custo no painel ao lado', async () => {
+  await page.getByRole('tab', { name: 'Material' }).click()
   await page.getByRole('textbox', { name: 'Números-chave' }).fill('38% | mais clientes atendidos\n6 semanas | até o lançamento')
-  await page.getByRole('button', { name: 'Continuar →' }).click()
+  await page.getByRole('tab', { name: 'Estilos' }).click()
   const galeria = page.getByRole('radiogroup', { name: 'Estilo de design' })
   const total = await galeria.getByRole('radio').count()
   if (total < 16) throw new Error(`galeria com ${total} opções (esperava ≥ 15 estilos + sugestão)`)
@@ -874,31 +872,31 @@ await passo('Criar com IA: material (números), galeria de estilos com filtro e 
   await page.getByLabel('Buscar estilo').fill('')
   await galeria.getByRole('radio', { name: 'Luxo', exact: true }).click()
   await page.getByLabel('Prévia do estilo escolhido').waitFor()
-  await page.getByRole('button', { name: 'Continuar →' }).click()
+  await page.getByRole('tab', { name: 'Decisões' }).click()
   await page.getByRole('radio', { name: '20 telas', exact: true }).click()
   if ((await page.getByRole('radio', { name: '20 telas', exact: true }).getAttribute('aria-checked')) !== 'true') throw new Error('20 telas não selecionado')
-  await page.getByRole('button', { name: 'Continuar →' }).click()
-  // a ideia escrita no cartão do painel chegou ao briefing
-  if (!/Pitch da Aurora/.test(await page.getByRole('button', { name: 'Editar briefing' }).locator('..').innerText())) throw new Error('a ideia do cartão do painel não chegou ao briefing')
-  await page.getByRole('heading', { name: 'Revisar e gerar' }).waitFor()
-  const resumo = await page.locator('aside').filter({ hasText: 'Total' }).innerText()
-  if (!/Design de 20 telas/.test(resumo) || !/grátis/.test(resumo)) throw new Error(`resumo de custo: ${resumo}`)
+  // a ideia escrita no cartão do painel chegou à conversa
+  if (!/Pitch da Aurora/.test(await page.getByRole('log', { name: 'Conversa com a IA' }).innerText())) throw new Error('a ideia do cartão do painel não chegou à conversa')
+  const resumo = await page.getByText(/^Plano agora/).innerText()
+  if (!/design de 20 telas depois/.test(resumo)) throw new Error(`resumo de custo: ${resumo}`)
   await page.screenshot({ path: `${SHOTS}/14-criar-revisar.png` })
 })
 
 await passo('Criar com IA: 20 telas com o logo; trocar o estilo depois é grátis; abre no editor', async () => {
-  await page.getByRole('button', { name: 'Gerar roteiro →' }).click()
-  await page.getByText('Roteiro · 20 telas').waitFor({ timeout: 60000 })
+  await page.getByRole('button', { name: 'Criar o plano →' }).click()
+  await page.getByText('Plano · 20 telas').waitFor({ timeout: 60000 })
   await page.getByRole('button', { name: 'Gerar apresentação' }).click()
   await page.getByText('Pronto · 20 telas').waitFor({ timeout: 90000 })
   const capa = page.locator('[data-layer-id^="logo-"]')
   if ((await capa.count()) < 2) throw new Error('logo não está na capa e no encerramento')
   const antes = await saldoNoCabecalho()
   const trocar = page.getByRole('radiogroup', { name: 'Trocar estilo' })
+  const menuEstilo = page.getByRole('button', { name: /^Estilo/ })
   for (const nome of ['Suíço', 'Neo-Memphis']) {
+    await menuEstilo.click()
     await trocar.getByRole('radio', { name: nome }).click()
     await page.getByText('Pronto · 20 telas').waitFor({ timeout: 20000 })
-    if ((await trocar.getByRole('radio', { name: nome }).getAttribute('aria-checked')) !== 'true') throw new Error(`estilo ${nome} não aplicado`)
+    if (!(await menuEstilo.innerText()).includes(nome)) throw new Error(`estilo ${nome} não aplicado`)
   }
   await page.waitForTimeout(500)
   if ((await saldoNoCabecalho()) !== antes) throw new Error('trocar o estilo gastou créditos')
@@ -958,27 +956,20 @@ await passo('Criar com IA: briefing longo colado no painel vai inteiro; 15 telas
     document.querySelector('#painel-ideia').dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))
   }, BRIEFING)
   await page.waitForURL(/\/app\/criar\?colado=1/)
-  const editor = page.locator('#criar-prompt')
-  await page.waitForFunction((n) => document.querySelector('#criar-prompt')?.value.length === n, BRIEFING.trim().length, { timeout: 10000 })
-  if (!(await page.getByText(`${BRIEFING.trim().length.toLocaleString('pt-BR')} / 30.000 caracteres`).count())) throw new Error('contador de caracteres do pedido')
-  // o editor cresce e rola: mais alto que o campo antigo, sem passar do teto
-  const alt = (await editor.boundingBox()).height
-  if (alt < 300 || alt > 660) throw new Error(`altura do editor: ${alt}`)
-  if (!(await editor.evaluate((el) => el.scrollHeight > el.clientHeight))) throw new Error('o editor deveria rolar com o briefing longo')
-  await page.getByText('Estrutura de 15 telas reconhecida no pedido').waitFor()
+  // o briefing chega enviado como anexo (texto colado inteiro) e o agente diz o que reconheceu
+  const conversa = page.getByRole('log', { name: 'Conversa com a IA' })
+  await conversa.getByText(/^Texto colado · \d+ KB$/).waitFor({ timeout: 10000 })
+  await conversa.getByText(/a estrutura tela a tela \(15 telas\)/).waitFor()
+  await page.getByRole('heading', { name: 'Decisões antes do plano' }).waitFor({ timeout: 15000 })
   await page.screenshot({ path: `${SHOTS}/17-criar-briefing-longo.png` })
-  await page.getByRole('button', { name: 'Continuar →' }).click()
-  await page.getByRole('heading', { name: 'A sua marca, antes de gerar' }).waitFor()
   // as cores em hex do texto viram a marca, com papéis, sem digitar de novo
   if ((await page.getByLabel('Código da cor 1').inputValue()).toUpperCase() !== '#006BFF') throw new Error('cor principal do pedido')
   if ((await page.getByLabel('Código da cor 2').inputValue()).toUpperCase() !== '#071A3D') throw new Error('fundo escuro do pedido')
   await page.getByLabel('Papéis de cor do pedido').getByText('#16A765').waitFor()
   if ((await page.getByLabel('Nome da marca').inputValue()) !== 'Nexora Soluções') throw new Error('nome da marca do pedido')
-  await nav().getByRole('button', { name: /Tamanho/ }).click()
   if ((await page.getByRole('radio', { name: '15 telas', exact: true }).getAttribute('aria-checked')) !== 'true') throw new Error('15 telas do pedido não pré-selecionadas')
-  await page.getByRole('button', { name: 'Ir para revisar' }).click()
-  await page.getByRole('button', { name: 'Gerar roteiro →' }).click()
-  await page.getByText('Roteiro · 15 telas').waitFor({ timeout: 60000 })
+  await page.getByRole('button', { name: 'Criar o plano →' }).click()
+  await page.getByText('Plano · 15 telas').waitFor({ timeout: 60000 })
   if ((await page.getByLabel('Título da tela 15').inputValue()) !== 'O próximo resultado começa agora') throw new Error('título do encerramento pedido')
   if ((await page.getByLabel('Tipo da tela 8').inputValue()) !== 'funil') throw new Error('a tela 8 deveria ser o funil')
   await page.getByRole('button', { name: 'Gerar apresentação' }).click()
@@ -1108,7 +1099,7 @@ fs.writeFileSync(MANUAL_PDF, gerarManualFicticio({ jsPDF, createCanvas }))
 
 await passo('Criar com IA: manual da marca (PDF) no passo da marca → cores com papéis, fontes, logo e regras reconhecidos; aplicado e salvo no kit', async () => {
   await page.goto(`${BASE}/app/criar?prompt=${encodeURIComponent('Plano 2027 da Vela Energia para a diretoria')}&telas=6`, { waitUntil: 'networkidle' })
-  await page.getByRole('heading', { name: 'A sua marca, antes de gerar' }).waitFor()
+  await page.getByRole('heading', { name: 'Decisões antes do plano' }).waitFor({ timeout: 15000 })
   await page.getByLabel('Arquivos do manual da marca').setInputFiles(MANUAL_PDF)
   const rev = page.getByRole('region', { name: 'Revisão do manual da marca' })
   await rev.waitFor({ timeout: 30000 })
@@ -1138,9 +1129,8 @@ await passo('Criar com IA: manual da marca (PDF) no passo da marca → cores com
 })
 
 await passo('Criar com IA: com o manual, as telas geradas no demo usam as cores e as fontes da marca; o kit traz o manual de volta', async () => {
-  await page.getByRole('button', { name: 'Ir para revisar' }).click()
-  await page.getByRole('button', { name: 'Gerar roteiro →' }).click()
-  await page.getByText('Roteiro · 6 telas').waitFor({ timeout: 60000 })
+  await page.getByRole('button', { name: 'Criar o plano →' }).click()
+  await page.getByText('Plano · 6 telas').waitFor({ timeout: 60000 })
   await page.getByRole('button', { name: 'Gerar apresentação' }).click()
   await page.getByText('Pronto · 6 telas').waitFor({ timeout: 90000 })
   await page.waitForTimeout(800)

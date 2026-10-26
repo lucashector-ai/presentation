@@ -16,7 +16,7 @@ import { ProgressoNavegacao } from './ProgressoNavegacao'
 import { SeletorTema } from './SeletorTema'
 
 /** Rotas de tela cheia (sem barra lateral): editor, apresentação e o assistente de novo projeto. */
-const SEM_CHROME = /\/edit$|\/apresentar$|\/apresentador$|\/app\/novo$/
+const SEM_CHROME = /\/edit$|\/apresentar$|\/apresentador$|\/app\/novo$|\/app\/criar$/
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter()

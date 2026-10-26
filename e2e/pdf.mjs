@@ -104,7 +104,12 @@ page.on('worker', (w) => workers.push(w.url()))
 // nada de CDN externo nem leitura pela IA sem o usuário pedir
 const pedidos = []
 page.on('request', (r) => pedidos.push(r.url()))
-const saldo = async () => Number((await page.getByText(/^[\d.]+ créditos$/).first().innerText()).replace(/\D/g, ''))
+// saldo na barra lateral ou, nas telas cheias (Criar com IA), no botão de créditos do cabeçalho
+const saldo = async () => {
+  const cabecalho = page.locator('button[title^="Comprar créditos"] .mono').first()
+  const el = (await cabecalho.count()) ? cabecalho : page.getByText(/^[\d.]+ créditos$/).first()
+  return Number((await el.innerText()).replace(/\D/g, ''))
+}
 async function passo(nome, fn) {
   try { await fn(); passos.push(`✔ ${nome}`); console.log('✔', nome) } catch (e) { passos.push(`✘ ${nome}: ${e?.message ?? e}`); console.log('✘', nome, e?.message ?? e); await page.screenshot({ path: `${SHOTS}/pdf-falha-${passos.length}.png` }).catch(() => {}) }
 }
@@ -127,7 +132,8 @@ await passo('Cadastro (demo)', async () => {
 await passo('Criar com IA: anexar PDF mostra o que foi lido e o custo', async () => {
   await page.goto(`${BASE}/app/criar`, { waitUntil: 'networkidle' })
   // o material fica no passo 3 (Material) do Criar com IA
-  await page.getByRole('navigation', { name: 'Passos' }).getByRole('button', { name: /Material/ }).click()
+  await page.getByRole('button', { name: 'Anexar e mais opções' }).click()
+  await page.getByRole('menuitem', { name: /^Anexar PDF/ }).click()
   await page.getByRole('radio', { name: 'Importar arquivo' }).click()
   await page.getByLabel('Arquivo de material').setInputFiles(pdfRelatorio)
   const resumo = page.getByTestId('resumo-material')
@@ -145,12 +151,12 @@ await passo('Criar com IA: anexar PDF mostra o que foi lido e o custo', async ()
 })
 
 await passo('Criar com IA: gerar roteiro e apresentação a partir do PDF', async () => {
-  const nav = page.getByRole('navigation', { name: 'Passos' })
-  await nav.getByRole('button', { name: /Tamanho/ }).click()
+  await page.locator('#criar-prompt').fill('Crie a apresentação a partir do material')
+  await page.getByRole('button', { name: 'Enviar' }).click()
+  await page.getByRole('heading', { name: 'Decisões antes do plano' }).waitFor()
   await page.getByRole('radio', { name: '6 telas', exact: true }).click()
-  await nav.getByRole('button', { name: /Revisar e gerar/ }).click()
-  await page.getByRole('button', { name: 'Gerar roteiro →' }).click()
-  await page.getByText('Roteiro · 6 telas').waitFor({ timeout: 30000 })
+  await page.getByRole('button', { name: 'Criar o plano →' }).click()
+  await page.getByText('Plano · 6 telas').waitFor({ timeout: 30000 })
   await page.screenshot({ path: `${SHOTS}/pdf-2-criar-roteiro.png` })
   await page.getByRole('button', { name: 'Gerar apresentação' }).click()
   await page.getByText('Pronto · 6 telas').waitFor({ timeout: 30000 })
@@ -165,7 +171,8 @@ await passo('Criar com IA: anexar .docx lê títulos, lista e tabela', async () 
   fs.writeFileSync(`${SHOTS}/teste-briefing.docx`, zipSync({ 'word/document.xml': strToU8(`<w:document ${W}><w:body>${corpo}</w:body></w:document>`) }))
   await page.goto(`${BASE}/app/criar`, { waitUntil: 'networkidle' })
   // o material fica no passo 3 (Material) do Criar com IA
-  await page.getByRole('navigation', { name: 'Passos' }).getByRole('button', { name: /Material/ }).click()
+  await page.getByRole('button', { name: 'Anexar e mais opções' }).click()
+  await page.getByRole('menuitem', { name: /^Anexar PDF/ }).click()
   await page.getByRole('radio', { name: 'Importar arquivo' }).click()
   await page.getByLabel('Arquivo de material').setInputFiles(`${SHOTS}/teste-briefing.docx`)
   const t = await page.getByTestId('resumo-material').innerText()
@@ -178,7 +185,8 @@ await passo('Criar com IA: PDF escaneado é lido por OCR no navegador, sem créd
   await page.goto(`${BASE}/app/criar`, { waitUntil: 'networkidle' })
   const antes = await saldo()
   const inicio = pedidos.length
-  await page.getByRole('navigation', { name: 'Passos' }).getByRole('button', { name: /Material/ }).click()
+  await page.getByRole('button', { name: 'Anexar e mais opções' }).click()
+  await page.getByRole('menuitem', { name: /^Anexar PDF/ }).click()
   await page.getByRole('radio', { name: 'Importar arquivo' }).click()
   await page.getByLabel('Arquivo de material').setInputFiles(pdfEscaneado)
   // progresso por página
@@ -202,17 +210,18 @@ await passo('Criar com IA: PDF escaneado é lido por OCR no navegador, sem créd
   if ((await saldo()) !== antes) throw new Error(`o saldo mudou: ${antes} → ${await saldo()}`)
   await page.screenshot({ path: `${SHOTS}/pdf-4-ocr-escaneado.png` })
   // o material do OCR gera o roteiro como qualquer texto
-  const nav = page.getByRole('navigation', { name: 'Passos' })
-  await nav.getByRole('button', { name: /Tamanho/ }).click()
+  await page.locator('#criar-prompt').fill('Crie a apresentação a partir do material')
+  await page.getByRole('button', { name: 'Enviar' }).click()
+  await page.getByRole('heading', { name: 'Decisões antes do plano' }).waitFor()
   await page.getByRole('radio', { name: '6 telas', exact: true }).click()
-  await nav.getByRole('button', { name: /Revisar e gerar/ }).click()
-  await page.getByRole('button', { name: 'Gerar roteiro →' }).click()
-  await page.getByText('Roteiro · 6 telas').waitFor({ timeout: 30000 })
+  await page.getByRole('button', { name: 'Criar o plano →' }).click()
+  await page.getByText('Plano · 6 telas').waitFor({ timeout: 30000 })
 })
 
 await passo('Criar com IA: cancelar o OCR fica com as páginas já lidas', async () => {
   await page.goto(`${BASE}/app/criar`, { waitUntil: 'networkidle' })
-  await page.getByRole('navigation', { name: 'Passos' }).getByRole('button', { name: /Material/ }).click()
+  await page.getByRole('button', { name: 'Anexar e mais opções' }).click()
+  await page.getByRole('menuitem', { name: /^Anexar PDF/ }).click()
   await page.getByRole('radio', { name: 'Importar arquivo' }).click()
   await page.getByLabel('Arquivo de material').setInputFiles(pdfEscaneadoLongo)
   await page.getByText(/Reconhecendo o texto da página 3 \(3 de 6\)/).waitFor({ timeout: 60000 })

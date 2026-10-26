@@ -13,7 +13,7 @@ const TELAS = [
   ['landing', '/', 'h1'],
   ['login', '/login', 'form'],
   ['painel', '/app', 'h1'],
-  ['criar-ia', '/app/criar', '[aria-label="Passos"]'],
+  ['criar-ia', '/app/criar', '#criar-prompt'],
   ['editor', '/app/projects/pr-atlas/edit', '[data-testid="canvas"]'],
   ['visualizador', '/p/demo_cafe_aurora_proposta_01_token_fixo_xx', '.viewer-controles'],
   ['plano-conta', '/app/settings', '#preferencias'],

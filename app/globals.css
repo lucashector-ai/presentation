@@ -382,3 +382,8 @@ aside[aria-label="Propriedades"], aside[aria-label="Painel esquerdo"] { will-cha
 /* cursor da linha do tempo (aba Animação): anda a largura da trilha e some no fim */
 @keyframes linha-cursor { 0% { transform: translateX(0%); opacity: 1 } 99.9% { transform: translateX(100%); opacity: 1 } 100% { transform: translateX(100%); opacity: 0 } }
 .linha-cursor { animation-name: linha-cursor; animation-timing-function: linear; animation-fill-mode: forwards; }
+
+/* Criar com IA: a onda das etapas em andamento corre da esquerda para a direita */
+.criar-onda { stroke-dasharray: 6 4; animation: criar-onda 0.9s linear infinite; }
+@keyframes criar-onda { to { stroke-dashoffset: -20; } }
+@media (prefers-reduced-motion: reduce) { .criar-onda { animation: none; } }

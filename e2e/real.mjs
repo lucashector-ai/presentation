@@ -275,7 +275,7 @@ let idLogo = ''
 await passo('Criar com IA: logo enviado (POST /api/assets/upload), paleta do logo e kit de marca salvo no Neon', async () => {
   fs.writeFileSync(`${SHOTS}/logo.svg`, '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120" width="400" height="120"><circle cx="60" cy="60" r="44" fill="#E4572E"/><rect x="130" y="34" width="250" height="22" rx="11" fill="#1F3B4D"/><rect x="130" y="66" width="160" height="22" rx="11" fill="#F2C14E"/></svg>')
   await page.goto(`${BASE}/app/criar?prompt=Pitch%20de%20uma%20padaria%20de%20bairro&formato=slides`, { waitUntil: 'networkidle' })
-  await page.getByRole('heading', { name: 'A sua marca, antes de gerar' }).waitFor({ timeout: 30000 })
+  await page.getByRole('heading', { name: 'Decisões antes do plano' }).waitFor({ timeout: 30000 })
   await page.getByLabel('Arquivo do logo').setInputFiles(`${SHOTS}/logo.svg`)
   await page.getByText('Paletas do seu logo').waitFor({ timeout: 30000 })
   await page.getByLabel('Nome da marca').fill('Padaria Real')
@@ -324,11 +324,10 @@ await passo('Kits de marca: outra conta não vê, não altera e não apaga o kit
 })
 
 await passo('Criar com IA: rota /api/ai/roteiro com sessão → projeto salvo no servidor', async () => {
-  await page.getByRole('navigation', { name: 'Passos' }).getByRole('button', { name: /Tamanho/ }).click()
+  await page.getByRole('tab', { name: 'Decisões' }).click()
   await page.getByRole('radio', { name: '6 telas', exact: true }).click()
-  await page.getByRole('button', { name: 'Ir para revisar' }).click()
-  await page.getByRole('button', { name: 'Gerar roteiro →' }).click()
-  await page.getByText('Roteiro · 6 telas').waitFor({ timeout: 60000 })
+  await page.getByRole('button', { name: 'Criar o plano →' }).click()
+  await page.getByText('Plano · 6 telas').waitFor({ timeout: 60000 })
   await page.getByRole('button', { name: 'Gerar apresentação' }).click()
   await page.getByText('Pronto · 6 telas').waitFor({ timeout: 60000 })
   await page.getByRole('button', { name: 'Abrir no editor →' }).click()
