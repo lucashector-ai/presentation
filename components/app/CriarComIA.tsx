@@ -729,26 +729,27 @@ export function CriarComIA() {
             )}
 
             {vista === 'apresentacao' && documento && (
-              <div className="flex flex-col gap-4 p-4 sm:p-6">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="rotulo-mono flex items-center gap-2" aria-live="polite">
+              <div className="flex flex-col gap-4 px-4 pb-4 sm:px-6 sm:pb-6">
+                {/* uma barra só: estilo e logo à esquerda; situação, ajustar e abrir à direita; o progresso é a linha de baixo */}
+                <div className="sticky top-0 z-10 -mx-4 flex h-12 items-center gap-2 border-b border-borda bg-superficie/95 px-4 backdrop-blur sm:-mx-6 sm:px-6">
+                  <div className={cx('flex min-w-0 items-center gap-3 transition-opacity', !pronto && 'pointer-events-none opacity-40')}>
+                    <MenuEstilos valor={temaEfetivo} aoEscolher={setTema} marca={marcaMont} aoVerGaleria={() => setVista('estilos')} desativado={!pronto} />
+                    {marca.logo && (
+                      <label className="hidden items-center gap-1.5 whitespace-nowrap text-[12px] text-texto3 md:flex">
+                        <input type="checkbox" checked={marca.logoRodape} onChange={(e) => setMarca((m) => ({ ...m, logoRodape: e.target.checked }))} /> Logo no rodapé
+                      </label>
+                    )}
+                  </div>
+                  <span className="flex-1" />
+                  <span className="mono flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[11px] uppercase tracking-[0.06em] text-texto3" aria-live="polite">
                     {(!pronto || salvandoProjeto) && <span aria-hidden className="h-3 w-3 animate-spin rounded-full border-2 border-bordaForte border-t-violeta" />}
-                    {pronto ? (salvandoProjeto ? 'Salvando o projeto…' : `Pronto · ${total} telas`) : `Desenhando tela ${Math.min(revelar + 1, total)} de ${total}`}
+                    {pronto ? (salvandoProjeto ? 'Salvando…' : `Pronto · ${total} telas`) : `Desenhando ${Math.min(revelar + 1, total)} de ${total}`}
+                  </span>
+                  <div className={cx('flex shrink-0 items-center gap-1 transition-opacity', !pronto && 'pointer-events-none opacity-40')}>
+                    <button type="button" onClick={() => setVista('plano')} title="Voltar ao plano para ajustar" className="hidden h-8 items-center rounded-full px-2.5 text-[13px] text-texto2 hover:bg-hover hover:text-texto sm:flex">Ajustar o plano</button>
+                    {projetoId && <button type="button" onClick={() => router.push(`/app/projects/${projetoId}/edit`)} className="flex h-8 items-center rounded-full bg-violeta px-3.5 text-[13px] font-semibold text-white hover:bg-acentoHover">Abrir no editor →</button>}
                   </div>
-                  <div className={cx('flex flex-wrap gap-2 transition-opacity', !pronto && 'pointer-events-none opacity-35')}>
-                    <button type="button" onClick={() => setVista('plano')} className="flex h-9 items-center rounded-full px-3 text-[13px] text-texto3 hover:text-texto">← Ajustar o plano</button>
-                    {projetoId && <button type="button" onClick={() => router.push(`/app/projects/${projetoId}/edit`)} className="flex h-9 items-center rounded-full border-2 border-tinta bg-violeta px-4 text-[13px] font-semibold text-white hover:bg-acentoHover">Abrir no editor →</button>}
-                  </div>
-                </div>
-                <div className="h-1 overflow-hidden rounded-sm bg-borda"><div className="h-1 bg-violeta transition-[width] duration-400" style={{ width: `${total ? (Math.min(revelar, total) / total) * 100 : 0}%` }} /></div>
-                <div className={cx('flex flex-wrap items-center gap-3 transition-opacity', !pronto && 'pointer-events-none opacity-35')}>
-                  <MenuEstilos valor={temaEfetivo} aoEscolher={setTema} marca={marcaMont} aoVerGaleria={() => setVista('estilos')} desativado={!pronto} />
-                  <span className="text-[12px] text-texto3">trocar é grátis</span>
-                  {marca.logo && (
-                    <label className="ml-auto flex items-center gap-2 text-[12px] text-texto3">
-                      <input type="checkbox" checked={marca.logoRodape} onChange={(e) => setMarca((m) => ({ ...m, logoRodape: e.target.checked }))} /> Logo também no rodapé
-                    </label>
-                  )}
+                  {!pronto && <div aria-hidden className="absolute bottom-[-1px] left-0 h-[2px] bg-violeta transition-[width] duration-400" style={{ width: `${total ? (Math.min(revelar, total) / total) * 100 : 0}%` }} />}
                 </div>
                 <div className={cx('grid gap-4', formato === 'story' ? 'grid-cols-3 xl:grid-cols-5' : 'sm:grid-cols-2 2xl:grid-cols-3')}>
                   {documento.scenes.map((cena, i) => {

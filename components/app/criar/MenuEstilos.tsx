@@ -27,7 +27,7 @@ export function MenuEstilos({ valor, aoEscolher, marca, aoVerGaleria, desativado
   const grupos = [...new Set(temas.map((t) => t.categoria ?? ''))].map((c) => ({ c, itens: temas.filter((t) => (t.categoria ?? '') === c) }))
   return (
     <div className="relative">
-      <button type="button" disabled={desativado} aria-haspopup="true" aria-expanded={aberto} onClick={() => setAberto((v) => !v)} className="flex h-9 items-center gap-2 rounded-full border border-borda bg-superficie pl-1.5 pr-3 text-[13px] hover:border-bordaForte disabled:opacity-40">
+      <button type="button" disabled={desativado} aria-haspopup="true" aria-expanded={aberto} onClick={() => setAberto((v) => !v)} title="Trocar o estilo (grátis)" className="flex h-8 items-center gap-2 whitespace-nowrap rounded-full border border-borda bg-superficie pl-1 pr-2.5 text-[13px] hover:border-bordaForte disabled:opacity-40">
         <span className="h-6 w-6 rounded-full shadow-[inset_0_0_0_1px_rgba(0,0,0,.08)]" style={{ background: amostra(atual, marca) }} />
         <span className="text-texto3">Estilo</span>
         <span className="font-medium">{atual.nome}</span>
@@ -36,7 +36,7 @@ export function MenuEstilos({ valor, aoEscolher, marca, aoVerGaleria, desativado
       {aberto && (
         <>
           <button type="button" aria-hidden tabIndex={-1} className="fixed inset-0 z-40 cursor-default" onClick={() => setAberto(false)} />
-          <div className="absolute left-0 top-11 z-50 flex max-h-[min(460px,70vh)] w-[300px] flex-col overflow-hidden rounded-[14px] border border-borda bg-superficie shadow-painel">
+          <div className="absolute left-0 top-10 z-50 flex max-h-[min(460px,70vh)] w-[300px] flex-col overflow-hidden rounded-[14px] border border-borda bg-superficie shadow-painel">
             <div role="radiogroup" aria-label="Trocar estilo" className="min-h-0 flex-1 overflow-y-auto p-1.5 rolagem-fina">
               {grupos.map(({ c, itens }) => (
                 <div key={c || 'outros'} className="pb-1">
