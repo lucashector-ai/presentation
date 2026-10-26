@@ -322,7 +322,7 @@ export function LayoutAuth({ children }: { children: ReactNode }) {
         <main className="flex flex-1 flex-col items-center justify-center py-12">
           <div className="w-full max-w-[380px]">{children}</div>
         </main>
-        <p className="m-0 text-center text-[12px] text-texto3">Ao continuar, você concorda com os Termos e a Política de Privacidade.</p>
+        <p className="m-0 text-center text-[12px] text-texto3">Ao continuar, você concorda com os <a href="/termos" target="_blank" rel="noopener" className="underline underline-offset-2 hover:text-texto">Termos de uso</a> e a <a href="/privacidade" target="_blank" rel="noopener" className="underline underline-offset-2 hover:text-texto">Política de privacidade</a>.</p>
       </div>
       <PainelAuth />
     </div>

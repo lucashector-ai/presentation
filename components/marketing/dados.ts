@@ -267,7 +267,7 @@ export const COMPARATIVO: { rotulo: string; valores: [string, string, string, st
 export const RODAPE: { titulo: string; links: { rotulo: string; href: string | null }[] }[] = [
   { titulo: 'Produto', links: [{ rotulo: 'Como funciona', href: '/#como' }, { rotulo: 'Formatos', href: '/#formatos' }, { rotulo: 'Recursos', href: '/#recursos' }, { rotulo: 'Planos e preços', href: '/precos' }] },
   { titulo: 'Guias', links: [{ rotulo: 'Apresentação com IA', href: '/apresentacao-com-ia' }, { rotulo: 'Alternativa ao Gamma', href: '/apresentacao-com-ia#gamma' }, { rotulo: 'Mostra × Gamma × Pitch × Canva', href: '/#comparativo' }, { rotulo: 'FAQ', href: '/#faq' }] },
-  { titulo: 'Empresa', links: [{ rotulo: 'Sobre', href: null }, { rotulo: 'Contato', href: null }, { rotulo: 'Termos', href: null }, { rotulo: 'Privacidade', href: null }] },
+  { titulo: 'Empresa', links: [{ rotulo: 'Sobre', href: null }, { rotulo: 'Contato', href: null }, { rotulo: 'Termos de uso', href: '/termos' }, { rotulo: 'Privacidade', href: '/privacidade' }] },
 ]
 
 // ---------- formatação ----------

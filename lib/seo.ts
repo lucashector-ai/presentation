@@ -29,7 +29,7 @@ export interface PaginaPublica {
   titulo: string
   descricao: string
   prioridade: number
-  frequencia: 'weekly' | 'monthly'
+  frequencia: 'weekly' | 'monthly' | 'yearly'
 }
 
 const resumoPlanos = () => {
@@ -42,6 +42,8 @@ export const PAGINAS: PaginaPublica[] = [
   { caminho: '/', titulo: 'Mostra — crie apresentações com IA e envie por link', descricao: DESCRICAO_PADRAO, prioridade: 1, frequencia: 'weekly' },
   { caminho: '/precos', titulo: 'Planos e preços', descricao: `Planos do Mostra: ${resumoPlanos()}. 1 crédito = 1 tela criada pela IA; pacotes avulsos que não expiram.`, prioridade: 0.9, frequencia: 'monthly' },
   { caminho: '/apresentacao-com-ia', titulo: 'Como fazer uma apresentação com IA', descricao: 'Descreva o briefing, revise o roteiro e receba telas desenhadas na sua marca, em português. A alternativa brasileira ao Gamma, Pitch e Canva.', prioridade: 0.9, frequencia: 'monthly' },
+  { caminho: '/termos', titulo: 'Termos de uso', descricao: 'Termos de uso do Mostra: conta, planos e créditos, conteúdo e IA, links de apresentação, uso aceitável e cancelamento.', prioridade: 0.3, frequencia: 'yearly' },
+  { caminho: '/privacidade', titulo: 'Política de privacidade', descricao: 'Como o Mostra trata seus dados pessoais (LGPD): o que coletamos, para quê, com quem compartilhamos, IA, cookies e seus direitos.', prioridade: 0.3, frequencia: 'yearly' },
   { caminho: '/signup', titulo: 'Criar conta grátis', descricao: `Crie sua conta no Mostra: ${PLANOS.free.creditos.quantidade} créditos de IA e ${PLANOS.free.limites.projetos} projetos grátis, sem cartão de crédito. Em português, com preços em reais.`, prioridade: 0.6, frequencia: 'monthly' },
 ]
 
