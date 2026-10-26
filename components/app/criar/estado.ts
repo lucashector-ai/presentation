@@ -8,6 +8,7 @@ import type { Estilo } from '@/lib/ia/roteiro'
 import type { PapeisMarca, TemaId } from '@/lib/ia/designSystem'
 import type { PerfilMarca } from '@/lib/marca/perfil'
 import type { Idioma } from '@/lib/ia/pedido'
+import type { RegraLogo } from '@/lib/marca/logo'
 import type { TipoPedido, Tom } from '@/lib/ia/tiposApresentacao'
 
 export const PASSOS = ['briefing', 'marca', 'material', 'estilo', 'tamanho', 'revisar', 'roteiro', 'design'] as const
@@ -42,6 +43,8 @@ export interface LogoEscolhido {
   cor: string
   /** Cores marcantes lidas do logo. */
   cores: string[]
+  /** Logo em SVG: as cores do arquivo (exatas, da mais usada) e o markup para as prévias. */
+  svg?: { cores: string[]; markup?: string } | null
 }
 
 export interface FotoEscolhida { assetId: string; url: string; nome: string; legenda: string }
@@ -68,6 +71,8 @@ export interface MarcaEscolhida {
   papeis?: PapeisMarca | null
   /** Perfil do manual da marca (revisado), salvo no kit e usado no roteiro, no design e na montagem. */
   perfil?: PerfilMarca | null
+  /** Regra de cores do logo SVG (escolhida ou lida do pedido); sem regra = automático. */
+  logoCores?: RegraLogo | null
 }
 
 export interface MaterialEscolhido {
@@ -88,7 +93,7 @@ export interface EstiloEscolhido {
   energia: Estilo | 'auto'
 }
 
-export const MARCA_VAZIA: MarcaEscolhida = { nome: '', cores: [], aplicarCores: true, fontes: null, logo: null, logoRodape: false, kitId: null, papeis: null, perfil: null }
+export const MARCA_VAZIA: MarcaEscolhida = { nome: '', cores: [], aplicarCores: true, fontes: null, logo: null, logoRodape: false, kitId: null, papeis: null, perfil: null, logoCores: null }
 export const MATERIAL_VAZIO: MaterialEscolhido = { origem: 'zero', conteudo: '', arquivo: null, lido: null, numeros: '', obrigatorio: '', evitar: '', fotos: [] }
 
 /** Números-chave digitados (um por linha: "38% | mais passageiros") no formato do roteiro ("valor|legenda"). */

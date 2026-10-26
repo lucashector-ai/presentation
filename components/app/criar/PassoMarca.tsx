@@ -17,13 +17,15 @@ import { coresDoTexto, ordenarCoresDaMarca, paletasDoLogo, PALETAS_PRONTAS, type
 import { paletaDoPedido } from '@/lib/ia/analisePedido'
 import { pilhaFonte } from '@/lib/design-tokens'
 import { analisarLogo } from './logo'
+import { CoresDoLogo } from './CoresDoLogo'
+import { coresDoSvg } from '@/lib/importar/svg'
 import type { MarcaEscolhida } from './estado'
 import { Amostras, Secao, SeloCusto } from './ui'
 import { ManualMarca } from './ManualMarca'
 
 const ACEITA_LOGO = 'image/png,image/jpeg,image/webp,image/svg+xml,image/gif,.svg'
 
-export function PassoMarca({ marca, aoMudar, prompt, kits, aoSalvarKit, aoExcluirKit, aplicarKit, previa }: {
+export function PassoMarca({ marca, aoMudar, prompt, kits, aoSalvarKit, aoExcluirKit, aplicarKit, previa, fundos }: {
   marca: MarcaEscolhida
   aoMudar: (m: MarcaEscolhida | ((m: MarcaEscolhida) => MarcaEscolhida)) => void
   prompt: string
@@ -33,6 +35,8 @@ export function PassoMarca({ marca, aoMudar, prompt, kits, aoSalvarKit, aoExclui
   aplicarKit: (k: KitMarca) => void
   /** Prévia da capa com a marca (renderizada pelo chamador). */
   previa: ReactNode
+  /** Fundos claro e escuro do estilo (prévias das cores do logo). */
+  fundos?: { claro: string; escuro: string }
 }) {
   const { mostrar } = useToast()
   const entrada = useRef<HTMLInputElement>(null)
@@ -55,9 +59,13 @@ export function PassoMarca({ marca, aoMudar, prompt, kits, aoSalvarKit, aoExclui
       const analise = await analisarLogo(f)
       const asset = await dados.enviarArquivo(f, (p) => setEnviando(p.progresso), { sanitizarSvg: sanitizarSvgNavegador })
       const cores = ordenarCoresDaMarca(analise.cores)
+      // SVG: as cores exatas do arquivo (as regras de cor do logo trocam cada uma delas)
+      const ehSvg = f.type === 'image/svg+xml' || /\.svg$/i.test(f.name)
+      const markup = ehSvg ? sanitizarSvgNavegador(await f.text()) : ''
+      const svg = markup ? { cores: coresDoSvg(markup).slice(0, 24), markup } : null
       aoMudar((m) => ({
         ...m,
-        logo: { assetId: asset.id, url: asset.url, nome: f.name, largura: analise.largura, altura: analise.altura, cor: analise.media, cores },
+        logo: { assetId: asset.id, url: asset.url, nome: f.name, largura: analise.largura, altura: analise.altura, cor: analise.media, cores, svg },
         // sem cores ainda: a primeira paleta do logo entra direto (dá para trocar ou tirar)
         cores: m.cores.length || !cores.length ? m.cores : (paletasDoLogo(cores)[0]?.cores ?? cores).slice(0, 4),
       }))
@@ -135,6 +143,7 @@ export function PassoMarca({ marca, aoMudar, prompt, kits, aoSalvarKit, aoExclui
               )}
               <input ref={entrada} type="file" accept={ACEITA_LOGO} aria-label="Arquivo do logo" className="hidden" onChange={(e) => { void enviarLogo(e.target.files?.[0]); e.target.value = '' }} />
             </div>
+            {marca.logo?.svg?.cores.length ? <CoresDoLogo marca={marca} aoMudar={aoMudar} fundos={fundos} /> : null}
             {marca.logo && (
               <label className="flex items-center justify-between gap-3 text-[13px] text-texto2">
                 <span>Mostrar também discreto no rodapé das telas de conteúdo</span>

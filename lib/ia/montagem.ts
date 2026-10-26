@@ -13,6 +13,7 @@ import type { Camada as CamadaCena } from '@/lib/scene/schema'
 import { COMPONENTES, GRADE, alfa, contraste, coresIndicador, legivel, luminanciaRelativa, misturar, regrasDe, superficie, type Alinhamento, type Decoracao, type Fundo, type Superficie, type TemaVisual, type TipoTela } from './designSystem'
 import { acimaNaGrade, alinharNaGrade, colunasNaGrade, entrelinhaNaGrade, espacoNaGrade, naGrade, repartirNaGrade, type MedidaDado, type Seguidor } from './grade8'
 import { formatarComo, formatarPct, valorDe } from './numeros'
+import { recolorDoLogo, type RegraLogo } from '@/lib/marca/logo'
 
 export type Estilo = 'editorial' | 'ousado' | 'minimal'
 
@@ -78,6 +79,11 @@ export interface LogoMontagem {
   cor: string
   /** Também discreto no rodapé das telas de conteúdo. */
   rodape: boolean
+  /**
+   * Logo em SVG: as cores do arquivo, a regra de cores e as cores da identidade. Entra como camada vetorial com as
+   * cores trocadas para cada fundo (lib/marca/logo.ts), editável depois em "Cores do vetor".
+   */
+  svg?: { cores: string[]; regra?: RegraLogo | null; marca: string[] } | null
 }
 export interface FotoMontagem { assetId: string; legenda: string }
 
@@ -691,6 +697,14 @@ export function montarTela(d: TelaDesenhada, c: ContextoMontagem, interno: Inter
     let w = Math.max(GRADE, naGrade(h * prop))
     if (w > maxW) { w = Math.max(GRADE, abaixo(maxW)); h = Math.max(GRADE, naGrade(w / prop)) }
     const xl = align === 'center' ? x + (maxW - w) / 2 : align === 'right' ? x + maxW - w : x
+    const caixa = { x: Math.round(xl), y: Math.round(y + (maxH - h) / 2), width: w, height: h }
+    if (lg.svg?.cores.length) {
+      // SVG: as cores seguem a regra (e a identidade) e nunca somem no fundo desta tela
+      const recolor = recolorDoLogo({ regra: lg.svg.regra ?? { modo: 'auto' }, cores: lg.svg.cores, fundo: s.fundo, marca: lg.svg.marca.length ? lg.svg.marca : [c.tema.acento] })
+      const v: Camada = { id: c.uid(papel), type: 'svg', assetId: lg.assetId, recolor, fit: 'contain', name: papel === 'logo' ? 'logo' : 'logo-rodape', ...caixa, ariaLabel: c.marca ? `Logo ${c.marca}` : 'Logo', enterAnimation: animTexto(0) }
+      L.push(v)
+      return v
+    }
     const apaga = contraste(lg.cor, s.fundo) < 2
     const escuroAtras = luminanciaRelativa(s.fundo) < 0.3
     const l: Camada = {

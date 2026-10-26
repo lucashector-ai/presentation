@@ -6,7 +6,7 @@ import 'server-only'
 import type { z } from 'zod'
 import type { Contexto } from './servidor'
 import { ehUuid, ErroHttp } from './servidor'
-import type { KitMarca, KitMarcaReq } from './contratos'
+import { RegraLogoSchema, type KitMarca, type KitMarcaReq } from './contratos'
 import { sql } from '@/lib/db/neon'
 import { lerPerfil } from '@/lib/marca/perfil'
 
@@ -29,7 +29,9 @@ interface LinhaKit {
 const iso = (v: string | Date) => (v instanceof Date ? v.toISOString() : new Date(v).toISOString())
 
 export function paraKit(l: LinhaKit): KitMarca {
-  const meta = (l.logo_meta ?? {}) as { largura?: number; altura?: number; cor?: string }
+  const meta = (l.logo_meta ?? {}) as { largura?: number; altura?: number; cor?: string; svgCores?: unknown; regra?: unknown }
+  const svgCores = Array.isArray(meta.svgCores) ? meta.svgCores.filter((c): c is string => typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c)) : undefined
+  const regra = RegraLogoSchema.safeParse(meta.regra)
   const cores = Array.isArray(l.colors) ? (l.colors as unknown[]).filter((c): c is string => typeof c === 'string') : []
   return {
     id: l.id,
@@ -37,7 +39,7 @@ export function paraKit(l: LinhaKit): KitMarca {
     cores,
     fontes: l.font_title && l.font_body ? { titulo: l.font_title, texto: l.font_body } : null,
     // mídia apagada (ou ainda sem estar pronta): o kit fica sem logo
-    logo: l.logo_asset_id && l.logo_ok && meta.largura && meta.altura ? { assetId: l.logo_asset_id, largura: meta.largura, altura: meta.altura, cor: meta.cor ?? '#808080' } : null,
+    logo: l.logo_asset_id && l.logo_ok && meta.largura && meta.altura ? { assetId: l.logo_asset_id, largura: meta.largura, altura: meta.altura, cor: meta.cor ?? '#808080', ...(svgCores?.length ? { svgCores } : {}), ...(regra.success ? { regra: regra.data } : {}) } : null,
     logoRodape: l.logo_in_footer,
     perfil: lerPerfil(l.brand_profile),
     criadoEm: iso(l.created_at),
@@ -76,7 +78,7 @@ export async function conferirLogo(ctx: Contexto, entrada: z.infer<typeof KitMar
   if (!a) throw new ErroHttp('entrada_invalida', 'O logo precisa ser uma mídia deste espaço.')
 }
 
-export const metaDoLogo = (entrada: z.infer<typeof KitMarcaReq>) => JSON.stringify(entrada.logo ? { largura: entrada.logo.largura, altura: entrada.logo.altura, cor: entrada.logo.cor } : {})
+export const metaDoLogo = (entrada: z.infer<typeof KitMarcaReq>) => JSON.stringify(entrada.logo ? { largura: entrada.logo.largura, altura: entrada.logo.altura, cor: entrada.logo.cor, ...(entrada.logo.svgCores?.length ? { svgCores: entrada.logo.svgCores } : {}), ...(entrada.logo.regra ? { regra: entrada.logo.regra } : {}) } : {})
 
 /** Perfil do manual da marca como JSON para a coluna brand_profile (null = kit sem manual). */
 export const perfilDoKit = (entrada: z.infer<typeof KitMarcaReq>) => (entrada.perfil ? JSON.stringify(entrada.perfil) : null)

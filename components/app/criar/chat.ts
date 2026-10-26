@@ -31,6 +31,8 @@ export interface Entendimento {
   temLogo: boolean
   temKit: boolean
   material: boolean
+  /** Regra do logo lida no pedido ("logo em branco…"). */
+  regraLogo?: string
 }
 
 /** Primeira resposta: o que foi entendido do pedido, em uma frase ou duas. */
@@ -42,6 +44,7 @@ export function mensagemEntendimento(e: Entendimento): string {
   if (e.estrutura >= 3) lidos.push(`a estrutura tela a tela (${e.estrutura} telas)`)
   if (e.cores.length) lidos.push(`as cores (${e.cores.slice(0, 3).join(', ')}${e.cores.length > 3 ? '…' : ''})`)
   if (e.material) lidos.push('o material anexado')
+  if (e.regraLogo) lidos.push(`a regra do logo (${e.regraLogo})`)
   if (lidos.length) partes.push(`Já reconheci ${lista(lidos)}: isso entra direto, sem digitar de novo.`)
   return partes.join(' ')
 }

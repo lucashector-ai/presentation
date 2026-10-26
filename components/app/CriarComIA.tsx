@@ -37,8 +37,10 @@ import { Amostras, MiniaturaFluida, Secao, Segmento, SeloCusto } from './criar/u
 import { MenuEstilos } from './criar/MenuEstilos'
 import { idMensagem, mensagemDecisoes, mensagemEntendimento, mensagemGerando, mensagemPlano, mensagemPronta, tamanhoTexto, type Mensagem } from './criar/chat'
 import { Compositor, Inicio, ListaMensagens, nomeDoAnexo, type AcaoMais } from './criar/Conversa'
+import { gravarSessao, lerSessao, novoIdSessao, type SessaoCriar } from './criar/sessao'
 import type { DocumentoProjeto } from '@/lib/scene/schema'
 import { marcaDoPerfil } from '@/lib/marca/perfil'
+import { descreverRegra, regraLogoDoPedido } from '@/lib/marca/logo'
 
 const FORMATOS: readonly Formato[] = ['slides', 'story', 'explorar']
 const NOMES_FORMATO: Record<Formato, string> = { slides: 'Slides', story: 'Story', explorar: 'Explorar' }
@@ -82,6 +84,8 @@ export function CriarComIA() {
   const [rascunho, setRascunho] = useState('')
   const [colado, setColado] = useState<string | null>(null)
   const [conversaRecolhida, setConversaRecolhida] = useState(false)
+  const idSessao = useRef(params.get('sessao') || novoIdSessao())
+  const pularGravacao = useRef(false)
   const [briefing, setBriefing] = useState<Briefing>(() => ({
     prompt: promptInicial,
     tipo: (TIPOS_APRESENTACAO as readonly string[]).includes(params.get('tipo') ?? '') ? (params.get('tipo') as TipoPedido) : 'auto',
@@ -149,7 +153,11 @@ export function CriarComIA() {
   // ---------- o que vai para a IA e para a montagem ----------
   const tipoDetectado = tipoEfetivo({ tipo: briefing.tipo, prompt: briefing.prompt, conteudo: material.origem === 'zero' ? '' : material.conteudo })
   const marcaMont = useMemo<Marca & { aplicarCores: boolean }>(() => ({ nome: marca.nome.trim().slice(0, 60), cores: marca.cores.filter((c) => RE_HEX.test(c)).slice(0, 4), aplicarCores: marca.aplicarCores, fontes: marca.fontes, ...(marca.papeis ? { papeis: marca.papeis } : {}), ...(marca.perfil ? { perfil: marca.perfil } : {}) }), [marca.nome, marca.cores, marca.aplicarCores, marca.fontes, marca.papeis, marca.perfil])
-  const logoMont = useMemo<LogoMontagem | null>(() => (marca.logo ? { assetId: marca.logo.assetId, largura: marca.logo.largura, altura: marca.logo.altura, cor: marca.logo.cor, rodape: marca.logoRodape } : null), [marca.logo, marca.logoRodape])
+  const logoMont = useMemo<LogoMontagem | null>(() => (marca.logo ? {
+    assetId: marca.logo.assetId, largura: marca.logo.largura, altura: marca.logo.altura, cor: marca.logo.cor, rodape: marca.logoRodape,
+    // logo em SVG: as cores seguem a regra e a identidade em cada fundo
+    svg: marca.logo.svg?.cores.length ? { cores: marca.logo.svg.cores, regra: marca.logoCores ?? null, marca: marca.cores.filter((c) => RE_HEX.test(c)) } : null,
+  } : null), [marca.logo, marca.logoRodape, marca.logoCores, marca.cores])
   const fotosMont = useMemo<FotoMontagem[]>(() => material.fotos.map((f) => ({ assetId: f.assetId, legenda: f.legenda })), [material.fotos])
   const assets = useMemo<AssetsResolvidos>(() => {
     const m: AssetsResolvidos = Object.fromEntries(assetsDoEspaco.map((a) => [a.id, { url: a.url, thumbUrl: a.thumbUrl, posterUrl: a.posterUrl }]))
@@ -340,6 +348,7 @@ export function CriarComIA() {
   // (gravações em fila: a próxima parte da revisão da anterior, sem conflito)
   useEffect(() => {
     if (!pronto || !documento || !roteiro || criadoPara.current === documento) return
+    if (pularGravacao.current) { pularGravacao.current = false; criadoPara.current = documento; return }
     criadoPara.current = documento
     const nome = roteiro.titulo.trim().slice(0, 80) || 'Nova apresentação'
     setSalvandoProjeto(true)
@@ -376,7 +385,8 @@ export function CriarComIA() {
       aplicarCores: true,
       // par da biblioteca ou quaisquer famílias do Google escolhidas no kit
       fontes: k.fontes?.titulo && k.fontes.texto ? k.fontes : null,
-      logo: k.logo && urlLogo ? { assetId: k.logo.assetId, url: urlLogo, nome: 'Logo do kit', largura: k.logo.largura, altura: k.logo.altura, cor: k.logo.cor, cores: k.cores } : null,
+      logo: k.logo && urlLogo ? { assetId: k.logo.assetId, url: urlLogo, nome: 'Logo do kit', largura: k.logo.largura, altura: k.logo.altura, cor: k.logo.cor, cores: k.cores, svg: k.logo.svgCores?.length ? { cores: k.logo.svgCores.map((c) => c.toLowerCase()) } : null } : null,
+      logoCores: k.logo?.regra ?? null,
       logoRodape: k.logoRodape,
       kitId: k.id,
       // manual da marca do kit: perfil e os papéis de cor dele (fundo claro, cartão, indicadores)
@@ -392,7 +402,7 @@ export function CriarComIA() {
         nome: marca.nome.trim() || 'Minha marca',
         cores: marca.cores.filter((c) => RE_HEX.test(c)),
         fontes: marca.fontes,
-        logo: marca.logo ? { assetId: marca.logo.assetId, largura: marca.logo.largura, altura: marca.logo.altura, cor: marca.logo.cor } : null,
+        logo: marca.logo ? { assetId: marca.logo.assetId, largura: marca.logo.largura, altura: marca.logo.altura, cor: marca.logo.cor, ...(marca.logo.svg?.cores.length ? { svgCores: marca.logo.svg.cores, regra: marca.logoCores ?? null } : {}) } : null,
         logoRodape: marca.logoRodape,
         perfil: marca.perfil ?? null,
       })
@@ -440,16 +450,20 @@ export function CriarComIA() {
     setBriefing((b) => ({ ...b, prompt: cabe }))
     if (resto) setMaterial((m) => ({ ...m, origem: m.origem === 'zero' ? 'texto' : m.origem, conteudo }))
     setEnviado(true)
+    fixarUrlDaSessao()
     dizer({ de: 'pessoa', texto: texto.trim(), ...(anexo ? { anexo: { nome: nomeDoAnexo(anexo), tamanho: tamanhoTexto(anexo) } } : {}) })
     const an = analisarPedido(cabe)
     const nTelas = telasEscolhidas.current || !an.telas ? telasOk : limitarTelas(an.telas, limite)
     const tipo = tipoEfetivo({ tipo: briefing.tipo, prompt: cabe, conteudo: material.origem === 'zero' && !resto ? '' : conteudo })
     const nomeMarca = marca.nome || an.marca
     const cores = marca.cores.length ? marca.cores : an.paleta?.cores ?? []
+    // regra do logo escrita no pedido ("logo em branco", "nas cores da marca"…): vale se a pessoa não escolheu outra
+    const regraLogo = regraLogoDoPedido(cabe)
+    if (regraLogo) setMarca((m) => (m.logoCores ? m : { ...m, logoCores: regraLogo.regra }))
     const lendo = dizer({ de: 'etapa', texto: 'Lendo o pedido…', feito: false })
     depois(500, () => {
       concluir(lendo, 'Pedido lido')
-      dizer({ de: 'ia', texto: mensagemEntendimento({ telas: nTelas, tipo: TIPOS[tipo].nome, marca: nomeMarca, publico: briefing.publico.trim(), estrutura: an.estrutura.length, cores, temLogo: !!marca.logo, temKit: !!marca.kitId, material: !!conteudo || material.fotos.length > 0 }) })
+      dizer({ de: 'ia', texto: mensagemEntendimento({ telas: nTelas, tipo: TIPOS[tipo].nome, marca: nomeMarca, publico: briefing.publico.trim(), estrutura: an.estrutura.length, cores, temLogo: !!marca.logo, temKit: !!marca.kitId, material: !!conteudo || material.fotos.length > 0, regraLogo: regraLogo?.motivo }) })
     })
     depois(1100, () => {
       dizer({ de: 'ia', texto: mensagemDecisoes({ temLogo: !!marca.logo, temKit: !!marca.kitId, cores, marca: nomeMarca, temFontes: !!marca.fontes }) })
@@ -515,6 +529,9 @@ export function CriarComIA() {
   useEffect(() => {
     if (chegou.current) return
     chegou.current = true
+    // voltando da apresentação, do editor ou de um recarregar: a sessão desta aba volta como estava
+    const salva = lerSessao(params.get('sessao'))
+    if (salva) return restaurar(salva)
     let longo = ''
     if (params.get('colado')) {
       try { longo = sessionStorage.getItem(CHAVE_PEDIDO_COLADO) ?? ''; sessionStorage.removeItem(CHAVE_PEDIDO_COLADO) } catch { /* sem armazenamento */ }
@@ -523,6 +540,52 @@ export function CriarComIA() {
     else if (promptInicial) enviarPedido(promptInicial, null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /** A URL passa a apontar para a sessão (sem ?prompt=, que mandaria o pedido de novo ao voltar). */
+  function fixarUrlDaSessao() {
+    try { window.history.replaceState(window.history.state, '', `/app/criar?sessao=${idSessao.current}`) } catch { /* sem history */ }
+  }
+
+  function restaurar(v: SessaoCriar) {
+    telasEscolhidas.current = true
+    marcaAplicadaPara.current = v.briefing.prompt
+    idProjeto.current = v.projetoId
+    // etapas que estavam em andamento ficaram para trás
+    setMensagens(v.mensagens.map((m) => (m.de === 'etapa' && !m.feito ? { ...m, feito: true, texto: 'Interrompido' } : m)))
+    setEnviado(true)
+    setBriefing(v.briefing)
+    setFormato(v.formato)
+    setTelasBruto(v.telas)
+    setMarca(v.marca)
+    setMaterial(v.material)
+    setTema(v.tema)
+    setEnergia(v.energia)
+    setRoteiro(v.roteiro)
+    setNota(v.nota)
+    setTemaIa(v.temaIa)
+    setTipoIa(v.tipoIa)
+    setImagens(v.imagens)
+    setDensidade(v.densidade)
+    setDesenhos(v.desenhos)
+    setProjetoId(v.projetoId)
+    const completo = v.design && v.pronto
+    setDesign(completo)
+    setRevelar(completo ? Number.MAX_SAFE_INTEGER : 0)
+    // o projeto já foi salvo com estas telas: não grava de novo só por ter voltado
+    pularGravacao.current = completo && !!v.projetoId
+    const vistas: Vista[] = ['decisoes', 'material', 'estilos', 'plano', 'apresentacao']
+    const vista = (vistas as string[]).includes(v.vista ?? '') ? (v.vista as Vista) : null
+    setVista(vista === 'apresentacao' && !completo ? (v.roteiro ? 'plano' : 'decisoes') : vista)
+  }
+
+  // grava a sessão (com uma pausa, para não gravar a cada tecla)
+  useEffect(() => {
+    if (!enviado) return
+    const t = window.setTimeout(() => gravarSessao(idSessao.current, {
+      v: 1, mensagens, briefing, formato, telas, marca, material, tema, energia, roteiro, nota, temaIa, tipoIa, imagens, densidade, desenhos, projetoId, vista, design, pronto,
+    }), 400)
+    return () => window.clearTimeout(t)
+  }, [enviado, mensagens, briefing, formato, telas, marca, material, tema, energia, roteiro, nota, temaIa, tipoIa, imagens, densidade, desenhos, projetoId, vista, design, pronto])
 
   const parar = () => { abortar.current?.abort(); setGerando(false); setDesenhando(false) }
   const ocupado = gerando || desenhando
@@ -554,7 +617,7 @@ export function CriarComIA() {
   const vistasDisponiveis: Vista[] = [...(enviado ? (['decisoes'] as const) : []), 'material', 'estilos', ...(temRoteiro ? (['plano'] as const) : []), ...(design ? (['apresentacao'] as const) : [])]
   const painelAberto = vista !== null
   const checklist = [
-    { id: 'titulo-logo', nome: 'Logo', feito: !!marca.logo, valor: marca.logo ? 'Enviado' : `Sem logo${marca.nome ? `: “${marca.nome}” em texto` : ''}` },
+    { id: 'titulo-logo', nome: 'Logo', feito: !!marca.logo, valor: marca.logo ? (marca.logo.svg?.cores.length ? `SVG · ${descreverRegra(marca.logoCores)}` : 'Enviado') : marca.logoCores ? `Ao enviar: ${descreverRegra(marca.logoCores)}` : `Sem logo${marca.nome ? `: “${marca.nome}” em texto` : ''}` },
     { id: 'titulo-cores', nome: 'Identidade visual', feito: marca.cores.length > 0, valor: marca.cores.length ? <Amostras cores={marca.cores} tamanho={14} /> : 'Cores do estilo' },
     { id: 'titulo-fontes', nome: 'Fontes', feito: !!marca.fontes, valor: marca.fontes ? `${marca.fontes.titulo} + ${marca.fontes.texto}` : 'Do estilo' },
     { id: 'titulo-tamanho', nome: 'Tamanho', feito: true, valor: `${plural(telasOk, 'tela', 'telas')} · ${NOMES_FORMATO[formato]}` },
@@ -652,7 +715,7 @@ export function CriarComIA() {
                 <Secao titulo="Briefing" dica="Tipo, público, tom e idioma (opcional)." selo={<SeloCusto />} id="titulo-briefing">
                   <OpcoesBriefing briefing={briefing} aoMudar={setBriefing} tipoDetectado={tipoDetectado} />
                 </Secao>
-                <PassoMarca marca={marca} aoMudar={setMarca} prompt={briefing.prompt} kits={kits} aoSalvarKit={salvarKit} aoExcluirKit={excluirKit} aplicarKit={aplicarKit} previa={<div className="overflow-hidden rounded-md"><MiniaturaFluida cena={previaCapa} assets={assets} /></div>} />
+                <PassoMarca marca={marca} aoMudar={setMarca} prompt={briefing.prompt} kits={kits} aoSalvarKit={salvarKit} aoExcluirKit={excluirKit} aplicarKit={aplicarKit} fundos={{ claro: temaVisual.claro.fundo, escuro: temaVisual.escuro.fundo }} previa={<div className="overflow-hidden rounded-md"><MiniaturaFluida cena={previaCapa} assets={assets} /></div>} />
                 <EscolhaTamanho formato={formato} aoFormato={setFormato} telas={telasOk} aoTelas={setTelas} planoId={planoId} limite={limite} aoUpgrade={(p) => abrirPlano(p)} bloqueado={temRoteiro} />
                 {avisoTelas}
               </div>

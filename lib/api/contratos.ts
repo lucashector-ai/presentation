@@ -240,7 +240,18 @@ export type WorkspaceItem = z.infer<typeof WorkspaceItemSchema>
 
 const HexSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Cor deve ser #RRGGBB').transform((c) => c.toUpperCase())
 /** Logo do kit: a mídia do workspace e o que a montagem precisa (proporção e cor média). */
-export const LogoKitSchema = z.object({ assetId: z.string().uuid().or(z.string().regex(/^as-[a-z0-9]+$/)), largura: z.number().positive().max(100000), altura: z.number().positive().max(100000), cor: HexSchema })
+/** Regra de cores do logo SVG (lib/marca/logo.ts). */
+export const RegraLogoSchema = z.object({
+  modo: z.enum(['auto', 'original', 'marca', 'mono', 'personalizado']),
+  cor: z.string().regex(/^(auto|#[0-9a-fA-F]{6})$/).optional(),
+  mapa: z.record(z.string().regex(/^#[0-9a-fA-F]{6}$/), z.string().regex(/^#[0-9a-fA-F]{6}$/)).optional(),
+})
+export const LogoKitSchema = z.object({
+  assetId: z.string().uuid().or(z.string().regex(/^as-[a-z0-9]+$/)), largura: z.number().positive().max(100000), altura: z.number().positive().max(100000), cor: HexSchema,
+  /** Logo em SVG: as cores do arquivo e a regra de cores (ficam no logo_meta do kit). */
+  svgCores: z.array(z.string().regex(/^#[0-9a-fA-F]{6}$/)).max(24).optional(),
+  regra: RegraLogoSchema.nullable().optional(),
+})
 export const KitMarcaReq = z.object({
   nome: z.string().trim().min(1, 'Dê um nome ao kit').max(60),
   cores: z.array(HexSchema).max(6).default([]),
