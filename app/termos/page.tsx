@@ -8,6 +8,8 @@ import { jsonLdBreadcrumb, jsonLdWebPage, metadadosPagina } from '@/lib/seo'
 export const metadata: Metadata = metadadosPagina('/termos')
 
 const E = EMPRESA
+/** ", serviço de X, CNPJ Y, com sede em Z" — só o que estiver preenchido em lib/legal.ts. */
+const OPERADOR = [E.razaoSocial && `, serviço de ${E.razaoSocial}`, E.cnpj && `, CNPJ ${E.cnpj}`, E.endereco && `, com sede em ${E.endereco}`].filter(Boolean).join('')
 const F = PLANOS.free
 const link = (href: string, texto: string) => <a href={href} className="text-violeta underline-offset-2 hover:underline">{texto}</a>
 
@@ -21,7 +23,7 @@ const SECOES: SecaoLegal[] = [
     titulo: 'Aceite',
     corpo: (
       <>
-        <p>Estes termos regem o uso do {E.marca} ({E.site}), serviço de {E.razaoSocial}, CNPJ {E.cnpj}, com sede em {E.endereco}. Ao criar uma conta ou usar o {E.marca}, você concorda com eles e com a {link('/privacidade', 'Política de privacidade')}.</p>
+        <p>Estes termos regem o uso do {E.marca} ({E.site}){OPERADOR}. Ao criar uma conta ou usar o {E.marca}, você concorda com eles e com a {link('/privacidade', 'Política de privacidade')}.</p>
         <p>Se você usa o {E.marca} em nome de uma empresa, declara que pode aceitá-los por ela.</p>
       </>
     ),

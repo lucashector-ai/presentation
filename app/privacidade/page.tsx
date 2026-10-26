@@ -7,6 +7,8 @@ import { jsonLdBreadcrumb, jsonLdWebPage, metadadosPagina } from '@/lib/seo'
 export const metadata: Metadata = metadadosPagina('/privacidade')
 
 const E = EMPRESA
+/** ", operado por X, CNPJ Y, com sede em Z" — só o que estiver preenchido em lib/legal.ts. */
+const OPERADOR = [E.razaoSocial && `, operado por ${E.razaoSocial}`, E.cnpj && `, CNPJ ${E.cnpj}`, E.endereco && `, com sede em ${E.endereco}`].filter(Boolean).join('')
 const email = (e: string) => <a href={`mailto:${e}`} className="text-violeta underline-offset-2 hover:underline">{e}</a>
 
 /**
@@ -20,8 +22,8 @@ const SECOES: SecaoLegal[] = [
     titulo: 'Quem somos',
     corpo: (
       <>
-        <p>O {E.marca} ({E.site}) é operado por {E.razaoSocial}, CNPJ {E.cnpj}, com sede em {E.endereco} (“{E.marca}”, “nós”). Para os dados pessoais tratados para oferecer o serviço, somos o <strong>controlador</strong>, nos termos da Lei Geral de Proteção de Dados (Lei 13.709/2018, “LGPD”).</p>
-        <p>Encarregado pelo tratamento de dados pessoais: {E.encarregado}, pelo e-mail {email(E.emailPrivacidade)}.</p>
+        <p>O {E.marca} ({E.site}){OPERADOR} (“{E.marca}”, “nós”). Para os dados pessoais tratados para oferecer o serviço, somos o <strong>controlador</strong>, nos termos da Lei Geral de Proteção de Dados (Lei 13.709/2018, “LGPD”).</p>
+        <p>Encarregado pelo tratamento de dados pessoais{E.encarregado ? `: ${E.encarregado}` : ''}, pelo e-mail {email(E.emailPrivacidade)}.</p>
         <p>Quando você usa o {E.marca} para criar apresentações com dados de outras pessoas (clientes, equipe, alunos), quem decide o que entra nelas é você: nesse conteúdo, você é o controlador e nós tratamos os dados em seu nome.</p>
       </>
     ),
